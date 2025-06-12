@@ -9,7 +9,7 @@ all: build
 build: piri
 
 piri:
-	go build $(GOFLAGS) $(TAGS) -o ./piri ./cmd/storage
+	go build $(GOFLAGS) $(TAGS) -o ./piri ./cmd/main.go
 
 install:
 	go install ./cmd/storage

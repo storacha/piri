@@ -204,7 +204,7 @@ func New(opts ...Option) (*StorageService, error) {
 		}
 		pdpImpl = c.pdp.PDPService
 		if pdpImpl == nil {
-			curioClient := curio.New(http.DefaultClient, c.pdp.CurioEndpoint, curioAuth)
+			curioClient := curio.New(http.DefaultClient, c.pdp.PDPServerURL, curioAuth)
 			pdpService, err := pdp.NewRemotePDPService(
 				c.pdp.PDPDatastore,
 				c.pdp.DatabasePath,
