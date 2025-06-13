@@ -92,7 +92,7 @@ func NewLocal(
 	linkQueue, err := jobqueue.New(
 		LinkQueueName,
 		db,
-		&serializer.IPLDSerializerCBOR[datamodel.Link]{
+		&serializer.IPLDCBOR[datamodel.Link]{
 			Typ:  &schema.TypeLink{},
 			Opts: types.Converters,
 		},
@@ -107,7 +107,7 @@ func NewLocal(
 	pieceQueue, err := jobqueue.New(
 		PieceQueueName,
 		db,
-		&serializer.IPLDSerializerCBOR[piece.PieceLink]{
+		&serializer.IPLDCBOR[piece.PieceLink]{
 			Typ:  aggregate.PieceLinkType(),
 			Opts: types.Converters,
 		},

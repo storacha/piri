@@ -17,6 +17,7 @@ import (
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 
+	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/pdp/curio"
 	"github.com/storacha/piri/pkg/presets"
@@ -258,7 +259,14 @@ func New(opts ...Option) (*StorageService, error) {
 		return nil, fmt.Errorf("creating claim service: %w", err)
 	}
 
-	repl, err := replicator.New(id, pdpImpl, blobs, claims, receiptStore, uploadServiceConnection)
+	if c.replicatorDB == nil {
+		c.replicatorDB, err = sqlitedb.NewMemory()
+		if err != nil {
+			return nil, fmt.Errorf("creating in-memory replicator db: %w", err)
+		}
+	}
+
+	repl, err := replicator.New(id, pdpImpl, blobs, claims, receiptStore, uploadServiceConnection, c.replicatorDB)
 	if err != nil {
 		return nil, fmt.Errorf("creating replicator service: %w", err)
 	}

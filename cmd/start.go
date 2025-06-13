@@ -26,6 +26,8 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/storacha/piri/cmd/enum"
+	"github.com/storacha/piri/pkg/database"
+	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
@@ -272,6 +274,20 @@ var StartCmd = &cli.Command{
 			indexingServiceProofs = append(indexingServiceProofs, delegation.FromDelegation(dlg))
 		}
 
+		replicatorDir, err := mkdirp(dataDir, "replicator")
+		if err != nil {
+			return err
+		}
+
+		db, err := sqlitedb.New(filepath.Join(replicatorDir, "replicator.db"),
+			database.WithJournalMode("WAL"),
+			database.WithTimeout(5*time.Second),
+			database.WithSyncMode(database.SyncModeNORMAL),
+		)
+		if err != nil {
+			return fmt.Errorf("creating jobqueue database: %w", err)
+		}
+
 		opts := []storage.Option{
 			storage.WithIdentity(id),
 			storage.WithBlobstore(blobStore),
@@ -284,6 +300,7 @@ var StartCmd = &cli.Command{
 			storage.WithPublisherIndexingServiceConfig(indexingServiceDID, indexingServiceURL),
 			storage.WithPublisherIndexingServiceProof(indexingServiceProofs...),
 			storage.WithReceiptDatastore(receiptDs),
+			storage.WithReplicatorDB(db),
 		}
 		if pdpConfig != nil {
 			opts = append(opts, storage.WithPDPConfig(*pdpConfig))
