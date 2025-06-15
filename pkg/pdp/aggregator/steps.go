@@ -180,7 +180,7 @@ func (pa *PieceAccepter) AcceptPieces(ctx context.Context, aggregateLinks []data
 		}
 		aggregates = append(aggregates, aggregate)
 	}
-	// TODO: Should we actually send a piece accept invocation? It seems unneccesary it's all the same machine
+	// TODO: Should we actually send a piece accept invocation? It seems unnecessary it's all the same machine
 	receipts, err := fns.GenerateReceiptsForAggregates(pa.issuer, aggregates)
 	if err != nil {
 		return fmt.Errorf("generating receipts: %w", err)
