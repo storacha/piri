@@ -8,6 +8,7 @@ import (
 	"github.com/storacha/go-ucanto/did"
 )
 
+var UCANServerPublicURL = lo.Must(url.Parse("https://localhost:3000"))
 var (
 	IPNIAnnounceURLs   []url.URL
 	IndexingServiceDID did.DID
