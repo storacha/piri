@@ -35,13 +35,12 @@ func getFieldFlag(structType reflect.Type, fieldName string) string {
 	return "--" + strings.ToLower(fieldName)
 }
 
-
 func formatValidationError(structType reflect.Type, errs validator.ValidationErrors) error {
 	var messages []string
 
 	for _, err := range errs {
 		field := err.Field()
-		
+
 		// Get flag name from struct tags
 		flag := getFieldFlag(structType, field)
 		hint := fmt.Sprintf(" (see %s flag for help)", flag)
