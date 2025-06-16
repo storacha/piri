@@ -6,11 +6,10 @@ COPY go.* .
 RUN go mod download
 COPY . .
 
-RUN CGO_ENABLED=0 go build -o /go/bin/piri ./cmd/storage
-RUN CGO_ENABLED=0 go build -o /go/bin/do-piri ./cmd/do
+#RUN CGO_ENABLED=0 go build -o /go/bin/piri ./cmd/main.go
+RUN make piri
 
 FROM gcr.io/distroless/static-debian12
-COPY --from=build /go/bin/piri /usr/bin/
-COPY --from=build /go/bin/do-piri /usr/bin/
+COPY --from=build /go/src/piri /usr/bin/piri
 
 ENTRYPOINT ["/usr/bin/piri"]
