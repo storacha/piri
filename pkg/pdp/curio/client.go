@@ -305,15 +305,16 @@ func (c *Client) verifySuccess(res *http.Response, err error) error {
 }
 
 func CreateCurioJWTAuthHeader(serviceName string, id principal.Signer) (string, error) {
-	// Create JWT claims
+	// Create JWT claims with issuer DID for public key identification
 	claims := jwt.MapClaims{
 		"service_name": serviceName,
+		"iss":          id.DID().String(), // Add issuer claim with DID
 	}
 
-	// Create the token
+	// Create the token with EdDSA signing method
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
 
-	// Sign the token
+	// Sign the token with the ed25519 private key
 	tokenString, err := token.SignedString(ed25519.PrivateKey(id.Raw()))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %v", err)

@@ -125,7 +125,14 @@ func NewServer(
 		return nil, fmt.Errorf("creating pdp service: %w", err)
 	}
 
-	pdpAPI := &api.PDP{Service: pdpService}
+	pdpAPI := &api.PDP{
+		Service: pdpService,
+		AuthConfig: &api.AuthConfig{
+			ServiceName:       "storacha", // Must match the service name used in JWT creation
+			TrustedPrincipals: []string{},  // Empty list means accept any valid JWT
+			Required:          true,        // Require authentication for protected endpoints
+		},
+	}
 	svr := api.NewServer(pdpAPI)
 	return &Server{
 		pieceFinder: piecefinder.NewCurioFinder(localPDPClient),
