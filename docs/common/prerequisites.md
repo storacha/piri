@@ -42,12 +42,12 @@ yum install -y make git jq curl wget
 
 ### Go Language
 
-Building Piri from source requires Go 1.23 or later:
+Building Piri from source requires Go 1.24 or later:
 
 ```bash
 # Download and install Go
-wget https://go.dev/dl/go1.23.0.linux-amd64.tar.gz
-tar -xzf go1.23.0.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.24.4.linux-amd64.tar.gz
+tar -xzf go1.24.4.linux-amd64.tar.gz
 sudo mv go /usr/local
 
 # Add to PATH
