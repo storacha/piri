@@ -28,9 +28,9 @@ The UCAN server is responsible for:
 ### 3. Key Relationships
 
 ```
-┌─────────────────┐
-│ Storacha        │
-└────────┬────────┘
+┌──────────────────┐
+│ Storacha Network │
+└────────┬─────────┘
          │ HTTPS + UCAN Auth
          ▼
 ┌─────────────────┐      ┌──────────────────┐
@@ -88,8 +88,8 @@ The `service.pem` file contains the cryptographic identity for your storage prov
 
 ### Domain Requirements
 
-- **PDP Server Domain** (`PDP_DOMAIN`): Required by UCAN server to communicate with PDP backend
-- **UCAN Server Domain** (`YOUR_DOMAIN`): Required for client connections and Storacha network registration
+- **PDP Server Domain/Subdomain**: Required by UCAN server to communicate with PDP backend.
+- **UCAN Server Domain/Subdomain**: Required for client connections and Storacha Network registration.
 
 ## Deployment Patterns
 

@@ -20,7 +20,7 @@ Reusable guides referenced throughout the documentation:
 
 - **[Prerequisites](./common/prerequisites.md)** - System requirements and dependencies
 - **[Piri Installation](./common/piri-installation.md)** - Installing the Piri binary
-- **[PEM File Generation](./common/pem-file-generation.md)** - Creating and managing Ed25519 keys
+- **[Keypair Generation](./common/key-generation.md)** - Creating and managing Ed25519 keys
 - **[TLS Termination](./common/tls-termination.md)** - Setting up HTTPS with Nginx or alternatives
 
 ### Setup Guides
@@ -39,7 +39,7 @@ Advanced deployment scenarios:
 
 ## 🎯 Which Guide Should I Follow?
 
-### "I want to run a complete Piri storage provider"
+### "I want to run a standalone Piri storage provider"
 → Follow the **[Full Stack Setup](./integrations/full-stack-setup.md)** guide
 
 ### "I already run Curio and want to add Storacha support"
@@ -48,19 +48,19 @@ Advanced deployment scenarios:
 ### "I just want to understand the architecture"
 → Read the **[Architecture Overview](./architecture.md)**
 
-### "I need to run only a PDP server"
+### "I want to run only a PDP server"
 → Follow the **[PDP Server Setup](./guides/pdp-server-piri.md)** guide
 
-### "I need to run only a UCAN server"
+### "I want to run only a UCAN server"
 → Follow the **[UCAN Server Setup](./guides/ucan-server.md)** guide
 
 ## 🔧 Common Tasks
 
-### Generate a PEM File
+### Generate a Server Identity (keypair)
 ```bash
 piri id gen -t=pem
 ```
-See the [PEM File Generation](./common/pem-file-generation.md) guide for details.
+See the [PEM File Generation](./common/key-generation) guide for details.
 
 ### Check Server Health
 ```bash
@@ -73,7 +73,7 @@ curl https://pdp.your-domain.com/health
 
 ### Create a Proof Set
 ```bash
-piri proofset create --key-file=service.pem --pdp-server-url=https://pdp-domain.com
+piri proofset create --key-file=service.pem --pdp-server-url=https://pdp.your-domain.com
 ```
 
 ## 🆘 Getting Help
@@ -83,7 +83,7 @@ piri proofset create --key-file=service.pem --pdp-server-url=https://pdp-domain.
 Each guide includes a troubleshooting section. Common issues:
 
 - **Connection errors**: Check [TLS setup](./common/tls-termination.md) and firewall rules
-- **Authentication failures**: Verify [PEM file](./common/pem-file-generation.md) and delegations
+- **Authentication failures**: Verify [PEM file](./common/key-generation) and delegations
 - **Installation issues**: Review [prerequisites](./common/prerequisites.md) and [installation](./common/piri-installation.md)
 
 ### Support Channels
@@ -101,7 +101,7 @@ Each guide includes a troubleshooting section. Common issues:
 ### Common Procedures
 - [Prerequisites](./common/prerequisites.md)
 - [Piri Installation](./common/piri-installation.md)
-- [PEM File Generation](./common/pem-file-generation.md)
+- [Keypair Generation](./common/key-generation)
 - [TLS Termination](./common/tls-termination.md)
 
 ### Setup Guides

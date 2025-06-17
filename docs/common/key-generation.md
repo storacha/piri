@@ -1,7 +1,7 @@
-# Generating and Managing PEM Files
+# Generating and Managing Cryptographic Keys
 
 The `service.pem` file contains your storage provider's cryptographic identity. 
-This single file is used across all Piri services to maintain a consistent identity.
+This single file is shared by all Piri services to maintain a consistent identity.
 
 ## What is a PEM File?
 
@@ -19,7 +19,7 @@ Piri requires an **Ed25519** private key. Ed25519 is a modern elliptic curve sig
 
 ## Generating a PEM File
 
-1. Generate a new Ed25519 PEM file using Piri:
+1. Generate a new Ed25519 key and save as a PEM file using Piri:
    ```bash
    piri id gen -t=pem > service.pem
    ```
@@ -62,6 +62,6 @@ While you can place `service.pem` anywhere, we recommend:
 ## Next Steps
 
 After generating your PEM file:
-- For PDP server setup: Pass via --key-file=service.pem parameter
+- For PDP server setup: Pass via `--key-file=service.pem` parameter
 - For UCAN server setup: Pass via `--key-file=service.pem` parameter
 - For delegation: Your DID (derived above) will be registered with Storacha

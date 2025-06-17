@@ -42,7 +42,7 @@ yum install -y make git jq curl wget
 
 ### Go Language
 
-Piri requires Go 1.23 or later:
+Building Piri from source requires Go 1.23 or later:
 
 ```bash
 # Download and install Go
@@ -110,7 +110,7 @@ ufw allow 3001/tcp  # PDP server
    - HTTPS endpoint (e.g., `https://pdp.example.com`)
 
 2. **Storacha Registration**
-   - DID derived from your service.pem
+   - DID derived from your Ed25519 key in `service.pem`
    - Contact with Storacha team for delegation
 
 ## Environment Checks
@@ -146,6 +146,6 @@ nc -zv YOUR_DOMAIN 443
 
 After meeting prerequisites:
 1. [Install Piri](./piri-installation.md)
-2. [Generate PEM file](./pem-file-generation.md)
+2. [Generate PEM file](./key-generation)
 3. [Configure TLS termination](./tls-termination.md)
 4. Follow service-specific guides

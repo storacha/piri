@@ -17,7 +17,7 @@ Before starting, ensure you have:
 
 1. ✅ [Met system prerequisites](../common/prerequisites.md)
 2. ✅ [Installed Piri](../common/piri-installation.md)
-3. ✅ [Generated a PEM file](../common/pem-file-generation.md) with Ed25519 key
+3. ✅ [Generated a PEM file](../common/key-generation) with Ed25519 key
 4. ✅ Access to a PDP server (Piri or Curio) at an HTTPS endpoint
 5. ✅ [Configured TLS termination](../common/tls-termination.md) for your domain
 

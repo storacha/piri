@@ -28,7 +28,7 @@ Before starting, ensure you have:
 2. ✅ **System ready for Piri**:
    - [Prerequisites met](../common/prerequisites.md)
    - [Piri installed](../common/piri-installation.md)
-   - [PEM file generated](../common/pem-file-generation.md)
+   - [Keypair PEM file generated](../common/key-generation)
 
 3. ✅ **Network requirements**:
    - Domain for UCAN server

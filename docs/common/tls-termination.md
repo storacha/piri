@@ -7,14 +7,14 @@ For production deployments, you must use a reverse proxy to handle HTTPS connect
 
 - **Security**: Encrypts data in transit between clients and your server
 - **Trust**: Required for browser connections and API integrations
-- **Network Requirements**: Storacha network requires HTTPS endpoints
+- **Network Requirements**: Storacha Network requires HTTPS endpoints
 - **Certificate Management**: Centralized SSL certificate handling
 
 ## Reverse Proxy Options
 
 ### Option 1: Nginx (Recommended)
 
-Nginx is our recommended solution due to its performance, reliability, and extensive documentation.
+Nginx is recommended due to its performance, reliability, and extensive documentation.
 
 #### Prerequisites
 ```bash
@@ -25,13 +25,13 @@ apt install -y nginx certbot python3-certbot-nginx
 
 #### Configuration
 
-1. Create configuration file: `/etc/nginx/sites-available/YOUR_DOMAIN`
+1. Create configuration file: `/etc/nginx/sites-available/YOUR_UCAN_DOMAIN` and `/etc/nginx/sites-available/YOUR_PDP_DOMAIN`
 2. Use the appropriate template:
 
 **For UCAN Server (Port 3000):**
 ```nginx
 server {
-    server_name YOUR_DOMAIN;
+    server_name YOUR_UCAN_DOMAIN;
     
     # For UCAN server handling client uploads
     client_max_body_size 0;           # Allow unlimited file uploads
@@ -58,7 +58,7 @@ server {
 **For PDP Server (Port 3001):**
 ```nginx
 server {
-    server_name YOUR_DOMAIN;
+    server_name YOUR_PDP_DOMAIN;
     
     # PDP server also handles large uploads
     client_max_body_size 0;           # Allow unlimited file uploads
@@ -113,7 +113,7 @@ Create `/etc/caddy/Caddyfile`:
 
 **For UCAN Server:**
 ```caddy
-YOUR_DOMAIN {
+YOUR_UCAN_DOMAIN {
     reverse_proxy localhost:3000 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
@@ -135,7 +135,7 @@ YOUR_DOMAIN {
 
 **For PDP Server:**
 ```caddy
-YOUR_DOMAIN {
+YOUR_PDP_DOMAIN {
     reverse_proxy localhost:3001 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}

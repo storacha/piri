@@ -40,7 +40,7 @@ var ProofSetCmd = &cli.Command{
 
 				curioURL, err := url.Parse(cCtx.String("pdp-server-url"))
 				if err != nil {
-					return fmt.Errorf("parsing curio URL: %w", err)
+					return fmt.Errorf("parsing pdp server URL: %w", err)
 				}
 
 				curioAuth, err := curio.CreateCurioJWTAuthHeader("storacha", id)

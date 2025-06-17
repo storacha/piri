@@ -130,7 +130,8 @@ Create `/etc/systemd/system/piri-ucan.service`:
 ```ini
 [Unit]
 Description=Piri UCAN Server
-After=network.target
+After=network.target piri-pdp.service
+Requires=piri-pdp.service
 
 [Service]
 Type=simple
@@ -139,7 +140,7 @@ Group=piri
 EnvironmentFile=/etc/piri/env
 ExecStart=/usr/local/bin/piri start \
   --key-file=/etc/piri/service.pem \
-  --pdp-server-url=https://PDP_DOMAIN \
+  --pdp-server-url=https://YOUR_PDP_DOMAIN \
   --port=3000
 Restart=on-failure
 RestartSec=10
@@ -159,10 +160,13 @@ sudo systemctl daemon-reload
 
 # Enable and start services
 sudo systemctl enable piri-pdp
+sudo systemctl enable piri-ucan
 sudo systemctl start piri-pdp
+sudo systemctl start piri-ucan
 
 # Check status
 sudo systemctl status piri-pdp
+sudo systemctl status piri-ucan
 ```
 
 ## Docker Installation (Alternative)
@@ -217,7 +221,7 @@ sudo systemctl start piri-pdp piri-ucan
 ## Next Steps
 
 After installation:
-1. [Generate PEM file](./pem-file-generation.md) for identity
+1. [Generate PEM file](./key-generation) for identity
 2. [Configure TLS](./tls-termination.md) for production
 3. Follow specific guides:
    - [PDP Server Setup](../guides/pdp-server-piri.md)
