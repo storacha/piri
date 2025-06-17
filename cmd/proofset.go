@@ -25,11 +25,13 @@ var ProofSetCmd = &cli.Command{
 				KeyFileFlag,
 				RequiredStringFlag(CurioURLFlag),
 				&cli.StringFlag{
-					Name:     "record-keeper",
-					Aliases:  []string{"rk"},
-					Usage:    "Hex address of the record keeper",
-					EnvVars:  []string{"PIRI_RECORD_KEEPER_CONTRACT"},
-					Required: true,
+					Name: "record-keeper",
+					// NB(forrest): this is the default service address of the calibration network record keeper
+					// defined here: https://github.com/FilOzone/pdp/?tab=readme-ov-file#contracts
+					Value:   "0x6170dE2b09b404776197485F3dc6c968Ef948505",
+					Aliases: []string{"rk"},
+					Usage:   "Hex address of the record keeper",
+					EnvVars: []string{"PIRI_RECORD_KEEPER_CONTRACT"},
 				},
 			},
 			Action: func(cCtx *cli.Context) error {

@@ -21,7 +21,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"gorm.io/gorm"
 
-	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/database/gormdb"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
@@ -34,10 +33,6 @@ import (
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/wallet"
 )
-
-func init() {
-	build.BuildType = build.BuildCalibnet
-}
 
 // NB: this address is never sent to during testing so it's value is insignificant.
 // picked a valid address anyways, but can be whatever we want.
