@@ -174,7 +174,7 @@ sudo systemctl status piri-ucan
 For containerized deployments:
 
 ```dockerfile
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 RUN apk add --no-cache git make
 WORKDIR /app
 COPY . .

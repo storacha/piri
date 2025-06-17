@@ -24,7 +24,7 @@ Want to contribute? Check out:
 ## Prerequisites
 
 Before starting, ensure you have:
-- Go 1.23+, Git, Make, jq
+- Go 1.24+, Git, Make, jq
 - See [detailed prerequisites](./common/prerequisites.md)
 
 ## Quick Start
