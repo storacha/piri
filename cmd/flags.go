@@ -23,10 +23,10 @@ func RequiredUintFlag(strFlag *cli.Uint64Flag) *cli.Uint64Flag {
 }
 
 var CurioURLFlag = &cli.StringFlag{
-	Name:    "curio-url",
-	Aliases: []string{"c"},
-	Usage:   "URL of a running instance of curio",
-	EnvVars: []string{"PIRI_CURIO_URL"},
+	Name:    "pdp-server-url",
+	Aliases: []string{"curio-url", "c"},
+	Usage:   "URL of a running PDP server instance (formerly curio-url)",
+	EnvVars: []string{"PIRI_PDP_SERVER_URL", "PIRI_CURIO_URL"},
 }
 
 var KeyFileFlag = &cli.PathFlag{

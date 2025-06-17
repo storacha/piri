@@ -52,20 +52,12 @@ var pdpCmd = &cli.Command{
 			Usage:   "Temporary directory data is uploaded to before being moved to data-dir.",
 			EnvVars: []string{"PIRI_PDP_TMP_DIR"},
 		},
-		// TODO: these were the default values from testing, and they are reused
-		// here for convince, TODO here is to figure out how to just use one
-		// API for both lotus and ethereum. iirc Lotus api should support both
-		// with some modifications to the lotus config.
 		&cli.StringFlag{
-			Name:     "lotus-client-host",
-			Usage:    "A websock api address of a lotus node",
+			Name:     "lotus-host-url",
+			Aliases:  []string{"lotus-client-host", "eth-client-host"},
+			Usage:    "URL of a Lotus node that provides both Lotus and Ethereum API endpoints",
 			Value:    "ws://127.0.0.1:1234/rpc/v1",
-			Required: true,
-		},
-		&cli.StringFlag{
-			Name:     "eth-client-host",
-			Usage:    "An api address of a eth node",
-			Value:    "https://api.calibration.node.glif.io/rpc/v1",
+			EnvVars:  []string{"PIRI_LOTUS_HOST_URL", "LOTUS_CLIENT_HOST", "ETH_CLIENT_HOST"},
 			Required: true,
 		},
 		&cli.StringFlag{
@@ -99,8 +91,8 @@ var pdpCmd = &cli.Command{
 
 		ctx := cctx.Context
 		port := cctx.Int("port")
-		lotusURL := cctx.String("lotus-client-host")
-		ethURL := cctx.String("eth-client-host")
+		lotusURL := cctx.String("lotus-host-url")
+		ethURL := cctx.String("lotus-host-url")
 		addrStr := cctx.String("pdp-address")
 
 		walletDir, err := mkdirp(rootDir, "wallet")

@@ -38,9 +38,9 @@ var ProofSetCmd = &cli.Command{
 					return fmt.Errorf("parsing private key: %w", err)
 				}
 
-				curioURL, err := url.Parse(cCtx.String("curio-url"))
+				curioURL, err := url.Parse(cCtx.String("pdp-server-url"))
 				if err != nil {
-					return fmt.Errorf("parsing curio URL: %w", err)
+					return fmt.Errorf("parsing pdp server URL: %w", err)
 				}
 
 				curioAuth, err := curio.CreateCurioJWTAuthHeader("storacha", id)

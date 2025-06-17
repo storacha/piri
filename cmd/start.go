@@ -144,7 +144,7 @@ var StartCmd = &cli.Command{
 
 		var pdpConfig *storage.PDPConfig
 		var blobAddr multiaddr.Multiaddr
-		curioURLStr := cCtx.String("curio-url")
+		curioURLStr := cCtx.String("pdp-server-url")
 		if curioURLStr != "" {
 			curioURL, err := url.Parse(curioURLStr)
 			if err != nil {
