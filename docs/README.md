@@ -89,7 +89,7 @@ Each guide includes a troubleshooting section. Common issues:
 ### Support Channels
 
 - **GitHub Issues**: [github.com/storacha/piri/issues](https://github.com/storacha/piri/issues)
-- **Documentation Issues**: [github.com/storacha/storage/issues](https://github.com/storacha/storage/issues)
+- **Documentation Issues**: [github.com/storacha/piri/issues](https://github.com/storacha/piri/issues)
 - **Community**: Join the Storacha community channels
 
 ## 📋 Documentation Index
