@@ -59,8 +59,8 @@ var (
 	prodCIDContactIPNIAnnounceURL = lo.Must(url.Parse("https://cid.contact/announce"))
 	prodIPNIAnnounceURLs          = []url.URL{*prodCIDContactIPNIAnnounceURL}
 
-	prodIndexingServiceDID = lo.Must(did.Parse("did:web:indexer.storacha.network"))
 	prodIndexingServiceURL = lo.Must(url.Parse("https://indexer.storacha.network"))
+	prodIndexingServiceDID = lo.Must(did.Parse("did:web:indexer.storacha.network"))
 
 	prodUploadServiceURL = lo.Must(url.Parse("https://up.storacha.network"))
 	prodUploadServiceDID = lo.Must(did.Parse("did:web:up.storacha.network"))
