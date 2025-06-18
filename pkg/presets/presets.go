@@ -57,7 +57,8 @@ var (
 // Production preset values
 var (
 	prodCIDContactIPNIAnnounceURL = lo.Must(url.Parse("https://cid.contact/announce"))
-	prodIPNIAnnounceURLs          = []url.URL{*prodCIDContactIPNIAnnounceURL}
+	prodStorachaIPNIAnnounceURL   = lo.Must(url.Parse("https://ipni.storacha.network"))
+	prodIPNIAnnounceURLs          = []url.URL{*prodCIDContactIPNIAnnounceURL, *prodStorachaIPNIAnnounceURL}
 
 	prodIndexingServiceURL = lo.Must(url.Parse("https://indexer.storacha.network"))
 	prodIndexingServiceDID = lo.Must(did.Parse("did:web:indexer.storacha.network"))
