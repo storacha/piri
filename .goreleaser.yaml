@@ -2,7 +2,7 @@ version: 2
 
 builds:
   - main: ./cmd/storage
-    binary: storage
+    binary: piri
     ldflags:
       # Sets the version variable in the build package to the build version prefixed with a 'v'
       # Sets the main.date to a static date for checksum verification. See https://goreleaser.com/customization/builds/#reproducible-builds.
