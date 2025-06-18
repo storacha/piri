@@ -249,7 +249,7 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 						}
 					}
 					// iff we didn't allocate space for the data, and didn't provide an address, then it means we have
-					// already allocated space and receieved the data. Therefore, no replication is required.
+					// already allocated space and received the data. Therefore, no replication is required.
 					sink := new(url.URL)
 					if resp.Size == 0 && resp.Address == nil {
 						sink = nil

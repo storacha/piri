@@ -106,7 +106,7 @@ resource "aws_lambda_function" "lambda" {
   }
 }
 
-# Acccess for the gateway
+# Access for the gateway
 
 resource "aws_lambda_permission" "api_gateway" {
   for_each = aws_lambda_function.lambda
