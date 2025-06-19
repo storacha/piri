@@ -109,7 +109,19 @@ Monitor server activity:
 journalctl -u piri-pdp -f
 ```
 
-## Step 5: Integration
+## Step 5: Monitor Your ProofSets
+
+You can inspect your ProofSets and verify proof submissions using the PDP explorer:
+
+🔍 **[PDP Explorer (Calibration Network)](https://pdpscan.vercel.app/calibration)**
+
+This explorer allows you to:
+- View all ProofSets associated with your address
+- Check proof submission status
+- Monitor proving periods
+- Verify successful proof validations
+
+## Step 6: Integration
 
 Your PDP server is now ready to:
 1. Accept pieces from UCAN servers

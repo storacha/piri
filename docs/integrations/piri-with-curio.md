@@ -28,7 +28,7 @@ Before starting, ensure you have:
 2. ✅ **System ready for Piri**:
    - [Prerequisites met](../common/prerequisites.md)
    - [Piri installed](../common/piri-installation.md)
-   - [Keypair PEM file generated](../common/key-generation)
+   - [Keypair PEM file generated](../common/key-generation.md)
 
 3. ✅ **Network requirements**:
    - Domain for UCAN server
@@ -74,7 +74,7 @@ Monitor creation status:
 ```bash
 piri proofset status \
   --key-file=service.pem \
-  --curio-url=https://curio.example.com \
+  --pdp-server-url=https://curio.example.com \
   --ref-url=/pdp/proof-set/created/HASH_FROM_CREATE
 ```
 
@@ -116,7 +116,7 @@ source .env
 ```bash
 piri start \
   --key-file=service.pem \
-  --curio-url=https://curio.example.com \
+  --pdp-server-url=https://curio.example.com \
   --port=3000
 ```
 
@@ -136,7 +136,7 @@ Group=piri
 EnvironmentFile=/etc/piri/storacha.env
 ExecStart=/usr/local/bin/piri start \
   --key-file=/etc/piri/service.pem \
-  --curio-url=https://curio.example.com \
+  --pdp-server-url=https://curio.example.com \
   --port=3000 \
 Restart=on-failure
 RestartSec=10

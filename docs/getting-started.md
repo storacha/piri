@@ -29,11 +29,31 @@ Before starting, ensure you have:
 
 ## Quick Start
 
+### Download Pre-compiled Binary (Recommended)
+
+```bash
+# For Linux AMD64
+wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_amd64.tar.gz
+tar -xzf piri_0.0.6_linux_amd64.tar.gz
+sudo mv piri /usr/local/bin/
+
+# For Linux ARM64
+wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_arm64.tar.gz
+tar -xzf piri_0.0.6_linux_arm64.tar.gz
+sudo mv piri /usr/local/bin/
+
+# Generate identity
+piri id gen -t=pem > service.pem
+```
+
+### Build from Source (Alternative)
+
 ```bash
 # Clone and build
 git clone https://github.com/storacha/piri
 cd piri
-make calibnet
+git checkout v0.0.6
+make
 
 # Generate identity
 piri id gen -t=pem > service.pem

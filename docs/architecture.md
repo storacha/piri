@@ -49,19 +49,38 @@ The UCAN server is responsible for:
 
 ### Upload Flow
 
-1. **Upload**: Storacha sends data with UCAN auth token
-2. **UCAN Validation**: Server validates the authorization
-3. **Data Forward**: UCAN server forwards data to PDP backend
-4. **Storage**: PDP server stores the piece
-5. **Proof Generation**: PDP server generates possession proofs
-6. **Contract Submission**: Proofs submitted to Filecoin smart contract
+```mermaid
+sequenceDiagram
+    participant Client
+    participant UploadService as Upload Service
+    participant UCANServer as UCAN Server
+    participant PDPServer as PDP Server
+    participant IndexingService as Indexing Service
+    participant Filecoin as Filecoin Network
+
+    Client->>UploadService: Upload data
+    UploadService->>UCANServer: Request blob/allocate
+    UCANServer->>PDPServer: Request to allocate blob
+    PDPServer-->>UCANServer: Return URL with UUID
+    UCANServer-->>UploadService: Provide URL
+    UploadService-->>Client: Provide URL
+    
+    Client->>PDPServer: PUT data to URL
+    
+    Client->>UploadService: Send blob/accept
+    UploadService->>UCANServer: Forward blob/accept
+    UCANServer->>PDPServer: Tell to accept blob
+    UCANServer->>IndexingService: Write LocationCommitment
+    
+    loop Every proving period
+        PDPServer->>Filecoin: Submit proof
+        Note over PDPServer,Filecoin: New blobs may be added via this process
+    end
+```
 
 ### Retrieval Flow
 
-1. **Request**: Request for specific piece CID
-2. **Auth Check**: UCAN server validates permissions
-3. **PDP Query**: Request forwarded to PDP server
-4. **Data Return**: Piece data returned through UCAN to requester
+TODO: Document the retrieval architecture with Mermaid diagram
 
 ## Configuration Relationships
 
