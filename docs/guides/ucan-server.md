@@ -17,7 +17,7 @@ Before starting, ensure you have:
 
 1. ✅ [Met system prerequisites](../common/prerequisites.md)
 2. ✅ [Installed Piri](../common/piri-installation.md)
-3. ✅ [Generated a PEM file](../common/key-generation) with Ed25519 key
+3. ✅ [Generated a PEM file](../common/key-generation.md) with Ed25519 key
 4. ✅ Access to a PDP server (Piri or Curio) at an HTTPS endpoint
 5. ✅ [Configured TLS termination](../common/tls-termination.md) for your domain
 
@@ -76,7 +76,7 @@ Check the status of your proof set creation:
 ```bash
 piri proofset status \
   --key-file=service.pem \
-  --curio-url=https://YOUR_PDP_DOMAIN \
+  --pdp-server-url=https://YOUR_PDP_DOMAIN \
   --ref-url=/pdp/proof-set/created/HASH_FROM_CREATE_OUTPUT
 ```
 
@@ -140,7 +140,7 @@ source .env
 ```bash
 piri start \
   --key-file=service.pem \
-  --curio-url=https://YOUR_PDP_DOMAIN \
+  --pdp-server-url=https://YOUR_PDP_DOMAIN \
   --port=3000
 ```
 
@@ -149,7 +149,7 @@ piri start \
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--key-file` | Path to your PEM file | Required |
-| `--curio-url` | HTTPS URL of your PDP backend | Required |
+| `--pdp-server-url` | HTTPS URL of your PDP backend | Required |
 | `--port` | Local port to listen on | 3000 |
 
 ### Production Example
@@ -157,7 +157,7 @@ piri start \
 ```bash
 piri start \
   --key-file=/etc/piri/service.pem \
-  --curio-url=https://pdp.example.com \
+  --pdp-server-url=https://pdp.example.com \
   --port=3000 \
 ```
 

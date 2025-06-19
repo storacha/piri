@@ -2,7 +2,7 @@ VERSION=$(shell awk -F'"' '/"version":/ {print $$4}' version.json)
 GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION)"
 TAGS?=
 
-.PHONY: all build piri install test clean calibnet mockgen
+.PHONY: all build piri install test clean calibnet mockgen check-docs-links
 
 all: build
 
@@ -36,3 +36,7 @@ mockgen:
 # special target that sets the calibnet tag and invokes build
 calibnet: TAGS=-tags calibnet
 calibnet: build
+
+# Check for broken links in documentation
+check-docs-links:
+	@./scripts/check-docs-links.sh

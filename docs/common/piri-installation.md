@@ -4,7 +4,25 @@ This guide covers the installation of the Piri binary, which is used for both PD
 
 ## Installation Methods
 
-### Method 1: Build from Source (Recommended)
+### Method 1: Download Pre-compiled Binary (Recommended)
+
+Downloading the pre-compiled binary is the quickest way to get started with Piri.
+
+Download the latest release from [v0.0.6](https://github.com/storacha/piri/releases/tag/v0.0.6):
+
+```bash
+# For Linux AMD64
+wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_amd64.tar.gz
+tar -xzf piri_0.0.6_linux_amd64.tar.gz
+sudo mv piri /usr/local/bin/piri
+
+# For Linux ARM64
+wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_arm64.tar.gz
+tar -xzf piri_0.0.6_linux_arm64.tar.gz
+sudo mv piri /usr/local/bin/piri
+```
+
+### Method 2: Build from Source (Alternative)
 
 Building from source ensures you have the latest version with network-specific optimizations.
 
@@ -15,41 +33,14 @@ Building from source ensures you have the latest version with network-specific o
 git clone https://github.com/storacha/piri
 cd piri
 
-# Build for your target network
-make calibnet    # For Calibration testnet
-# OR
-make mainnet     # For Mainnet (when available)
+# Checkout the specific version
+git checkout v0.0.6
+
+# Build
+make
 
 # Install binary
 sudo cp piri /usr/local/bin/piri
-
-# Verify installation
-piri version
-```
-
-#### Build Targets
-
-- `make calibnet`: Builds with Calibration network parameters
-- `make mainnet`: Builds with Mainnet parameters
-
-### Method 2: Download Pre-built Binary
-
-Check the [releases page](https://github.com/storacha/piri/releases) for pre-built binaries:
-
-```bash
-# Example for Linux amd64
-wget https://github.com/storacha/piri/releases/download/vX.Y.Z/piri-linux-amd64
-chmod +x piri-linux-amd64
-sudo mv piri-linux-amd64 /usr/local/bin/piri
-```
-
-### Method 3: Using Go Install
-
-For Go developers:
-
-```bash
-go install github.com/storacha/piri/cmd/storage@latest
-mv ~/go/bin/storage /usr/local/bin/piri
 ```
 
 ## Post-Installation Setup
@@ -57,9 +48,6 @@ mv ~/go/bin/storage /usr/local/bin/piri
 ### 1. Verify Installation
 
 ```bash
-# Check version
-piri version
-
 # View available commands
 piri --help
 ```
@@ -169,59 +157,37 @@ sudo systemctl status piri-pdp
 sudo systemctl status piri-ucan
 ```
 
-## Docker Installation (Alternative)
-
-For containerized deployments:
-
-```dockerfile
-FROM golang:1.24-alpine AS builder
-RUN apk add --no-cache git make
-WORKDIR /app
-COPY . .
-RUN make calibnet
-
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates
-COPY --from=builder /app/piri /usr/local/bin/
-ENTRYPOINT ["piri"]
-```
-
-Build and run:
-```bash
-docker build -t piri:latest .
-docker run -p 3000:3000 piri:latest start --help
-```
-
 ## Updating Piri
+
+### Binary Updates (Recommended)
+
+```bash
+# Download new version (replace with latest version as needed)
+wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_amd64.tar.gz
+tar -xzf piri_0.0.6_linux_amd64.tar.gz
+
+# Replace binary
+sudo systemctl stop piri-pdp piri-ucan
+sudo mv piri /usr/local/bin/piri
+sudo systemctl start piri-pdp piri-ucan
+```
 
 ### From Source
 
 ```bash
 cd piri
-git pull origin main
-make calibnet
+git fetch --tags
+git checkout v0.0.6  # or latest version
+make
 sudo systemctl stop piri-pdp piri-ucan
 sudo cp piri /usr/local/bin/
-sudo systemctl start piri-pdp piri-ucan
-```
-
-### Binary Updates
-
-```bash
-# Download new version
-wget https://github.com/storacha/piri/releases/download/vX.Y.Z/piri-linux-amd64
-
-# Replace binary
-sudo systemctl stop piri-pdp piri-ucan
-sudo mv piri-linux-amd64 /usr/local/bin/piri
-sudo chmod +x /usr/local/bin/piri
 sudo systemctl start piri-pdp piri-ucan
 ```
 
 ## Next Steps
 
 After installation:
-1. [Generate PEM file](./key-generation) for identity
+1. [Generate PEM file](./key-generation.md) for identity
 2. [Configure TLS](./tls-termination.md) for production
 3. Follow specific guides:
    - [PDP Server Setup](../guides/pdp-server-piri.md)

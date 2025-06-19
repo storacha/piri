@@ -19,8 +19,8 @@ Specific services may have additional requirements noted in their respective gui
 **Recommended (Production)**
 - 4+ CPU cores
 - 8+ GB RAM
-- 1+ TB storage (depends on data volume)
-- 1+ Gbps Symmetric network connection (depends on data volume)
+- 1+ TB storage
+- 1+ Gbps Symmetric network connection
 
 ## Software Dependencies
 
@@ -28,19 +28,23 @@ Specific services may have additional requirements noted in their respective gui
 
 Install the following packages:
 
+#### Debian/Ubuntu
 ```bash
-# Debian/Ubuntu
 apt update
 apt install -y make git jq curl wget
+````
 
-# macOS (using Homebrew)
+#### macOS (using Homebrew)
+```
 brew install make git jq curl wget
+```
 
-# RHEL/CentOS
+#### RHEL/CentOS
+```
 yum install -y make git jq curl wget
 ```
 
-### Go Language
+### Go Language (Development)
 
 Building Piri from source requires Go 1.24 or later:
 
@@ -63,11 +67,7 @@ go version
 For production deployments, install a reverse proxy:
 
 ```bash
-# Option 1: Nginx (recommended)
 apt install -y nginx certbot python3-certbot-nginx
-
-# Option 2: Caddy
-# See TLS termination guide for installation
 ```
 
 ## Network Requirements
@@ -96,6 +96,7 @@ ufw allow 3001/tcp  # PDP server
 
 1. **Lotus Node** (Calibration Network)
    - Synced Lotus node with RPC access
+   - Latest Calibration Network [Snapshot](https://forest-archive.chainsafe.dev/latest/calibnet/)
    - WebSocket endpoint (e.g., `wss://lotus.example.com/rpc/v1`)
    - Basic understanding of Filecoin primitives
 
@@ -146,6 +147,6 @@ nc -zv YOUR_DOMAIN 443
 
 After meeting prerequisites:
 1. [Install Piri](./piri-installation.md)
-2. [Generate PEM file](./key-generation)
+2. [Generate PEM file](./key-generation.md)
 3. [Configure TLS termination](./tls-termination.md)
 4. Follow service-specific guides

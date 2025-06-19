@@ -187,7 +187,7 @@ sudo -u piri piri proofset create \
 # Monitor status
 sudo -u piri piri proofset status \
   --key-file=service.pem \
-  --curio-url=https://pdp.example.com \
+  --pdp-server-url=https://pdp.example.com \
   --ref-url=/pdp/proof-set/created/HASH_FROM_CREATE
 ```
 
@@ -265,7 +265,7 @@ WorkingDirectory=/var/lib/piri/ucan
 EnvironmentFile=/etc/piri/storacha.env
 ExecStart=/usr/local/bin/piri start \
   --key-file=/etc/piri/service.pem \
-  --curio-url=https://pdp.example.com \
+  --pdp-server-url=https://pdp.example.com \
   --port=3000 \
 Restart=on-failure
 RestartSec=10
@@ -301,6 +301,5 @@ Your full Piri stack is now operational! Consider:
 - [Architecture Overview](../architecture.md) - System design
 - [PDP Server Guide](../guides/pdp-server-piri.md) - PDP details
 - [UCAN Server Guide](../guides/ucan-server.md) - UCAN details
-- [Troubleshooting](../README.md#troubleshooting) - Common issues
 
 Congratulations on joining the Storacha network! 🎉

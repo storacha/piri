@@ -4,83 +4,33 @@
   <p>A storage node that runs on the Storacha network.</p>
 </div>
 
-## Usage
+## What is Piri?
 
-### Getting Started
+What's Piri? It's the _**P**rovable **I**nformation **R**etention **I**nterface_ - a Go-based storage node that's part of the Storacha network backbone. It works alongside other services like the [indexing service](https://github.com/storacha/indexing-service) and [upload service](https://github.com/storacha/upload-service) to enable decentralized storage with cryptographic proofs.
 
-Install [Go](https://go.dev) v1.23.3 or higher.
+## Documentation
 
-Next, generate a private key for your piri node. This can be done on any computer, not necessarily the deployment target.
+Get started with Piri by exploring our comprehensive documentation:
 
-Clone the repo and `cd` into the repo directory:
+- **[📚 Documentation Home](./docs/)** - Start here for an overview
+- **[🚀 Getting Started](./docs/getting-started.md)** - Quick start guide for different use cases
+- **[🏗️ Architecture](./docs/architecture.md)** - Understand how Piri works
+- **[📖 Full Documentation](./docs/README.md)** - Complete documentation index
 
-```sh
-git clone https://github.com/storacha/piri.git
-cd piri
-```
+### Quick Links
 
-Build and install the CLI tool:
-
-```sh
-make install
-```
-
-Generate a new identity:
-
-```sh
-piri identity gen
-```
-
-Make a note of your node identity. The string beginning `Mg` is your private key. Do not share this with anyone!
-
-Next, obtain a delegation allowing your node to publish claims to the Storacha Indexer node(s). Contact the engineers in `#node-providers` on the Storacha Discord - give them your _public_ key (the string beginning with `did:key:`).
-
-### System Requriements
-
-TODO
-
-### Deployment
-
-#### Environment Variables
-
-The environment variables required to start a node are:
-
-```sh
-PIRI_PRIVATE_KEY=                # string beginning Mg...
-PIRI_PUBLIC_URL=                 # URL the node will be publically accessible at
-PIRI_PORT=                       # local port to bind the server to
-PIRI_INDEXING_SERVICE_PROOF=     # delegation(s) from the Storacha Indexing node(s)
-```
-
-#### Deployment to a VM/Bare Metal
-
-Clone the repo and build the binary as per the [getting started](#getting-started) section. Set environment variables as above. The following command will start the Storage Node daemon:
-
-```sh
-piri start
-```
-
-#### Deployment to DigitalOcean
-
-The [Dockerfile](./Dockerfile) allows a Storage Node to be deployed to DigitalOcean Apps platform. You'll need to setup a "Spaces Object Storage" bucket to persist data. You must configure the following additional environment variables:
-
-```sh
-PIRI_S3_ENDPOINT=
-PIRI_S3_REGION=
-PIRI_S3_BUCKET=
-PIRI_S3_ACCESS_KEY=
-PIRI_S3_SECRET_KEY=
-```
-
-#### Deployment to AWS
-
-The Terraform scripts in `/deploy` allow a Storage Node to be deployed to AWS. See [deploy/README.md](./deploy/README.md) for instructions.
+- **New to Piri?** Start with the [Getting Started Guide](./docs/getting-started.md)
+- **Ready to run a storage provider?** See the [Full Stack Setup Guide](./docs/integrations/full-stack-setup.md)
+- **Want to understand the system?** Read the [Architecture Overview](./docs/architecture.md)
 
 ## Contributing
 
 All welcome! Storacha is open-source. Please feel empowered to open a PR or an issue.
 
+### Reporting Issues
+
+Found a bug or have a feature request? Please [open an issue](https://github.com/storacha/piri/issues) on our GitHub repository.
+
 ## License
 
 Dual-licensed under [Apache 2.0 OR MIT](LICENSE.md)
-

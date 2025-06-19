@@ -60,7 +60,7 @@ Advanced deployment scenarios:
 ```bash
 piri id gen -t=pem
 ```
-See the [PEM File Generation](./common/key-generation) guide for details.
+See the [PEM File Generation](./common/key-generation.md) guide for details.
 
 ### Check Server Health
 ```bash
@@ -83,7 +83,7 @@ piri proofset create --key-file=service.pem --pdp-server-url=https://pdp.your-do
 Each guide includes a troubleshooting section. Common issues:
 
 - **Connection errors**: Check [TLS setup](./common/tls-termination.md) and firewall rules
-- **Authentication failures**: Verify [PEM file](./common/key-generation) and delegations
+- **Authentication failures**: Verify [PEM file](./common/key-generation.md) and delegations
 - **Installation issues**: Review [prerequisites](./common/prerequisites.md) and [installation](./common/piri-installation.md)
 
 ### Support Channels
@@ -101,7 +101,7 @@ Each guide includes a troubleshooting section. Common issues:
 ### Common Procedures
 - [Prerequisites](./common/prerequisites.md)
 - [Piri Installation](./common/piri-installation.md)
-- [Keypair Generation](./common/key-generation)
+- [Keypair Generation](./common/key-generation.md)
 - [TLS Termination](./common/tls-termination.md)
 
 ### Setup Guides
@@ -112,9 +112,6 @@ Each guide includes a troubleshooting section. Common issues:
 - [Piri with Curio](./integrations/piri-with-curio.md)
 - [Full Stack Setup](./integrations/full-stack-setup.md)
 
-### Legacy Guides
-- [Original PDP Server Guide](./PIRI-PDP-SERVER-GUIDE.md) (deprecated)
-- [Original UCAN Server Guide](./PIRI-UCAN-SERVER-GUIDE.md) (deprecated)
 
 ## 🔄 Version Information
 
@@ -125,7 +122,7 @@ This documentation is for Piri version 1.x. For the latest updates:
 piri version
 
 # Update Piri
-cd piri && git pull && make calibnet
+cd piri && git pull && make
 ```
 
 ## 📝 Contributing
