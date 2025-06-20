@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/storacha/go-libstoracha/piece/piece"
 
-	"github.com/storacha/piri/cmd/api"
+	"github.com/storacha/piri/cmd/client"
 	"github.com/storacha/piri/pkg/config"
 )
 
@@ -38,7 +38,7 @@ func doInfo(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	c, err := api.GetClient(cfg)
+	c, err := client.New(cfg)
 	if err != nil {
 		return fmt.Errorf("creating client: %w", err)
 	}

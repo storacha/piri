@@ -1,4 +1,4 @@
-package api
+package client
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 	"github.com/storacha/piri/pkg/config"
 )
 
-func GetClient(cfg config.UCANClient) (*client.Client, error) {
+func New(cfg config.UCANClient) (*client.Client, error) {
 	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
 	if err != nil {
 		return nil, err
