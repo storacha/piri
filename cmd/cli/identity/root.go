@@ -37,6 +37,14 @@ The DID is printed to stderr for convenience.
 		Example: "piri identity generate > my-key.pem",
 		RunE:    doGenerate,
 	}
+
+	ParseCmd = &cobra.Command{
+		Use:     "parse",
+		Short:   "parse a DID from a PEM file containing an Ed25519 key",
+		Args:    cobra.ExactArgs(1),
+		Example: `piri identity parse my-key.pem`,
+		RunE:    doParse,
+	}
 )
 
 func init() {
@@ -75,14 +83,6 @@ func doGenerate(cmd *cobra.Command, _ []string) error {
 	cmd.PrintErrf("# %s\n", signer.DID())
 	cmd.Print(buffer.String())
 	return nil
-}
-
-var ParseCmd = &cobra.Command{
-	Use:     "parse",
-	Short:   "parse a DID from a PEM file containing an Ed25519 key",
-	Args:    cobra.ExactArgs(1),
-	Example: `piri identity parse my-key.pem`,
-	RunE:    doParse,
 }
 
 func doParse(cmd *cobra.Command, args []string) error {
