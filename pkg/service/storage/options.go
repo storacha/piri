@@ -24,11 +24,11 @@ import (
 )
 
 type PDPConfig struct {
-	PDPService    pdp.PDP
-	PDPDatastore  datastore.Datastore
-	CurioEndpoint *url.URL
-	ProofSet      uint64
-	DatabasePath  string
+	PDPService   pdp.PDP
+	PDPDatastore datastore.Datastore
+	PDPServerURL *url.URL
+	ProofSet     uint64
+	DatabasePath string
 }
 
 type config struct {
