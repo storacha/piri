@@ -105,7 +105,7 @@ func NewServer(
 	}
 
 	stateDir := filepath.Join(dataDir, "state")
-	if err := os.Mkdir(stateDir, 0755); err != nil {
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		return nil, err
 	}
 
