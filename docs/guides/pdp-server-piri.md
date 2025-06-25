@@ -76,13 +76,13 @@ piri serve pdp \
 
 ### Configuration Options
 
-| Flag | Description | Default       |
-|------|-------------|---------------|
-| `--lotus-url` | Lotus WebSocket RPC endpoint (provides both Lotus and Ethereum API) | Required      |
-| `--eth-address` | Your Ethereum-style wallet address | Required      |
-| `--endpoint` | Server endpoint to listen on | `:3001`       |
-| `--data-dir` | Storage service data directory | (from config) |
-| `--log-level` | Logging verbosity (debug/info/warn/error) | Error         |
+| Flag | Description | Default  |
+|------|-------------|----------|
+| `--lotus-url` | Lotus WebSocket RPC endpoint (provides both Lotus and Ethereum API) | Required |
+| `--eth-address` | Your Ethereum-style wallet address | Required |
+| `--endpoint` | Server endpoint to listen on | `:3001` |
+| `--data-dir` | Storage service data directory | `$HOME/.storacha |
+| `--log-level` | Logging verbosity (debug/info/warn/error) | Error |
 
 ### Production Configuration
 
