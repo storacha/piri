@@ -43,7 +43,7 @@ tar -xzf piri_0.0.6_linux_arm64.tar.gz
 sudo mv piri /usr/local/bin/
 
 # Generate identity
-piri id gen -t=pem > service.pem
+piri identity generate > service.pem
 ```
 
 ### Build from Source (Alternative)
@@ -56,7 +56,7 @@ git checkout v0.0.6
 make
 
 # Generate identity
-piri id gen -t=pem > service.pem
+piri identity generate > service.pem
 ```
 
 Then follow your chosen guide above.

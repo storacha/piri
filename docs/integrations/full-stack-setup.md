@@ -64,11 +64,11 @@ Create a single PEM file for both services:
 ```bash
 # Generate Ed25519 key
 cd /etc/piri
-sudo -u piri piri id gen -t=pem > service.pem
+sudo -u piri piri identity generate > service.pem
 sudo chmod 600 service.pem
 
 # Extract and save your DID
-sudo -u piri piri id parse service.pem | jq .did > did.txt
+sudo -u piri piri identity parse service.pem | jq .did > did.txt
 cat did.txt
 ```
 
@@ -148,10 +148,10 @@ User=piri
 Group=piri
 WorkingDirectory=/var/lib/piri/pdp
 ExecStart=/usr/local/bin/piri serve pdp \
-  --lotus-host-url=wss://YOUR_LOTUS_ENDPOINT/rpc/v1 \
-  --pdp-address=YOUR_ETH_ADDRESS \
-  --port=3001 \
-  --storage-dir=/var/lib/piri/pdp/storage \
+  --lotus-url=wss://YOUR_LOTUS_ENDPOINT/rpc/v1 \
+  --eth-address=YOUR_ETH_ADDRESS \
+  --endpoint=:3001 \
+  --data-dir=/var/lib/piri/pdp \
 Restart=on-failure
 RestartSec=10
 
@@ -179,15 +179,15 @@ Using the running PDP server:
 
 ```bash
 cd /etc/piri
-sudo -u piri piri proofset create \
+sudo -u piri piri client pdp proofset create \
   --key-file=service.pem \
-  --pdp-server-url=https://pdp.example.com \
+  --node-url=https://pdp.example.com \
   --record-keeper=0x6170dE2b09b404776197485F3dc6c968Ef948505
 
 # Monitor status
-sudo -u piri piri proofset status \
+sudo -u piri piri client pdp proofset status \
   --key-file=service.pem \
-  --pdp-server-url=https://pdp.example.com \
+  --node-url=https://pdp.example.com \
   --ref-url=/pdp/proof-set/created/HASH_FROM_CREATE
 ```
 
@@ -195,7 +195,7 @@ sudo -u piri piri proofset status \
 
 1. **Start temporary UCAN server**:
    ```bash
-   piri start --key-file=/etc/piri/service.pem
+   piri serve ucan --key-file=/etc/piri/service.pem
    ```
 
 2. **Share your DID** (from did.txt) with Storacha team
@@ -263,9 +263,9 @@ User=piri
 Group=piri
 WorkingDirectory=/var/lib/piri/ucan
 EnvironmentFile=/etc/piri/storacha.env
-ExecStart=/usr/local/bin/piri start \
+ExecStart=/usr/local/bin/piri serve ucan \
   --key-file=/etc/piri/service.pem \
-  --pdp-server-url=https://pdp.example.com \
+  --node-url=https://pdp.example.com \
   --port=3000 \
 Restart=on-failure
 RestartSec=10

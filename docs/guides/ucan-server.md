@@ -37,7 +37,7 @@ Using the PEM file you generated:
 
 ```bash
 # Extract your DID
-piri id parse service.pem | jq .did
+piri identity parse service.pem
 ```
 
 Example output: `did:key:z6MkhaXgD8CkBJPgWK2mPx7kW6KnvgCx6LJfnv4jkLd4VWQR`
@@ -61,9 +61,9 @@ If using Curio as your PDP backend:
 Before accepting data, you need to create a proof set on the PDP backend:
 
 ```bash
-piri proofset create \
+piri client pdp proofset create \
   --key-file=service.pem \
-  --pdp-server-url=https://YOUR_PDP_DOMAIN \
+  --node-url=https://YOUR_PDP_DOMAIN \
   --record-keeper=0x6170dE2b09b404776197485F3dc6c968Ef948505
 ```
 
@@ -74,9 +74,9 @@ Note: The [record-keeper](https://github.com/FilOzone/pdp/?tab=readme-ov-file#co
 Check the status of your proof set creation:
 
 ```bash
-piri proofset status \
+piri client pdp proofset status \
   --key-file=service.pem \
-  --pdp-server-url=https://YOUR_PDP_DOMAIN \
+  --node-url=https://YOUR_PDP_DOMAIN \
   --ref-url=/pdp/proof-set/created/HASH_FROM_CREATE_OUTPUT
 ```
 
@@ -98,7 +98,7 @@ Save your `proofSetId` for reference.
 
 1. **Start Piri temporarily** to prepare for delegation:
    ```bash
-   piri start --key-file=service.pem
+   piri serve ucan --key-file=service.pem
    ```
 
 2. **Share your DID** with the Storacha team via appropriate channels
@@ -138,7 +138,7 @@ source .env
 ### Start Command
 
 ```bash
-piri start \
+piri serve ucan \
   --key-file=service.pem \
   --pdp-server-url=https://YOUR_PDP_DOMAIN \
   --port=3000
@@ -155,7 +155,7 @@ piri start \
 ### Production Example
 
 ```bash
-piri start \
+piri serve ucan \
   --key-file=/etc/piri/service.pem \
   --pdp-server-url=https://pdp.example.com \
   --port=3000 \

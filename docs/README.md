@@ -58,7 +58,7 @@ Advanced deployment scenarios:
 
 ### Generate a Server Identity (keypair)
 ```bash
-piri id gen -t=pem
+piri identity generate > service.pem
 ```
 See the [PEM File Generation](./common/key-generation.md) guide for details.
 
@@ -73,7 +73,7 @@ curl https://pdp.your-domain.com/health
 
 ### Create a Proof Set
 ```bash
-piri proofset create --key-file=service.pem --pdp-server-url=https://pdp.your-domain.com
+piri client pdp proofset create --key-file=service.pem --node-url=https://pdp.your-domain.com --record-keeper=YOUR_RECORD_KEEPER_ADDRESS
 ```
 
 ## 🆘 Getting Help
