@@ -13,6 +13,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/storacha/go-ucanto/principal"
+
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 type PDPClient interface {
@@ -27,6 +29,7 @@ type PDPClient interface {
 	FindPiece(ctx context.Context, piece PieceHash) (FoundPiece, error)
 	GetPiece(ctx context.Context, pieceCid string) (io.ReadCloser, error)
 	GetPieceURL(pieceCid string) url.URL
+	GetTaskHistory(ctx context.Context, filter *types.TaskHistoryFilter) ([]types.TaskHistoryResponse, error)
 }
 
 const pdpRoutePath = "/pdp"
@@ -244,6 +247,20 @@ func (c *Client) GetPiece(ctx context.Context, pieceCid string) (io.ReadCloser, 
 
 func (c *Client) GetPieceURL(pieceCid string) url.URL {
 	return *c.endpoint.JoinPath(piecePath, "/", pieceCid)
+}
+
+func (c *Client) GetTaskHistory(ctx context.Context, filter *types.TaskHistoryFilter) ([]types.TaskHistoryResponse, error) {
+	u := c.endpoint.JoinPath("pdp", "task")
+
+	// Add query parameters if filter is provided
+	if filter != nil {
+		params := filter.ToQueryParams()
+		u.RawQuery = params.Encode()
+	}
+
+	var history []types.TaskHistoryResponse
+	err := c.getJsonResponse(ctx, u.String(), &history)
+	return history, err
 }
 
 func (c *Client) sendRequest(ctx context.Context, method string, url string, body io.Reader) (*http.Response, error) {
