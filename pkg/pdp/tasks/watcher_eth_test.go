@@ -154,10 +154,8 @@ func createTestTransaction(nonce uint64) *types.Transaction {
 func TestGetReceiptWithRetry_Success(t *testing.T) {
 	client := newFakeEthClient()
 	mw := &MessageWatcherEth{
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 1 * time.Second,
-		maxRetryDelay:  30 * time.Second,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	txHash := common.HexToHash("0x123")
@@ -175,10 +173,8 @@ func TestGetReceiptWithRetry_Success(t *testing.T) {
 func TestGetReceiptWithRetry_SuccessAfterRetries(t *testing.T) {
 	client := newFakeEthClient()
 	mw := &MessageWatcherEth{
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 10 * time.Millisecond,
-		maxRetryDelay:  40 * time.Millisecond,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	txHash := common.HexToHash("0x123")
@@ -186,25 +182,18 @@ func TestGetReceiptWithRetry_SuccessAfterRetries(t *testing.T) {
 	client.addReceipt(txHash, receipt, 2) // Fail twice, then succeed
 
 	ctx := context.Background()
-	start := time.Now()
 	result, err := mw.getReceiptWithRetry(ctx, txHash)
-	duration := time.Since(start)
 
 	require.NoError(t, err)
 	assert.Equal(t, receipt, result)
 	assert.Equal(t, int32(3), client.getCallCount("TransactionReceipt"))
-	// Verify exponential backoff: ~10ms + ~20ms = ~30ms
-	assert.Greater(t, duration, 25*time.Millisecond)
-	assert.Less(t, duration, 50*time.Millisecond)
 }
 
 func TestGetReceiptWithRetry_MaxRetriesExceeded(t *testing.T) {
 	client := newFakeEthClient()
 	mw := &MessageWatcherEth{
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 1 * time.Millisecond,
-		maxRetryDelay:  5 * time.Millisecond,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	txHash := common.HexToHash("0x123")
@@ -215,18 +204,15 @@ func TestGetReceiptWithRetry_MaxRetriesExceeded(t *testing.T) {
 	result, err := mw.getReceiptWithRetry(ctx, txHash)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "max retries exceeded")
 	assert.Nil(t, result)
-	assert.Equal(t, int32(mw.maxRetries+1), client.getCallCount("TransactionReceipt"))
+	assert.Equal(t, int32(mw.maxEthAPIRetries), client.getCallCount("TransactionReceipt"))
 }
 
 func TestGetReceiptWithRetry_NotFoundNoRetry(t *testing.T) {
 	client := newFakeEthClient()
 	mw := &MessageWatcherEth{
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 1 * time.Second,
-		maxRetryDelay:  30 * time.Second,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	txHash := common.HexToHash("0x123")
@@ -244,10 +230,8 @@ func TestGetReceiptWithRetry_NotFoundNoRetry(t *testing.T) {
 func TestCheckTransaction_Success(t *testing.T) {
 	client := newFakeEthClient()
 	mw := &MessageWatcherEth{
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 1 * time.Second,
-		maxRetryDelay:  30 * time.Second,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	txHash := common.HexToHash("0x123")
@@ -276,10 +260,8 @@ func TestCheckTransaction_Success(t *testing.T) {
 func TestCheckTransaction_InsufficientConfirmations(t *testing.T) {
 	client := newFakeEthClient()
 	mw := &MessageWatcherEth{
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 1 * time.Second,
-		maxRetryDelay:  30 * time.Second,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	txHash := common.HexToHash("0x123")
@@ -303,11 +285,9 @@ func TestUpdate_ConcurrentProcessing(t *testing.T) {
 	client := newFakeEthClient()
 
 	mw := &MessageWatcherEth{
-		db:             db,
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 1 * time.Millisecond,
-		maxRetryDelay:  5 * time.Millisecond,
+		db:               db,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	// Set best block number
@@ -353,11 +333,9 @@ func TestUpdate_ErrorResilience(t *testing.T) {
 	client := newFakeEthClient()
 
 	mw := &MessageWatcherEth{
-		db:             db,
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 1 * time.Millisecond,
-		maxRetryDelay:  5 * time.Millisecond,
+		db:               db,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	mw.bestBlockNumber.Store(big.NewInt(1000))
@@ -420,11 +398,9 @@ func TestUpdate_NoBestBlockNumber(t *testing.T) {
 	client := newFakeEthClient()
 
 	mw := &MessageWatcherEth{
-		db:             db,
-		api:            client,
-		maxRetries:     3,
-		baseRetryDelay: 1 * time.Second,
-		maxRetryDelay:  30 * time.Second,
+		db:               db,
+		api:              client,
+		maxEthAPIRetries: 3,
 	}
 
 	// Don't set best block number

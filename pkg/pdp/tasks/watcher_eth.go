@@ -8,8 +8,8 @@ import (
 	"math/big"
 	"sync"
 	"sync/atomic"
-	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -32,12 +32,10 @@ const MinConfidence = 2
 // Retry and concurrency configuration
 const (
 	// Maximum number of concurrent transaction checks
-	maxConcurrentChecks = 10
+	defaultMaxConcurrentChecks = 10
 
 	// Retry configuration
-	maxRetries     = 3
-	baseRetryDelay = 1 * time.Second
-	maxRetryDelay  = 30 * time.Second
+	defaultMaxAPIRetries = 10
 )
 
 type MessageWatcherEthClient interface {
@@ -65,47 +63,27 @@ type MessageWatcherEth struct {
 	updateCh        chan struct{}
 	bestBlockNumber atomic.Pointer[big.Int]
 
-	// Configurable retry parameters
-	maxRetries     int
-	baseRetryDelay time.Duration
-	maxRetryDelay  time.Duration
+	maxEthAPIRetries uint
 }
 
 // WatcherOption is a functional option for configuring MessageWatcherEth
 type WatcherOption func(*MessageWatcherEth)
 
-// WithMaxRetries sets the maximum number of retries
-func WithMaxRetries(n int) WatcherOption {
+// WithMaxEthAPIRetries sets the maximum number of retries for the eth api
+func WithMaxEthAPIRetries(n uint) WatcherOption {
 	return func(mw *MessageWatcherEth) {
-		mw.maxRetries = n
-	}
-}
-
-// WithBaseRetryDelay sets the base retry delay
-func WithBaseRetryDelay(d time.Duration) WatcherOption {
-	return func(mw *MessageWatcherEth) {
-		mw.baseRetryDelay = d
-	}
-}
-
-// WithMaxRetryDelay sets the maximum retry delay
-func WithMaxRetryDelay(d time.Duration) WatcherOption {
-	return func(mw *MessageWatcherEth) {
-		mw.maxRetryDelay = d
+		mw.maxEthAPIRetries = n
 	}
 }
 
 func NewMessageWatcherEth(db *gorm.DB, pcs *scheduler.Chain, api MessageWatcherEthClient, opts ...WatcherOption) (*MessageWatcherEth, error) {
 	mw := &MessageWatcherEth{
-		db:       db,
-		api:      api,
-		stopping: make(chan struct{}),
-		stopped:  make(chan struct{}),
-		updateCh: make(chan struct{}, 1),
-		// Set defaults
-		maxRetries:     maxRetries,
-		baseRetryDelay: baseRetryDelay,
-		maxRetryDelay:  maxRetryDelay,
+		db:               db,
+		api:              api,
+		stopping:         make(chan struct{}),
+		stopped:          make(chan struct{}),
+		updateCh:         make(chan struct{}, 1),
+		maxEthAPIRetries: defaultMaxAPIRetries,
 	}
 
 	// Apply options
@@ -193,7 +171,7 @@ func (mw *MessageWatcherEth) update() {
 	// Use errgroup for better error handling and concurrency control
 	g, ctx := errgroup.WithContext(ctx)
 	// limit the number of concurrent executions (a semaphore)
-	g.SetLimit(maxConcurrentChecks)
+	g.SetLimit(defaultMaxConcurrentChecks)
 
 	// Process transactions concurrently
 	for _, tx := range txs {
@@ -296,98 +274,26 @@ func (mw *MessageWatcherEth) checkTransaction(ctx context.Context, txHash common
 
 // getReceiptWithRetry fetches a transaction receipt with exponential backoff retry
 func (mw *MessageWatcherEth) getReceiptWithRetry(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
-	var lastErr error
-	delay := mw.baseRetryDelay
-
-	for attempt := 0; attempt <= mw.maxRetries; attempt++ {
-		receipt, err := mw.api.TransactionReceipt(ctx, txHash)
-		if err == nil {
-			return receipt, nil
-		}
-
-		lastErr = err
-
+	return backoff.Retry(ctx, func() (*types.Receipt, error) {
+		r, err := mw.api.TransactionReceipt(ctx, txHash)
 		// Don't retry on NotFound errors
 		if errors.Is(err, ethereum.NotFound) {
-			return nil, err
+			return nil, backoff.Permanent(err)
 		}
-
-		// Don't retry if context is cancelled
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-
-		// Don't sleep on the last attempt
-		if attempt < mw.maxRetries {
-			log.Debugw("retrying transaction receipt fetch",
-				"txHash", txHash.Hex(),
-				"attempt", attempt+1,
-				"delay", delay,
-				"error", err)
-
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(delay):
-			}
-
-			// Exponential backoff with jitter
-			delay = delay * 2
-			if delay > mw.maxRetryDelay {
-				delay = mw.maxRetryDelay
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
+		return r, err
+	}, backoff.WithMaxTries(mw.maxEthAPIRetries), backoff.WithBackOff(backoff.NewExponentialBackOff()))
 }
 
 // getTransactionWithRetry fetches transaction data with exponential backoff retry
 func (mw *MessageWatcherEth) getTransactionWithRetry(ctx context.Context, txHash common.Hash) (*types.Transaction, error) {
-	var lastErr error
-	delay := mw.baseRetryDelay
-
-	for attempt := 0; attempt <= mw.maxRetries; attempt++ {
-		tx, _, err := mw.api.TransactionByHash(ctx, txHash)
-		if err == nil {
-			return tx, nil
-		}
-
-		lastErr = err
-
+	return backoff.Retry(ctx, func() (*types.Transaction, error) {
+		t, _, err := mw.api.TransactionByHash(ctx, txHash)
 		// Don't retry on NotFound errors
 		if errors.Is(err, ethereum.NotFound) {
-			return nil, err
+			return nil, backoff.Permanent(err)
 		}
-
-		// Don't retry if context is cancelled
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-
-		// Don't sleep on the last attempt
-		if attempt < mw.maxRetries {
-			log.Debugw("retrying transaction fetch",
-				"txHash", txHash.Hex(),
-				"attempt", attempt+1,
-				"delay", delay,
-				"error", err)
-
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(delay):
-			}
-
-			// Exponential backoff
-			delay = delay * 2
-			if delay > mw.maxRetryDelay {
-				delay = mw.maxRetryDelay
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
+		return t, err
+	}, backoff.WithMaxTries(mw.maxEthAPIRetries), backoff.WithBackOff(backoff.NewExponentialBackOff()))
 }
 
 // updateTransaction updates a single transaction in the database
