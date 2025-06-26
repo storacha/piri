@@ -69,20 +69,20 @@ For production deployments, configure HTTPS access:
 
 ```bash
 piri serve pdp \
-  --lotus-host-url=wss://YOUR_LOTUS_ENDPOINT/rpc/v1 \
-  --pdp-address=YOUR_ETH_ADDRESS \
-  --port=3001
+  --lotus-url=wss://YOUR_LOTUS_ENDPOINT/rpc/v1 \
+  --eth-address=YOUR_ETH_ADDRESS \
+  --endpoint=:3001
 ```
 
 ### Configuration Options
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--lotus-host-url` | Lotus WebSocket RPC endpoint (provides both Lotus and Ethereum API) | Required |
-| `--pdp-address` | Your Ethereum-style wallet address | Required |
-| `--port` | Local port to listen on | 3001 |
-| `--storage-dir` | Directory for storing pieces | `./storage` |
-| `--log-level` | Logging verbosity (debug/info/warn/error) | info |
+| Flag | Description | Default  |
+|------|-------------|----------|
+| `--lotus-url` | Lotus WebSocket RPC endpoint (provides both Lotus and Ethereum API) | Required |
+| `--eth-address` | Your Ethereum-style wallet address | Required |
+| `--endpoint` | Server endpoint to listen on | `:3001` |
+| `--data-dir` | Storage service data directory | `$HOME/.storacha |
+| `--log-level` | Logging verbosity (debug/info/warn/error) | Error |
 
 ### Production Configuration
 
@@ -90,10 +90,10 @@ For production, consider:
 
 ```bash
 piri serve pdp \
-  --lotus-host-url=wss://lotus.example.com/rpc/v1 \
-  --pdp-address=0x7469B47e006D0660aB92AE560b27A1075EEcF97F \
-  --port=3001 \
-  --storage-dir=/var/lib/piri/pdp-storage \
+  --lotus-url=wss://lotus.example.com/rpc/v1 \
+  --eth-address=0x7469B47e006D0660aB92AE560b27A1075EEcF97F \
+  --endpoint=:3001 \
+  --data-dir=/var/lib/piri/pdp-storage
 ```
 
 ## Step 4: Verify Operation

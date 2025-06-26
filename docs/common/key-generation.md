@@ -21,12 +21,12 @@ Piri requires an **Ed25519** private key. Ed25519 is a modern elliptic curve sig
 
 1. Generate a new Ed25519 key and save as a PEM file using Piri:
    ```bash
-   piri id gen -t=pem > service.pem
+   piri identity generate > service.pem
    ```
 
 2. Verify the file and derive your DID:
    ```bash
-   piri id parse service.pem | jq .did
+   piri identity parse service.pem
    ```
    Example output: `did:key:z6MkhaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX`
 

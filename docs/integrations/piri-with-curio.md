@@ -64,17 +64,17 @@ Curio needs to recognize the Piri UCAN server as an authorized service.
 Before accepting uploads, create a proof set in Curio:
 
 ```bash
-piri proofset create \
+piri client pdp proofset create \
   --key-file=service.pem \
-  --pdp-server-url=https://curio.example.com \
+  --node-url=https://curio.example.com \
   --record-keeper=0x6170dE2b09b404776197485F3dc6c968Ef948505
 ```
 
 Monitor creation status:
 ```bash
-piri proofset status \
+piri client pdp proofset status \
   --key-file=service.pem \
-  --pdp-server-url=https://curio.example.com \
+  --node-url=https://curio.example.com \
   --ref-url=/pdp/proof-set/created/HASH_FROM_CREATE
 ```
 
@@ -83,14 +83,14 @@ piri proofset status \
 ### Get Your DID
 
 ```bash
-piri id parse service.pem | jq .did
+piri identity parse service.pem | jq .did
 ```
 
 ### Registration Process
 
 1. **Start Piri temporarily**:
    ```bash
-   piri start --key-file=service.pem
+   piri serve ucan --key-file=service.pem
    ```
 
 2. **Contact Storacha team** with your DID
@@ -114,9 +114,9 @@ source .env
 ### Start Server
 
 ```bash
-piri start \
+piri serve ucan \
   --key-file=service.pem \
-  --pdp-server-url=https://curio.example.com \
+  --node-url=https://curio.example.com \
   --port=3000
 ```
 
@@ -134,9 +134,9 @@ Type=simple
 User=piri
 Group=piri
 EnvironmentFile=/etc/piri/storacha.env
-ExecStart=/usr/local/bin/piri start \
+ExecStart=/usr/local/bin/piri serve ucan \
   --key-file=/etc/piri/service.pem \
-  --pdp-server-url=https://curio.example.com \
+  --node-url=https://curio.example.com \
   --port=3000 \
 Restart=on-failure
 RestartSec=10
