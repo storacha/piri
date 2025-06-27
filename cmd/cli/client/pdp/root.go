@@ -5,6 +5,7 @@ import (
 
 	"github.com/storacha/piri/cmd/cli/client/pdp/piece"
 	"github.com/storacha/piri/cmd/cli/client/pdp/proofset"
+	"github.com/storacha/piri/cmd/cli/client/pdp/task"
 )
 
 var Cmd = &cobra.Command{
@@ -15,4 +16,5 @@ var Cmd = &cobra.Command{
 func init() {
 	Cmd.AddCommand(piece.Cmd)
 	Cmd.AddCommand(proofset.Cmd)
+	Cmd.AddCommand(task.Cmd)
 }

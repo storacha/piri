@@ -43,6 +43,9 @@ func RegisterEchoRoutes(e *echo.Echo, p *PDP) {
 
 	// retrival
 	e.GET(path.Join(PiecePrefix, ":cid"), p.handleDownloadByPieceCid)
+
+	// inspection
+	e.GET(path.Join(PDPRoutePath, "task"), p.handleGetTaskHistory)
 }
 
 type PDP struct {
