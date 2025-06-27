@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -301,6 +302,10 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	if runtime.GOOS == "darwin" {
+		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
+		os.Exit(0)
+	}
 	logging.SetDebugLogging()
 	ctx := context.Background()
 

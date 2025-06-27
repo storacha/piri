@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/minio/minio-go/v7"
@@ -17,6 +19,10 @@ import (
 var benchResult interface{}
 
 func BenchmarkPut(b *testing.B) {
+	if runtime.GOOS == "darwin" {
+		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
+		os.Exit(0)
+	}
 	ctx := context.Background()
 	store := createBenchStore(b)
 
@@ -49,6 +55,11 @@ func BenchmarkPut(b *testing.B) {
 }
 
 func BenchmarkGet(b *testing.B) {
+	if runtime.GOOS == "darwin" {
+		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
+		os.Exit(0)
+	}
+
 	ctx := context.Background()
 	store := createBenchStore(b)
 
@@ -100,6 +111,10 @@ func BenchmarkGet(b *testing.B) {
 }
 
 func BenchmarkGetRange(b *testing.B) {
+	if runtime.GOOS == "darwin" {
+		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
+		os.Exit(0)
+	}
 	ctx := context.Background()
 	store := createBenchStore(b)
 
@@ -158,6 +173,10 @@ func BenchmarkGetRange(b *testing.B) {
 }
 
 func BenchmarkConcurrentPut(b *testing.B) {
+	if runtime.GOOS == "darwin" {
+		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
+		os.Exit(0)
+	}
 	ctx := context.Background()
 	store := createBenchStore(b)
 
@@ -203,6 +222,10 @@ func BenchmarkConcurrentPut(b *testing.B) {
 }
 
 func BenchmarkConcurrentGet(b *testing.B) {
+	if runtime.GOOS == "darwin" {
+		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
+		os.Exit(0)
+	}
 	ctx := context.Background()
 	store := createBenchStore(b)
 
