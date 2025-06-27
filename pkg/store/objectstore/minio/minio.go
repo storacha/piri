@@ -2,6 +2,7 @@ package minio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -40,6 +41,10 @@ func New(endpoint, bucket string, opts minio.Options) (*Store, error) {
 		client: client,
 		bucket: bucket,
 	}, nil
+}
+
+func (s *Store) IsOnline() bool {
+	return s.client.IsOnline()
 }
 
 func (s *Store) Put(ctx context.Context, key string, size uint64, body io.Reader) error {
@@ -125,6 +130,20 @@ func (s *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpti
 	// where calling Stat() interferes with range requests and causes the entire file to be returned
 	var size int64
 
+	statObj, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
+	if err != nil {
+		var merr minio.ErrorResponse
+		if errors.As(err, &merr) {
+			if merr.Code == minio.NoSuchKey {
+				return nil, objectstore.ErrNotExist
+			}
+		}
+		log.Errorw("get object stat failed", "bucket", s.bucket, "key", key, "error", err)
+		return nil, fmt.Errorf("get object with key %s: %w", key, err)
+	}
+	size = statObj.Size
+	log.Debugw("got object", "bucket", s.bucket, "key", key, "size", size, "duration", time.Since(start), "options", config)
+
 	if config.Range().Start != 0 || config.Range().End != nil {
 		// For range requests, we cannot call Stat() as it breaks the range functionality, returning the entire object size
 		// instead of the ranged-size.
@@ -135,23 +154,9 @@ func (s *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpti
 		} else {
 			// For open-ended ranges (start to EOF), we need to get the full object size
 			// We'll do a HEAD request separately to avoid interfering with the range request
-			statObj, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
-			if err != nil {
-				log.Errorw("stat object failed", "bucket", s.bucket, "key", key, "error", err)
-				return nil, fmt.Errorf("get object with key %s: %w", key, err)
-			}
 			size = statObj.Size - int64(config.Range().Start)
 		}
 		log.Debugw("got object with range", "bucket", s.bucket, "key", key, "range_size", size, "duration", time.Since(start), "options", config)
-	} else {
-		// For non-range requests, we can safely use Stat()
-		stat, err := obj.Stat()
-		if err != nil {
-			log.Errorw("get object stat failed", "bucket", s.bucket, "key", key, "error", err)
-			return nil, fmt.Errorf("get object with key %s: %w", key, err)
-		}
-		size = stat.Size
-		log.Debugw("got object", "bucket", s.bucket, "key", key, "size", size, "duration", time.Since(start), "options", config)
 	}
 
 	return &MinioObject{

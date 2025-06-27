@@ -2,9 +2,14 @@ package objectstore
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"go.uber.org/zap/zapcore"
+)
+
+var (
+	ErrNotExist = errors.New("object does not exist")
 )
 
 type Store interface {

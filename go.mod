@@ -276,7 +276,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/polydawn/refmt v0.89.1-0.20231129105047-37766d95467a // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
+	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/ucan-wg/go-ucan v0.0.0-20240916120445-37f52863156c // indirect
 	github.com/whyrusleeping/cbor-gen v0.2.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
