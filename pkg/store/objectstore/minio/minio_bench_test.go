@@ -36,7 +36,7 @@ func BenchmarkPut(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			b.SetBytes(int64(tc.size))
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				key := fmt.Sprintf("bench-put-%s-%d", tc.name, i)
 				err := store.Put(ctx, key, uint64(tc.size), bytes.NewReader(data))
@@ -78,20 +78,20 @@ func BenchmarkGet(b *testing.B) {
 			key := fmt.Sprintf("bench-get-%s", tc.name)
 			b.SetBytes(int64(tc.size))
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				obj, err := store.Get(ctx, key)
 				if err != nil {
 					b.Fatal(err)
 				}
-				
+
 				// Read all data to ensure complete transfer
 				data, err := io.ReadAll(obj.Body())
 				if err != nil {
 					b.Fatal(err)
 				}
 				obj.Body().Close()
-				
+
 				// Prevent compiler optimization
 				benchResult = data
 			}
@@ -129,7 +129,7 @@ func BenchmarkGetRange(b *testing.B) {
 			rangeSize := tc.end - tc.start + 1
 			b.SetBytes(int64(rangeSize))
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				obj, err := store.Get(ctx, key, objectstore.WithRange(objectstore.Range{
 					Start: tc.start,
@@ -138,18 +138,18 @@ func BenchmarkGetRange(b *testing.B) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				
+
 				// Read all data to ensure complete transfer
 				data, err := io.ReadAll(obj.Body())
 				if err != nil {
 					b.Fatal(err)
 				}
 				obj.Body().Close()
-				
+
 				if len(data) != int(rangeSize) {
 					b.Fatalf("expected %d bytes, got %d", rangeSize, len(data))
 				}
-				
+
 				// Prevent compiler optimization
 				benchResult = data
 			}
@@ -160,21 +160,21 @@ func BenchmarkGetRange(b *testing.B) {
 func BenchmarkConcurrentPut(b *testing.B) {
 	ctx := context.Background()
 	store := createBenchStore(b)
-	
+
 	dataSize := 100 * 1024 // 100KB
 	data := bytes.Repeat([]byte("a"), dataSize)
-	
+
 	concurrencyLevels := []int{1, 5, 10, 20}
-	
+
 	for _, concurrency := range concurrencyLevels {
 		b.Run(fmt.Sprintf("Concurrency%d", concurrency), func(b *testing.B) {
 			b.SetBytes(int64(dataSize * concurrency))
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				sem := make(chan struct{}, concurrency)
 				errCh := make(chan error, concurrency)
-				
+
 				for j := 0; j < concurrency; j++ {
 					sem <- struct{}{}
 					go func(idx int) {
@@ -184,13 +184,13 @@ func BenchmarkConcurrentPut(b *testing.B) {
 						errCh <- err
 					}(j)
 				}
-				
+
 				// Wait for all goroutines
 				for j := 0; j < concurrency; j++ {
 					sem <- struct{}{}
 				}
 				close(errCh)
-				
+
 				// Check for errors
 				for err := range errCh {
 					if err != nil {
@@ -205,10 +205,10 @@ func BenchmarkConcurrentPut(b *testing.B) {
 func BenchmarkConcurrentGet(b *testing.B) {
 	ctx := context.Background()
 	store := createBenchStore(b)
-	
+
 	dataSize := 100 * 1024 // 100KB
 	data := bytes.Repeat([]byte("a"), dataSize)
-	
+
 	// Pre-populate objects
 	numObjects := 20
 	for i := 0; i < numObjects; i++ {
@@ -218,18 +218,18 @@ func BenchmarkConcurrentGet(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	
+
 	concurrencyLevels := []int{1, 5, 10, 20}
-	
+
 	for _, concurrency := range concurrencyLevels {
 		b.Run(fmt.Sprintf("Concurrency%d", concurrency), func(b *testing.B) {
 			b.SetBytes(int64(dataSize * concurrency))
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				sem := make(chan struct{}, concurrency)
 				errCh := make(chan error, concurrency)
-				
+
 				for j := 0; j < concurrency; j++ {
 					sem <- struct{}{}
 					go func(idx int) {
@@ -240,26 +240,26 @@ func BenchmarkConcurrentGet(b *testing.B) {
 							errCh <- err
 							return
 						}
-						
+
 						data, err := io.ReadAll(obj.Body())
 						obj.Body().Close()
 						if err != nil {
 							errCh <- err
 							return
 						}
-						
+
 						// Prevent compiler optimization
 						benchResult = data
 						errCh <- nil
 					}(j)
 				}
-				
+
 				// Wait for all goroutines
 				for j := 0; j < concurrency; j++ {
 					sem <- struct{}{}
 				}
 				close(errCh)
-				
+
 				// Check for errors
 				for err := range errCh {
 					if err != nil {
@@ -273,11 +273,11 @@ func BenchmarkConcurrentGet(b *testing.B) {
 
 func createBenchStore(b *testing.B) *Store {
 	b.Helper()
-	
+
 	if minioEndpoint == "" {
 		b.Skip("MinIO endpoint not available - run TestMain first")
 	}
-	
+
 	bucketName := uniqueBucketName(b.Name())
 	store, err := New(minioEndpoint, bucketName, minio.Options{
 		Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
@@ -286,6 +286,6 @@ func createBenchStore(b *testing.B) *Store {
 	if err != nil {
 		b.Fatal(err)
 	}
-	
+
 	return store
 }
