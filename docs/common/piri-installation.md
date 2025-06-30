@@ -8,16 +8,16 @@ This guide covers the installation of the Piri binary, which is used for both PD
 
 Downloading the pre-compiled binary is the quickest way to get started with Piri.
 
-Download the latest release from [v0.0.6](https://github.com/storacha/piri/releases/tag/v0.0.6):
+Download the latest release from [v0.0.7](https://github.com/storacha/piri/releases/tag/v0.0.7):
 
 ```bash
 # For Linux AMD64
-wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_amd64.tar.gz
+wget https://github.com/storacha/piri/releases/download/v0.0.7/piri_0.0.6_linux_amd64.tar.gz
 tar -xzf piri_0.0.6_linux_amd64.tar.gz
 sudo mv piri /usr/local/bin/piri
 
 # For Linux ARM64
-wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_arm64.tar.gz
+wget https://github.com/storacha/piri/releases/download/v0.0.7/piri_0.0.6_linux_arm64.tar.gz
 tar -xzf piri_0.0.6_linux_arm64.tar.gz
 sudo mv piri /usr/local/bin/piri
 ```
@@ -34,7 +34,7 @@ git clone https://github.com/storacha/piri
 cd piri
 
 # Checkout the specific version
-git checkout v0.0.6
+git checkout v0.0.7
 
 # Build
 make
@@ -163,7 +163,7 @@ sudo systemctl status piri-ucan
 
 ```bash
 # Download new version (replace with latest version as needed)
-wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_amd64.tar.gz
+wget https://github.com/storacha/piri/releases/download/v0.0.7/piri_0.0.6_linux_amd64.tar.gz
 tar -xzf piri_0.0.6_linux_amd64.tar.gz
 
 # Replace binary
@@ -177,7 +177,7 @@ sudo systemctl start piri-pdp piri-ucan
 ```bash
 cd piri
 git fetch --tags
-git checkout v0.0.6  # or latest version
+git checkout v0.0.7  # or latest version
 make
 sudo systemctl stop piri-pdp piri-ucan
 sudo cp piri /usr/local/bin/

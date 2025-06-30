@@ -33,12 +33,12 @@ Before starting, ensure you have:
 
 ```bash
 # For Linux AMD64
-wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_amd64.tar.gz
+wget https://github.com/storacha/piri/releases/download/v0.0.7/piri_0.0.6_linux_amd64.tar.gz
 tar -xzf piri_0.0.6_linux_amd64.tar.gz
 sudo mv piri /usr/local/bin/
 
 # For Linux ARM64
-wget https://github.com/storacha/piri/releases/download/v0.0.6/piri_0.0.6_linux_arm64.tar.gz
+wget https://github.com/storacha/piri/releases/download/v0.0.7/piri_0.0.6_linux_arm64.tar.gz
 tar -xzf piri_0.0.6_linux_arm64.tar.gz
 sudo mv piri /usr/local/bin/
 
@@ -52,7 +52,7 @@ piri identity generate > service.pem
 # Clone and build
 git clone https://github.com/storacha/piri
 cd piri
-git checkout v0.0.6
+git checkout v0.0.7
 make
 
 # Generate identity
