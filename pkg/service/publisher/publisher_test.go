@@ -34,7 +34,7 @@ func TestPublisherService(t *testing.T) {
 	addr, err := multiaddr.NewMultiaddr("/dns4/localhost/tcp/3000/http")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("publishes location commitments", func(t *testing.T) {
 		dstore := dssync.MutexWrap(datastore.NewMapDatastore())
@@ -132,7 +132,7 @@ func TestPublisherService(t *testing.T) {
 		publisherStore := store.FromDatastore(dstore, store.WithMetadataContext(metadata.MetadataContext))
 
 		handlerCalled := false
-		handler := func(cap ucan.Capability[claim.CacheCaveats], inv invocation.Invocation, ctx server.InvocationContext) (ok.Unit, fx.Effects, error) {
+		handler := func(ctx context.Context, cap ucan.Capability[claim.CacheCaveats], inv invocation.Invocation, context server.InvocationContext) (ok.Unit, fx.Effects, error) {
 			handlerCalled = true
 			claim := cap.Nb().Claim
 			for b, err := range inv.Blocks() {

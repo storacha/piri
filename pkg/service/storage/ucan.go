@@ -37,7 +37,7 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 			blob.AllocateAbility,
 			server.Provide(
 				blob.Allocate,
-				func(cap ucan.Capability[blob.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AllocateOk, fx.Effects, error) {
+				func(ctx context.Context, cap ucan.Capability[blob.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AllocateOk, fx.Effects, error) {
 					//
 					// UCAN Validation
 					//
@@ -56,8 +56,6 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 					// end UCAN Validation
 					//
 
-					// FIXME: use a real context, requires changes to server
-					ctx := context.TODO()
 					resp, err := blobhandler.Allocate(ctx, storageService, &blobhandler.AllocateRequest{
 						Space: cap.Nb().Space,
 						Blob:  cap.Nb().Blob,
@@ -78,7 +76,7 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 			blob.AcceptAbility,
 			server.Provide(
 				blob.Accept,
-				func(cap ucan.Capability[blob.AcceptCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AcceptOk, fx.Effects, error) {
+				func(ctx context.Context, cap ucan.Capability[blob.AcceptCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AcceptOk, fx.Effects, error) {
 					//
 					// UCAN Validation
 					//
@@ -92,8 +90,6 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 					// end UCAN Validation
 					//
 
-					// FIXME: use a real context, requires changes to server
-					ctx := context.TODO()
 					resp, err := blobhandler.Accept(ctx, storageService, &blobhandler.AcceptRequest{
 						Space: cap.Nb().Space,
 						Blob:  cap.Nb().Blob,
@@ -120,8 +116,7 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 			pdp.InfoAbility,
 			server.Provide(
 				pdp.Info,
-				func(cap ucan.Capability[pdp.InfoCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (pdp.InfoOk, fx.Effects, error) {
-					ctx := context.TODO()
+				func(ctx context.Context, cap ucan.Capability[pdp.InfoCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (pdp.InfoOk, fx.Effects, error) {
 					// generate the invocation that would submit when this was first submitted
 					pieceAccept, err := pdp.Accept.Invoke(
 						storageService.ID(),
@@ -170,7 +165,7 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 			replica.AllocateAbility,
 			server.Provide(
 				replica.Allocate,
-				func(cap ucan.Capability[replica.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (replica.AllocateOk, fx.Effects, error) {
+				func(ctx context.Context, cap ucan.Capability[replica.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (replica.AllocateOk, fx.Effects, error) {
 					//
 					// UCAN Validation
 					//
@@ -209,8 +204,6 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 					// TODO: which one do we pick if > 1?
 					replicaAddress := lc.Location[0]
 
-					// FIXME: use a real context, requires changes to server
-					ctx := context.TODO()
 					resp, err := blobhandler.Allocate(ctx, storageService, &blobhandler.AllocateRequest{
 						Space: cap.Nb().Space,
 						Blob:  cap.Nb().Blob,

@@ -29,7 +29,7 @@ func (srv *Server) Serve(mux *http.ServeMux) {
 
 func NewHandler(server server.ServerView) http.Handler {
 	handler := func(w http.ResponseWriter, r *http.Request) error {
-		res, err := server.Request(ucanhttp.NewHTTPRequest(r.Body, r.Header))
+		res, err := server.Request(r.Context(), ucanhttp.NewHTTPRequest(r.Body, r.Header))
 		if err != nil {
 			return telemetry.NewHTTPError(fmt.Errorf("handling UCAN request: %w", err), http.StatusInternalServerError)
 		}
