@@ -67,7 +67,6 @@ func init() {
 		"Proofset to use with PDP",
 	)
 	cobra.CheckErr(viper.BindPFlag("proof_set", UCANCmd.Flags().Lookup("proof-set")))
-	UCANCmd.MarkFlagsRequiredTogether("pdp-server-url", "proof-set")
 
 	UCANCmd.Flags().String(
 		"indexing-service-proof",
@@ -131,6 +130,13 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.Load[config.UCANServer]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+
+	if len(cfg.PDPServerURL) > 0 && cfg.ProofSet == 0 {
+		return fmt.Errorf("must set --proof-set when using --pdp-server-url")
+	}
+	if cfg.ProofSet != 0 && cfg.PDPServerURL == "" {
+		return fmt.Errorf("must set --pdp-server-url when using --proofset")
 	}
 
 	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
