@@ -64,7 +64,7 @@ func doInfo(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("parsing as pieceCID v1: %w", err)
 		}
 	}
-	ok, err := c.PDPInfo(pieceLink)
+	ok, err := c.PDPInfo(cmd.Context(), pieceLink)
 	if err != nil {
 		return fmt.Errorf("getting pdp info: %w", err)
 	}

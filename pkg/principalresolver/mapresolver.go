@@ -1,6 +1,7 @@
 package principalresolver
 
 import (
+	"context"
 	"errors"
 
 	"github.com/storacha/go-ucanto/did"
@@ -11,7 +12,10 @@ type MapResolver struct {
 	mapping map[did.DID]did.DID
 }
 
-func (r *MapResolver) ResolveDIDKey(input did.DID) (did.DID, validator.UnresolvedDID) {
+var _ validator.PrincipalResolver = (*MapResolver)(nil)
+
+func (r *MapResolver) ResolveDIDKey(_ context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
+	// ctx is unused; this implementation only looks in a local mapping.
 	dk, ok := r.mapping[input]
 	if !ok {
 		return did.Undef, validator.NewDIDKeyResolutionError(input, errors.New("not found in mapping"))

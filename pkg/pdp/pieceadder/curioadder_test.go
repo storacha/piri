@@ -1,7 +1,6 @@
 package pieceadder_test
 
 import (
-	"context"
 	"encoding/hex"
 	"net/url"
 	"testing"
@@ -16,7 +15,7 @@ import (
 )
 
 func TestAddPiece(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

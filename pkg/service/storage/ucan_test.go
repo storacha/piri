@@ -39,7 +39,7 @@ import (
 )
 
 func TestServer(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	svc, err := New(WithIdentity(testutil.Alice), WithLogLevel("*", "warn"))
 	require.NoError(t, err)
 	err = svc.Startup(ctx)
@@ -92,7 +92,7 @@ func TestServer(t *testing.T) {
 		inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
 		require.NoError(t, err)
 
-		resp, err := client.Execute([]invocation.Invocation{inv}, conn)
+		resp, err := client.Execute(ctx, []invocation.Invocation{inv}, conn)
 		require.NoError(t, err)
 
 		// get the receipt link for the invocation from the response
@@ -106,7 +106,7 @@ func TestServer(t *testing.T) {
 			fmt.Printf("%+v\n", ok)
 			require.Equal(t, size, uint64(ok.Size))
 
-			allocs, err := svc.Blobs().Allocations().List(context.Background(), digest)
+			allocs, err := svc.Blobs().Allocations().List(t.Context(), digest)
 			require.NoError(t, err)
 
 			require.Len(t, allocs, 1)
@@ -142,7 +142,7 @@ func TestServer(t *testing.T) {
 			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
 			require.NoError(t, err)
 
-			resp, err := client.Execute([]invocation.Invocation{inv}, conn)
+			resp, err := client.Execute(ctx, []invocation.Invocation{inv}, conn)
 			require.NoError(t, err)
 
 			rcptlnk, ok := resp.Get(inv.Link())
@@ -175,7 +175,7 @@ func TestServer(t *testing.T) {
 		})
 
 		// simulate a blob upload
-		err = svc.Blobs().Store().Put(context.Background(), digest, size, bytes.NewReader(data))
+		err = svc.Blobs().Store().Put(t.Context(), digest, size, bytes.NewReader(data))
 		require.NoError(t, err)
 
 		// now again after upload
@@ -212,7 +212,7 @@ func TestServer(t *testing.T) {
 			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
 			require.NoError(t, err)
 
-			resp, err := client.Execute([]invocation.Invocation{inv}, conn)
+			resp, err := client.Execute(ctx, []invocation.Invocation{inv}, conn)
 			require.NoError(t, err)
 
 			rcptlnk, ok := resp.Get(inv.Link())
@@ -234,7 +234,7 @@ func TestServer(t *testing.T) {
 		})
 
 		// simulate a blob upload
-		err = svc.Blobs().Store().Put(context.Background(), digest, size, bytes.NewReader(data))
+		err = svc.Blobs().Store().Put(t.Context(), digest, size, bytes.NewReader(data))
 		require.NoError(t, err)
 
 		// now again after upload, but in different space
@@ -268,11 +268,11 @@ func TestServer(t *testing.T) {
 		allocInv, err := invocation.Invoke(testutil.Service, testutil.Alice, allocCap, delegation.WithProof(prf))
 		require.NoError(t, err)
 
-		_, err = client.Execute([]invocation.Invocation{allocInv}, conn)
+		_, err = client.Execute(ctx, []invocation.Invocation{allocInv}, conn)
 		require.NoError(t, err)
 
 		// simulate a blob upload
-		err = svc.Blobs().Store().Put(context.Background(), digest, size, bytes.NewReader(data))
+		err = svc.Blobs().Store().Put(t.Context(), digest, size, bytes.NewReader(data))
 		require.NoError(t, err)
 		// get the expected download URL
 		loc, err := svc.Blobs().Access().GetDownloadURL(digest)
@@ -297,7 +297,7 @@ func TestServer(t *testing.T) {
 		acceptInv, err := invocation.Invoke(testutil.Service, testutil.Alice, acceptCap, delegation.WithProof(prf))
 		require.NoError(t, err)
 
-		resp, err := client.Execute([]invocation.Invocation{acceptInv}, conn)
+		resp, err := client.Execute(ctx, []invocation.Invocation{acceptInv}, conn)
 		require.NoError(t, err)
 
 		// get the receipt link for the invocation from the response
@@ -310,7 +310,7 @@ func TestServer(t *testing.T) {
 		result.MatchResultR0(rcpt.Out(), func(ok blob.AcceptOk) {
 			fmt.Printf("%+v\n", ok)
 
-			claim, err := svc.Claims().Store().Get(context.Background(), ok.Site)
+			claim, err := svc.Claims().Store().Get(t.Context(), ok.Site)
 			require.NoError(t, err)
 
 			require.Equal(t, testutil.Alice.DID(), claim.Issuer())
@@ -381,7 +381,7 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			// we expect each test to run in 10 seconds or less.
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 
 			// Common setup: random DID, random data, etc.
 			expectedSpace := testutil.RandomDID(t)
@@ -449,7 +449,7 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 			rbi, expectedAllocateCaveats := buildAllocateInvocation(
 				t, bri, lcd, expectedSpace, expectedDigest, expectedSize,
 			)
-			res, err := client.Execute([]invocation.Invocation{rbi}, conn)
+			res, err := client.Execute(ctx, []invocation.Invocation{rbi}, conn)
 			require.NoError(t, err)
 
 			// The final assertion on the returned allocation size.
