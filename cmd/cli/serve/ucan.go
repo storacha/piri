@@ -132,7 +132,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	if len(cfg.PDPServerURL) > 0 && cfg.ProofSet == 0 {
+	if cfg.PDPServerURL != "" && cfg.ProofSet == 0 {
 		return fmt.Errorf("must set --proof-set when using --pdp-server-url")
 	}
 	if cfg.ProofSet != 0 && cfg.PDPServerURL == "" {
