@@ -9,6 +9,14 @@ import (
 
 type TaskHistoryResponse struct {
 	History []TaskHistory `json:"history"`
+	
+	// Pagination metadata
+	TotalCount int  `json:"total_count"`          // Total number of matching records
+	HasMore    bool `json:"has_more"`             // Whether there are more results after this page
+	Limit      int  `json:"limit"`                // The limit used for this request
+	Offset     int  `json:"offset"`               // The offset used for this request
+	Page       int  `json:"page,omitempty"`       // Current page number (1-based)
+	TotalPages int  `json:"total_pages,omitempty"` // Total number of pages
 }
 
 type TaskHistory struct {

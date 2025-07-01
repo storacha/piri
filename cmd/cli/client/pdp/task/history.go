@@ -28,6 +28,7 @@ var (
 	sessionID     string
 	limit         int
 	offset        int
+	page          int
 
 	// Output format flag
 	outputFormat string
@@ -39,7 +40,8 @@ var (
   - Filter by task ID, name, session ID
   - Filter by time ranges (created, started, ended)
   - Filter by success/failure status or tasks with errors
-  - Support pagination with limit and offset`,
+  - Support pagination with limit, offset, or page number
+  - Default limit is 10 results per page`,
 		Args: cobra.NoArgs,
 		RunE: doHistory,
 	}
@@ -62,10 +64,12 @@ func init() {
 	// Status filters
 	HistoryCmd.Flags().StringVar(&successFilter, "success", "", "Filter by success status (true/false)")
 	HistoryCmd.Flags().StringVar(&hasError, "has-error", "", "Filter tasks with errors (true/false)")
+	cobra.CheckErr(HistoryCmd.Flags().MarkHidden("has-error"))
 
 	// Pagination
-	HistoryCmd.Flags().IntVar(&limit, "limit", 0, "Limit number of results (default: no limit)")
+	HistoryCmd.Flags().IntVar(&limit, "limit", 10, "Limit number of results")
 	HistoryCmd.Flags().IntVar(&offset, "offset", 0, "Offset for pagination")
+	HistoryCmd.Flags().IntVar(&page, "page", 0, "Page number (1-based, alternative to offset)")
 
 	// Output format
 	HistoryCmd.Flags().StringVar(&outputFormat, "format", "table", "Output format: table or json")
@@ -113,6 +117,35 @@ func doHistory(cmd *cobra.Command, _ []string) error {
 	formatter := format.NewFormatter(outFormat, cmd.OutOrStdout())
 	if err := formatter.Format(history); err != nil {
 		return fmt.Errorf("formatting output: %w", err)
+	}
+
+	// If table format, print pagination info after the table
+	if outFormat == format.TableFormat && history.TotalCount > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "\n")
+		
+		// Calculate current range
+		start := history.Offset + 1
+		end := history.Offset + len(history.History)
+		
+		// Print pagination summary
+		if history.Page > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "Page %d of %d (showing %d-%d of %d results)", 
+				history.Page, history.TotalPages, start, end, history.TotalCount)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "Showing %d-%d of %d results", 
+				start, end, history.TotalCount)
+		}
+		
+		// Show hint for next page if there are more results
+		if history.HasMore {
+			if page > 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), " - Use --page %d for next page", page+1)
+			} else {
+				nextOffset := history.Offset + history.Limit
+				fmt.Fprintf(cmd.OutOrStdout(), " - Use --offset %d for next page", nextOffset)
+			}
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "\n")
 	}
 
 	return nil
@@ -205,7 +238,21 @@ func buildFilterFromFlags() (*types.TaskHistoryFilter, error) {
 
 	// Pagination
 	filter.Limit = limit
-	filter.Offset = offset
+	
+	// Validate that both page and offset are not used together
+	if page > 0 && offset > 0 {
+		return nil, fmt.Errorf("cannot use both --page and --offset flags together")
+	}
+	
+	// If page is specified, calculate offset from it
+	if page > 0 {
+		if limit <= 0 {
+			return nil, fmt.Errorf("page flag requires a positive limit")
+		}
+		filter.Offset = (page - 1) * limit
+	} else {
+		filter.Offset = offset
+	}
 
 	return filter, nil
 }

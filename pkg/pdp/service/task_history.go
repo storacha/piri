@@ -4,84 +4,128 @@ import (
 	"context"
 	"fmt"
 
+	"gorm.io/gorm"
+
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 func (p *PDPService) GetTaskHistory(ctx context.Context, filter *types.TaskHistoryFilter) (types.TaskHistoryResponse, error) {
-	query := p.db.WithContext(ctx).Model(&models.TaskHistory{})
+	baseQuery := p.db.WithContext(ctx).Model(&models.TaskHistory{})
 
-	// Apply filters
+	// Apply filters to base query
 	if filter != nil {
 		// Task ID filter
 		if filter.TaskID != nil {
-			query = query.Where("task_id = ?", *filter.TaskID)
+			baseQuery = baseQuery.Where("task_id = ?", *filter.TaskID)
 		}
 
 		// Name filter (partial match, case-insensitive)
 		if filter.Name != nil {
-			query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+*filter.Name+"%")
+			baseQuery = baseQuery.Where("LOWER(name) LIKE LOWER(?)", "%"+*filter.Name+"%")
 		}
 
 		// Time range filters
 		if filter.CreatedAfter != nil {
-			query = query.Where("posted >= ?", *filter.CreatedAfter)
+			baseQuery = baseQuery.Where("posted >= ?", *filter.CreatedAfter)
 		}
 		if filter.CreatedBefore != nil {
-			query = query.Where("posted <= ?", *filter.CreatedBefore)
+			baseQuery = baseQuery.Where("posted <= ?", *filter.CreatedBefore)
 		}
 		if filter.StartedAfter != nil {
-			query = query.Where("work_start >= ?", *filter.StartedAfter)
+			baseQuery = baseQuery.Where("work_start >= ?", *filter.StartedAfter)
 		}
 		if filter.StartedBefore != nil {
-			query = query.Where("work_start <= ?", *filter.StartedBefore)
+			baseQuery = baseQuery.Where("work_start <= ?", *filter.StartedBefore)
 		}
 		if filter.EndedAfter != nil {
-			query = query.Where("work_end >= ?", *filter.EndedAfter)
+			baseQuery = baseQuery.Where("work_end >= ?", *filter.EndedAfter)
 		}
 		if filter.EndedBefore != nil {
-			query = query.Where("work_end <= ?", *filter.EndedBefore)
+			baseQuery = baseQuery.Where("work_end <= ?", *filter.EndedBefore)
 		}
 
 		// Success filter
 		if filter.Success != nil {
-			query = query.Where("result = ?", *filter.Success)
+			baseQuery = baseQuery.Where("result = ?", *filter.Success)
 		}
 
 		// Error filter
 		if filter.HasError != nil {
 			if *filter.HasError {
-				query = query.Where("err IS NOT NULL AND err != ''")
+				baseQuery = baseQuery.Where("err IS NOT NULL AND err != ''")
 			} else {
-				query = query.Where("err IS NULL OR err = ''")
+				baseQuery = baseQuery.Where("err IS NULL OR err = ''")
 			}
 		}
 
 		// Session ID filter
 		if filter.SessionID != nil {
-			query = query.Where("completed_by_session_id = ?", *filter.SessionID)
+			baseQuery = baseQuery.Where("completed_by_session_id = ?", *filter.SessionID)
 		}
+	}
 
+	// Get total count of matching records
+	var totalCount int64
+	if err := baseQuery.Count(&totalCount).Error; err != nil {
+		return types.TaskHistoryResponse{}, fmt.Errorf("counting task history: %w", err)
+	}
+
+	// Create query for fetching data with pagination
+	dataQuery := baseQuery.Session(&gorm.Session{})
+	
+	// Default values for pagination
+	limit := 0
+	offset := 0
+	
+	if filter != nil {
+		limit = filter.Limit
+		offset = filter.Offset
+		
 		// Apply limit and offset for pagination
 		if filter.Limit > 0 {
-			query = query.Limit(filter.Limit)
+			dataQuery = dataQuery.Limit(filter.Limit)
 		}
 		if filter.Offset > 0 {
-			query = query.Offset(filter.Offset)
+			dataQuery = dataQuery.Offset(filter.Offset)
 		}
 	}
 
 	// Order by posted time descending (newest first)
-	query = query.Order("posted DESC")
+	dataQuery = dataQuery.Order("posted DESC")
 
 	var history []models.TaskHistory
-	if err := query.Find(&history).Error; err != nil {
+	if err := dataQuery.Find(&history).Error; err != nil {
 		return types.TaskHistoryResponse{}, fmt.Errorf("reading task history: %w", err)
 	}
 
-	out := types.TaskHistoryResponse{
-		History: make([]types.TaskHistory, len(history)),
+	// Calculate pagination metadata
+	hasMore := false
+	if limit > 0 {
+		hasMore = int64(offset+len(history)) < totalCount
 	}
+	
+	// Calculate page and total pages if limit is set
+	page := 0
+	totalPages := 0
+	if limit > 0 {
+		page = (offset / limit) + 1
+		totalPages = int(totalCount) / limit
+		if int(totalCount)%limit > 0 {
+			totalPages++
+		}
+	}
+
+	out := types.TaskHistoryResponse{
+		History:    make([]types.TaskHistory, len(history)),
+		TotalCount: int(totalCount),
+		HasMore:    hasMore,
+		Limit:      limit,
+		Offset:     offset,
+		Page:       page,
+		TotalPages: totalPages,
+	}
+	
 	for i, h := range history {
 		out.History[i] = types.TaskHistory{
 			TaskID:    h.TaskID,
