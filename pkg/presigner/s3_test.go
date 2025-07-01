@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
 	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -64,5 +66,17 @@ func TestS3Signer(t *testing.T) {
 		require.Error(t, err)
 
 		require.Equal(t, err.Error(), "signature verification failed")
+	})
+
+	t.Run("requires sha2-256 digest", func(t *testing.T) {
+		reqSigner, err := NewS3RequestPresigner(accessKeyID, secretAccessKey, *endpoint, "data")
+		require.NoError(t, err)
+
+		data := testutil.RandomBytes(t, 32)
+		digest, err := multihash.Sum(data, uint64(multicodec.Sha2_512), -1)
+		require.NoError(t, err)
+
+		_, _, err = reqSigner.SignUploadURL(context.Background(), digest, uint64(len(data)), 900)
+		require.EqualError(t, err, fmt.Sprintf("unsupported digest: %d", multicodec.Sha2_512))
 	})
 }

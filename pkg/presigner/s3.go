@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/piri/pkg/internal/digestutil"
 )
@@ -34,6 +35,9 @@ func (ss *S3RequestPresigner) SignUploadURL(ctx context.Context, digest multihas
 	digestInfo, err := multihash.Decode(digest)
 	if err != nil {
 		return url.URL{}, nil, fmt.Errorf("decoding digest: %w", err)
+	}
+	if digestInfo.Code != uint64(multicodec.Sha2_256) {
+		return url.URL{}, nil, fmt.Errorf("unsupported digest: %d", digestInfo.Code)
 	}
 	signedReq, err := ss.presignClient.PresignPutObject(
 		ctx,

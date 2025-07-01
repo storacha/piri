@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/multiformats/go-multicodec"
 	multihash "github.com/multiformats/go-multihash"
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/presigner"
@@ -63,6 +64,9 @@ func (s *S3BlobPresigner) SignUploadURL(ctx context.Context, digest multihash.Mu
 	digestInfo, err := multihash.Decode(digest)
 	if err != nil {
 		return url.URL{}, nil, fmt.Errorf("decoding digest: %w", err)
+	}
+	if digestInfo.Code != uint64(multicodec.Sha2_256) {
+		return url.URL{}, nil, fmt.Errorf("unsupported digest: %d", digestInfo.Code)
 	}
 
 	signedReq, err := s.presignClient.PresignPutObject(
@@ -117,6 +121,9 @@ func (s *S3BlobStore) Put(ctx context.Context, digest multihash.Multihash, size 
 	digestInfo, err := multihash.Decode(digest)
 	if err != nil {
 		return fmt.Errorf("decoding digest: %w", err)
+	}
+	if digestInfo.Code != uint64(multicodec.Sha2_256) {
+		return fmt.Errorf("unsupported digest: %d", digestInfo.Code)
 	}
 	_, err = s.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:         aws.String(s.bucket),
