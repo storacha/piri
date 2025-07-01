@@ -114,11 +114,16 @@ func (s *S3BlobStore) PresignClient() presigner.RequestPresigner {
 
 // Put implements blobstore.Blobstore.
 func (s *S3BlobStore) Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error {
-	_, err := s.s3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:        aws.String(s.bucket),
-		Key:           aws.String(s.formatKey(digest)),
-		Body:          body,
-		ContentLength: aws.Int64(int64(size)),
+	digestInfo, err := multihash.Decode(digest)
+	if err != nil {
+		return fmt.Errorf("decoding digest: %w", err)
+	}
+	_, err = s.s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:         aws.String(s.bucket),
+		Key:            aws.String(s.formatKey(digest)),
+		Body:           body,
+		ContentLength:  aws.Int64(int64(size)),
+		ChecksumSHA256: aws.String(base64.StdEncoding.EncodeToString(digestInfo.Digest)),
 	})
 	return err
 }
