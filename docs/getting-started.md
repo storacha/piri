@@ -1,62 +1,38 @@
 # Getting Started with Piri
 
-Choose your path:
+This comprehensive guide walks you through setting up Piri services from scratch. Follow each section in order to ensure a successful deployment.
 
-## 🚀 Running a Storage Provider
+## Overview
 
-### Option 1: Full Piri Stack (Recommended for New Providers)
-Run both UCAN and PDP servers for complete storage provider functionality.
+Setting up Piri involves:
+1. Preparing your system and network
+2. Installing and configuring Piri
+3. Running both PDP and UCAN servers
+4. Validating your setup
 
-→ 📖 **[Full Stack Setup Guide](./integrations/full-stack-setup.md)**
+## Complete Setup Guide
 
-### Option 2: Piri with Curio (Recommended for Existing Operators already using Curio)
-Already running Curio? Add just the UCAN server to join Storacha network.
+### Step 1: [Prerequisites](./setup/prerequisites.md)
+Set up your system, network, and Filecoin node
 
-→ 📖 **[Piri with Curio Integration](./integrations/piri-with-curio.md)**
+### Step 2: [Install Piri](./setup/installation.md)
+Download and install the Piri binary
 
-## 👩‍💻 Contributing to Piri
+### Step 3: [Generate Keys](./setup/key-generation.md)
+Create your cryptographic identity
 
-Want to contribute? Check out:
-- [Architecture Overview](./architecture.md) - Understand the system
-- Set up local development using the [Full Stack Guide](./integrations/full-stack-setup.md)
-- [GitHub Issues](https://github.com/storacha/piri/issues) - Find tasks to work on
+### Step 4: [Configure TLS](./setup/tls-termination.md)
+Set up HTTPS for your domains
 
-## Prerequisites
+### Step 5: [Setup PDP Server](./guides/pdp-server.md)
+Deploy the storage and proof generation server
 
-Before starting, ensure you have:
-- Go 1.24+, Git, Make, jq
-- See [detailed prerequisites](./common/prerequisites.md)
+### Step 6: [Setup UCAN Server](./guides/ucan-server.md)
+Deploy the client-facing API server
 
-## Quick Start
+### Step 7: [Validate](./setup/validation.md)
+Test your complete deployment
 
-### Download Pre-compiled Binary (Recommended)
+---
 
-```bash
-# For Linux AMD64
-wget https://github.com/storacha/piri/releases/download/v0.0.7/piri_0.0.6_linux_amd64.tar.gz
-tar -xzf piri_0.0.6_linux_amd64.tar.gz
-sudo mv piri /usr/local/bin/
-
-# For Linux ARM64
-wget https://github.com/storacha/piri/releases/download/v0.0.7/piri_0.0.6_linux_arm64.tar.gz
-tar -xzf piri_0.0.6_linux_arm64.tar.gz
-sudo mv piri /usr/local/bin/
-
-# Generate identity
-piri identity generate > service.pem
-```
-
-### Build from Source (Alternative)
-
-```bash
-# Clone and build
-git clone https://github.com/storacha/piri
-cd piri
-git checkout v0.0.7
-make
-
-# Generate identity
-piri identity generate > service.pem
-```
-
-Then follow your chosen guide above.
+By the end of this guide, you'll have a fully operational Piri deployment ready to serve the Storacha network.

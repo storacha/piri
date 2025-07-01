@@ -1,7 +1,6 @@
-# Piri UCAN Server Setup Guide
+# Setup Piri UCAN Server
 
-This guide walks you through setting up a Piri UCAN (User Controlled Authorization Network) server. 
-The UCAN server accepts data uploads from Storacha network clients and routes them to a PDP backend.
+This section walks you through setting up a Piri UCAN (User Controlled Authorization Network) server. The UCAN server accepts data uploads from Storacha network clients and routes them to a PDP backend.
 
 ## Overview
 
@@ -15,168 +14,95 @@ The Piri UCAN server:
 
 Before starting, ensure you have:
 
-1. ✅ [Met system prerequisites](../common/prerequisites.md)
-2. ✅ [Installed Piri](../common/piri-installation.md)
-3. ✅ [Generated a PEM file](../common/key-generation.md) with Ed25519 key
-4. ✅ Access to a PDP server (Piri or Curio) at an HTTPS endpoint
-5. ✅ [Configured TLS termination](../common/tls-termination.md) for your domain
+1. ✅ [Met system prerequisites](../setup/prerequisites.md)
+2. ✅ [Configured and Synced a Lotus Node](../setup/prerequisites.md#filecoin-prerequisites)
+3. ✅ [Configured TLS Termination](../setup/tls-termination.md)
+4. ✅ [Installed Piri](../setup/installation.md)
+5. ✅ [Generated a Key-Pair](../setup/key-generation.md)
+6. ✅ [Setup a Piri PDP Server](./pdp-server.md)
 
-### PDP Backend Requirement
+## Start a Piri UCAN Server
 
-You need ONE of the following:
-- **Piri PDP Server**: Follow the [PDP server guide](./pdp-server-piri.md)
-- **Curio**: See [Curio integration guide](../integrations/piri-with-curio.md)
+### Step 1: Register your DID with Storacha Team
 
-Your PDP backend must be accessible via HTTPS (e.g., `https://pdp.example.com`).
+Share the [DID you created](../setup/key-generation.md#generating-a-pem-file--did) with the storacha team. 
 
-## Step 1: Prepare Your Identity
+> **Note**: This is the Public Key: `did:key:z6MkhaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` value created previously.
 
-### Derive Your DID
-
-Using the PEM file you generated:
+### Step 2: Start Piri UCAN Server for Registration
 
 ```bash
-# Extract your DID
-piri identity parse service.pem
+piri serve ucan --key-file=service.pem
 ```
 
-Example output: `did:key:z6MkhaXgD8CkBJPgWK2mPx7kW6KnvgCx6LJfnv4jkLd4VWQR`
-
-Save this DID - you'll need it for Storacha registration.
-
-### For Curio Integration
-
-If using Curio as your PDP backend:
-
-1. Extract the public key from your PEM:
-   ```bash
-   openssl pkey -in service.pem -pubout
-   ```
-
-2. Add this public key to Curio's configuration as a service named `storacha`
-3. See the [Curio integration guide](../integrations/piri-with-curio.md) for details
-
-## Step 2: Create a Proof Set
-
-Before accepting data, you need to create a proof set on the PDP backend:
-
+**Expected output:**
 ```bash
-piri client pdp proofset create \
-  --key-file=service.pem \
-  --node-url=https://YOUR_PDP_DOMAIN \
-  --record-keeper=0x6170dE2b09b404776197485F3dc6c968Ef948505
+▗▄▄▖ ▄  ▄▄▄ ▄   ▗
+▐▌ ▐▌▄ █    ▄   █▌
+▐▛▀▘ █ █    █  ▗█▘
+▐▌   █      █  ▀▘
+
+🔥 v0.0.9
+🆔 did:key:z6Mko7NFux3RoDDQUjmbnc7ccCqxnLV3tju8zwai2XFbRbU6
+🚀 Ready!
 ```
 
-Note: The [record-keeper](https://github.com/FilOzone/pdp/?tab=readme-ov-file#contracts) address is the contract address on the Calibration network.
+### Step 3: Obtain a delegation from the Storacha Delegator
 
-### Monitor Creation
+Visit https://staging.delegator.storacha.network and select 'Start Onboarding', following the guide until completion. 
 
-Check the status of your proof set creation:
+**During onboarding you will:**
+- Provide a delegation proof allowing the Storacha upload service to write to your piri node
+- Receive a delegation proof allowing your Piri node to write to the Storacha indexing service
+- Receive necessary configuration to connect to Storacha services
 
-```bash
-piri client pdp proofset status \
-  --key-file=service.pem \
-  --node-url=https://YOUR_PDP_DOMAIN \
-  --ref-url=/pdp/proof-set/created/HASH_FROM_CREATE_OUTPUT
-```
+### Step 4: Restart Piri with Provided Configuration
 
-Wait until you see:
-```json
-{
-  "proofsetCreated": true,
-  "txStatus": "confirmed",
-  "ok": true,
-  "proofSetId": YOUR_PROOFSET_ID
-}
-```
+Upon completing step 3, the delegator will have provided you with a set of environment variables to configure on your Piri node.
 
-Save your `proofSetId` for reference.
-
-## Step 3: Register with Storacha Delegator
-
-### Registration Process
-
-1. **Start Piri temporarily** to prepare for delegation:
-   ```bash
-   piri serve ucan --key-file=service.pem
-   ```
-
-2. **Share your DID** with the Storacha team via appropriate channels
-
-3. **Visit the Delegator**:
-   - https://staging.delegator.storacha.network
-
-4. **Follow instructions** to:
-   - Receive your delegation proof
-   - Generate a delegation proof
-   - Environment configuration
-
-5. **Stop the temporary server** (Ctrl+C) after receiving your configuration
-
-### Save Configuration
+#### 4.1 Save Delegator Provided Configuration
 
 Create a `.env` file with the configuration received:
 
 ```bash
 # Example .env file
-INDEXING_SERVICE_DID="did:web:staging.indexing.storacha.network"
-INDEXING_SERVICE_URL="https://staging.indexing.storacha.network"
-INDEXING_SERVICE_PROOF="bafyrei..."
-UPLOAD_SERVICE_DID="did:web:staging.upload.storacha.network"
-UPLOAD_SERVICE_URL="https://staging.upload.storacha.network"
+export INDEXING_SERVICE_DID="did:web:staging.indexing.warm.storacha.network"
+export INDEXING_SERVICE_URL="https://staging.indexing.warm.storacha.network"
+export INDEXING_SERVICE_PROOF="bafyrei..."
+export UPLOAD_SERVICE_DID="did:web:staging.upload.warm.storacha.network"
+export UPLOAD_SERVICE_URL="https://staging.upload.warm.storacha.network"
 ...
 ```
 
-## Step 4: Start the UCAN Server
-
-### Load Configuration
+#### 4.2 Source the .env file
 
 ```bash
 source .env
 ```
 
-### Start Command
+#### 4.3 Restart your Piri node
 
 ```bash
-piri serve ucan \
-  --key-file=service.pem \
-  --pdp-server-url=https://YOUR_PDP_DOMAIN \
-  --port=3000
+piri serve ucan --key-file=service.pem --pdp-server-url=https://up.piri.example.com
 ```
 
-### Configuration Options
+> **Note**: Replace `up.piri.example.com` with your actual PDP server domain configured in the [TLS Termination](../setup/tls-termination.md) section.
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--key-file` | Path to your PEM file | Required |
-| `--pdp-server-url` | HTTPS URL of your PDP backend | Required |
-| `--port` | Local port to listen on | 3000 |
-
-### Production Example
-
+**Expected output:**
 ```bash
-piri serve ucan \
-  --key-file=/etc/piri/service.pem \
-  --pdp-server-url=https://pdp.example.com \
-  --port=3000 \
+▗▄▄▖ ▄  ▄▄▄ ▄   ▗
+▐▌ ▐▌▄ █    ▄   █▌
+▐▛▀▘ █ █    █  ▗█▘
+▐▌   █      █  ▀▘
+
+🔥 v0.0.9
+🆔 did:key:z6Mko7NFux3RoDDQUjmbnc7ccCqxnLV3tju8zwai2XFbRbU6
+🚀 Ready!
 ```
 
-## Step 5: Verify Operation
-
-### Monitor Logs
-
-```bash
-# If running in foreground
-# Logs appear in terminal
-
-# If using systemd
-journalctl -u piri-ucan -f
-```
+---
 
 ## Next Steps
 
-- Configure monitoring and alerting
-- Set up log aggregation
-- Plan for scaling (load balancing)
-- Review [architecture](../architecture.md) for system design
-- Consider [full stack setup](../integrations/full-stack-setup.md)
+After setting up the UCAN server:
+- [Validate Your Setup](../setup/validation.md)

@@ -170,8 +170,3 @@ Storacha ──UCAN Token──▶ UCAN Server
 │ UCAN Server  │────────▶│ PDP Server  │
 └──────────────┘ :3001   └─────────────┘
 ```
-
-For implementation details, see the specific guides:
-- [PDP Server Setup](./guides/pdp-server-piri.md)
-- [UCAN Server Setup](./guides/ucan-server.md)
-- [Full Stack Setup](./integrations/full-stack-setup.md)
