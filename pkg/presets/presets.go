@@ -24,21 +24,22 @@ var PresetsEnvVar = "PIRI_PRESETS"
 var defaultIPNIAnnounceURL = lo.Must(url.Parse("https://cid.contact/announce"))
 
 func init() {
-	if os.Getenv(PresetsEnvVar) != "prod" {
+	switch os.Getenv(PresetsEnvVar) {
+	case "prod":
 		IPNIAnnounceURLs = prodIPNIAnnounceURLs
 		IndexingServiceURL = prodIndexingServiceURL
 		IndexingServiceDID = prodIndexingServiceDID
 		UploadServiceURL = prodUploadServiceURL
 		UploadServiceDID = prodUploadServiceDID
 		PrincipalMapping = prodPrincipalMapping
-	} else if os.Getenv(PresetsEnvVar) == "staging" {
+	case "staging":
 		IPNIAnnounceURLs = stagingIPNIAnnounceURLs
 		IndexingServiceURL = stagingIndexingServiceURL
 		IndexingServiceDID = stagingIndexingServiceDID
 		UploadServiceURL = stagingUploadServiceURL
 		UploadServiceDID = stagingUploadServiceDID
 		PrincipalMapping = stagingPrincipalMapping
-	} else {
+	default:
 		IPNIAnnounceURLs = warmStageIPNIAnnounceURLs
 		IndexingServiceURL = warmStageIndexingServiceURL
 		IndexingServiceDID = warmStageIndexingServiceDID
