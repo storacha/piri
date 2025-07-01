@@ -5,3 +5,15 @@ build
 .terraform
 .env
 .tfworkspace
+
+# Binary executable
+piri
+
+# PEM files (certificates/keys)
+*.pem
+
+# IntelliJ IDEA directory
+.idea/
+
+# Wallet Private Keys
+*.hex

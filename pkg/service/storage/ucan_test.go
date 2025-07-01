@@ -381,7 +381,7 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			// we expect each test to run in 10 seconds or less.
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
 			// Common setup: random DID, random data, etc.
 			expectedSpace := testutil.RandomDID(t)

@@ -2,6 +2,7 @@ package replica
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-ucanto/client"
+	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/invocation/ran"
 	"github.com/storacha/go-ucanto/core/ipld"
@@ -55,6 +57,77 @@ type TransferRequest struct {
 	// Cause is the invocation responsible for spawning this replication
 	// should be a replica/transfer invocation.
 	Cause invocation.Invocation
+}
+
+func (t *TransferRequest) MarshalJSON() ([]byte, error) {
+	aux := struct {
+		Space  string     `json:"space"`
+		Blob   types.Blob `json:"blob"`
+		Source string     `json:"source"`
+		Sink   *string    `json:"sink,omitempty"`
+		Cause  []byte     `json:"cause"`
+	}{
+		Space:  t.Space.String(),
+		Blob:   t.Blob,
+		Source: t.Source.String(),
+	}
+
+	if t.Sink != nil {
+		sinkStr := t.Sink.String()
+		aux.Sink = &sinkStr
+	}
+
+	causeBytes, err := io.ReadAll(t.Cause.Archive())
+	if err != nil {
+		return nil, fmt.Errorf("marshaling cause: %w", err)
+	}
+	aux.Cause = causeBytes
+
+	return json.Marshal(aux)
+}
+
+func (t *TransferRequest) UnmarshalJSON(b []byte) error {
+	aux := struct {
+		Space  string     `json:"space"`
+		Blob   types.Blob `json:"blob"`
+		Source string     `json:"source"`
+		Sink   *string    `json:"sink,omitempty"`
+		Cause  []byte     `json:"cause"`
+	}{}
+
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return fmt.Errorf("unmarshaling TransferRequest: %w", err)
+	}
+
+	spaceDID, err := did.Parse(aux.Space)
+	if err != nil {
+		return fmt.Errorf("parsing space DID: %w", err)
+	}
+	t.Space = spaceDID
+
+	t.Blob = aux.Blob
+
+	sourceURL, err := url.Parse(aux.Source)
+	if err != nil {
+		return fmt.Errorf("parsing source URL: %w", err)
+	}
+	t.Source = *sourceURL
+
+	if aux.Sink != nil {
+		sinkURL, err := url.Parse(*aux.Sink)
+		if err != nil {
+			return fmt.Errorf("parsing sink URL: %w", err)
+		}
+		t.Sink = sinkURL
+	}
+
+	inv, err := delegation.Extract(aux.Cause)
+	if err != nil {
+		return fmt.Errorf("unmarshaling cause: %w", err)
+	}
+	t.Cause = inv
+
+	return nil
 }
 
 func Transfer(ctx context.Context, service TransferService, request *TransferRequest) error {

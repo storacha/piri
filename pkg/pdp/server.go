@@ -60,9 +60,8 @@ func (s *Server) Stop(ctx context.Context) error {
 func NewServer(
 	ctx context.Context,
 	dataDir string,
-	port int,
-	lotusClientAddr string,
-	ethClientAddr string,
+	endpoint *url.URL,
+	lotusUrl string,
 	address common.Address,
 	wlt *wallet.LocalWallet,
 ) (*Server, error) {
@@ -81,13 +80,9 @@ func NewServer(
 		return nil, fmt.Errorf("wallet for address %s not found", address)
 	}
 	// TODO our current in process endpoint, later create a client without http stuffs.
-	localEndpoint, err := url.Parse(fmt.Sprintf("http://localhost:%d", port))
-	if err != nil {
-		return nil, fmt.Errorf("parsing endpoint URL: %w", err)
-	}
 	// NB: Auth not required
-	localPDPClient := curio.New(http.DefaultClient, localEndpoint, "")
-	lotusURL, err := url.Parse(lotusClientAddr)
+	localPDPClient := curio.New(http.DefaultClient, endpoint, "")
+	lotusURL, err := url.Parse(lotusUrl)
 	if err != nil {
 		return nil, fmt.Errorf("parsing lotus client address: %w", err)
 	}
@@ -99,13 +94,13 @@ func NewServer(
 		return nil, err
 	}
 
-	ethClient, err := ethclient.Dial(ethClientAddr)
+	ethClient, err := ethclient.Dial(lotusUrl)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to eth client: %w", err)
 	}
 
 	stateDir := filepath.Join(dataDir, "state")
-	if err := os.Mkdir(stateDir, 0755); err != nil {
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		return nil, err
 	}
 
@@ -132,7 +127,7 @@ func NewServer(
 		pieceAdder:  pieceadder.NewCurioAdder(localPDPClient),
 		startFuncs: []func(ctx context.Context) error{
 			func(ctx context.Context) error {
-				if err := svr.Start(fmt.Sprintf(":%s", localEndpoint.Port())); err != nil {
+				if err := svr.Start(fmt.Sprintf(":%s", endpoint.Port())); err != nil {
 					return fmt.Errorf("starting local pdp server: %w", err)
 				}
 				if err := pdpService.Start(ctx); err != nil {

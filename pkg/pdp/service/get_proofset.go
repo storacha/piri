@@ -48,7 +48,8 @@ func (p *PDPService) ProofSet(ctx context.Context, id int64) (*ProofSet, error) 
 
 	// Step 5: Build the response.
 	response := &ProofSet{
-		ID:                 proofSet.ID,
+		ID: proofSet.ID,
+		// TODO this will panic if ProveAtEpoch is nill, which it is when the proofset is first created
 		NextChallengeEpoch: *proofSet.ProveAtEpoch,
 	}
 	for _, r := range roots {

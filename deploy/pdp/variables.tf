@@ -57,7 +57,7 @@ variable "volume_size" {
 
 variable "go_version" {
   type    = string
-  default = "1.23.0"
+  default = "1.24.4"
 }
 
 variable "yugabyte_version" {

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"database/sql"
 	"net/url"
 
 	"github.com/ipfs/go-datastore"
@@ -23,11 +24,11 @@ import (
 )
 
 type PDPConfig struct {
-	PDPService    pdp.PDP
-	PDPDatastore  datastore.Datastore
-	CurioEndpoint *url.URL
-	ProofSet      uint64
-	DatabasePath  string
+	PDPService   pdp.PDP
+	PDPDatastore datastore.Datastore
+	PDPServerURL *url.URL
+	ProofSet     uint64
+	DatabasePath string
 }
 
 type config struct {
@@ -52,6 +53,7 @@ type config struct {
 	indexingService       client.Connection
 	indexingServiceProofs delegation.Proofs
 	uploadService         client.Connection
+	replicatorDB          *sql.DB
 }
 
 type Option func(*config) error
@@ -261,6 +263,13 @@ func WithLogLevel(name string, level string) Option {
 func WithPDPConfig(pdpConfig PDPConfig) Option {
 	return func(c *config) error {
 		c.pdp = &pdpConfig
+		return nil
+	}
+}
+
+func WithReplicatorDB(db *sql.DB) Option {
+	return func(c *config) error {
+		c.replicatorDB = db
 		return nil
 	}
 }
