@@ -1,7 +1,7 @@
 version: 2
 
 builds:
-  - main: ./cmd/storage
+  - main: ./cmd
     binary: piri
     ldflags:
       # Sets the version variable in the build package to the build version prefixed with a 'v'
