@@ -27,6 +27,8 @@ Follow these guides in order to set up Piri:
 6. **[UCAN Server Setup](./docs/guides/ucan-server.md)** - Deploy the client-facing API
 7. **[Validation](./docs/setup/validation.md)** - Test your deployment
 
+> **Note:** Using Curio? See [Filecoin's PDP documentation](https://docs.filecoin.io/storage-providers/pdp/enable-pdp) for setup instructions. The Piri UCAN server can connect to Curio as an alternative to the Piri PDP server.
+
 ### Quick Links
 
 - **New to Piri?** Start with the [Getting Started Guide](./docs/getting-started.md)
