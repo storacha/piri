@@ -166,7 +166,7 @@ func CacheClaim(
 		}
 	}
 
-	res, err := client.Execute([]invocation.Invocation{inv}, indexingService)
+	res, err := client.Execute(ctx, []invocation.Invocation{inv}, indexingService)
 	if err != nil {
 		return fmt.Errorf("executing invocation: %w", err)
 	}

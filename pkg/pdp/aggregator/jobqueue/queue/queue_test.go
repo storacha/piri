@@ -31,7 +31,7 @@ func TestQueue(t *testing.T) {
 	t.Run("can send and receive and delete a message", func(t *testing.T) {
 		q := newQ(t, queue.NewOpts{Timeout: time.Millisecond})
 
-		m, err := q.Receive(context.Background())
+		m, err := q.Receive(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, m)
 
@@ -39,20 +39,20 @@ func TestQueue(t *testing.T) {
 			Body: []byte("yo"),
 		}
 
-		err = q.Send(context.Background(), *m)
+		err = q.Send(t.Context(), *m)
 		require.NoError(t, err)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		require.Equal(t, "yo", string(m.Body))
 
-		err = q.Delete(context.Background(), m.ID)
+		err = q.Delete(t.Context(), m.ID)
 		require.NoError(t, err)
 
 		time.Sleep(time.Millisecond)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, m)
 	})
@@ -91,7 +91,7 @@ func TestQueue_Send(t *testing.T) {
 			require.Equal(t, "delay cannot be negative", r)
 		}()
 
-		err = q.Send(context.Background(), queue.Message{Delay: -1})
+		err = q.Send(t.Context(), queue.Message{Delay: -1})
 	})
 }
 
@@ -104,16 +104,16 @@ func TestQueue_Receive(t *testing.T) {
 			Delay: time.Second,
 		}
 
-		err := q.Send(context.Background(), *m)
+		err := q.Send(t.Context(), *m)
 		require.NoError(t, err)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, m)
 
 		time.Sleep(time.Second)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		require.Equal(t, "yo", string(m.Body))
@@ -126,15 +126,15 @@ func TestQueue_Receive(t *testing.T) {
 			Body: []byte("yo"),
 		}
 
-		err := q.Send(context.Background(), *m)
+		err := q.Send(t.Context(), *m)
 		require.NoError(t, err)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		require.Equal(t, "yo", string(m.Body))
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, m)
 	})
@@ -146,24 +146,24 @@ func TestQueue_Receive(t *testing.T) {
 			Body: []byte("yo"),
 		}
 
-		err := q.Send(context.Background(), *m)
+		err := q.Send(t.Context(), *m)
 		require.NoError(t, err)
 
-		m, err = q.Receive(context.Background())
-		require.NoError(t, err)
-		require.NotNil(t, m)
-		require.Equal(t, "yo", string(m.Body))
-
-		time.Sleep(time.Millisecond)
-
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		require.Equal(t, "yo", string(m.Body))
 
 		time.Sleep(time.Millisecond)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
+		require.NoError(t, err)
+		require.NotNil(t, m)
+		require.Equal(t, "yo", string(m.Body))
+
+		time.Sleep(time.Millisecond)
+
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, m)
 	})
@@ -172,10 +172,10 @@ func TestQueue_Receive(t *testing.T) {
 		q1 := newQ(t, queue.NewOpts{})
 		q2 := newQ(t, queue.NewOpts{Name: "q2"})
 
-		err := q1.Send(context.Background(), queue.Message{Body: []byte("yo")})
+		err := q1.Send(t.Context(), queue.Message{Body: []byte("yo")})
 		require.NoError(t, err)
 
-		m, err := q2.Receive(context.Background())
+		m, err := q2.Receive(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, m)
 	})
@@ -189,11 +189,11 @@ func TestQueue_SendAndGetID(t *testing.T) {
 			Body: []byte("yo"),
 		}
 
-		id, err := q.SendAndGetID(context.Background(), m)
+		id, err := q.SendAndGetID(t.Context(), m)
 		require.NoError(t, err)
 		require.Equal(t, 34, len(id))
 
-		err = q.Delete(context.Background(), id)
+		err = q.Delete(t.Context(), id)
 		require.NoError(t, err)
 	})
 }
@@ -206,19 +206,19 @@ func TestQueue_Extend(t *testing.T) {
 			Body: []byte("yo"),
 		}
 
-		err := q.Send(context.Background(), *m)
+		err := q.Send(t.Context(), *m)
 		require.NoError(t, err)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, m)
 
-		err = q.Extend(context.Background(), m.ID, time.Second)
+		err = q.Extend(t.Context(), m.ID, time.Second)
 		require.NoError(t, err)
 
 		time.Sleep(time.Millisecond)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.Nil(t, m)
 	})
@@ -237,14 +237,14 @@ func TestQueue_Extend(t *testing.T) {
 			Body: []byte("yo"),
 		}
 
-		err = q.Send(context.Background(), *m)
+		err = q.Send(t.Context(), *m)
 		require.NoError(t, err)
 
-		m, err = q.Receive(context.Background())
+		m, err = q.Receive(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, m)
 
-		err = q.Extend(context.Background(), m.ID, -1)
+		err = q.Extend(t.Context(), m.ID, -1)
 	})
 }
 
@@ -252,7 +252,7 @@ func TestQueue_ReceiveAndWait(t *testing.T) {
 	t.Run("waits for a message until the context is cancelled", func(t *testing.T) {
 		q := newQ(t, queue.NewOpts{Timeout: time.Millisecond})
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
 		defer cancel()
 
 		m, err := q.ReceiveAndWait(ctx, time.Millisecond)
@@ -263,10 +263,10 @@ func TestQueue_ReceiveAndWait(t *testing.T) {
 	t.Run("gets a message immediately if there is one", func(t *testing.T) {
 		q := newQ(t, queue.NewOpts{Timeout: time.Millisecond})
 
-		err := q.Send(context.Background(), queue.Message{Body: []byte("yo")})
+		err := q.Send(t.Context(), queue.Message{Body: []byte("yo")})
 		require.NoError(t, err)
 
-		m, err := q.ReceiveAndWait(context.Background(), time.Millisecond)
+		m, err := q.ReceiveAndWait(t.Context(), time.Millisecond)
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		require.Equal(t, "yo", string(m.Body))
@@ -284,7 +284,7 @@ func TestSetup(t *testing.T) {
 
 		_, err = db.Exec(`select * from jobqueue`)
 		require.Error(t, err)
-		err = queue.Setup(context.Background(), db)
+		err = queue.Setup(t.Context(), db)
 		require.NoError(t, err)
 		_, err = db.Exec(`select * from jobqueue`)
 		require.NoError(t, err)
@@ -299,16 +299,16 @@ func BenchmarkQueue(b *testing.B) {
 
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				err := q.Send(context.Background(), queue.Message{
+				err := q.Send(b.Context(), queue.Message{
 					Body: []byte("yo"),
 				})
 				require.NoError(b, err)
 
-				m, err := q.Receive(context.Background())
+				m, err := q.Receive(b.Context())
 				require.NoError(b, err)
 				require.NotNil(b, m)
 
-				err = q.Delete(context.Background(), m.ID)
+				err = q.Delete(b.Context(), m.ID)
 				require.NoError(b, err)
 			}
 		})
@@ -345,7 +345,7 @@ func BenchmarkQueue(b *testing.B) {
 
 				for i := 0; i < 100_000; i++ {
 					q := queues[rand.Intn(len(queues))]
-					err := q.Send(context.Background(), queue.Message{
+					err := q.Send(b.Context(), queue.Message{
 						Body: []byte("yo"),
 					})
 					require.NoError(b, err)
@@ -357,10 +357,10 @@ func BenchmarkQueue(b *testing.B) {
 					for pb.Next() {
 						q := queues[rand.Intn(len(queues))]
 
-						m, err := q.Receive(context.Background())
+						m, err := q.Receive(b.Context())
 						require.NoError(b, err)
 
-						err = q.Delete(context.Background(), m.ID)
+						err = q.Delete(b.Context(), m.ID)
 						require.NoError(b, err)
 					}
 				})

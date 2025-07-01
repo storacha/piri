@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -50,7 +51,7 @@ type Client struct {
 // BlobAllocate sends a blob/allocate invocation to the storage node and returns the
 // upload address if required (i.e. it may be nil if the storage node already
 // has the blob).
-func (s *Client) BlobAllocate(space did.DID, digest multihash.Multihash, size uint64, cause datamodel.Link) (*blob.Address, error) {
+func (s *Client) BlobAllocate(ctx context.Context, space did.DID, digest multihash.Multihash, size uint64, cause datamodel.Link) (*blob.Address, error) {
 	inv, err := blob.Allocate.Invoke(
 		s.cfg.ID,
 		s.cfg.StorageNodeID,
@@ -68,7 +69,7 @@ func (s *Client) BlobAllocate(space did.DID, digest multihash.Multihash, size ui
 	if err != nil {
 		return nil, fmt.Errorf("generating invocation: %w", err)
 	}
-	res, err := client.Execute([]invocation.Invocation{inv}, s.conn)
+	res, err := client.Execute(ctx, []invocation.Invocation{inv}, s.conn)
 	if err != nil {
 		return nil, fmt.Errorf("sending invocation: %w", err)
 	}
@@ -98,7 +99,7 @@ type BlobAcceptResult struct {
 	PDPAccept          *pdp.AcceptCaveats
 }
 
-func (s *Client) BlobAccept(space did.DID, digest multihash.Multihash, size uint64, putInv datamodel.Link) (*BlobAcceptResult, error) {
+func (s *Client) BlobAccept(ctx context.Context, space did.DID, digest multihash.Multihash, size uint64, putInv datamodel.Link) (*BlobAcceptResult, error) {
 
 	inv, err := blob.Accept.Invoke(
 		s.cfg.ID,
@@ -123,7 +124,7 @@ func (s *Client) BlobAccept(space did.DID, digest multihash.Multihash, size uint
 		return nil, fmt.Errorf("generating invocation: %w", err)
 	}
 
-	res, err := client.Execute([]invocation.Invocation{inv}, s.conn)
+	res, err := client.Execute(ctx, []invocation.Invocation{inv}, s.conn)
 	if err != nil {
 		return nil, fmt.Errorf("sending invocation: %w", err)
 	}
@@ -185,7 +186,7 @@ func (s *Client) BlobAccept(space did.DID, digest multihash.Multihash, size uint
 	return result, nil
 }
 
-func (s *Client) PDPInfo(pieceLink piece.PieceLink) (pdp.InfoOk, error) {
+func (s *Client) PDPInfo(ctx context.Context, pieceLink piece.PieceLink) (pdp.InfoOk, error) {
 
 	inv, err := pdp.Info.Invoke(
 		s.cfg.ID,
@@ -201,7 +202,7 @@ func (s *Client) PDPInfo(pieceLink piece.PieceLink) (pdp.InfoOk, error) {
 		return pdp.InfoOk{}, fmt.Errorf("generating invocation: %w", err)
 	}
 
-	res, err := client.Execute([]invocation.Invocation{inv}, s.conn)
+	res, err := client.Execute(ctx, []invocation.Invocation{inv}, s.conn)
 	if err != nil {
 		return pdp.InfoOk{}, fmt.Errorf("sending invocation: %w", err)
 	}

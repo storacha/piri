@@ -1,7 +1,6 @@
 package presigner
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"testing"
@@ -26,13 +25,13 @@ func TestS3Signer(t *testing.T) {
 		reqSigner, err := NewS3RequestPresigner(accessKeyID, secretAccessKey, *endpoint, "data")
 		require.NoError(t, err)
 
-		url, headers, err := reqSigner.SignUploadURL(context.Background(), testutil.RandomMultihash(t), 138, 900)
+		url, headers, err := reqSigner.SignUploadURL(t.Context(), testutil.RandomMultihash(t), 138, 900)
 		require.NoError(t, err)
 
 		fmt.Println(url.String())
 		fmt.Printf("%+v\n", headers)
 
-		_, _, err = reqSigner.VerifyUploadURL(context.Background(), url, headers)
+		_, _, err = reqSigner.VerifyUploadURL(t.Context(), url, headers)
 		require.NoError(t, err)
 	})
 
@@ -40,13 +39,13 @@ func TestS3Signer(t *testing.T) {
 		reqSigner, err := NewS3RequestPresigner(accessKeyID, secretAccessKey, *endpoint, "")
 		require.NoError(t, err)
 
-		url, headers, err := reqSigner.SignUploadURL(context.Background(), testutil.RandomMultihash(t), 138, 900)
+		url, headers, err := reqSigner.SignUploadURL(t.Context(), testutil.RandomMultihash(t), 138, 900)
 		require.NoError(t, err)
 
 		// mess with the url
 		url.Path += "/index.html"
 
-		_, _, err = reqSigner.VerifyUploadURL(context.Background(), url, headers)
+		_, _, err = reqSigner.VerifyUploadURL(t.Context(), url, headers)
 		require.Error(t, err)
 
 		require.Equal(t, err.Error(), "signature verification failed")
@@ -56,13 +55,13 @@ func TestS3Signer(t *testing.T) {
 		reqSigner, err := NewS3RequestPresigner(accessKeyID, secretAccessKey, *endpoint, "")
 		require.NoError(t, err)
 
-		url, headers, err := reqSigner.SignUploadURL(context.Background(), testutil.RandomMultihash(t), 138, 900)
+		url, headers, err := reqSigner.SignUploadURL(t.Context(), testutil.RandomMultihash(t), 138, 900)
 		require.NoError(t, err)
 
 		// mess with the headers
 		headers.Set("Content-Length", "10000")
 
-		_, _, err = reqSigner.VerifyUploadURL(context.Background(), url, headers)
+		_, _, err = reqSigner.VerifyUploadURL(t.Context(), url, headers)
 		require.Error(t, err)
 
 		require.Equal(t, err.Error(), "signature verification failed")
