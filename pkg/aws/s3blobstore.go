@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	multihash "github.com/multiformats/go-multihash"
 	"github.com/storacha/piri/pkg/internal/digestutil"
@@ -58,13 +60,21 @@ type S3BlobPresigner struct {
 
 // SignUploadURL implements presigner.RequestPresigner.
 func (s *S3BlobPresigner) SignUploadURL(ctx context.Context, digest multihash.Multihash, size uint64, ttl uint64) (url.URL, http.Header, error) {
-	signedReq, err := s.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
-		Bucket:        aws.String(s.bs.bucket),
-		Key:           aws.String(s.bs.formatKey(digest)),
-		ContentLength: aws.Int64(int64(size)),
-	}, func(opts *s3.PresignOptions) {
-		opts.Expires = time.Duration(int64(ttl) * int64(time.Second))
-	})
+	digestInfo, err := multihash.Decode(digest)
+	if err != nil {
+		return url.URL{}, nil, fmt.Errorf("decoding digest: %w", err)
+	}
+
+	signedReq, err := s.presignClient.PresignPutObject(
+		ctx,
+		&s3.PutObjectInput{
+			Bucket:         aws.String(s.bs.bucket),
+			Key:            aws.String(s.bs.formatKey(digest)),
+			ContentLength:  aws.Int64(int64(size)),
+			ChecksumSHA256: aws.String(base64.StdEncoding.EncodeToString(digestInfo.Digest)),
+		},
+		s3.WithPresignExpires(time.Duration(int64(ttl)*int64(time.Second))),
+	)
 	if err != nil {
 		return url.URL{}, nil, fmt.Errorf("signing request: %w", err)
 	}
@@ -85,7 +95,20 @@ func (s *S3BlobPresigner) VerifyUploadURL(ctx context.Context, url url.URL, head
 var _ presigner.RequestPresigner = (*S3BlobPresigner)(nil)
 
 func (s *S3BlobStore) PresignClient() presigner.RequestPresigner {
-	presignClient := s3.NewPresignClient(s.s3Client)
+	presignClient := s3.NewPresignClient(s.s3Client, func(opt *s3.PresignOptions) {
+		opt.Presigner = v4.NewSigner(func(so *v4.SignerOptions) {
+			o := s.s3Client.Options()
+			so.Logger = o.Logger
+			so.LogSigning = o.ClientLogMode.IsSigning()
+			so.DisableURIPathEscaping = true
+			// This is the magic sauce which makes SHA256 checksums work.
+			// It causes the X-Amz-Sdk-Checksum-Algorithm, and X-Amz-Checksum-Sha256
+			// to be included as HTTP headers instead of query parameters in the url.
+			// The S3 backend currently silently ignores these if they are sent as
+			// query parameters.
+			so.DisableHeaderHoisting = true
+		})
+	})
 	return &S3BlobPresigner{s, presignClient}
 }
 
@@ -109,7 +132,8 @@ func (s *S3BlobStore) Get(ctx context.Context, digest multihash.Multihash, opts 
 	if config.Range().Offset != 0 || config.Range().Length != nil {
 		rangeString := fmt.Sprintf("bytes=%d-", config.Range().Offset)
 		if config.Range().Length != nil {
-			rangeString += strconv.FormatUint(*config.Range().Length, 10)
+			end := (config.Range().Offset + *config.Range().Length) - 1
+			rangeString += strconv.FormatUint(end, 10)
 		}
 		rangeParam = &rangeString
 	}
