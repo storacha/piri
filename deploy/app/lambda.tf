@@ -102,6 +102,7 @@ resource "aws_lambda_function" "lambda" {
       PDP_PROOFSET                        = var.pdp_proofset,
       CURIO_URL                           = var.curio_url,
       PRINCIPAL_MAPPING                   = var.principal_mapping,
+      PIRI_PRESETS                        = var.presets,
     }
   }
 }

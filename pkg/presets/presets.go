@@ -17,32 +17,41 @@ var (
 	PrincipalMapping   map[string]string
 )
 
-// Setting this value to anything will cause production presets to be used, else use warm staging.
-var ProductionPresetsEnvVar = "PIRI_PRODUCTION_PRESETS"
+// Setting this env var will enable certain presets.
+var PresetsEnvVar = "PIRI_PRESETS"
+
+// URL of the original and best IPNI node cid.contact.
+var defaultIPNIAnnounceURL = lo.Must(url.Parse("https://cid.contact/announce"))
 
 func init() {
-	if os.Getenv(ProductionPresetsEnvVar) != "" {
+	if os.Getenv(PresetsEnvVar) != "prod" {
 		IPNIAnnounceURLs = prodIPNIAnnounceURLs
 		IndexingServiceURL = prodIndexingServiceURL
 		IndexingServiceDID = prodIndexingServiceDID
 		UploadServiceURL = prodUploadServiceURL
 		UploadServiceDID = prodUploadServiceDID
 		PrincipalMapping = prodPrincipalMapping
+	} else if os.Getenv(PresetsEnvVar) == "staging" {
+		IPNIAnnounceURLs = stagingIPNIAnnounceURLs
+		IndexingServiceURL = stagingIndexingServiceURL
+		IndexingServiceDID = stagingIndexingServiceDID
+		UploadServiceURL = stagingUploadServiceURL
+		UploadServiceDID = stagingUploadServiceDID
+		PrincipalMapping = stagingPrincipalMapping
+	} else {
+		IPNIAnnounceURLs = warmStageIPNIAnnounceURLs
+		IndexingServiceURL = warmStageIndexingServiceURL
+		IndexingServiceDID = warmStageIndexingServiceDID
+		UploadServiceURL = warmStageUploadServiceURL
+		UploadServiceDID = warmStageUploadServiceDID
+		PrincipalMapping = warmStagePrincipalMapping
 	}
-	IPNIAnnounceURLs = warmStageIPNIAnnounceURLs
-	IndexingServiceURL = warmStageIndexingServiceURL
-	IndexingServiceDID = warmStageIndexingServiceDID
-	UploadServiceURL = warmStageUploadServiceURL
-	UploadServiceDID = warmStageUploadServiceDID
-	PrincipalMapping = warmStagePrincipalMapping
-
 }
 
 // Warm Staging preset values (default)
 var (
-	warmStageCIDContactIPNIAnnounceURL = lo.Must(url.Parse("https://cid.contact/announce"))
-	warmStageStorachaIPNIAnnounceURLs  = lo.Must(url.Parse("https://staging.ipni.warm.storacha.network"))
-	warmStageIPNIAnnounceURLs          = []url.URL{*warmStageCIDContactIPNIAnnounceURL, *warmStageStorachaIPNIAnnounceURLs}
+	warmStageStorachaIPNIAnnounceURL = lo.Must(url.Parse("https://staging.ipni.warm.storacha.network"))
+	warmStageIPNIAnnounceURLs        = []url.URL{*defaultIPNIAnnounceURL, *warmStageStorachaIPNIAnnounceURL}
 
 	warmStageIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.warm.storacha.network"))
 	warmStageIndexingServiceDID = lo.Must(did.Parse("did:web:staging.indexer.warm.storacha.network"))
@@ -51,14 +60,30 @@ var (
 	warmStageUploadServiceDID = lo.Must(did.Parse("did:web:staging.up.warm.storacha.network"))
 
 	warmStagePrincipalMapping = map[string]string{
-		warmStageUploadServiceDID.String(): "did:key:z6MkpR58oZpK7L3cdZZciKT25ynGro7RZm6boFouWQ7AzF7v"}
+		warmStageUploadServiceDID.String(): "did:key:z6MkpR58oZpK7L3cdZZciKT25ynGro7RZm6boFouWQ7AzF7v",
+	}
+)
+
+// Staging preset values
+var (
+	stagingStorachaIPNIAnnounceURL = lo.Must(url.Parse("https://staging.ipni.storacha.network"))
+	stagingIPNIAnnounceURLs        = []url.URL{*defaultIPNIAnnounceURL, *stagingStorachaIPNIAnnounceURL}
+
+	stagingIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.storacha.network"))
+	stagingIndexingServiceDID = lo.Must(did.Parse("did:web:staging.indexer.storacha.network"))
+
+	stagingUploadServiceURL = lo.Must(url.Parse("https://staging.up.storacha.network"))
+	stagingUploadServiceDID = lo.Must(did.Parse("did:web:staging.up.storacha.network"))
+
+	stagingPrincipalMapping = map[string]string{
+		stagingUploadServiceDID.String(): "did:key:z6MkhcbEpJpEvNVDd3n5RurquVdqs5dPU16JDU5VZTDtFgnn",
+	}
 )
 
 // Production preset values
 var (
-	prodCIDContactIPNIAnnounceURL = lo.Must(url.Parse("https://cid.contact/announce"))
-	prodStorachaIPNIAnnounceURL   = lo.Must(url.Parse("https://ipni.storacha.network"))
-	prodIPNIAnnounceURLs          = []url.URL{*prodCIDContactIPNIAnnounceURL, *prodStorachaIPNIAnnounceURL}
+	prodStorachaIPNIAnnounceURL = lo.Must(url.Parse("https://ipni.storacha.network"))
+	prodIPNIAnnounceURLs        = []url.URL{*defaultIPNIAnnounceURL, *prodStorachaIPNIAnnounceURL}
 
 	prodIndexingServiceURL = lo.Must(url.Parse("https://indexer.storacha.network"))
 	prodIndexingServiceDID = lo.Must(did.Parse("did:web:indexer.storacha.network"))
@@ -67,9 +92,6 @@ var (
 	prodUploadServiceDID = lo.Must(did.Parse("did:web:up.storacha.network"))
 
 	prodPrincipalMapping = map[string]string{
-		"did:web:staging.up.storacha.network": "did:key:z6MkhcbEpJpEvNVDd3n5RurquVdqs5dPU16JDU5VZTDtFgnn",
-		"did:web:up.storacha.network":         "did:key:z6MkqdncRZ1wj8zxCTDUQ8CRT8NQWd63T7mZRvZUX8B7XDFi",
-		"did:web:staging.web3.storage":        "did:key:z6MkhcbEpJpEvNVDd3n5RurquVdqs5dPU16JDU5VZTDtFgnn",
-		"did:web:web3.storage":                "did:key:z6MkqdncRZ1wj8zxCTDUQ8CRT8NQWd63T7mZRvZUX8B7XDFi",
+		prodUploadServiceDID.String(): "did:key:z6MkqdncRZ1wj8zxCTDUQ8CRT8NQWd63T7mZRvZUX8B7XDFi",
 	}
 )

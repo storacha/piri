@@ -51,6 +51,12 @@ variable "private_key" {
   type        = string
 }
 
+variable "presets" {
+  description = "presets to use for the deployment"
+  type        = string
+  default     = "prod"
+}
+
 variable "indexing_service_did" {
   description = "did to use for the indexer"
   type        = string
