@@ -64,7 +64,6 @@ func (u UCANServer) Validate() error {
 var DefaultUCANServer = UCANServer{
 	Host:               "localhost",
 	Port:               3000,
-	PDPServerURL:       "http://localhost:3001",
 	IPNIAnnounceURLs:   []string{"https://cid.contact/announce"},
 	IndexingServiceDID: "did:web:indexer.storacha.network",
 	IndexingServiceURL: "https://indexer.storacha.network",
