@@ -27,7 +27,7 @@ func (p *PDPService) FindPiece(ctx context.Context, name, hash string, size int6
 	}
 	// Verify that a 'parked_pieces' entry exists for the given 'piece_cid'
 	// NB: the storacha node currently polls this method until it gets a positive conformation
-	// the piece exists in the parked_piece table, we could alternativly remove the async nature of this task
+	// the piece exists in the parked_piece table, we could alternatively remove the async nature of this task
 	// when we are happy with the overall port of curio.
 	var count int64
 	if err := p.db.WithContext(ctx).Model(&models.ParkedPiece{}).
