@@ -4,6 +4,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-ucanto/principal"
+
 	"github.com/storacha/piri/pkg/service/publisher"
 	"github.com/storacha/piri/pkg/store/claimstore"
 )
@@ -47,4 +48,11 @@ func New(id principal.Signer, claimStore claimstore.ClaimStore, publisherStore s
 	}
 
 	return &ClaimService{claimStore, publisher}, nil
+}
+
+func NewV2(
+	claimStore claimstore.ClaimStore,
+	publisher publisher.Publisher,
+) *ClaimService {
+	return &ClaimService{claimStore, publisher}
 }
