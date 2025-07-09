@@ -12,9 +12,12 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/storacha/piri/internal/telemetry"
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/claimstore"
 )
+
+var _ echofx.RouteRegistrar = (*Server)(nil)
 
 type Server struct {
 	claims claimstore.ClaimStore

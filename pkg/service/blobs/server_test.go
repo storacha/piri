@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/ipfs/go-datastore"
-	"github.com/labstack/echo/v4"
 	"github.com/multiformats/go-multihash"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/presigner"
@@ -28,7 +28,7 @@ import (
 )
 
 func TestServer(t *testing.T) {
-	mux := echo.New()
+	mux := echo.NewEcho()
 	httpsrv := httptest.NewServer(mux)
 	t.Cleanup(httpsrv.Close)
 
