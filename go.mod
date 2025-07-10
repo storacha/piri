@@ -38,6 +38,7 @@ require (
 	github.com/multiformats/go-multibase v0.2.0
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/ncruces/go-sqlite3 v0.24.1
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/samber/lo v1.39.0
 	github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb
 	github.com/spf13/cobra v1.8.1

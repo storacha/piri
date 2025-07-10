@@ -7,11 +7,11 @@ import (
 	"github.com/storacha/go-ucanto/validator"
 )
 
-type resolver struct {
+type MapResolver struct {
 	mapping map[did.DID]did.DID
 }
 
-func (r *resolver) ResolveDIDKey(input did.DID) (did.DID, validator.UnresolvedDID) {
+func (r *MapResolver) ResolveDIDKey(input did.DID) (did.DID, validator.UnresolvedDID) {
 	dk, ok := r.mapping[input]
 	if !ok {
 		return did.Undef, validator.NewDIDKeyResolutionError(input, errors.New("not found in mapping"))
@@ -19,7 +19,7 @@ func (r *resolver) ResolveDIDKey(input did.DID) (did.DID, validator.UnresolvedDI
 	return dk, nil
 }
 
-func New(smap map[string]string) (validator.PrincipalResolver, error) {
+func NewMapResolver(smap map[string]string) (*MapResolver, error) {
 	dmap := map[did.DID]did.DID{}
 	for k, v := range smap {
 		dk, err := did.Parse(k)
@@ -32,5 +32,5 @@ func New(smap map[string]string) (validator.PrincipalResolver, error) {
 		}
 		dmap[dk] = dv
 	}
-	return &resolver{dmap}, nil
+	return &MapResolver{dmap}, nil
 }

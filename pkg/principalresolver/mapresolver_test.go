@@ -1,10 +1,12 @@
-package principalresolver
+package principalresolver_test
 
 import (
 	"testing"
 
 	"github.com/storacha/go-ucanto/did"
 	"github.com/stretchr/testify/require"
+
+	"github.com/storacha/piri/pkg/principalresolver"
 )
 
 func TestPrincipalResolver(t *testing.T) {
@@ -16,7 +18,7 @@ func TestPrincipalResolver(t *testing.T) {
 	require.NoError(t, err)
 
 	pm := map[string]string{p0.String(): r.String()}
-	ppr, err := New(pm)
+	ppr, err := principalresolver.NewMapResolver(pm)
 	require.NoError(t, err)
 
 	resolved, err := ppr.ResolveDIDKey(p0)

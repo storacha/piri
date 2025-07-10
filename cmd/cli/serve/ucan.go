@@ -313,9 +313,13 @@ func startServer(cmd *cobra.Command, _ []string) error {
 
 	defer svc.Close(ctx)
 
-	presolv, err := principalresolver.New(cfg.ServicePrincipalMapping)
+	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID})
 	if err != nil {
-		return fmt.Errorf("creating principal resolver: %w", err)
+		return fmt.Errorf("creating http principal resolver: %w", err)
+	}
+	cachedpresolv, err := principalresolver.NewCachedResolver(presolv, 24*time.Hour)
+	if err != nil {
+		return fmt.Errorf("creating cached principal resolver: %w", err)
 	}
 
 	go func() {
@@ -328,7 +332,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	err = server.ListenAndServe(
 		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		svc,
-		ucanserver.WithPrincipalResolver(presolv.ResolveDIDKey),
+		ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
 	)
 	return err
 
