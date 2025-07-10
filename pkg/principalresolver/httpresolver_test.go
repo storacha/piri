@@ -16,24 +16,42 @@ import (
 
 func TestNewHTTPResolver(t *testing.T) {
 	t.Run("creates resolver with default timeout", func(t *testing.T) {
-		mapping := make(map[string]string)
+		mapping := make([]did.DID, 0)
 		resolver, err := principalresolver.NewHTTPResolver(mapping)
 		require.NoError(t, err)
 		require.NotNil(t, resolver)
 	})
 
 	t.Run("creates resolver with custom timeout", func(t *testing.T) {
-		mapping := make(map[string]string)
-		resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.WithTimeout(5*time.Second))
+		mapping := make([]did.DID, 0)
+		resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.WithTimeout(5*time.Second), principalresolver.InsecureResolution())
 		require.NoError(t, err)
 		require.NotNil(t, resolver)
 	})
 
 	t.Run("fails with zero timeout", func(t *testing.T) {
-		mapping := make(map[string]string)
+		mapping := make([]did.DID, 0)
 		resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.WithTimeout(0))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "timeout cannot be zero")
+		require.Nil(t, resolver)
+	})
+
+	t.Run("fails with duplicate DIDs", func(t *testing.T) {
+		didWeb, _ := did.Parse("did:web:example.com")
+		mapping := []did.DID{didWeb, didWeb}
+		resolver, err := principalresolver.NewHTTPResolver(mapping)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "duplicate did's provided")
+		require.Nil(t, resolver)
+	})
+
+	t.Run("fails with invalid DID format", func(t *testing.T) {
+		didWeb, _ := did.Parse("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK")
+		mapping := []did.DID{didWeb}
+		resolver, err := principalresolver.NewHTTPResolver(mapping)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid DID web format")
 		require.Nil(t, resolver)
 	})
 }
@@ -42,7 +60,7 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 	testCases := []struct {
 		name           string
 		setupServer    func() *httptest.Server
-		setupMapping   func(serverURL string) map[string]string
+		setupMapping   func(serverURL string) []did.DID
 		inputDID       string
 		expectedDIDKey string
 		expectError    bool
@@ -72,20 +90,21 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 					json.NewEncoder(w).Encode(doc)
 				}))
 			},
-			setupMapping: func(serverURL string) map[string]string {
-				didWeb, _ := did.Parse("did:web:example.com")
+			setupMapping: func(serverURL string) []did.DID {
+				// Extract domain from server URL to create matching did:web
 				u, _ := url.Parse(serverURL)
-				return map[string]string{didWeb.String(): u.String()}
+				didWeb, _ := did.Parse("did:web:" + u.Host)
+				return []did.DID{didWeb}
 			},
-			inputDID:       "did:web:example.com",
+			inputDID:       "", // Will be set based on server URL
 			expectedDIDKey: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
 			expectError:    false,
 		},
 		{
 			name:        "DID not in mapping",
 			setupServer: func() *httptest.Server { return nil },
-			setupMapping: func(serverURL string) map[string]string {
-				return make(map[string]string)
+			setupMapping: func(serverURL string) []did.DID {
+				return []did.DID{}
 			},
 			inputDID:      "did:web:notfound.com",
 			expectError:   true,
@@ -98,10 +117,12 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 					w.WriteHeader(http.StatusNotFound)
 				}))
 			},
-			setupMapping: func(serverURL string) map[string]string {
-				return map[string]string{"did:web:example.com": serverURL}
+			setupMapping: func(serverURL string) []did.DID {
+				u, _ := url.Parse(serverURL)
+				didWeb, _ := did.Parse("did:web:" + u.Host)
+				return []did.DID{didWeb}
 			},
-			inputDID:      "did:web:example.com",
+			inputDID:      "", // Will be set based on server URL
 			expectError:   true,
 			errorContains: "received status 404",
 		},
@@ -117,10 +138,12 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 					w.Write([]byte("invalid json"))
 				}))
 			},
-			setupMapping: func(serverURL string) map[string]string {
-				return map[string]string{"did:web:example.com": serverURL}
+			setupMapping: func(serverURL string) []did.DID {
+				u, _ := url.Parse(serverURL)
+				didWeb, _ := did.Parse("did:web:" + u.Host)
+				return []did.DID{didWeb}
 			},
-			inputDID:      "did:web:example.com",
+			inputDID:      "", // Will be set based on server URL
 			expectError:   true,
 			errorContains: "failed to parse JSON",
 		},
@@ -141,10 +164,12 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 					json.NewEncoder(w).Encode(doc)
 				}))
 			},
-			setupMapping: func(serverURL string) map[string]string {
-				return map[string]string{"did:web:example.com": serverURL}
+			setupMapping: func(serverURL string) []did.DID {
+				u, _ := url.Parse(serverURL)
+				didWeb, _ := did.Parse("did:web:" + u.Host)
+				return []did.DID{didWeb}
 			},
-			inputDID:      "did:web:example.com",
+			inputDID:      "", // Will be set based on server URL
 			expectError:   true,
 			errorContains: "no verificationMethod found",
 		},
@@ -172,10 +197,12 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 					json.NewEncoder(w).Encode(doc)
 				}))
 			},
-			setupMapping: func(serverURL string) map[string]string {
-				return map[string]string{"did:web:example.com": serverURL}
+			setupMapping: func(serverURL string) []did.DID {
+				u, _ := url.Parse(serverURL)
+				didWeb, _ := did.Parse("did:web:" + u.Host)
+				return []did.DID{didWeb}
 			},
-			inputDID:      "did:web:example.com",
+			inputDID:      "", // Will be set based on server URL
 			expectError:   true,
 			errorContains: "no public key found",
 		},
@@ -203,10 +230,12 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 					json.NewEncoder(w).Encode(doc)
 				}))
 			},
-			setupMapping: func(serverURL string) map[string]string {
-				return map[string]string{"did:web:example.com": serverURL}
+			setupMapping: func(serverURL string) []did.DID {
+				u, _ := url.Parse(serverURL)
+				didWeb, _ := did.Parse("did:web:" + u.Host)
+				return []did.DID{didWeb}
 			},
-			inputDID:      "did:web:example.com",
+			inputDID:      "", // Will be set based on server URL
 			expectError:   true,
 			errorContains: "failed to parse public multibase key",
 		},
@@ -229,11 +258,19 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 			}
 			mapping := tc.setupMapping(serverURL)
 
-			resolver, err := principalresolver.NewHTTPResolver(mapping)
+			resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.InsecureResolution())
 			require.NoError(t, err)
 
-			inputDID, err := did.Parse(tc.inputDID)
-			require.NoError(t, err)
+			// For tests where inputDID is empty, derive it from server URL
+			var inputDID did.DID
+			if tc.inputDID == "" && server != nil {
+				u, _ := url.Parse(serverURL)
+				inputDID, err = did.Parse("did:web:" + u.Host)
+				require.NoError(t, err)
+			} else {
+				inputDID, err = did.Parse(tc.inputDID)
+				require.NoError(t, err)
+			}
 
 			result, unresolvedErr := resolver.ResolveDIDKey(inputDID)
 
@@ -258,15 +295,15 @@ func TestHTTPResolver_ResolveDIDKey_Timeout(t *testing.T) {
 	}))
 	defer slowServer.Close()
 
-	didWeb, err := did.Parse("did:web:slow.com")
+	u, err := url.Parse(slowServer.URL)
 	require.NoError(t, err)
 
-	serverURL, err := url.Parse(slowServer.URL)
+	didWeb, err := did.Parse("did:web:" + u.Host)
 	require.NoError(t, err)
 
-	mapping := map[string]string{didWeb.String(): serverURL.String()}
+	mapping := []did.DID{didWeb}
 
-	resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.WithTimeout(50*time.Millisecond))
+	resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.WithTimeout(50*time.Millisecond), principalresolver.InsecureResolution())
 	require.NoError(t, err)
 
 	result, unresolvedErr := resolver.ResolveDIDKey(didWeb)
@@ -305,15 +342,15 @@ func TestHTTPResolver_ResolveDIDKey_Context(t *testing.T) {
 	}))
 	defer server.Close()
 
-	didWeb, err := did.Parse("did:web:example.com")
+	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	serverURL, err := url.Parse(server.URL)
+	didWeb, err := did.Parse("did:web:" + u.Host)
 	require.NoError(t, err)
 
-	mapping := map[string]string{didWeb.String(): serverURL.String()}
+	mapping := []did.DID{didWeb}
 
-	resolver, err := principalresolver.NewHTTPResolver(mapping)
+	resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.InsecureResolution())
 	require.NoError(t, err)
 
 	result, unresolvedErr := resolver.ResolveDIDKey(didWeb)
@@ -324,5 +361,64 @@ func TestHTTPResolver_ResolveDIDKey_Context(t *testing.T) {
 	case <-requestReceived:
 	case <-time.After(time.Second):
 		t.Fatal("request was not received by server")
+	}
+}
+
+func TestExtractDomainFromDID(t *testing.T) {
+	testCases := []struct {
+		name           string
+		did            string
+		expectedDomain string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "valid did:web",
+			did:            "did:web:example.com",
+			expectedDomain: "example.com",
+			expectError:    false,
+		},
+		{
+			name:           "valid did:web with subdomain",
+			did:            "did:web:api.example.com",
+			expectedDomain: "api.example.com",
+			expectError:    false,
+		},
+		{
+			name:          "invalid prefix",
+			did:           "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+			expectError:   true,
+			errorContains: "invalid DID web format: must start with 'did:web:'",
+		},
+		{
+			name:          "empty domain",
+			did:           "did:web:",
+			expectError:   true,
+			errorContains: "invalid DID web format: no domain specified",
+		},
+		{
+			name:          "domain too long",
+			did:           "did:web:" + string(make([]byte, 254)),
+			expectError:   true,
+			errorContains: "domain too long",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			did, err := did.Parse(tc.did)
+			require.NoError(t, err)
+
+			domain, err := principalresolver.ExtractDomainFromDID(did)
+
+			if tc.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedDomain, domain)
+			}
+		})
 	}
 }

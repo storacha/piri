@@ -313,10 +313,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 
 	defer svc.Close(ctx)
 
-	presolv, err := principalresolver.NewHTTPResolver(map[string]string{
-		indexingServiceDID.String(): indexingServiceURL.String(),
-		uploadServiceDID.String():   uploadServiceURL.String(),
-	})
+	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID})
 	if err != nil {
 		return fmt.Errorf("creating http principal resolver: %w", err)
 	}

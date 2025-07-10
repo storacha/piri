@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path"
+	"strings"
 	"time"
 
 	"github.com/storacha/go-ucanto/did"
@@ -38,55 +38,125 @@ type VerificationMethod struct {
 
 type HTTPResolver struct {
 	// mapping of did:web to url of service, where we fetch .well-known/did.json to obtain their did:key key
-	mapping map[did.DID]url.URL
-	timeout time.Duration
+	webKeys map[did.DID]url.URL
+	cfg     config
 }
 
-type Option func(*HTTPResolver) error
+type config struct {
+	timeout  time.Duration
+	insecure bool
+}
+
+type Option func(*config) error
 
 func WithTimeout(timeout time.Duration) Option {
-	return func(r *HTTPResolver) error {
+	return func(c *config) error {
 		if timeout == 0 {
 			return fmt.Errorf("timeout cannot be zero")
 		}
-		r.timeout = timeout
+		c.timeout = timeout
 		return nil
 	}
 }
 
-func NewHTTPResolver(smap map[string]string, opts ...Option) (*HTTPResolver, error) {
-	// Convert string map to DID/URL map
-	didMap := make(map[did.DID]url.URL)
-	for k, v := range smap {
-		didKey, err := did.Parse(k)
-		if err != nil {
-			return nil, fmt.Errorf("invalid DID %s: %w", k, err)
-		}
-		endpointURL, err := url.Parse(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid URL %s: %w", v, err)
-		}
-		didMap[didKey] = *endpointURL
+func InsecureResolution() Option {
+	return func(c *config) error {
+		c.insecure = true
+		return nil
+	}
+}
+
+const didWebPrefix = "did:web:"
+
+// ExtractDomainFromDID extracts the domain from a DID web string
+func ExtractDomainFromDID(didWeb did.DID) (string, error) {
+	// Check if it starts with the required prefix
+	if !strings.HasPrefix(didWeb.String(), didWebPrefix) {
+		return "", fmt.Errorf("invalid DID web format: must start with '%s'", didWebPrefix)
 	}
 
-	// default timeout of 10 seconds, options can override
-	resolver := &HTTPResolver{mapping: didMap, timeout: 10 * time.Second}
+	// Extract the domain part
+	domain := strings.TrimPrefix(didWeb.String(), didWebPrefix)
+
+	// Check if domain is empty
+	if domain == "" {
+		return "", fmt.Errorf("invalid DID web format: no domain specified")
+	}
+
+	// Validate the domain format
+	if err := validateDomain(domain); err != nil {
+		return "", fmt.Errorf("invalid domain '%s': %w", domain, err)
+	}
+
+	return domain, nil
+}
+
+// validateDomain checks if a string is a valid domain name
+func validateDomain(domain string) error {
+	// Basic length check
+	if len(domain) > 253 {
+		return fmt.Errorf("domain too long (max 253 characters)")
+	}
+
+	// TODO we could do further checking that the domain is valid, length seems fine for now.
+
+	return nil
+}
+
+const WellKnownDIDPath = "/.well-known/did.json"
+
+func NewHTTPResolver(webKeys []did.DID, opts ...Option) (*HTTPResolver, error) {
+	cfg := &config{
+		timeout:  10 * time.Second,
+		insecure: false,
+	}
 	for _, opt := range opts {
-		if err := opt(resolver); err != nil {
+		if err := opt(cfg); err != nil {
 			return nil, err
 		}
 	}
+
+	// Convert string map to DID/URL map
+	didMap := make(map[did.DID]url.URL)
+	for _, w := range webKeys {
+		if _, ok := didMap[w]; ok {
+			return nil, fmt.Errorf("duplicate did's provided")
+		}
+		domain, err := ExtractDomainFromDID(w)
+		if err != nil {
+			return nil, err
+		}
+
+		schema := "https"
+		if cfg.insecure {
+			schema = "http"
+		}
+
+		endpoint := url.URL{
+			Scheme: schema,
+			Host:   domain,
+			Path:   WellKnownDIDPath,
+		}
+
+		if _, err := url.Parse(endpoint.String()); err != nil {
+			return nil, fmt.Errorf("invalid did domain: %w", err)
+		}
+
+		didMap[w] = endpoint
+	}
+	// default timeout of 10 seconds, options can override
+	resolver := &HTTPResolver{webKeys: didMap, cfg: *cfg}
 	return resolver, nil
 }
 
-// TODO(forrest): the interface the implements in go-ucanto should probably accept a context
+// TODO(forrest): the interface this implements in go-ucanto should probably accept a context
 // since means of resolution here are open ended, and may go to network or disk.
 func (r *HTTPResolver) ResolveDIDKey(input did.DID) (did.DID, validator.UnresolvedDID) {
-	endpoint, ok := r.mapping[input]
+	endpoint, ok := r.webKeys[input]
 	if !ok {
 		return did.Undef, validator.NewDIDKeyResolutionError(input, fmt.Errorf("not found in mapping"))
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), r.cfg.timeout)
 	defer cancel()
 	didDoc, err := fetchDIDDocument(ctx, endpoint)
 	if err != nil {
@@ -109,14 +179,8 @@ func (r *HTTPResolver) ResolveDIDKey(input did.DID) (did.DID, validator.Unresolv
 	return didKey, nil
 }
 
-const WellKnownDIDPath = "/.well-known/did.json"
-
 func fetchDIDDocument(ctx context.Context, endpoint url.URL) (*Document, error) {
-	// Clone the URL to avoid modifying the original
-	u := endpoint
-	u.Path = path.Join(u.Path, WellKnownDIDPath)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
