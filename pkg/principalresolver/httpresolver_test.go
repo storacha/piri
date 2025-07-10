@@ -11,6 +11,7 @@ import (
 	"github.com/storacha/go-ucanto/did"
 	"github.com/stretchr/testify/require"
 
+	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 )
 
@@ -364,6 +365,159 @@ func TestHTTPResolver_ResolveDIDKey_Context(t *testing.T) {
 	}
 }
 
+func TestFlexibleContext_UnmarshalJSON(t *testing.T) {
+	testCases := []struct {
+		name          string
+		input         string
+		expectedValue principalresolver.FlexibleContext
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "single string context",
+			input:         `"https://w3id.org/did/v1"`,
+			expectedValue: principalresolver.FlexibleContext{"https://w3id.org/did/v1"},
+			expectError:   false,
+		},
+		{
+			name:          "array of strings context",
+			input:         `["https://w3id.org/did/v1", "https://w3id.org/security/v1"]`,
+			expectedValue: principalresolver.FlexibleContext{"https://w3id.org/did/v1", "https://w3id.org/security/v1"},
+			expectError:   false,
+		},
+		{
+			name:          "empty array context",
+			input:         `[]`,
+			expectedValue: principalresolver.FlexibleContext{},
+			expectError:   false,
+		},
+		{
+			name:          "invalid type - number",
+			input:         `123`,
+			expectError:   true,
+			errorContains: "@context must be string or array of strings",
+		},
+		{
+			name:          "invalid type - object",
+			input:         `{"foo": "bar"}`,
+			expectError:   true,
+			errorContains: "@context must be string or array of strings",
+		},
+		{
+			name:          "invalid type - boolean",
+			input:         `true`,
+			expectError:   true,
+			errorContains: "@context must be string or array of strings",
+		},
+		{
+			name:          "array with non-string elements",
+			input:         `["https://w3id.org/did/v1", 123]`,
+			expectError:   true,
+			errorContains: "@context must be string or array of strings",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var fc principalresolver.FlexibleContext
+			err := json.Unmarshal([]byte(tc.input), &fc)
+
+			if tc.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedValue, fc)
+			}
+		})
+	}
+}
+
+func TestHTTPResolver_ResolveDIDKey_ContextFormats(t *testing.T) {
+	testCases := []struct {
+		name           string
+		setupServer    func() *httptest.Server
+		expectedDIDKey string
+	}{
+		{
+			name: "DID document with string context",
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path != principalresolver.WellKnownDIDPath {
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					// Using raw JSON to ensure we send a string context, not array
+					docJSON := `{
+						"@context": "https://w3id.org/did/v1",
+						"id": "did:web:example.com",
+						"verificationMethod": [{
+							"id": "did:web:example.com#key1",
+							"type": "Ed25519VerificationKey2018",
+							"controller": "did:web:example.com",
+							"publicKeyMultibase": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+						}]
+					}`
+					w.Header().Set("Content-Type", "application/json")
+					w.Write([]byte(docJSON))
+				}))
+			},
+			expectedDIDKey: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+		},
+		{
+			name: "DID document with array context",
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path != principalresolver.WellKnownDIDPath {
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					doc := principalresolver.Document{
+						Context: principalresolver.FlexibleContext{"https://w3id.org/did/v1", "https://w3id.org/security/v1"},
+						ID:      "did:web:example.com",
+						VerificationMethod: []principalresolver.VerificationMethod{
+							{
+								ID:                 "did:web:example.com#key1",
+								Type:               "Ed25519VerificationKey2018",
+								Controller:         "did:web:example.com",
+								PublicKeyMultibase: "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+							},
+						},
+					}
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(doc)
+				}))
+			},
+			expectedDIDKey: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			server := tc.setupServer()
+			defer server.Close()
+
+			u, err := url.Parse(server.URL)
+			require.NoError(t, err)
+
+			didWeb, err := did.Parse("did:web:" + u.Host)
+			require.NoError(t, err)
+
+			resolver, err := principalresolver.NewHTTPResolver([]did.DID{didWeb}, principalresolver.InsecureResolution())
+			require.NoError(t, err)
+
+			result, unresolvedErr := resolver.ResolveDIDKey(didWeb)
+			require.Nil(t, unresolvedErr)
+
+			expectedDID, err := did.Parse(tc.expectedDIDKey)
+			require.NoError(t, err)
+			require.Equal(t, expectedDID, result)
+		})
+	}
+}
+
 func TestExtractDomainFromDID(t *testing.T) {
 	testCases := []struct {
 		name           string
@@ -421,4 +575,22 @@ func TestExtractDomainFromDID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRealTest(t *testing.T) {
+	iKey, _ := did.Parse("did:key:z6Mkr4QkdinnXQmJ9JdnzwhcEjR8nMnuVPEwREyh9jp2Pb7k")
+	uKey, _ := did.Parse("did:key:z6MkpR58oZpK7L3cdZZciKT25ynGro7RZm6boFouWQ7AzF7v")
+
+	presolv, err := principalresolver.NewHTTPResolver([]did.DID{presets.IndexingServiceDID, presets.UploadServiceDID})
+	require.NoError(t, err)
+
+	resp, err := presolv.ResolveDIDKey(presets.IndexingServiceDID)
+	require.NoError(t, err)
+
+	require.Equal(t, iKey, resp.DID())
+
+	resp, err = presolv.ResolveDIDKey(presets.UploadServiceDID)
+	require.NoError(t, err)
+
+	require.Equal(t, uKey, resp.DID())
 }

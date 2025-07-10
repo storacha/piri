@@ -17,11 +17,33 @@ import (
 
 var log = logging.Logger("principal-resolver")
 
+// FlexibleContext handles both string and []string formats for @context field
+// as allowed by the DID Core specification
+type FlexibleContext []string
+
+func (fc *FlexibleContext) UnmarshalJSON(data []byte) error {
+	// Try array first (most common format)
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*fc = FlexibleContext(arr)
+		return nil
+	}
+
+	// Fall back to single string format
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		*fc = FlexibleContext([]string{str})
+		return nil
+	}
+
+	return fmt.Errorf("@context must be string or array of strings")
+}
+
 // Document is a did document that describes a did subject.
 // See https://www.w3.org/TR/did-core/#dfn-did-documents.
 // Copied from: https://github.com/storacha/indexing-service/blob/fe8f2211a15d851f2672bfeb64dcfc65c52e6011/pkg/server/server.go#L238
 type Document struct {
-	Context            []string             `json:"@context"` // https://w3id.org/did/v1
+	Context            FlexibleContext      `json:"@context"` // https://w3id.org/did/v1
 	ID                 string               `json:"id"`
 	Controller         []string             `json:"controller,omitempty"`
 	VerificationMethod []VerificationMethod `json:"verificationMethod,omitempty"`
