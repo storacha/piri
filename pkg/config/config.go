@@ -6,6 +6,8 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/viper"
+
+	"github.com/storacha/piri/pkg/presets"
 )
 
 type Config struct {
@@ -62,19 +64,20 @@ func (u UCANServer) Validate() error {
 }
 
 var DefaultUCANServer = UCANServer{
-	Host:               "localhost",
-	Port:               3000,
-	IPNIAnnounceURLs:   []string{"https://cid.contact/announce"},
-	IndexingServiceDID: "did:web:indexer.storacha.network",
-	IndexingServiceURL: "https://indexer.storacha.network",
-	UploadServiceDID:   "did:web:up.storacha.network",
-	UploadServiceURL:   "https://up.storacha.network",
-	ServicePrincipalMapping: map[string]string{
-		"did:web:staging.up.storacha.network": "did:key:z6MkhcbEpJpEvNVDd3n5RurquVdqs5dPU16JDU5VZTDtFgnn",
-		"did:web:up.storacha.network":         "did:key:z6MkqdncRZ1wj8zxCTDUQ8CRT8NQWd63T7mZRvZUX8B7XDFi",
-		"did:web:staging.web3.storage":        "did:key:z6MkhcbEpJpEvNVDd3n5RurquVdqs5dPU16JDU5VZTDtFgnn",
-		"did:web:web3.storage":                "did:key:z6MkqdncRZ1wj8zxCTDUQ8CRT8NQWd63T7mZRvZUX8B7XDFi",
-	},
+	Host: "localhost",
+	Port: 3000,
+	IPNIAnnounceURLs: func() []string {
+		out := make([]string, len(presets.IPNIAnnounceURLs))
+		for i, p := range presets.IPNIAnnounceURLs {
+			out[i] = p.String()
+		}
+		return out
+	}(),
+	IndexingServiceDID:      presets.IndexingServiceDID.String(),
+	IndexingServiceURL:      presets.IndexingServiceURL.String(),
+	UploadServiceDID:        presets.UploadServiceDID.String(),
+	UploadServiceURL:        presets.UploadServiceURL.String(),
+	ServicePrincipalMapping: presets.PrincipalMapping,
 }
 
 type UCANClient struct {
