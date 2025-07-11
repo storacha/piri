@@ -25,7 +25,7 @@ type PDPInfoService interface {
 }
 
 func PDPInfoHandler(service PDPInfoService) server.Option {
-	server.WithServiceMethod(
+	return server.WithServiceMethod(
 		pdp.InfoAbility,
 		server.Provide(
 			pdp.Info,

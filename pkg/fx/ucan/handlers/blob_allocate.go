@@ -15,6 +15,8 @@ import (
 	blobhandler "github.com/storacha/piri/pkg/service/storage/handlers/blob"
 )
 
+const maxUploadSize = 127 * (1 << 25)
+
 type BlobAllocateService interface {
 	PDP() pdp.PDP
 	Blobs() blobs.Blobs

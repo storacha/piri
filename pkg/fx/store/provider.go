@@ -1,17 +1,16 @@
 package store
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/store/filesystem"
 	"github.com/storacha/piri/pkg/fx/store/memory"
 )
 
-func ProvideStores(cfg app.RepoConfig) fx.Option {
-	if cfg.DataDir == "" {
-		return memory.Module
-	} else {
-		return filesystem.Module
-	}
-}
+// Module for full server - always uses filesystem stores
+// The configuration (app.RepoConfig) will determine the actual paths used
+var Module = filesystem.Module
+
+// FileSystemStoreModule explicitly uses filesystem stores
+var FileSystemStoreModule = filesystem.Module
+
+// MemoryStoreModule explicitly uses memory stores  
+var MemoryStoreModule = memory.Module

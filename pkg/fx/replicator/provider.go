@@ -16,6 +16,10 @@ import (
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
+var Module = fx.Module("replicator",
+	fx.Provide(New),
+)
+
 type Params struct {
 	fx.In
 

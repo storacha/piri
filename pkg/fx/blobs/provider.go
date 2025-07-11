@@ -5,6 +5,7 @@ import (
 
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-ucanto/principal"
+	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/access"
 	"github.com/storacha/piri/pkg/config/app"
@@ -15,13 +16,23 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
+var Module = fx.Module("blobs",
+	fx.Provide(
+		NewService,
+		fx.Annotate(
+			NewHandler,
+			fx.ResultTags(`group:"route_registrar"`),
+		),
+	),
+)
+
 func NewService(
-	cfg app.PiriConfig,
+	cfg app.AppConfig,
 	id principal.Signer,
 	blobStore blobstore.Blobstore,
 	allocationStore allocationstore.AllocationStore,
 ) (*blobs.BlobService, error) {
-	if cfg.PublicURL == nil {
+	if cfg.Server.PublicURL == nil {
 		return nil, fmt.Errorf("public URL required for blob service")
 	}
 
@@ -29,7 +40,7 @@ func NewService(
 		return nil, fmt.Errorf("invalid DID for blob service")
 	}
 
-	accessURL := cfg.PublicURL
+	accessURL := cfg.Server.PublicURL
 	accessURL.Path = "/blob"
 	ap, err := access.NewPatternAccess(fmt.Sprintf("%s/{blob}", accessURL.String()))
 	if err != nil {
@@ -39,7 +50,7 @@ func NewService(
 	accessKeyID := id.DID().String()
 	idDigest, _ := multihash.Sum(id.Encode(), multihash.SHA2_256, -1)
 	secretAccessKey := digestutil.Format(idDigest)
-	ps, err := presigner.NewS3RequestPresigner(accessKeyID, secretAccessKey, *cfg.PublicURL, "blob")
+	ps, err := presigner.NewS3RequestPresigner(accessKeyID, secretAccessKey, *cfg.Server.PublicURL, "blob")
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize presigner for blob service: %w", err)
 	}

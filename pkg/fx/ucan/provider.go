@@ -13,15 +13,18 @@ import (
 	"github.com/storacha/piri/pkg/service/storage"
 )
 
-type Server struct {
+type Handler struct {
 	ucanServer ucanserver.ServerView
 }
 
 var Module = fx.Module("ucan/server",
-	handlers.Module,
 	fx.Provide(
-		NewServer,
+		fx.Annotate(
+			NewHandler,
+			fx.ResultTags(`group:"route_registrar"`),
+		),
 	),
+	handlers.Module,
 )
 
 var log = logging.Logger("ucan")
@@ -29,19 +32,20 @@ var log = logging.Logger("ucan")
 type Params struct {
 	fx.In
 
-	Echo    *echo.Echo
 	ID      principal.Signer
 	Options []ucanserver.Option `group:"ucan_options"`
 }
 
-func NewServer(p Params) (*Server, error) {
+func NewHandler(p Params) (*Handler, error) {
 	ucanSvr, err := ucanserver.NewServer(p.ID, p.Options...)
 	if err != nil {
 		return nil, fmt.Errorf("creating ucan server: %w", err)
 	}
 
-	// TODO(forrest): register routes in a single well defined location, not scattered everywhere, makes confilicts hard
-	p.Echo.POST("/", echo.WrapHandler(storage.NewHandler(ucanSvr)))
+	return &Handler{ucanSvr}, nil
+}
 
-	return &Server{ucanSvr}, nil
+// RegisterRoutes registers the UCAN routes with Echo
+func (h *Handler) RegisterRoutes(e *echo.Echo) {
+	e.POST("/", echo.WrapHandler(storage.NewHandler(h.ucanServer)))
 }

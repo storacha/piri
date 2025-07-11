@@ -5,29 +5,41 @@ import (
 
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-ucanto/principal"
+	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/service/publisher"
 )
 
+var Module = fx.Module("publisher",
+	fx.Provide(
+		NewService,
+		fx.Annotate(
+			NewHandler,
+			fx.ResultTags(`group:"route_registrar"`),
+		),
+	),
+)
+
 func NewService(
-	cfg app.PublisherServiceConfig,
+	cfg app.AppConfig,
 	id principal.Signer,
 	publisherStore store.PublisherStore,
 ) (*publisher.PublisherService, error) {
-	if cfg.PublicMaddr.String() == "" {
+	pubCfg := cfg.Services.Publisher
+	if pubCfg.PublicMaddr.String() == "" {
 		return nil, fmt.Errorf("public address is required for publisher service")
 	}
 
 	return publisher.New(
 		id,
 		publisherStore,
-		cfg.PublicMaddr,
-		publisher.WithDirectAnnounce(cfg.AnnounceURLs...),
-		publisher.WithIndexingService(cfg.IndexingService),
-		publisher.WithIndexingServiceProof(cfg.IndexingServiceProofs...),
-		publisher.WithAnnounceAddress(cfg.AnnounceMaddr),
-		publisher.WithBlobAddress(cfg.BlobMaddr),
+		pubCfg.PublicMaddr,
+		publisher.WithDirectAnnounce(pubCfg.AnnounceURLs...),
+		publisher.WithIndexingService(cfg.External.IndexingService.Connection),
+		publisher.WithIndexingServiceProof(cfg.External.IndexingService.Proofs...),
+		publisher.WithAnnounceAddress(pubCfg.AnnounceMaddr),
+		publisher.WithBlobAddress(pubCfg.BlobMaddr),
 	)
 
 }

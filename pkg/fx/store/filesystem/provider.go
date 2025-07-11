@@ -32,12 +32,12 @@ var Module = fx.Module("filesystem-store",
 )
 
 // TODO this likely needs a named fx tag, or it's own unique interface.
-func NewAggregatorStore(cfg app.RepoConfig, lc fx.Lifecycle) (datastore.Datastore, error) {
-	if cfg.AggregatorStoreDir == "" {
+func NewAggregatorStore(cfg app.AppConfig, lc fx.Lifecycle) (datastore.Datastore, error) {
+	if cfg.Storage.Aggregator.DatastoreDir == "" {
 		return nil, fmt.Errorf("no data dir provided for aggregator store")
 	}
 
-	ds, err := newDs(cfg.AggregatorStoreDir)
+	ds, err := newDs(cfg.Storage.Aggregator.DatastoreDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating aggregator store: %w", err)
 	}
@@ -50,12 +50,12 @@ func NewAggregatorStore(cfg app.RepoConfig, lc fx.Lifecycle) (datastore.Datastor
 	return ds, nil
 }
 
-func NewAllocationStore(cfg app.RepoConfig, lc fx.Lifecycle) (allocationstore.AllocationStore, error) {
-	if cfg.AllocationStoreDir == "" {
+func NewAllocationStore(cfg app.AppConfig, lc fx.Lifecycle) (allocationstore.AllocationStore, error) {
+	if cfg.Storage.Allocations.StoreDir == "" {
 		return nil, fmt.Errorf("no data dir provided for allocation store")
 	}
 
-	ds, err := newDs(cfg.AllocationStoreDir)
+	ds, err := newDs(cfg.Storage.Allocations.StoreDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating allocation store: %w", err)
 	}
@@ -69,16 +69,16 @@ func NewAllocationStore(cfg app.RepoConfig, lc fx.Lifecycle) (allocationstore.Al
 	return allocationstore.NewDsAllocationStore(ds)
 }
 
-func NewBlobStore(cfg app.RepoConfig) (blobstore.Blobstore, error) {
-	if cfg.BlobStoreDir == "" {
+func NewBlobStore(cfg app.AppConfig) (blobstore.Blobstore, error) {
+	if cfg.Storage.Blobs.StoreDir == "" {
 		return nil, fmt.Errorf("no data dir provided for blob store")
 	}
-	var tmpDir = cfg.BlobStoreTmpDir
+	var tmpDir = cfg.Storage.Blobs.TempDir
 	if tmpDir == "" {
 		tmpDir = filepath.Join(os.TempDir(), "storage")
 	}
 
-	bs, err := blobstore.NewFsBlobstore(cfg.BlobStoreDir, tmpDir)
+	bs, err := blobstore.NewFsBlobstore(cfg.Storage.Blobs.StoreDir, tmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating blob store: %w", err)
 	}
@@ -94,12 +94,12 @@ func NewBlobStore(cfg app.RepoConfig) (blobstore.Blobstore, error) {
 	*/
 }
 
-func NewClaimStore(cfg app.RepoConfig, lc fx.Lifecycle) (claimstore.ClaimStore, error) {
-	if cfg.ClaimStoreDir == "" {
+func NewClaimStore(cfg app.AppConfig, lc fx.Lifecycle) (claimstore.ClaimStore, error) {
+	if cfg.Storage.Claims.StoreDir == "" {
 		return nil, fmt.Errorf("no data dir provided for claim store")
 	}
 
-	ds, err := newDs(cfg.ClaimStoreDir)
+	ds, err := newDs(cfg.Storage.Claims.StoreDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating claim store: %w", err)
 	}
@@ -112,12 +112,12 @@ func NewClaimStore(cfg app.RepoConfig, lc fx.Lifecycle) (claimstore.ClaimStore, 
 	return delegationstore.NewDsDelegationStore(ds)
 }
 
-func NewPublisherStore(cfg app.RepoConfig, lc fx.Lifecycle) (store.FullStore, error) {
-	if cfg.PublisherStoreDir == "" {
+func NewPublisherStore(cfg app.AppConfig, lc fx.Lifecycle) (store.FullStore, error) {
+	if cfg.Storage.Publisher.StoreDir == "" {
 		return nil, fmt.Errorf("no data dir provided for publisher store")
 	}
 
-	ds, err := newDs(cfg.PublisherStoreDir)
+	ds, err := newDs(cfg.Storage.Publisher.StoreDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating publisher store: %w", err)
 	}
@@ -130,12 +130,12 @@ func NewPublisherStore(cfg app.RepoConfig, lc fx.Lifecycle) (store.FullStore, er
 	return store.FromDatastore(ds, store.WithMetadataContext(metadata.MetadataContext)), nil
 }
 
-func NewReceiptStore(cfg app.RepoConfig, lc fx.Lifecycle) (receiptstore.ReceiptStore, error) {
-	if cfg.ReceiptStoreDir == "" {
+func NewReceiptStore(cfg app.AppConfig, lc fx.Lifecycle) (receiptstore.ReceiptStore, error) {
+	if cfg.Storage.Receipts.StoreDir == "" {
 		return nil, fmt.Errorf("no data dir provided for receipt store")
 	}
 
-	ds, err := newDs(cfg.ReceiptStoreDir)
+	ds, err := newDs(cfg.Storage.Receipts.StoreDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating receipt store: %w", err)
 	}

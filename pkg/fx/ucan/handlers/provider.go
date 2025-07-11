@@ -5,28 +5,6 @@ import (
 	"go.uber.org/fx"
 )
 
-/*
-// Providers
-fx.Provide(
-    fx.Annotate(
-        NewUploadServiceConnection,
-        fx.ResultTags(`group:"connections"`),
-    ),
-    fx.Annotate(
-        NewIndexingServiceConnection,
-        fx.ResultTags(`group:"connections"`),
-    ),
-)
-
-// Consumer
-type Params struct {
-    fx.In
-
-    // ... other fields
-    Connections []client.Connection `group:"connections"`
-}
-*/
-
 var log = logging.Logger("ucan/handlers")
 
 var Module = fx.Module("ucan/handlers",
