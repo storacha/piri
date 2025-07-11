@@ -32,9 +32,10 @@ func TestBucketCreation(t *testing.T) {
 		require.NotNil(t, store1)
 
 		// Create second store (uses existing bucket)
-		store2, err := New(minioEndpoint, bucketName, minio.Options{
-			Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
-			Secure: false,
+		store2, err := New(minioEndpoint, bucketName, true, minio.Options{
+			Creds:           credentials.NewStaticV4("minioadmin", "minioadmin", ""),
+			Secure:          false,
+			TrailingHeaders: true,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, store2)
@@ -94,9 +95,10 @@ func TestMain(m *testing.M) {
 }
 
 func createTestStore(t *testing.T, bucketName string) *Store {
-	store, err := New(minioEndpoint, bucketName, minio.Options{
-		Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
-		Secure: false,
+	store, err := New(minioEndpoint, bucketName, true, minio.Options{
+		Creds:           credentials.NewStaticV4("minioadmin", "minioadmin", ""),
+		Secure:          false,
+		TrailingHeaders: true,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, store)

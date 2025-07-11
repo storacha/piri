@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/multiformats/go-multihash"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -15,11 +16,11 @@ var (
 type Store interface {
 	// Put stores an object with the given key and size from the provided reader.
 	// The size parameter should match the actual bytes to be read from data.
-	Put(ctx context.Context, key string, size uint64, data io.Reader) error
+	Put(ctx context.Context, key multihash.Multihash, size uint64, data io.Reader) error
 	// Get retrieves the object identified by the given key.
 	// Returns an Object for reading the data, or an error if retrieval fails.
 	// Use GetOption functions like WithRange to retrieve partial objects.
-	Get(ctx context.Context, key string, opts ...GetOption) (Object, error)
+	Get(ctx context.Context, key multihash.Multihash, opts ...GetOption) (Object, error)
 }
 
 type Object interface {

@@ -9,9 +9,11 @@ import (
 	"runtime"
 	"testing"
 
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
+	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/store/objectstore"
 )
 
@@ -19,6 +21,7 @@ import (
 var benchResult interface{}
 
 func BenchmarkPut(b *testing.B) {
+	logging.SetAllLoggers(logging.LevelFatal)
 	if runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
@@ -44,7 +47,7 @@ func BenchmarkPut(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				key := fmt.Sprintf("bench-put-%s-%d", tc.name, i)
+				key := testutil.MultihashOfBytes(b, data)
 				err := store.Put(ctx, key, uint64(tc.size), bytes.NewReader(data))
 				if err != nil {
 					b.Fatal(err)
@@ -55,6 +58,7 @@ func BenchmarkPut(b *testing.B) {
 }
 
 func BenchmarkGet(b *testing.B) {
+	logging.SetAllLoggers(logging.LevelFatal)
 	if runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
@@ -77,7 +81,7 @@ func BenchmarkGet(b *testing.B) {
 	// Pre-populate data
 	for _, tc := range sizes {
 		data := bytes.Repeat([]byte("a"), tc.size)
-		key := fmt.Sprintf("bench-get-%s", tc.name)
+		key := testutil.MultihashOfBytes(b, data)
 		err := store.Put(ctx, key, uint64(tc.size), bytes.NewReader(data))
 		if err != nil {
 			b.Fatal(err)
@@ -86,7 +90,8 @@ func BenchmarkGet(b *testing.B) {
 
 	for _, tc := range sizes {
 		b.Run(tc.name, func(b *testing.B) {
-			key := fmt.Sprintf("bench-get-%s", tc.name)
+			data := bytes.Repeat([]byte("a"), tc.size)
+			key := testutil.MultihashOfBytes(b, data)
 			b.SetBytes(int64(tc.size))
 			b.ResetTimer()
 
@@ -111,6 +116,7 @@ func BenchmarkGet(b *testing.B) {
 }
 
 func BenchmarkGetRange(b *testing.B) {
+	logging.SetAllLoggers(logging.LevelFatal)
 	if runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
@@ -121,7 +127,7 @@ func BenchmarkGetRange(b *testing.B) {
 	// Create a 10MB object
 	objectSize := 10 * 1024 * 1024
 	data := bytes.Repeat([]byte("a"), objectSize)
-	key := "bench-range-object"
+	key := testutil.MultihashOfBytes(b, data)
 	err := store.Put(ctx, key, uint64(objectSize), bytes.NewReader(data))
 	if err != nil {
 		b.Fatal(err)
@@ -173,6 +179,7 @@ func BenchmarkGetRange(b *testing.B) {
 }
 
 func BenchmarkConcurrentPut(b *testing.B) {
+	logging.SetAllLoggers(logging.LevelFatal)
 	if runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
@@ -198,7 +205,7 @@ func BenchmarkConcurrentPut(b *testing.B) {
 					sem <- struct{}{}
 					go func(idx int) {
 						defer func() { <-sem }()
-						key := fmt.Sprintf("bench-concurrent-%d-%d-%d", concurrency, i, idx)
+						key := testutil.MultihashOfBytes(b, data)
 						err := store.Put(ctx, key, uint64(dataSize), bytes.NewReader(data))
 						errCh <- err
 					}(j)
@@ -222,6 +229,7 @@ func BenchmarkConcurrentPut(b *testing.B) {
 }
 
 func BenchmarkConcurrentGet(b *testing.B) {
+	logging.SetAllLoggers(logging.LevelFatal)
 	if runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
@@ -235,7 +243,7 @@ func BenchmarkConcurrentGet(b *testing.B) {
 	// Pre-populate objects
 	numObjects := 20
 	for i := 0; i < numObjects; i++ {
-		key := fmt.Sprintf("bench-concurrent-get-%d", i)
+		key := testutil.MultihashOfBytes(b, data)
 		err := store.Put(ctx, key, uint64(dataSize), bytes.NewReader(data))
 		if err != nil {
 			b.Fatal(err)
@@ -257,7 +265,7 @@ func BenchmarkConcurrentGet(b *testing.B) {
 					sem <- struct{}{}
 					go func(idx int) {
 						defer func() { <-sem }()
-						key := fmt.Sprintf("bench-concurrent-get-%d", idx%numObjects)
+						key := testutil.MultihashOfBytes(b, data)
 						obj, err := store.Get(ctx, key)
 						if err != nil {
 							errCh <- err
@@ -302,9 +310,10 @@ func createBenchStore(b *testing.B) *Store {
 	}
 
 	bucketName := uniqueBucketName(b.Name())
-	store, err := New(minioEndpoint, bucketName, minio.Options{
-		Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
-		Secure: false,
+	store, err := New(minioEndpoint, bucketName, true, minio.Options{
+		Creds:           credentials.NewStaticV4("minioadmin", "minioadmin", ""),
+		Secure:          false,
+		TrailingHeaders: true,
 	})
 	if err != nil {
 		b.Fatal(err)

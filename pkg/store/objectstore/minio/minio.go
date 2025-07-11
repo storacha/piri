@@ -2,13 +2,16 @@ package minio
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/minio/minio-go/v7"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/pkg/store/objectstore"
 )
@@ -16,11 +19,15 @@ import (
 var log = logging.Logger("objectstore/minio")
 
 type Store struct {
-	client *minio.Client
-	bucket string
+	client          *minio.Client
+	bucket          string
+	trailingHeaders bool
+	// when set to true, the checksum of put operations will be compared with the
+	// digest of the multihash key, if they match put is successful, if they don't, put fails and deletes the object.
+	verifyOnPut bool
 }
 
-func New(endpoint, bucket string, opts minio.Options) (*Store, error) {
+func New(endpoint, bucket string, verify bool, opts minio.Options) (*Store, error) {
 	client, err := minio.New(endpoint, &opts)
 	if err != nil {
 		return nil, err
@@ -37,9 +44,15 @@ func New(endpoint, bucket string, opts minio.Options) (*Store, error) {
 		}
 	}
 
+	if verify && !opts.TrailingHeaders {
+		return nil, fmt.Errorf("minio TrailingHeaders required for verify")
+	}
+
 	return &Store{
-		client: client,
-		bucket: bucket,
+		client:          client,
+		bucket:          bucket,
+		trailingHeaders: opts.TrailingHeaders,
+		verifyOnPut:     verify,
 	}, nil
 }
 
@@ -47,28 +60,36 @@ func (s *Store) IsOnline() bool {
 	return s.client.IsOnline()
 }
 
-func (s *Store) Put(ctx context.Context, key string, size uint64, body io.Reader) error {
+func (s *Store) Put(ctx context.Context, key multihash.Multihash, size uint64, body io.Reader) error {
 	start := time.Now()
 	log.Debugw("putting object", "bucket", s.bucket, "key", key, "size", size)
+
+	putOpts := minio.PutObjectOptions{}
+	// Only enable checksum if the client supports trailing headers
+	if s.trailingHeaders {
+		putOpts.Checksum = minio.ChecksumSHA256
+	}
+
 	obj, err := s.client.PutObject(
 		ctx,
 		s.bucket,
-		key,
+		key.String(),
 		body,
 		int64(size),
-		minio.PutObjectOptions{},
+		putOpts,
 	)
 	if err != nil {
 		log.Errorw("failed to put object", "bucket", s.bucket, "key", key, "size", size, "error", err)
 		return fmt.Errorf("put object with key %s: %w", key, err)
 	}
+
 	// NB: it's highly unlikely this condition evaluates to true since minio will fail the Put operation
 	// if the passed size doesn't match the `body` size. If for some reason that constrain isn't enforced for whatever
 	// reason we can fall back to this.
 	if obj.Size != int64(size) {
 		log.Errorw("put object size mismatch", "bucket", s.bucket, "key", key, "expected_size", obj.Size, "actual_size", size)
 		// Clean up the partial object
-		deleteErr := s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
+		deleteErr := s.client.RemoveObject(ctx, s.bucket, key.String(), minio.RemoveObjectOptions{})
 		if deleteErr != nil {
 			// Log but don't mask the original error
 			log.Errorw("failed to clean up partial object", "bucket", s.bucket, "key", key, "error", deleteErr)
@@ -76,7 +97,45 @@ func (s *Store) Put(ctx context.Context, key string, size uint64, body io.Reader
 
 		return fmt.Errorf("put object size mismatch: got %d, expected %d", obj.Size, size)
 	}
-	log.Debugw("put object", "bucket", s.bucket, "key", key, "size", size, "duration", time.Since(start))
+
+	// Check if we need to validate the checksum
+	if s.verifyOnPut {
+		dm, err := multihash.Decode(key)
+		if err != nil {
+			return fmt.Errorf("failed to decode key to multihash for checksum verification: %w", err)
+		}
+		if dm.Code != multihash.SHA2_256 {
+			codeStr := fmt.Sprintf("%d", dm.Code)
+			if c, found := multihash.Codes[dm.Code]; found {
+				codeStr = c
+			}
+			return fmt.Errorf("checksum verification failed for key multihash object. got %s, want %s ", codeStr, multihash.Codes[multihash.SHA2_256])
+		}
+		expectedChecksum := base64.StdEncoding.EncodeToString(dm.Digest)
+
+		// The actual checksum is available in obj.ChecksumSHA256
+		actualChecksum := obj.ChecksumSHA256
+
+		// For multipart uploads, Minio returns checksums with a suffix like "-2" indicating the number of parts
+		// We cannot verify the checksum in this case as the algorithm is different
+		if strings.Contains(actualChecksum, "-") {
+			log.Debugw("skipping checksum verification for multipart upload", "bucket", s.bucket, "key", key, "checksum", actualChecksum)
+		} else if actualChecksum != expectedChecksum {
+			log.Errorw("put object checksum mismatch", "bucket", s.bucket, "key", key, "expected_checksum", expectedChecksum, "actual_checksum", actualChecksum)
+			// Clean up the object
+			deleteErr := s.client.RemoveObject(ctx, s.bucket, key.String(), minio.RemoveObjectOptions{})
+			if deleteErr != nil {
+				// Log but don't mask the original error
+				log.Errorw("failed to clean up object after checksum mismatch", "bucket", s.bucket, "key", key, "error", deleteErr)
+			}
+
+			return fmt.Errorf("put object checksum mismatch: expected %s, got %s", expectedChecksum, actualChecksum)
+		}
+
+		log.Debugw("put object checksum verified", "bucket", s.bucket, "key", key, "checksum", actualChecksum)
+	}
+
+	log.Debugw("put object", "bucket", s.bucket, "key", key, "size", size, "duration", time.Since(start), "checksum", obj.ChecksumSHA256)
 	return nil
 }
 
@@ -93,7 +152,7 @@ func (o *MinioObject) Body() io.ReadCloser {
 	return o.object
 }
 
-func (s *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOption) (objectstore.Object, error) {
+func (s *Store) Get(ctx context.Context, key multihash.Multihash, opts ...objectstore.GetOption) (objectstore.Object, error) {
 	start := time.Now()
 	config := objectstore.NewGetConfig()
 	config.ProcessOptions(opts)
@@ -120,7 +179,7 @@ func (s *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpti
 		}
 		log.Debugw("range set successfully", "start", rStart, "end", rEnd)
 	}
-	obj, err := s.client.GetObject(ctx, s.bucket, key, miOpts)
+	obj, err := s.client.GetObject(ctx, s.bucket, key.String(), miOpts)
 	if err != nil {
 		log.Errorw("get object failed", "bucket", s.bucket, "key", key, "error", err)
 		return nil, fmt.Errorf("get object with key %s: %w", key, err)
@@ -130,7 +189,7 @@ func (s *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpti
 	// where calling Stat() interferes with range requests and causes the entire file to be returned
 	var size int64
 
-	statObj, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
+	statObj, err := s.client.StatObject(ctx, s.bucket, key.String(), minio.StatObjectOptions{})
 	if err != nil {
 		var merr minio.ErrorResponse
 		if errors.As(err, &merr) {
