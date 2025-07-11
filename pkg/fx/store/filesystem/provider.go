@@ -27,6 +27,12 @@ var Module = fx.Module("filesystem-store",
 		NewBlobStore,
 		NewClaimStore,
 		NewPublisherStore,
+		// Also provide the interface
+		fx.Annotate(
+			func(s store.FullStore) store.PublisherStore {
+				return s
+			},
+		),
 		NewReceiptStore,
 	),
 )
@@ -42,7 +48,7 @@ func NewAggregatorStore(cfg app.AppConfig, lc fx.Lifecycle) (datastore.Datastore
 		return nil, fmt.Errorf("creating aggregator store: %w", err)
 	}
 	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStop: func(ctx context.Context) error {
 			return ds.Close()
 		},
 	})
@@ -61,7 +67,7 @@ func NewAllocationStore(cfg app.AppConfig, lc fx.Lifecycle) (allocationstore.All
 	}
 
 	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStop: func(ctx context.Context) error {
 			return ds.Close()
 		},
 	})
@@ -104,7 +110,7 @@ func NewClaimStore(cfg app.AppConfig, lc fx.Lifecycle) (claimstore.ClaimStore, e
 		return nil, fmt.Errorf("creating claim store: %w", err)
 	}
 	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStop: func(ctx context.Context) error {
 			return ds.Close()
 		},
 	})
@@ -122,7 +128,7 @@ func NewPublisherStore(cfg app.AppConfig, lc fx.Lifecycle) (store.FullStore, err
 		return nil, fmt.Errorf("creating publisher store: %w", err)
 	}
 	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStop: func(ctx context.Context) error {
 			return ds.Close()
 		},
 	})
@@ -140,7 +146,7 @@ func NewReceiptStore(cfg app.AppConfig, lc fx.Lifecycle) (receiptstore.ReceiptSt
 		return nil, fmt.Errorf("creating receipt store: %w", err)
 	}
 	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStop: func(ctx context.Context) error {
 			return ds.Close()
 		},
 	})

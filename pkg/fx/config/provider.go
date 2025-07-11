@@ -1,7 +1,11 @@
 package config
 
 import (
+	crypto_ed25519 "crypto/ed25519"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,6 +15,8 @@ import (
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
+	"github.com/storacha/go-ucanto/principal"
+	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"go.uber.org/fx"
 
@@ -53,37 +59,56 @@ func ProvideAppConfig(cfg config.UCANServer) (app.AppConfig, error) {
 		PublicURL: publicURL,
 	}
 
-	// Create storage config
-	storageConfig := app.StorageConfig{
-		DataDir: cfg.DataDir,
-		TempDir: cfg.TempDir,
-		Aggregator: app.AggregatorStorageConfig{
-			DatastoreDir: filepath.Join(cfg.DataDir, "aggregator", "datastore"),
-		},
-		Blobs: app.BlobStorageConfig{
-			StoreDir: filepath.Join(cfg.DataDir, "blobs"),
-			TempDir:  filepath.Join(cfg.TempDir, "storage"),
-		},
-		Claims: app.ClaimStorageConfig{
-			StoreDir: filepath.Join(cfg.DataDir, "claim"),
-		},
-		Publisher: app.PublisherStorageConfig{
-			StoreDir: filepath.Join(cfg.DataDir, "publisher"),
-		},
-		Receipts: app.ReceiptStorageConfig{
-			StoreDir: filepath.Join(cfg.DataDir, "receipt"),
-		},
-		Allocations: app.AllocationStorageConfig{
-			StoreDir: filepath.Join(cfg.DataDir, "allocation"),
-		},
-		Replicator: app.ReplicatorStorageConfig{
-			DBPath: "", // Will be set below if PDP is configured
-		},
-	}
+	// Initialize storage config
+	var storageConfig app.StorageConfig
 
-	// Set replicator DB path if PDP is configured
-	if cfg.PDPServerURL != "" {
-		storageConfig.Replicator.DBPath = filepath.Join(cfg.DataDir, "aggregator", "jobqueue", "jobqueue.db")
+	if cfg.Repo.DataDir != "" {
+		// Ensure directories exist
+		if err := os.MkdirAll(cfg.Repo.DataDir, 0755); err != nil {
+			return app.AppConfig{}, fmt.Errorf("creating data directory: %w", err)
+		}
+		if err := os.MkdirAll(cfg.Repo.TempDir, 0755); err != nil {
+			return app.AppConfig{}, fmt.Errorf("creating temp directory: %w", err)
+		}
+
+		// Create storage config with file-based paths
+		storageConfig = app.StorageConfig{
+			DataDir: cfg.Repo.DataDir,
+			TempDir: cfg.Repo.TempDir,
+			Aggregator: app.AggregatorStorageConfig{
+				DatastoreDir: filepath.Join(cfg.Repo.DataDir, "aggregator", "datastore"),
+			},
+			Blobs: app.BlobStorageConfig{
+				StoreDir: filepath.Join(cfg.Repo.DataDir, "blobs"),
+				TempDir:  filepath.Join(cfg.Repo.TempDir, "storage"),
+			},
+			Claims: app.ClaimStorageConfig{
+				StoreDir: filepath.Join(cfg.Repo.DataDir, "claim"),
+			},
+			Publisher: app.PublisherStorageConfig{
+				StoreDir: filepath.Join(cfg.Repo.DataDir, "publisher"),
+			},
+			Receipts: app.ReceiptStorageConfig{
+				StoreDir: filepath.Join(cfg.Repo.DataDir, "receipt"),
+			},
+			Allocations: app.AllocationStorageConfig{
+				StoreDir: filepath.Join(cfg.Repo.DataDir, "allocation"),
+			},
+			Replicator: app.ReplicatorStorageConfig{
+				DBPath: "", // Will be set below if PDP is configured
+			},
+		}
+
+		// Set replicator DB path if PDP is configured
+		if cfg.PDPServerURL != "" {
+			storageConfig.Replicator.DBPath = filepath.Join(cfg.Repo.DataDir, "aggregator", "jobqueue", "jobqueue.db")
+		}
+	} else {
+		// Empty storage config for memory stores
+		storageConfig = app.StorageConfig{
+			DataDir: "",
+			TempDir: "",
+		}
 	}
 
 	// Create external services config
@@ -198,17 +223,14 @@ func ProvideAppConfig(cfg config.UCANServer) (app.AppConfig, error) {
 		AnnounceURLs:  announceURLs,
 	}
 
-	// Ensure directories exist
-	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
-		return app.AppConfig{}, fmt.Errorf("creating data directory: %w", err)
-	}
-	if err := os.MkdirAll(cfg.TempDir, 0755); err != nil {
-		return app.AppConfig{}, fmt.Errorf("creating temp directory: %w", err)
+	identity, err := ReadPrivateKeyFromPEM(cfg.KeyFile)
+	if err != nil {
+		return app.AppConfig{}, fmt.Errorf("failed to read private key from PEM file: %w", err)
 	}
 
 	return app.AppConfig{
 		Identity: app.IdentityConfig{
-			KeyFile: cfg.KeyFile,
+			Signer: identity,
 		},
 		Server:   serverConfig,
 		Storage:  storageConfig,
@@ -220,4 +242,50 @@ func ProvideAppConfig(cfg config.UCANServer) (app.AppConfig, error) {
 // ProvideUploadServiceConnection provides the upload service connection for backward compatibility
 func ProvideUploadServiceConnection(cfg app.AppConfig) client.Connection {
 	return cfg.External.UploadService.Connection
+}
+
+func ReadPrivateKeyFromPEM(path string) (principal.Signer, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	pemData, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("reading private key: %w", err)
+	}
+
+	var privateKey *crypto_ed25519.PrivateKey
+	rest := pemData
+
+	// Loop until no more blocks
+	for {
+		block, remaining := pem.Decode(rest)
+		if block == nil {
+			// No more PEM blocks
+			break
+		}
+		rest = remaining
+
+		// Look for "PRIVATE KEY"
+		if block.Type == "PRIVATE KEY" {
+			parsedKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse PKCS#8 private key: %w", err)
+			}
+
+			// We expect a ed25519 private key, cast it
+			key, ok := parsedKey.(crypto_ed25519.PrivateKey)
+			if !ok {
+				return nil, fmt.Errorf("the parsed key is not an ED25519 private key")
+			}
+			privateKey = &key
+			break
+		}
+	}
+
+	if privateKey == nil {
+		return nil, fmt.Errorf("could not find a PRIVATE KEY block in the PEM file")
+	}
+	return ed25519.FromRaw(*privateKey)
 }

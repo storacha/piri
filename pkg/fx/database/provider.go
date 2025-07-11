@@ -23,12 +23,16 @@ var Module = fx.Module("database",
 
 // ProvideReplicatorDB provides the SQLite database for the replicator job queue
 func ProvideReplicatorDB(cfg app.AppConfig) (*sql.DB, error) {
-	// If no path is provided (PDP not configured), return nil
+	// If no path is provided, use in-memory database
 	if cfg.Storage.Replicator.DBPath == "" {
-		return nil, nil
+		db, err := sqlitedb.NewMemory()
+		if err != nil {
+			return nil, fmt.Errorf("creating in-memory replicator database: %w", err)
+		}
+		return db, nil
 	}
 
-	// Ensure directory exists
+	// Ensure directory exists for file-based database
 	dir := filepath.Dir(cfg.Storage.Replicator.DBPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("creating database directory: %w", err)

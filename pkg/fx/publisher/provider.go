@@ -14,6 +14,12 @@ import (
 var Module = fx.Module("publisher",
 	fx.Provide(
 		NewService,
+		// Also provide the interface
+		fx.Annotate(
+			func(svc *publisher.PublisherService) publisher.Publisher {
+				return svc
+			},
+		),
 		fx.Annotate(
 			NewHandler,
 			fx.ResultTags(`group:"route_registrar"`),

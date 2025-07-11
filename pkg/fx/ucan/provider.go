@@ -19,10 +19,14 @@ type Handler struct {
 
 var Module = fx.Module("ucan/server",
 	fx.Provide(
+		NewHandler,
 		fx.Annotate(
-			NewHandler,
+			func(h *Handler) *Handler {
+				return h
+			},
 			fx.ResultTags(`group:"route_registrar"`),
 		),
+		ProvideServerView,
 	),
 	handlers.Module,
 )
@@ -48,4 +52,9 @@ func NewHandler(p Params) (*Handler, error) {
 // RegisterRoutes registers the UCAN routes with Echo
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
 	e.POST("/", echo.WrapHandler(storage.NewHandler(h.ucanServer)))
+}
+
+// ProvideServerView provides the UCAN ServerView for testing
+func ProvideServerView(h *Handler) ucanserver.ServerView {
+	return h.ucanServer
 }

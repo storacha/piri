@@ -7,6 +7,8 @@ import (
 	"github.com/storacha/go-ucanto/principal"
 	"go.uber.org/fx"
 
+	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/fx/ucan/handlers"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -16,20 +18,29 @@ import (
 )
 
 var Module = fx.Module("storage",
-	fx.Provide(NewStorageService),
+	fx.Provide(
+		fx.Annotate(
+			NewStorageService,
+			fx.As(new(storage.Service)),
+			fx.As(new(handlers.BlobAllocateService)),
+			fx.As(new(handlers.BlobAcceptService)),
+			fx.As(new(handlers.PDPInfoService)),
+			fx.As(new(handlers.ReplicaAllocateService)),
+		),
+	),
 )
 
 // StorageServiceParams contains all dependencies for the storage service
 type StorageServiceParams struct {
 	fx.In
 
+	Config       app.AppConfig
 	ID           principal.Signer
 	Blobs        *blobs.BlobService
 	Claims       *claims.ClaimService
 	PDP          pdp.PDP `optional:"true"`
 	ReceiptStore receiptstore.ReceiptStore
 	Replicator   *replicator.Service
-	UploadConn   client.Connection `name:"upload_service_connection"`
 }
 
 // storageServiceWrapper wraps the storage service to implement the storage.Service interface
@@ -52,7 +63,7 @@ func NewStorageService(params StorageServiceParams, lc fx.Lifecycle) (storage.Se
 		pdp:          params.PDP,
 		receiptStore: params.ReceiptStore,
 		replicator:   params.Replicator,
-		uploadConn:   params.UploadConn,
+		uploadConn:   params.Config.External.UploadService.Connection,
 	}
 
 	// Register lifecycle hooks

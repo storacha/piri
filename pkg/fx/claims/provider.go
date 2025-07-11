@@ -11,6 +11,12 @@ import (
 var Module = fx.Module("claims",
 	fx.Provide(
 		NewService,
+		// Also provide the interface
+		fx.Annotate(
+			func(svc *claims.ClaimService) claims.Claims {
+				return svc
+			},
+		),
 		fx.Annotate(
 			NewHandler,
 			fx.ResultTags(`group:"route_registrar"`),

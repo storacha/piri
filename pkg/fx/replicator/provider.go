@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/principal"
 	"go.uber.org/fx"
 
+	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -23,13 +23,13 @@ var Module = fx.Module("replicator",
 type Params struct {
 	fx.In
 
-	ID                      principal.Signer
-	PDP                     pdp.PDP
-	Blobs                   blobs.Blobs
-	Claims                  claims.Claims
-	ReceiptStore            receiptstore.ReceiptStore
-	UploadServiceConnection client.Connection `name:"upload_service_connection"`
-	DB                      *sql.DB           `name:"replicator_db"`
+	Config       app.AppConfig
+	ID           principal.Signer
+	PDP          pdp.PDP `optional:"true"`
+	Blobs        blobs.Blobs
+	Claims       claims.Claims
+	ReceiptStore receiptstore.ReceiptStore
+	DB           *sql.DB `name:"replicator_db"`
 }
 
 func New(params Params, lc fx.Lifecycle) (*replicator.Service, error) {
@@ -39,7 +39,7 @@ func New(params Params, lc fx.Lifecycle) (*replicator.Service, error) {
 		params.Blobs,
 		params.Claims,
 		params.ReceiptStore,
-		params.UploadServiceConnection,
+		params.Config.External.UploadService.Connection,
 		params.DB,
 	)
 	if err != nil {

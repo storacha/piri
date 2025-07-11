@@ -6,6 +6,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
+	"github.com/storacha/go-ucanto/principal"
 )
 
 // AppConfig is the root configuration for the entire application
@@ -28,8 +29,8 @@ type AppConfig struct {
 
 // IdentityConfig contains identity-related configuration
 type IdentityConfig struct {
-	// Path to the PEM-encoded private key file
-	KeyFile string
+	// The principal signer for this service
+	Signer principal.Signer
 }
 
 // ServerConfig contains HTTP server settings

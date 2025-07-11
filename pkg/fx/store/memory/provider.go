@@ -21,6 +21,12 @@ var Module = fx.Module("memory-store",
 		NewBlobStore,
 		NewClaimStore,
 		NewPublisherStore,
+		// Also provide the interface
+		fx.Annotate(
+			func(s store.FullStore) store.PublisherStore {
+				return s
+			},
+		),
 		NewReceiptStore,
 	),
 )

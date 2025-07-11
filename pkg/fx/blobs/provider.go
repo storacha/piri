@@ -3,13 +3,11 @@ package blobs
 import (
 	"fmt"
 
-	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-ucanto/principal"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/access"
 	"github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/store/allocationstore"
@@ -19,6 +17,12 @@ import (
 var Module = fx.Module("blobs",
 	fx.Provide(
 		NewService,
+		// Also provide the interface
+		fx.Annotate(
+			func(svc *blobs.BlobService) blobs.Blobs {
+				return svc
+			},
+		),
 		fx.Annotate(
 			NewHandler,
 			fx.ResultTags(`group:"route_registrar"`),
@@ -29,6 +33,7 @@ var Module = fx.Module("blobs",
 func NewService(
 	cfg app.AppConfig,
 	id principal.Signer,
+	ps presigner.RequestPresigner,
 	blobStore blobstore.Blobstore,
 	allocationStore allocationstore.AllocationStore,
 ) (*blobs.BlobService, error) {
@@ -45,14 +50,6 @@ func NewService(
 	ap, err := access.NewPatternAccess(fmt.Sprintf("%s/{blob}", accessURL.String()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize access pattern for blob service: %w", err)
-	}
-
-	accessKeyID := id.DID().String()
-	idDigest, _ := multihash.Sum(id.Encode(), multihash.SHA2_256, -1)
-	secretAccessKey := digestutil.Format(idDigest)
-	ps, err := presigner.NewS3RequestPresigner(accessKeyID, secretAccessKey, *cfg.Server.PublicURL, "blob")
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize presigner for blob service: %w", err)
 	}
 
 	return blobs.New(
