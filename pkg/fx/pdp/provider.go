@@ -28,7 +28,7 @@ func ProvidePDP(cfg app.AppConfig, id principal.Signer, receiptStore receiptstor
 	}
 
 	pdpCfg := cfg.External.PDPServer
-	
+
 	// Validate configuration
 	if pdpCfg.ProofSet == 0 {
 		return nil, fmt.Errorf("must set proof-set when using pdp-server-url")

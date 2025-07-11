@@ -2,7 +2,9 @@ package principalresolver
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
 	"github.com/storacha/go-ucanto/validator"
 	"go.uber.org/fx"
@@ -23,11 +25,22 @@ var Module = fx.Module("principalresolver",
 
 // NewPrincipalResolver creates a principal resolver from configuration
 func NewPrincipalResolver(cfg app.AppConfig) (validator.PrincipalResolver, error) {
-	resolver, err := principalresolver.New(cfg.Services.ServicePrincipalMapping)
-	if err != nil {
-		return nil, fmt.Errorf("creating principal resolver: %w", err)
+	services := make([]did.DID, 0, 2)
+	if idxSvc := cfg.External.IndexingService.Connection; idxSvc != nil {
+		services = append(services, idxSvc.ID().DID())
 	}
-	return resolver, nil
+	if uplSvc := cfg.External.UploadService.Connection; uplSvc != nil {
+		services = append(services, uplSvc.ID().DID())
+	}
+	hr, err := principalresolver.NewHTTPResolver(services)
+	if err != nil {
+		return nil, fmt.Errorf("creating http principal resolver: %w", err)
+	}
+	cr, err := principalresolver.NewCachedResolver(hr, 24*time.Hour)
+	if err != nil {
+		return nil, fmt.Errorf("creating cached principal resolver: %w", err)
+	}
+	return cr, nil
 }
 
 // ProvideAsUCANOption provides the principal resolver as a UCAN server option

@@ -27,6 +27,6 @@ func NewRequestPresigner(cfg app.AppConfig, id principal.Signer) (presigner.Requ
 	accessKeyID := id.DID().String()
 	idDigest, _ := multihash.Sum(id.Encode(), multihash.SHA2_256, -1)
 	secretAccessKey := digestutil.Format(idDigest)
-	
+
 	return presigner.NewS3RequestPresigner(accessKeyID, secretAccessKey, *cfg.Server.PublicURL, "blob")
 }

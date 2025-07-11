@@ -2,7 +2,7 @@ package claims
 
 import (
 	"go.uber.org/fx"
-	
+
 	"github.com/storacha/piri/pkg/service/claims"
 	publisherSvc "github.com/storacha/piri/pkg/service/publisher"
 	"github.com/storacha/piri/pkg/store/claimstore"

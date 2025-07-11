@@ -3,7 +3,6 @@ package ucan
 import (
 	"fmt"
 
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-ucanto/principal"
 	ucanserver "github.com/storacha/go-ucanto/server"
@@ -30,8 +29,6 @@ var Module = fx.Module("ucan/server",
 	),
 	handlers.Module,
 )
-
-var log = logging.Logger("ucan")
 
 type Params struct {
 	fx.In

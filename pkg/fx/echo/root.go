@@ -30,7 +30,7 @@ func (h *RootHandler) handleRoot(c echo.Context) error {
 	response := fmt.Sprintf("🔥 piri %s\n", build.Version)
 	response += "- https://github.com/storacha/piri\n"
 	response += fmt.Sprintf("- %s", h.id.DID())
-	
+
 	return c.String(200, response)
 }
 

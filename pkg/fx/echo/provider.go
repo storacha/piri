@@ -29,7 +29,6 @@ type RouteRegistrar interface {
 	RegisterRoutes(e *echo.Echo)
 }
 
-
 // NewEcho creates a new Echo instance with default middleware
 func NewEcho() *echo.Echo {
 	e := echo.New()
