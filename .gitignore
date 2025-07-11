@@ -17,3 +17,6 @@ piri
 
 # Wallet Private Keys
 *.hex
+
+# GoReleaser output
+dist/

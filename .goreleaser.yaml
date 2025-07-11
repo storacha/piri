@@ -1,7 +1,10 @@
 version: 2
 
+project_name: piri
+
 builds:
-  - main: ./cmd
+  - id: piri
+    main: ./cmd
     binary: piri
     ldflags:
       # Sets the version variable in the build package to the build version prefixed with a 'v'
@@ -17,17 +20,21 @@ builds:
     mod_timestamp: '{{.CommitTimestamp}}'
     env:
       - CGO_ENABLED=0
+
 universal_binaries:
   - replace: true
+
 archives:
   - format_overrides:
       - goos: darwin
-        format: zip
+        formats: zip
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_
       {{- if eq .Os "darwin" }}mac_os
       {{- else }}{{ .Os }}{{ end }}_{{ .Arch }}
+
 release:
   mode: keep-existing
+
 changelog:
   disable: true
