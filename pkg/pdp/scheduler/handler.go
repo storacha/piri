@@ -203,6 +203,7 @@ retryHandleDoneTask:
 				// to pick it back up and try again
 				if err := tx.Model(&models.Task{}).
 					Where(&models.Task{ID: int64(id)}).
+					Select("session_id", "retries", "update_time").
 					Updates(models.Task{
 						SessionID:  nil,
 						Retries:    task.Retries + 1,

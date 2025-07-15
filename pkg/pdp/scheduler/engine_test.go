@@ -325,3 +325,129 @@ func TestTaskEngineResume(t *testing.T) {
 		})
 	}
 }
+
+// TestTaskEngineRetryFailedTasks verifies that failed tasks are properly retried
+// and that SessionID is correctly set to nil when a task fails
+func TestTaskEngineRetryFailedTasks(t *testing.T) {
+	tests := []struct {
+		name             string
+		maxFailures      uint
+		failureThreshold int // How many times the task should fail before succeeding (-1 = always fail)
+		expectedAttempts int // Total expected execution attempts
+		verifyHistory    func(t *testing.T, histories []models.TaskHistory)
+	}{
+		{
+			name:             "task fails once then succeeds",
+			maxFailures:      3,
+			failureThreshold: 1,
+			expectedAttempts: 2,
+			verifyHistory: func(t *testing.T, histories []models.TaskHistory) {
+				require.Len(t, histories, 2)
+				// First attempt should fail
+				assert.False(t, histories[0].Result)
+				assert.Contains(t, histories[0].Err, "simulated failure on attempt 1")
+				// Second attempt should succeed
+				assert.True(t, histories[1].Result)
+				assert.Empty(t, histories[1].Err)
+			},
+		},
+		{
+			name:             "task fails 4 times then succeeds on 5th attempt",
+			maxFailures:      5,
+			failureThreshold: 4,
+			expectedAttempts: 5,
+			verifyHistory: func(t *testing.T, histories []models.TaskHistory) {
+				require.Len(t, histories, 5)
+				// First 4 attempts should fail
+				for i := 0; i < 4; i++ {
+					assert.False(t, histories[i].Result)
+					assert.Contains(t, histories[i].Err, fmt.Sprintf("simulated failure on attempt %d", i+1))
+				}
+				// 5th attempt should succeed
+				assert.True(t, histories[4].Result)
+				assert.Empty(t, histories[4].Err)
+			},
+		},
+		{
+			name:             "task never succeeds and exceeds max retries",
+			maxFailures:      3,
+			failureThreshold: -1, // Always fail
+			expectedAttempts: 4,  // Initial attempt + 3 retries
+			verifyHistory: func(t *testing.T, histories []models.TaskHistory) {
+				require.Len(t, histories, 4)
+				// All attempts should fail
+				for i := 0; i < len(histories); i++ {
+					assert.False(t, histories[i].Result)
+					assert.Contains(t, histories[i].Err, fmt.Sprintf("simulated failure on attempt %d", i+1))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := setupTestDB(t)
+
+			// Track execution attempts for each task
+			executionAttempts := make(map[TaskID]int)
+			var mu sync.Mutex
+
+			// Create a mock task with custom failure behavior
+			mockTask := NewMockTask("test_task", 5, false)
+			mockTask.typeDetails.MaxFailures = tt.maxFailures
+			mockTask.doFunc = func(taskID TaskID) (bool, error) {
+				mu.Lock()
+				attempts := executionAttempts[taskID]
+				executionAttempts[taskID] = attempts + 1
+				mu.Unlock()
+
+				if tt.failureThreshold == -1 || attempts < tt.failureThreshold {
+					// Task should fail
+					return false, fmt.Errorf("simulated failure on attempt %d", attempts+1)
+				}
+				// Task succeeds
+				return true, nil
+			}
+
+			// Create the engine
+			engine, err := NewEngine(db, []TaskInterface{mockTask})
+			require.NoError(t, err)
+			defer engine.GracefullyTerminate()
+
+			// Wait for addTaskFunc to be set
+			mockTask.WaitForReady()
+
+			// Create a task
+			mockTask.AddTask(func(tID TaskID, tx *gorm.DB) (bool, error) {
+				return true, nil
+			})
+
+			// Wait for expected number of execution attempts
+			assert.Eventually(t, func() bool {
+				mu.Lock()
+				defer mu.Unlock()
+				for _, attempts := range executionAttempts {
+					if attempts >= tt.expectedAttempts {
+						return true
+					}
+				}
+				return false
+			}, 20*time.Second, 100*time.Millisecond, fmt.Sprintf("Task should be attempted %d times", tt.expectedAttempts))
+
+			// Small delay to ensure final database updates are complete
+			time.Sleep(200 * time.Millisecond)
+
+			// Verify task deletion status
+			var count int64
+			db.Model(&models.Task{}).Where("name = ?", "test_task").Count(&count)
+			assert.Equal(t, int64(0), count, "Task should be deleted")
+
+			// Verify task history
+			var histories []models.TaskHistory
+			require.NoError(t, db.Where("name = ?", "test_task").Order("work_start ASC").Find(&histories).Error)
+
+			// Call the test case's verification function
+			tt.verifyHistory(t, histories)
+		})
+	}
+}
