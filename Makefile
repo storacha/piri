@@ -1,6 +1,6 @@
 VERSION=$(shell awk -F'"' '/"version":/ {print $$4}' version.json)
 COMMIT=$(shell git rev-parse --short HEAD)
-DATE=$(shell date -u '+%s')
+DATE=$(shell date -u -Iseconds)
 GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION) -X github.com/storacha/piri/pkg/build.Commit=$(COMMIT) -X github.com/storacha/piri/pkg/build.Date=$(DATE) -X github.com/storacha/piri/pkg/build.BuiltBy=make"
 TAGS?=
 
