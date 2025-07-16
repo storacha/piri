@@ -42,7 +42,7 @@ piri serve ucan --key-file=service.pem
 ▐▛▀▘ █ █    █  ▗█▘
 ▐▌   █      █  ▀▘
 
-🔥 v0.0.9
+🔥 v0.0.10
 🆔 did:key:z6Mko7NFux3RoDDQUjmbnc7ccCqxnLV3tju8zwai2XFbRbU6
 🚀 Ready!
 ```
@@ -95,7 +95,7 @@ piri serve ucan --key-file=service.pem --pdp-server-url=https://up.piri.example.
 ▐▛▀▘ █ █    █  ▗█▘
 ▐▌   █      █  ▀▘
 
-🔥 v0.0.9
+🔥 v0.0.10
 🆔 did:key:z6Mko7NFux3RoDDQUjmbnc7ccCqxnLV3tju8zwai2XFbRbU6
 🚀 Ready!
 ```
