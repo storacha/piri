@@ -166,8 +166,11 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 			return nil, fmt.Errorf("invalid RootCID: %w", err)
 		}
 
-		// Get raw size by summing up the sizes of subroots
+		// Get total size by summing up the sizes of subroots
+		// IMPORTANT: Using padded sizes here to match what's stored in the database
+		// and ensure the total is a multiple of 32 (as required by the smart contract)
 		var totalSize uint64 = 0
+		var totalUnpaddedSize uint64 = 0
 		var prevSubrootSize = subrootInfoMap[addRootReq.SubrootCIDs[0]].PieceInfo.Size
 		for i, subrootEntry := range addRootReq.SubrootCIDs {
 			subrootInfo := subrootInfoMap[subrootEntry]
@@ -176,8 +179,28 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 			}
 
 			prevSubrootSize = subrootInfo.PieceInfo.Size
-			totalSize += uint64(subrootInfo.PieceInfo.Size.Unpadded())
+			paddedSize := uint64(subrootInfo.PieceInfo.Size)
+			unpaddedSize := uint64(subrootInfo.PieceInfo.Size.Unpadded())
+			log.Debugw("Subroot size details",
+				"subrootCID", subrootEntry,
+				"paddedSize", paddedSize,
+				"paddedSizeMod32", paddedSize%32,
+				"unpaddedSize", unpaddedSize,
+				"unpaddedSizeMod32", unpaddedSize%32)
+			// Try using padded size instead of unpadded
+			totalSize += paddedSize
+			totalUnpaddedSize += unpaddedSize
 		}
+
+		// Log debug information
+		log.Debugw("Root data details",
+			"rootCID", addRootReq.RootCID,
+			"cidBytesLen", len(rootCID.Bytes()),
+			"totalSize", totalSize,
+			"totalSizeMod32", totalSize%32,
+			"totalUnpaddedSize", totalUnpaddedSize,
+			"totalUnpaddedSizeMod32", totalUnpaddedSize%32,
+			"subrootCount", len(addRootReq.SubrootCIDs))
 
 		// Prepare RootData for Ethereum transaction
 		rootData := RootData{
