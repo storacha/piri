@@ -8,9 +8,11 @@ import (
 	"strings"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/server"
+
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -39,28 +41,28 @@ func ListenAndServe(addr string, service storage.Service, options ...server.Opti
 }
 
 // NewServer creates a new storage node server.
-func NewServer(service storage.Service, options ...server.Option) (*http.ServeMux, error) {
-	mux := http.NewServeMux()
-	mux.Handle("GET /{$}", NewHandler(service.ID()))
+func NewServer(service storage.Service, options ...server.Option) (*echo.Echo, error) {
+	mux := echo.New()
+	mux.GET("/", echo.WrapHandler(NewHandler(service.ID())))
 
 	httpUcanSrv, err := storage.NewServer(service, options...)
 	if err != nil {
 		return nil, fmt.Errorf("creating UCAN server: %w", err)
 	}
-	httpUcanSrv.Serve(mux)
+	httpUcanSrv.RegisterRoutes(mux)
 
 	httpClaimsSrv, err := claims.NewServer(service.Claims().Store())
 	if err != nil {
 		return nil, fmt.Errorf("creating claims server: %w", err)
 	}
-	httpClaimsSrv.Serve(mux)
+	httpClaimsSrv.RegisterRoutes(mux)
 
 	if service.PDP() == nil {
 		httpBlobsSrv, err := blobs.NewServer(service.Blobs().Presigner(), service.Blobs().Allocations(), service.Blobs().Store())
 		if err != nil {
 			return nil, fmt.Errorf("creating blobs server: %w", err)
 		}
-		httpBlobsSrv.Serve(mux)
+		httpBlobsSrv.RegisterRoutes(mux)
 	}
 
 	publisherStore := service.Claims().Publisher().Store()
@@ -73,7 +75,7 @@ func NewServer(service storage.Service, options ...server.Option) (*http.ServeMu
 	if err != nil {
 		return nil, fmt.Errorf("creating IPNI publisher server: %w", err)
 	}
-	httpPublisherSrv.Serve(mux)
+	httpPublisherSrv.RegisterRoutes(mux)
 
 	return mux, nil
 }

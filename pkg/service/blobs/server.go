@@ -9,8 +9,10 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/labstack/echo/v4"
 	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multihash"
+
 	"github.com/storacha/piri/internal/telemetry"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/store/allocationstore"
@@ -29,9 +31,9 @@ func NewServer(presigner presigner.RequestPresigner, allocs allocationstore.Allo
 	return &Server{blobs, presigner, allocs}, nil
 }
 
-func (srv *Server) Serve(mux *http.ServeMux) {
-	mux.Handle("GET /blob/{blob}", NewBlobGetHandler(srv.blobs))
-	mux.Handle("PUT /blob/{blob}", NewBlobPutHandler(srv.presigner, srv.allocs, srv.blobs))
+func (srv *Server) RegisterRoutes(e *echo.Echo) {
+	e.GET("/blob/:blob", echo.WrapHandler(NewBlobGetHandler(srv.blobs)))
+	e.PUT("/blob/:blob", echo.WrapHandler(NewBlobPutHandler(srv.presigner, srv.allocs, srv.blobs)))
 }
 
 func NewBlobGetHandler(blobs blobstore.Blobstore) http.Handler {

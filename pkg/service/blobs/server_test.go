@@ -13,19 +13,21 @@ import (
 	"time"
 
 	"github.com/ipfs/go-datastore"
+	"github.com/labstack/echo/v4"
 	"github.com/multiformats/go-multihash"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
+	"github.com/stretchr/testify/require"
+
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/stretchr/testify/require"
 )
 
 func TestServer(t *testing.T) {
-	mux := http.NewServeMux()
+	mux := echo.New()
 	httpsrv := httptest.NewServer(mux)
 	t.Cleanup(httpsrv.Close)
 
@@ -52,7 +54,7 @@ func TestServer(t *testing.T) {
 	srv, err := NewServer(presigner, allocs, blobs)
 	require.NoError(t, err)
 
-	srv.Serve(mux)
+	srv.RegisterRoutes(mux)
 
 	t.Run("get blob", func(t *testing.T) {
 		data := testutil.RandomBytes(t, 32)
