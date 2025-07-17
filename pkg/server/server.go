@@ -102,7 +102,7 @@ func NewHandler(id principal.Signer) http.Handler {
 			json, err := json.Marshal(&info)
 			if err != nil {
 				log.Errorf("failed JSON marshal server info: %w", err)
-				http.Error(w, "failed JSON marshal server info", 500)
+                                http.Error(w, "failed JSON marshal server info", http.StatusInternalServerError)
 				return
 			}
 			w.Write(json)
