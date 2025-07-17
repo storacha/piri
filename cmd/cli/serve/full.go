@@ -27,10 +27,11 @@ import (
 
 var (
 	FullCmd = &cobra.Command{
-		Use:   "full",
-		Short: "Start the full server.",
-		Args:  cobra.NoArgs,
-		RunE:  startFullServer,
+		Use:    "full",
+		Short:  "Start the full server.",
+		Args:   cobra.NoArgs,
+		RunE:   startFullServer,
+		Hidden: true,
 	}
 )
 
