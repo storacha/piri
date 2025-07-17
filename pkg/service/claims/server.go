@@ -9,6 +9,8 @@ import (
 
 	"github.com/ipfs/go-cid"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/labstack/echo/v4"
+
 	"github.com/storacha/piri/internal/telemetry"
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/claimstore"
@@ -22,8 +24,8 @@ func NewServer(claims claimstore.ClaimStore) (*Server, error) {
 	return &Server{claims}, nil
 }
 
-func (srv *Server) Serve(mux *http.ServeMux) {
-	mux.Handle("GET /claim/{claim}", NewHandler(srv.claims))
+func (srv *Server) RegisterRoutes(e *echo.Echo) {
+	e.GET("/claim/:claim", echo.WrapHandler(NewHandler(srv.claims)))
 }
 
 func NewHandler(claims claimstore.ClaimStore) http.Handler {
