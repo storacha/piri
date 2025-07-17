@@ -98,8 +98,9 @@ func NewHandler(id principal.Signer) http.Handler {
 		},
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.Header.Get("Accept"), "application/json") {
-			json, err := json.Marshal(&info)
+   	        if strings.Contains(r.Header.Get("Accept"), "application/json") {
+   		        w.Header().Set("Content-Type", "application/json")
+   		        data, err := json.Marshal(&info)
 			if err != nil {
 				log.Errorf("failed JSON marshal server info: %w", err)
                                 http.Error(w, "failed JSON marshal server info", http.StatusInternalServerError)
