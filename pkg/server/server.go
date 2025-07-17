@@ -108,9 +108,10 @@ func NewHandler(id principal.Signer) http.Handler {
 			}
 			w.Write(json)
 		} else {
+   		        w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.Write([]byte(fmt.Sprintf("🔥 piri %s\n", info.Build.Version)))
 			w.Write([]byte("- https://github.com/storacha/piri\n"))
-			w.Write([]byte(fmt.Sprintf("- %s", info.ID)))
+			w.Write([]byte(fmt.Sprintf("- %s", info.ID))
 		}
 	})
 }
