@@ -16,6 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func MultihashOfBytes(t testing.TB, bytes []byte) mh.Multihash {
+	c, err := cid.Prefix{
+		Version:  1,
+		Codec:    cid.Raw,
+		MhType:   mh.SHA2_256,
+		MhLength: -1,
+	}.Sum(bytes)
+	require.NoError(t, err)
+	return cidlink.Link{Cid: c}.Hash()
+}
+
 func RandomBytes(t *testing.T, size int) []byte {
 	bytes := make([]byte, size)
 	_, err := crand.Read(bytes)
