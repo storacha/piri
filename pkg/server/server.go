@@ -1,9 +1,11 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
@@ -76,11 +78,38 @@ func NewServer(service storage.Service, options ...server.Option) (*http.ServeMu
 	return mux, nil
 }
 
+type ServerInfo struct {
+	ID    string    `json:"id"`
+	Build BuildInfo `json:"build"`
+}
+
+type BuildInfo struct {
+	Version string `json:"version"`
+	Repo    string `json:"repo"`
+}
+
 // NewHandler displays version info.
 func NewHandler(id principal.Signer) http.Handler {
+	info := ServerInfo{
+		ID: id.DID().String(),
+		Build: BuildInfo{
+			Version: build.Version,
+			Repo:    "https://github.com/storacha/piri",
+		},
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("🔥 piri %s\n", build.Version)))
-		w.Write([]byte("- https://github.com/storacha/piri\n"))
-		w.Write([]byte(fmt.Sprintf("- %s", id.DID())))
+		if strings.Contains(r.Header.Get("Accept"), "application/json") {
+			json, err := json.Marshal(&info)
+			if err != nil {
+				log.Errorf("failed JSON marshal server info: %w", err)
+				http.Error(w, "failed JSON marshal server info", 500)
+				return
+			}
+			w.Write(json)
+		} else {
+			w.Write([]byte(fmt.Sprintf("🔥 piri %s\n", info.Build.Version)))
+			w.Write([]byte("- https://github.com/storacha/piri\n"))
+			w.Write([]byte(fmt.Sprintf("- %s", info.ID)))
+		}
 	})
 }
