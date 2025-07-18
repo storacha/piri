@@ -4,6 +4,7 @@
 //
 //   - **Counters**: Track monotonically increasing values (e.g., request counts, processed items)
 //   - **Gauges**: Track values that can go up and down (e.g., active connections, CPU usage)
+//   - **Info**: Track version and other node information (e.g., version, commit hash)
 //   - **Timers/Histograms**: Track distributions of values (e.g., request latencies, response sizes)
 //   - **OpenTelemetry Integration**: Exports metrics to any OpenTelemetry-compatible collector
 //   - **Attribute Support**: Add contextual metadata to all metrics

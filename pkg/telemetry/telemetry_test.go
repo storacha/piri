@@ -423,7 +423,7 @@ func TestInfo(t *testing.T) {
 
 	tel := telemetry.NewWithMeter(provider.Meter("test-service"))
 
-	t.Run("Info metric always records 1.0", func(t *testing.T) {
+	t.Run("Info metric always records 1", func(t *testing.T) {
 		info, err := tel.NewInfo(telemetry.InfoConfig{
 			Name:        "test_info",
 			Description: "Test info metric",
@@ -448,12 +448,12 @@ func TestInfo(t *testing.T) {
 			for _, m := range sm.Metrics {
 				if m.Name == "test_info" {
 					found = true
-					gauge, ok := m.Data.(metricdata.Gauge[float64])
+					gauge, ok := m.Data.(metricdata.Gauge[int64])
 					assert.True(t, ok)
 					assert.Len(t, gauge.DataPoints, 1)
 
 					dp := gauge.DataPoints[0]
-					assert.Equal(t, 1.0, dp.Value)
+					assert.Equal(t, int64(1), dp.Value)
 
 					// Check labels
 					attrs := dp.Attributes.ToSlice()
@@ -492,10 +492,7 @@ func TestInfo(t *testing.T) {
 		info.Record(ctx)
 
 		// Update with new values
-		info.Update(ctx, map[string]string{
-			"address": "0x5678",
-			"network": "testnet",
-		})
+		info.Record(ctx, telemetry.StringAttr("address", "0x5678"))
 
 		// Collect metrics
 		rm := metricdata.ResourceMetrics{}
@@ -508,13 +505,13 @@ func TestInfo(t *testing.T) {
 			for _, m := range sm.Metrics {
 				if m.Name == "test_info_update" {
 					found = true
-					gauge, ok := m.Data.(metricdata.Gauge[float64])
+					gauge, ok := m.Data.(metricdata.Gauge[int64])
 					assert.True(t, ok)
 
 					// Find the data point with updated values
 					foundUpdated := false
 					for _, dp := range gauge.DataPoints {
-						assert.Equal(t, 1.0, dp.Value)
+						assert.Equal(t, int64(1), dp.Value)
 
 						// Check if this is the updated data point
 						attrs := dp.Attributes.ToSlice()
@@ -525,7 +522,7 @@ func TestInfo(t *testing.T) {
 							if attr.Key == "address" && attr.Value.AsString() == "0x5678" {
 								addressCorrect = true
 							}
-							if attr.Key == "network" && attr.Value.AsString() == "testnet" {
+							if attr.Key == "network" && attr.Value.AsString() == "mainnet" {
 								networkCorrect = true
 							}
 						}
