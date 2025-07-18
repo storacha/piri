@@ -221,10 +221,6 @@ func (t *Telemetry) NewInfo(cfg InfoConfig) (*Info, error) {
 	return NewInfo(t.meter, cfg)
 }
 
-func (t *Telemetry) NewConstantGauge(cfg ConstantGaugeConfig) (*ConstantGauge, error) {
-	return NewConstantGauge(t.meter, cfg)
-}
-
 func (t *Telemetry) Shutdown(ctx context.Context) error {
 	if t.provider != nil {
 		return t.provider.Shutdown(ctx)

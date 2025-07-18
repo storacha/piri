@@ -105,11 +105,6 @@ func GlobalInfo(cfg InfoConfig) (*Info, error) {
 	return Global().NewInfo(cfg)
 }
 
-// GlobalConstantGauge returns a new constant gauge using the global telemetry instance.
-func GlobalConstantGauge(cfg ConstantGaugeConfig) (*ConstantGauge, error) {
-	return Global().NewConstantGauge(cfg)
-}
-
 // Meter returns the meter from the global telemetry instance.
 func Meter() metric.Meter {
 	return Global().Meter()
