@@ -1,12 +1,15 @@
 package principalresolver
 
 import (
+	"context"
 	"time"
 
 	"github.com/patrickmn/go-cache"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/validator"
 )
+
+var _ validator.PrincipalResolver = (*CachedResolver)(nil)
 
 type CachedResolver struct {
 	wrapped validator.PrincipalResolver
@@ -18,11 +21,11 @@ func NewCachedResolver(wrapped validator.PrincipalResolver, ttl time.Duration) (
 	return &CachedResolver{wrapped: wrapped, cache: cache.New(ttl, time.Hour)}, nil
 }
 
-func (c *CachedResolver) ResolveDIDKey(input did.DID) (did.DID, validator.UnresolvedDID) {
+func (c *CachedResolver) ResolveDIDKey(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 	if out, found := c.cache.Get(input.String()); found {
 		return out.(did.DID), nil
 	}
-	out, err := c.wrapped.ResolveDIDKey(input)
+	out, err := c.wrapped.ResolveDIDKey(ctx, input)
 	if err != nil {
 		return did.Undef, err
 	}

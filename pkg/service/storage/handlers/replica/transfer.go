@@ -219,7 +219,7 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		return fmt.Errorf("failed to encode message for receipt to http request: %w", err)
 	}
 
-	uploadServiceResponse, err := service.UploadConnection().Channel().Request(uploadServiceRequest)
+	uploadServiceResponse, err := service.UploadConnection().Channel().Request(ctx, uploadServiceRequest)
 	if err != nil {
 		return fmt.Errorf("failed to send request for receipt: %w", err)
 	}

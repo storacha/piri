@@ -273,7 +273,7 @@ func TestHTTPResolver_ResolveDIDKey(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			result, unresolvedErr := resolver.ResolveDIDKey(inputDID)
+			result, unresolvedErr := resolver.ResolveDIDKey(t.Context(), inputDID)
 
 			if tc.expectError {
 				require.NotNil(t, unresolvedErr)
@@ -307,7 +307,7 @@ func TestHTTPResolver_ResolveDIDKey_Timeout(t *testing.T) {
 	resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.WithTimeout(50*time.Millisecond), principalresolver.InsecureResolution())
 	require.NoError(t, err)
 
-	result, unresolvedErr := resolver.ResolveDIDKey(didWeb)
+	result, unresolvedErr := resolver.ResolveDIDKey(t.Context(), didWeb)
 	require.NotNil(t, unresolvedErr)
 	require.Contains(t, unresolvedErr.Error(), "Unable to resolve")
 	require.Equal(t, did.Undef, result)
@@ -354,7 +354,7 @@ func TestHTTPResolver_ResolveDIDKey_Context(t *testing.T) {
 	resolver, err := principalresolver.NewHTTPResolver(mapping, principalresolver.InsecureResolution())
 	require.NoError(t, err)
 
-	result, unresolvedErr := resolver.ResolveDIDKey(didWeb)
+	result, unresolvedErr := resolver.ResolveDIDKey(t.Context(), didWeb)
 	require.Nil(t, unresolvedErr)
 	require.NotEqual(t, did.Undef, result)
 
@@ -508,7 +508,7 @@ func TestHTTPResolver_ResolveDIDKey_ContextFormats(t *testing.T) {
 			resolver, err := principalresolver.NewHTTPResolver([]did.DID{didWeb}, principalresolver.InsecureResolution())
 			require.NoError(t, err)
 
-			result, unresolvedErr := resolver.ResolveDIDKey(didWeb)
+			result, unresolvedErr := resolver.ResolveDIDKey(t.Context(), didWeb)
 			require.Nil(t, unresolvedErr)
 
 			expectedDID, err := did.Parse(tc.expectedDIDKey)
@@ -584,12 +584,12 @@ func TestRealTest(t *testing.T) {
 	presolv, err := principalresolver.NewHTTPResolver([]did.DID{presets.IndexingServiceDID, presets.UploadServiceDID})
 	require.NoError(t, err)
 
-	resp, err := presolv.ResolveDIDKey(presets.IndexingServiceDID)
+	resp, err := presolv.ResolveDIDKey(t.Context(), presets.IndexingServiceDID)
 	require.NoError(t, err)
 
 	require.Equal(t, iKey, resp.DID())
 
-	resp, err = presolv.ResolveDIDKey(presets.UploadServiceDID)
+	resp, err = presolv.ResolveDIDKey(t.Context(), presets.UploadServiceDID)
 	require.NoError(t, err)
 
 	require.Equal(t, uKey, resp.DID())

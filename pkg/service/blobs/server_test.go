@@ -2,7 +2,6 @@ package blobs
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,7 +59,7 @@ func TestServer(t *testing.T) {
 		digest, err := multihash.Sum(data, multihash.SHA2_256, -1)
 		require.NoError(t, err)
 
-		err = blobs.Put(context.Background(), digest, uint64(len(data)), bytes.NewReader(data))
+		err = blobs.Put(t.Context(), digest, uint64(len(data)), bytes.NewReader(data))
 		require.NoError(t, err)
 
 		requireRetrievableBlob(t, *srvurl, digest, data)
@@ -73,7 +72,7 @@ func TestServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// create a fake allocation
-			err = allocs.Put(context.Background(), randomAllocation(t, digest, uint64(len(data))))
+			err = allocs.Put(t.Context(), randomAllocation(t, digest, uint64(len(data))))
 			require.NoError(t, err)
 
 			putBlob(t, presigner, digest, data, http.StatusOK)
@@ -86,7 +85,7 @@ func TestServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// create fake allocation
-			err = allocs.Put(context.Background(), randomAllocation(t, digest, uint64(len(data))))
+			err = allocs.Put(t.Context(), randomAllocation(t, digest, uint64(len(data))))
 			require.NoError(t, err)
 
 			putBlob(t, presigner, digest, data, http.StatusOK)
@@ -100,7 +99,7 @@ func TestServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// create a fake allocation
-			err = allocs.Put(context.Background(), randomAllocation(t, digest, uint64(len(data))))
+			err = allocs.Put(t.Context(), randomAllocation(t, digest, uint64(len(data))))
 			require.NoError(t, err)
 
 			putBlob(t, presigner, digest, data, http.StatusOK)
@@ -125,7 +124,7 @@ func randomAllocation(t *testing.T, digest multihash.Multihash, size uint64) all
 }
 
 func putBlob(t *testing.T, presigner presigner.RequestPresigner, digest multihash.Multihash, data []byte, expectStatus int) {
-	url, hd, err := presigner.SignUploadURL(context.Background(), digest, uint64(len(data)), 900)
+	url, hd, err := presigner.SignUploadURL(t.Context(), digest, uint64(len(data)), 900)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("PUT", url.String(), bytes.NewReader(data))

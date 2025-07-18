@@ -32,8 +32,7 @@ func PDPInfo(storageService PDPInfoService) server.Option {
 		pdp.InfoAbility,
 		server.Provide(
 			pdp.Info,
-			func(cap ucan.Capability[pdp.InfoCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (pdp.InfoOk, fx.Effects, error) {
-				ctx := context.TODO()
+			func(ctx context.Context, cap ucan.Capability[pdp.InfoCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (pdp.InfoOk, fx.Effects, error) {
 				// generate the invocation that would submit when this was first submitted
 				pieceAccept, err := pdp.Accept.Invoke(
 					storageService.ID(),

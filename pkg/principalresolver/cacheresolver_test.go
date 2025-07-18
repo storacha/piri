@@ -1,6 +1,7 @@
 package principalresolver_test
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -9,19 +10,22 @@ import (
 
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/validator"
-	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/stretchr/testify/require"
+
+	"github.com/storacha/piri/pkg/principalresolver"
 )
 
+var _ validator.PrincipalResolver = (*mockResolver)(nil)
+
 type mockResolver struct {
-	resolveFn func(did.DID) (did.DID, validator.UnresolvedDID)
+	resolveFn func(context.Context, did.DID) (did.DID, validator.UnresolvedDID)
 	callCount int32
 }
 
-func (m *mockResolver) ResolveDIDKey(input did.DID) (did.DID, validator.UnresolvedDID) {
+func (m *mockResolver) ResolveDIDKey(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 	atomic.AddInt32(&m.callCount, 1)
 	if m.resolveFn != nil {
-		return m.resolveFn(input)
+		return m.resolveFn(ctx, input)
 	}
 	return did.Undef, validator.NewDIDKeyResolutionError(input, fmt.Errorf("mock error"))
 }
@@ -55,7 +59,7 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 		require.NoError(t, err)
 
 		mock := &mockResolver{
-			resolveFn: func(input did.DID) (did.DID, validator.UnresolvedDID) {
+			resolveFn: func(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 				if input.String() == didWeb.String() {
 					return didKey, nil
 				}
@@ -67,13 +71,13 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 		require.NoError(t, err)
 
 		// First call should hit the wrapped resolver
-		result1, err1 := resolver.ResolveDIDKey(didWeb)
+		result1, err1 := resolver.ResolveDIDKey(t.Context(), didWeb)
 		require.Nil(t, err1)
 		require.Equal(t, didKey, result1)
 		require.Equal(t, 1, mock.getCallCount())
 
 		// Second call should use cache
-		result2, err2 := resolver.ResolveDIDKey(didWeb)
+		result2, err2 := resolver.ResolveDIDKey(t.Context(), didWeb)
 		require.Nil(t, err2)
 		require.Equal(t, didKey, result2)
 		require.Equal(t, 1, mock.getCallCount()) // No additional call
@@ -82,7 +86,7 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 
 		// Third call should hit the wrapped resolver again
-		result3, err3 := resolver.ResolveDIDKey(didWeb)
+		result3, err3 := resolver.ResolveDIDKey(t.Context(), didWeb)
 		require.Nil(t, err3)
 		require.Equal(t, didKey, result3)
 		require.Equal(t, 2, mock.getCallCount())
@@ -93,7 +97,7 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 		require.NoError(t, err)
 
 		mock := &mockResolver{
-			resolveFn: func(input did.DID) (did.DID, validator.UnresolvedDID) {
+			resolveFn: func(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 				return did.Undef, validator.NewDIDKeyResolutionError(input, fmt.Errorf("resolution failed"))
 			},
 		}
@@ -102,13 +106,13 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 		require.NoError(t, err)
 
 		// First call
-		result1, err1 := resolver.ResolveDIDKey(didWeb)
+		result1, err1 := resolver.ResolveDIDKey(t.Context(), didWeb)
 		require.NotNil(t, err1)
 		require.Equal(t, did.Undef, result1)
 		require.Equal(t, 1, mock.getCallCount())
 
 		// Second call should still hit the wrapped resolver (errors not cached)
-		result2, err2 := resolver.ResolveDIDKey(didWeb)
+		result2, err2 := resolver.ResolveDIDKey(t.Context(), didWeb)
 		require.NotNil(t, err2)
 		require.Equal(t, did.Undef, result2)
 		require.Equal(t, 2, mock.getCallCount())
@@ -123,7 +127,7 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 
 		var resolverCalls int32
 		mock := &mockResolver{
-			resolveFn: func(input did.DID) (did.DID, validator.UnresolvedDID) {
+			resolveFn: func(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 				atomic.AddInt32(&resolverCalls, 1)
 				time.Sleep(10 * time.Millisecond) // Simulate slow resolution
 				return didKey, nil
@@ -142,7 +146,7 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
-				results[idx], errors[idx] = resolver.ResolveDIDKey(didWeb)
+				results[idx], errors[idx] = resolver.ResolveDIDKey(t.Context(), didWeb)
 			}(i)
 		}
 
@@ -160,7 +164,7 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 		require.LessOrEqual(t, actualCalls, int32(10))
 		// But at least we should have gotten some caching benefit on subsequent calls
 		// Let's do another call to verify caching is working
-		result, err := resolver.ResolveDIDKey(didWeb)
+		result, err := resolver.ResolveDIDKey(t.Context(), didWeb)
 		require.Nil(t, err)
 		require.Equal(t, didKey, result)
 		// This call should definitely use the cache
@@ -182,7 +186,7 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 		require.NoError(t, err)
 
 		mock := &mockResolver{
-			resolveFn: func(input did.DID) (did.DID, validator.UnresolvedDID) {
+			resolveFn: func(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 				switch input.String() {
 				case did1.String():
 					return didKey1, nil
@@ -198,25 +202,25 @@ func TestCachedResolver_ResolveDIDKey(t *testing.T) {
 		require.NoError(t, err)
 
 		// Resolve first DID
-		result1, err1 := resolver.ResolveDIDKey(did1)
+		result1, err1 := resolver.ResolveDIDKey(t.Context(), did1)
 		require.Nil(t, err1)
 		require.Equal(t, didKey1, result1)
 		require.Equal(t, 1, mock.getCallCount())
 
 		// Resolve second DID
-		result2, err2 := resolver.ResolveDIDKey(did2)
+		result2, err2 := resolver.ResolveDIDKey(t.Context(), did2)
 		require.Nil(t, err2)
 		require.Equal(t, didKey2, result2)
 		require.Equal(t, 2, mock.getCallCount())
 
 		// Resolve first DID again (should be cached)
-		result3, err3 := resolver.ResolveDIDKey(did1)
+		result3, err3 := resolver.ResolveDIDKey(t.Context(), did1)
 		require.Nil(t, err3)
 		require.Equal(t, didKey1, result3)
 		require.Equal(t, 2, mock.getCallCount()) // No additional call
 
 		// Resolve second DID again (should be cached)
-		result4, err4 := resolver.ResolveDIDKey(did2)
+		result4, err4 := resolver.ResolveDIDKey(t.Context(), did2)
 		require.Nil(t, err4)
 		require.Equal(t, didKey2, result4)
 		require.Equal(t, 2, mock.getCallCount()) // No additional call
@@ -233,7 +237,7 @@ func TestCachedResolver_WithFixedImplementation(t *testing.T) {
 		require.NoError(t, err)
 
 		mock := &mockResolver{
-			resolveFn: func(input did.DID) (did.DID, validator.UnresolvedDID) {
+			resolveFn: func(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 				return didKey, nil
 			},
 		}
@@ -242,7 +246,7 @@ func TestCachedResolver_WithFixedImplementation(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should not panic and should return the expected result
-		result, unresolvedErr := resolver.ResolveDIDKey(didWeb)
+		result, unresolvedErr := resolver.ResolveDIDKey(t.Context(), didWeb)
 		require.Nil(t, unresolvedErr)
 		require.Equal(t, didKey, result)
 	})
@@ -272,12 +276,12 @@ func TestCachedResolver_WithMapResolver(t *testing.T) {
 		require.NoError(t, err)
 
 		// First call - should hit MapResolver
-		result1, err1 := cachedResolver.ResolveDIDKey(aliceDID)
+		result1, err1 := cachedResolver.ResolveDIDKey(t.Context(), aliceDID)
 		require.Nil(t, err1)
 		require.Equal(t, aliceKey, result1)
 
 		// Second call - should use cache (we can't directly verify this without instrumentation)
-		result2, err2 := cachedResolver.ResolveDIDKey(aliceDID)
+		result2, err2 := cachedResolver.ResolveDIDKey(t.Context(), aliceDID)
 		require.Nil(t, err2)
 		require.Equal(t, aliceKey, result2)
 
@@ -287,7 +291,7 @@ func TestCachedResolver_WithMapResolver(t *testing.T) {
 		bobKey, err := did.Parse("did:key:z6Mkfriq1MqLBoPWecGoDLjguo1sB9brj6wT3qZ5BxkKpuP6")
 		require.NoError(t, err)
 
-		result3, err3 := cachedResolver.ResolveDIDKey(bobDID)
+		result3, err3 := cachedResolver.ResolveDIDKey(t.Context(), bobDID)
 		require.Nil(t, err3)
 		require.Equal(t, bobKey, result3)
 
@@ -295,7 +299,7 @@ func TestCachedResolver_WithMapResolver(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 
 		// Alice's entry should have expired, this should hit MapResolver again
-		result4, err4 := cachedResolver.ResolveDIDKey(aliceDID)
+		result4, err4 := cachedResolver.ResolveDIDKey(t.Context(), aliceDID)
 		require.Nil(t, err4)
 		require.Equal(t, aliceKey, result4)
 
@@ -303,7 +307,7 @@ func TestCachedResolver_WithMapResolver(t *testing.T) {
 		unknownDID, err := did.Parse("did:web:unknown.example.com")
 		require.NoError(t, err)
 
-		result5, err5 := cachedResolver.ResolveDIDKey(unknownDID)
+		result5, err5 := cachedResolver.ResolveDIDKey(t.Context(), unknownDID)
 		require.NotNil(t, err5)
 		require.Equal(t, did.Undef, result5)
 		require.Contains(t, err5.Error(), "Unable to resolve")

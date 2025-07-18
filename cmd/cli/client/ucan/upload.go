@@ -66,7 +66,7 @@ func doUpload(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("calculating blob digest: %w", err)
 	}
-	address, err := c.BlobAllocate(spaceDid, digest.Bytes(), uint64(len(blobData)), cidlink.Link{Cid: cid.NewCidV1(cid.Raw, digest.Bytes())})
+	address, err := c.BlobAllocate(cmd.Context(), spaceDid, digest.Bytes(), uint64(len(blobData)), cidlink.Link{Cid: cid.NewCidV1(cid.Raw, digest.Bytes())})
 	if err != nil {
 		return fmt.Errorf("invocing blob allocation: %w", err)
 	}
@@ -90,7 +90,7 @@ func doUpload(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("unsuccessful put, status: %s, message: %s", res.Status, string(resData))
 		}
 	}
-	blobResult, err := c.BlobAccept(spaceDid, digest.Bytes(), uint64(len(blobData)), cidlink.Link{Cid: cid.NewCidV1(cid.Raw, digest.Bytes())})
+	blobResult, err := c.BlobAccept(cmd.Context(), spaceDid, digest.Bytes(), uint64(len(blobData)), cidlink.Link{Cid: cid.NewCidV1(cid.Raw, digest.Bytes())})
 	if err != nil {
 		return fmt.Errorf("accepting blob: %w", err)
 	}

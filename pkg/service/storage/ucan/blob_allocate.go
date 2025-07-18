@@ -27,7 +27,7 @@ func BlobAllocate(storageService BlobAllocateService) server.Option {
 		blob.AllocateAbility,
 		server.Provide(
 			blob.Allocate,
-			func(cap ucan.Capability[blob.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AllocateOk, fx.Effects, error) {
+			func(ctx context.Context, cap ucan.Capability[blob.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AllocateOk, fx.Effects, error) {
 				//
 				// UCAN Validation
 				//
@@ -46,8 +46,6 @@ func BlobAllocate(storageService BlobAllocateService) server.Option {
 				// end UCAN Validation
 				//
 
-				// FIXME: use a real context, requires changes to server
-				ctx := context.TODO()
 				resp, err := blobhandler.Allocate(ctx, storageService, &blobhandler.AllocateRequest{
 					Space: cap.Nb().Space,
 					Blob:  cap.Nb().Blob,

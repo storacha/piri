@@ -29,7 +29,7 @@ func BlobAccept(storageService BlobAcceptService) server.Option {
 		blob.AcceptAbility,
 		server.Provide(
 			blob.Accept,
-			func(cap ucan.Capability[blob.AcceptCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AcceptOk, fx.Effects, error) {
+			func(ctx context.Context, cap ucan.Capability[blob.AcceptCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AcceptOk, fx.Effects, error) {
 				//
 				// UCAN Validation
 				//
@@ -43,8 +43,6 @@ func BlobAccept(storageService BlobAcceptService) server.Option {
 				// end UCAN Validation
 				//
 
-				// FIXME: use a real context, requires changes to server
-				ctx := context.TODO()
 				resp, err := blobhandler.Accept(ctx, storageService, &blobhandler.AcceptRequest{
 					Space: cap.Nb().Space,
 					Blob:  cap.Nb().Blob,
