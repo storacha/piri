@@ -2,8 +2,8 @@ package publisher
 
 import (
 	"fmt"
-	"net/http"
 
+	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-libstoracha/ipnipublisher/server"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 )
@@ -20,6 +20,7 @@ func NewServer(store store.EncodeableStore) (*Server, error) {
 	return &Server{server}, nil
 }
 
-func (srv *Server) Serve(mux *http.ServeMux) {
-	mux.HandleFunc(fmt.Sprintf("GET %s/{ad}", server.IPNIPath), srv.server.ServeHTTP)
+func (srv *Server) RegisterRoutes(e *echo.Echo) {
+	route := fmt.Sprintf("%s/:ad", server.IPNIPath)
+	e.GET(route, echo.WrapHandler(srv.server))
 }
