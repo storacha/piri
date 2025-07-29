@@ -61,9 +61,9 @@ func Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// SetGlobalForTesting sets a custom telemetry instance for testing.
+// setGlobalForTesting sets a custom telemetry instance for testing.
 // This should only be used in tests.
-func SetGlobalForTesting(tel *Telemetry) {
+func setGlobalForTesting(tel *Telemetry) {
 	globalMu.Lock()
 	defer globalMu.Unlock()
 	globalTelemetry = tel
