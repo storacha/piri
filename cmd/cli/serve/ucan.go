@@ -17,11 +17,13 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 
 	"github.com/storacha/piri/cmd/cliutil"
+	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 var (
@@ -131,6 +133,25 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
+
+	// initialize telemetry
+	telCfg := telemetry.Config{
+		ServiceName:    "piri/ucan",
+		ServiceVersion: build.Version,
+	}
+	if err := telemetry.Initialize(ctx, telCfg); err != nil {
+		return fmt.Errorf("initializing telemetry: %w", err)
+	}
+
+	// publish version info metric
+	info, err := telemetry.Global().NewInfo(telemetry.InfoConfig{
+		Name:        "piri_version",
+		Description: "Piri server version",
+	})
+	if err != nil {
+		return fmt.Errorf("creating version info metric: %w", err)
+	}
+	info.Record(ctx, telemetry.StringAttr("version", build.Version))
 
 	if cfg.PDPServerURL != "" && cfg.ProofSet == 0 {
 		return fmt.Errorf("must set --proof-set when using --pdp-server-url")
