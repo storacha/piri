@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
@@ -60,54 +59,6 @@ func Shutdown(ctx context.Context) error {
 		return globalTelemetry.Shutdown(ctx)
 	}
 	return nil
-}
-
-// MustInitialize is like Initialize but panics on error.
-// Useful for application startup where telemetry is critical.
-func MustInitialize(ctx context.Context, cfg Config) {
-	if err := Initialize(ctx, cfg); err != nil {
-		panic(err)
-	}
-}
-
-// GlobalCounter returns a new counter using the global telemetry instance.
-func GlobalCounter(cfg CounterConfig) (*Counter, error) {
-	return Global().NewCounter(cfg)
-}
-
-// GlobalFloatCounter returns a new float counter using the global telemetry instance.
-func GlobalFloatCounter(cfg FloatCounterConfig) (*FloatCounter, error) {
-	return Global().NewFloatCounter(cfg)
-}
-
-// GlobalGauge returns a new gauge using the global telemetry instance.
-func GlobalGauge(cfg GaugeConfig) (*Gauge, error) {
-	return Global().NewGauge(cfg)
-}
-
-// GlobalFloatGauge returns a new float gauge using the global telemetry instance.
-func GlobalFloatGauge(cfg FloatGaugeConfig) (*FloatGauge, error) {
-	return Global().NewFloatGauge(cfg)
-}
-
-// GlobalTimer returns a new timer using the global telemetry instance.
-func GlobalTimer(cfg TimerConfig) (*Timer, error) {
-	return Global().NewTimer(cfg)
-}
-
-// GlobalHistogram returns a new histogram using the global telemetry instance.
-func GlobalHistogram(cfg HistogramConfig) (*Histogram, error) {
-	return Global().NewHistogram(cfg)
-}
-
-// GlobalInfo returns a new info metric using the global telemetry instance.
-func GlobalInfo(cfg InfoConfig) (*Info, error) {
-	return Global().NewInfo(cfg)
-}
-
-// Meter returns the meter from the global telemetry instance.
-func Meter() metric.Meter {
-	return Global().Meter()
 }
 
 // SetGlobalForTesting sets a custom telemetry instance for testing.
