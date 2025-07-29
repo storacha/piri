@@ -42,9 +42,9 @@ func TestGlobalTelemetry(t *testing.T) {
 		Initialize(context.Background(), Config{
 			ServiceName:    "test",
 			ServiceVersion: "1.0.0",
-			Environment:    "test",
-			Endpoint:       "http://localhost:4317",
-			Insecure:       true,
+			environment:    "test",
+			endpoint:       "http://localhost:4317",
+			insecure:       true,
 		})
 		after := Global()
 		assert.NotEqual(t, before, after)

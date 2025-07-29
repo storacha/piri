@@ -165,12 +165,21 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+const (
+	defaultEndpoint    = "http://localhost:4317"
+	defaultEnvironment = "warm-staging"
+)
+
 type Telemetry struct {
 	provider *Provider
 	meter    metric.Meter
 }
 
 func New(ctx context.Context, cfg Config) (*Telemetry, error) {
+	// collector endpoint and environment will be hard-coded for now
+	cfg.endpoint = defaultEndpoint
+	cfg.environment = defaultEnvironment
+
 	provider, err := NewProvider(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create telemetry provider: %w", err)
