@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/metric/noop"
 )
 
 func TestGlobalTelemetry(t *testing.T) {
@@ -14,7 +13,7 @@ func TestGlobalTelemetry(t *testing.T) {
 
 	t.Run("Global returns noop before initialization", func(t *testing.T) {
 		// Reset global state for test
-		SetGlobalForTesting(nil)
+		setGlobalForTesting(nil)
 
 		// Before initialization, should get a no-op instance
 		tel := Global()
@@ -32,17 +31,27 @@ func TestGlobalTelemetry(t *testing.T) {
 	})
 
 	t.Run("Initialize sets global instance", func(t *testing.T) {
-		// Create a test instance
-		testTel := NewWithMeter(noop.NewMeterProvider().Meter("test"))
-		SetGlobalForTesting(testTel)
+		// Reset global state for test
+		setGlobalForTesting(nil)
 
-		// Global should return our test instance
-		global := Global()
-		assert.Equal(t, testTel, global)
+		// Before initialization, should get a no-op instance
+		before := Global()
+		assert.NotNil(t, before)
+
+		// After initialization, should get the new instance
+		Initialize(context.Background(), Config{
+			ServiceName:    "test",
+			ServiceVersion: "1.0.0",
+			Environment:    "test",
+			Endpoint:       "http://localhost:4317",
+			Insecure:       true,
+		})
+		after := Global()
+		assert.NotEqual(t, before, after)
 	})
 
 	t.Run("Shutdown handles nil global", func(t *testing.T) {
-		SetGlobalForTesting(nil)
+		setGlobalForTesting(nil)
 
 		// Should not panic
 		err := Shutdown(ctx)
