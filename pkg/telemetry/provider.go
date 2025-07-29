@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type Provider struct {
@@ -21,10 +21,10 @@ type Provider struct {
 type Config struct {
 	ServiceName    string
 	ServiceVersion string
-	Environment    string
-	Endpoint       string
-	Insecure       bool
-	Headers        map[string]string
+	environment    string
+	endpoint       string
+	insecure       bool
+	headers        map[string]string
 }
 
 func NewProvider(ctx context.Context, cfg Config) (*Provider, error) {
@@ -32,7 +32,7 @@ func NewProvider(ctx context.Context, cfg Config) (*Provider, error) {
 		resource.WithAttributes(
 			attribute.String("service.name", cfg.ServiceName),
 			attribute.String("service.version", cfg.ServiceVersion),
-			attribute.String("deployment.environment", cfg.Environment),
+			attribute.String("deployment.environment", cfg.environment),
 		),
 	)
 	if err != nil {
@@ -40,15 +40,15 @@ func NewProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	}
 
 	opts := []otlpmetricgrpc.Option{
-		otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
+		otlpmetricgrpc.WithEndpoint(cfg.endpoint),
 	}
 
-	if cfg.Insecure {
+	if cfg.insecure {
 		opts = append(opts, otlpmetricgrpc.WithInsecure())
 	}
 
-	if len(cfg.Headers) > 0 {
-		opts = append(opts, otlpmetricgrpc.WithHeaders(cfg.Headers))
+	if len(cfg.headers) > 0 {
+		opts = append(opts, otlpmetricgrpc.WithHeaders(cfg.headers))
 	}
 
 	exporter, err := otlpmetricgrpc.New(ctx, opts...)
