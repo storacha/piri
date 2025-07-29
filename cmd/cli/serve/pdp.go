@@ -13,9 +13,11 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/storacha/piri/cmd/cliutil"
+	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/telemetry"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
@@ -57,6 +59,25 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
+
+	// initialize telemetry
+	telCfg := telemetry.Config{
+		ServiceName:    "piri/pdp",
+		ServiceVersion: build.Version,
+	}
+	if err := telemetry.Initialize(ctx, telCfg); err != nil {
+		return fmt.Errorf("initializing telemetry: %w", err)
+	}
+
+	// publish version info metric
+	info, err := telemetry.Global().NewInfo(telemetry.InfoConfig{
+		Name:        "piri_version",
+		Description: "Piri server version",
+	})
+	if err != nil {
+		return fmt.Errorf("creating version info metric: %w", err)
+	}
+	info.Record(ctx, telemetry.StringAttr("version", build.Version))
 
 	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 		return fmt.Errorf("creating data directory: %s: %w", cfg.DataDir, err)
@@ -123,5 +144,4 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("stopping pdp server: %w", err)
 	}
 	return nil
-
 }
