@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/ethereum/go-ethereum"
@@ -36,6 +37,10 @@ const (
 
 	// Retry configuration
 	defaultMaxAPIRetries = 10
+
+	// Timeout for sets of Ethereum client calls per transaction
+	// (i.e. receipt and transaction data)
+	defaultAPITimeout = 3 * time.Second
 )
 
 type MessageWatcherEthClient interface {
@@ -64,6 +69,7 @@ type MessageWatcherEth struct {
 	bestBlockNumber atomic.Pointer[big.Int]
 
 	maxEthAPIRetries uint
+	ethAPITimeout    time.Duration
 }
 
 // WatcherOption is a functional option for configuring MessageWatcherEth
@@ -84,6 +90,7 @@ func NewMessageWatcherEth(db *gorm.DB, pcs *chainsched.Scheduler, api MessageWat
 		stopped:          make(chan struct{}),
 		updateCh:         make(chan struct{}, 1),
 		maxEthAPIRetries: defaultMaxAPIRetries,
+		ethAPITimeout:    defaultAPITimeout,
 	}
 
 	// Apply options
@@ -275,25 +282,31 @@ func (mw *MessageWatcherEth) checkTransaction(ctx context.Context, txHash common
 // getReceiptWithRetry fetches a transaction receipt with exponential backoff retry
 func (mw *MessageWatcherEth) getReceiptWithRetry(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	return backoff.Retry(ctx, func() (*types.Receipt, error) {
-		r, err := mw.api.TransactionReceipt(ctx, txHash)
+		txCtx, cancel := context.WithTimeout(ctx, mw.ethAPITimeout)
+		defer cancel()
+
+		r, err := mw.api.TransactionReceipt(txCtx, txHash)
 		// Don't retry on NotFound errors
 		if errors.Is(err, ethereum.NotFound) {
 			return nil, backoff.Permanent(err)
 		}
 		return r, err
-	}, backoff.WithMaxTries(mw.maxEthAPIRetries), backoff.WithBackOff(backoff.NewExponentialBackOff()))
+	}, backoff.WithMaxTries(mw.maxEthAPIRetries), backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)))
 }
 
 // getTransactionWithRetry fetches transaction data with exponential backoff retry
 func (mw *MessageWatcherEth) getTransactionWithRetry(ctx context.Context, txHash common.Hash) (*types.Transaction, error) {
 	return backoff.Retry(ctx, func() (*types.Transaction, error) {
-		t, _, err := mw.api.TransactionByHash(ctx, txHash)
+		txCtx, cancel := context.WithTimeout(ctx, mw.ethAPITimeout)
+		defer cancel()
+
+		t, _, err := mw.api.TransactionByHash(txCtx, txHash)
 		// Don't retry on NotFound errors
 		if errors.Is(err, ethereum.NotFound) {
 			return nil, backoff.Permanent(err)
 		}
 		return t, err
-	}, backoff.WithMaxTries(mw.maxEthAPIRetries), backoff.WithBackOff(backoff.NewExponentialBackOff()))
+	}, backoff.WithMaxTries(mw.maxEthAPIRetries), backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)))
 }
 
 // updateTransaction updates a single transaction in the database
