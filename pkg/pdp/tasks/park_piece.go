@@ -17,9 +17,7 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
-var PieceParkPollInterval = time.Second * 15
-
-const ParkMinFreeStoragePercent = 20
+var PieceParkPollInterval = time.Second
 
 // ParkPieceTask gets a piece from some origin, and parks it in storage
 // Pieces are always f00, piece ID is mapped to pieceCID in the DB
