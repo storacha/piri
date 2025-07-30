@@ -95,7 +95,7 @@ func (t *PDPNotifyTask) TypeDetails() scheduler.TaskTypeDetails {
 			return time.Duration(float64(5*time.Second) * math.Pow(2, float64(retries)))
 		},
 		// Use the new PeriodicScheduler with helper function
-		PeriodicScheduler: scheduler.NewPeriodicScheduler(10*time.Second, func(taskFunc scheduler.AddTaskFunc) error {
+		PeriodicScheduler: scheduler.NewPeriodicScheduler(time.Second, func(taskFunc scheduler.AddTaskFunc) error {
 			return t.schedule(context.Background(), taskFunc)
 		}),
 	}
