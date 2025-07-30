@@ -30,6 +30,7 @@ import (
 
 	pool "github.com/libp2p/go-buffer-pool"
 
+	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/proof"
@@ -57,7 +58,7 @@ type ProveTask struct {
 }
 
 func NewProveTask(
-	chainSched *scheduler.Chain,
+	chainSched *chainsched.Scheduler,
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
 	contractClient contract.PDP,

@@ -14,6 +14,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"gorm.io/gorm"
 
+	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
@@ -35,7 +36,7 @@ type PDPService struct {
 	db   *gorm.DB
 	name string
 
-	chainScheduler *scheduler.Chain
+	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
 
 	stopFns  []func(ctx context.Context) error
@@ -95,7 +96,7 @@ func NewPDPService(
 	if err := models.AutoMigrateDB(db); err != nil {
 		return nil, err
 	}
-	chainScheduler := scheduler.NewChain(chainClient)
+	chainScheduler := chainsched.New(chainClient)
 
 	var t []scheduler.TaskInterface
 	sender, senderTask := tasks.NewSenderETH(ethClient, wallet, db)

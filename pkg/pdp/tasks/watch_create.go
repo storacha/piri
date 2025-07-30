@@ -14,7 +14,7 @@ import (
 
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
 
-	"github.com/storacha/piri/pkg/pdp/scheduler"
+	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
@@ -28,7 +28,7 @@ func NewWatcherCreate(
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
 	contractClient contract.PDP,
-	pcs *scheduler.Chain,
+	pcs *chainsched.Scheduler,
 ) error {
 	log.Infow("Initializing proof set creation watcher")
 	if err := pcs.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
