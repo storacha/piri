@@ -11,7 +11,7 @@ import (
 
 	chainyypes "github.com/filecoin-project/lotus/chain/types"
 
-	"github.com/storacha/piri/pkg/pdp/scheduler"
+	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
@@ -37,7 +37,7 @@ type RootAddEntry struct {
 }
 
 // NewWatcherRootAdd sets up the watcher for proof set root additions
-func NewWatcherRootAdd(db *gorm.DB, pcs *scheduler.Chain, contractClient contract.PDP) error {
+func NewWatcherRootAdd(db *gorm.DB, pcs *chainsched.Scheduler, contractClient contract.PDP) error {
 	if err := pcs.AddHandler(func(ctx context.Context, revert, apply *chainyypes.TipSet) error {
 		err := processPendingProofSetRootAdds(ctx, db, contractClient)
 		if err != nil {

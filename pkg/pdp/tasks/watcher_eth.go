@@ -18,7 +18,7 @@ import (
 
 	types2 "github.com/filecoin-project/lotus/chain/types"
 
-	"github.com/storacha/piri/pkg/pdp/scheduler"
+	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
@@ -76,7 +76,7 @@ func WithMaxEthAPIRetries(n uint) WatcherOption {
 	}
 }
 
-func NewMessageWatcherEth(db *gorm.DB, pcs *scheduler.Chain, api MessageWatcherEthClient, opts ...WatcherOption) (*MessageWatcherEth, error) {
+func NewMessageWatcherEth(db *gorm.DB, pcs *chainsched.Scheduler, api MessageWatcherEthClient, opts ...WatcherOption) (*MessageWatcherEth, error) {
 	mw := &MessageWatcherEth{
 		db:               db,
 		api:              api,

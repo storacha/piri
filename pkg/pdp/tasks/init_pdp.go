@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
 
+	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
@@ -50,7 +51,7 @@ func NewInitProvingPeriodTask(
 	ethClient bind.ContractBackend,
 	contractClient contract.PDP,
 	chain ChainAPI,
-	chainSched *scheduler.Chain,
+	chainSched *chainsched.Scheduler,
 	sender ethereum.Sender,
 ) (*InitProvingPeriodTask, error) {
 	log.Infow("Initializing proving period task", "component", "InitProvingPeriodTask")

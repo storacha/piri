@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
@@ -35,7 +36,7 @@ type NextProvingPeriodTask struct {
 	addFunc promise.Promise[scheduler.AddTaskFunc]
 }
 
-func NewNextProvingPeriodTask(db *gorm.DB, ethClient bind.ContractBackend, contractClient contract.PDP, api ChainAPI, chainSched *scheduler.Chain, sender ethereum.Sender) (*NextProvingPeriodTask, error) {
+func NewNextProvingPeriodTask(db *gorm.DB, ethClient bind.ContractBackend, contractClient contract.PDP, api ChainAPI, chainSched *chainsched.Scheduler, sender ethereum.Sender) (*NextProvingPeriodTask, error) {
 	n := &NextProvingPeriodTask{
 		db:             db,
 		ethClient:      ethClient,
