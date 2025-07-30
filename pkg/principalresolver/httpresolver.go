@@ -61,6 +61,8 @@ type VerificationMethod struct {
 	PublicKeyMultibase string `json:"publicKeyMultibase,omitempty"`
 }
 
+var _ validator.PrincipalResolver = (*HTTPResolver)(nil)
+
 type HTTPResolver struct {
 	// mapping of did:web to url of service, where we fetch .well-known/did.json to obtain their did:key key
 	webKeys map[did.DID]url.URL
@@ -176,13 +178,13 @@ func NewHTTPResolver(webKeys []did.DID, opts ...Option) (*HTTPResolver, error) {
 
 // TODO(forrest): the interface this implements in go-ucanto should probably accept a context
 // since means of resolution here are open ended, and may go to network or disk.
-func (r *HTTPResolver) ResolveDIDKey(input did.DID) (did.DID, validator.UnresolvedDID) {
+func (r *HTTPResolver) ResolveDIDKey(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 	endpoint, ok := r.webKeys[input]
 	if !ok {
 		log.Error("failed to find did in set for resolution")
 		return did.Undef, validator.NewDIDKeyResolutionError(input, fmt.Errorf("not found in mapping"))
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), r.cfg.timeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.timeout)
 	defer cancel()
 	didDoc, err := fetchDIDDocument(ctx, endpoint)
 	if err != nil {

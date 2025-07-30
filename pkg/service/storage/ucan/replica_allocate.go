@@ -36,7 +36,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 		replica.AllocateAbility,
 		server.Provide(
 			replica.Allocate,
-			func(cap ucan.Capability[replica.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (replica.AllocateOk, fx.Effects, error) {
+			func(ctx context.Context, cap ucan.Capability[replica.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (replica.AllocateOk, fx.Effects, error) {
 				//
 				// UCAN Validation
 				//
@@ -75,8 +75,6 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 				// TODO: which one do we pick if > 1?
 				replicaAddress := lc.Location[0]
 
-				// FIXME: use a real context, requires changes to server
-				ctx := context.TODO()
 				resp, err := blobhandler.Allocate(ctx, storageService, &blobhandler.AllocateRequest{
 					Space: cap.Nb().Space,
 					Blob:  cap.Nb().Blob,

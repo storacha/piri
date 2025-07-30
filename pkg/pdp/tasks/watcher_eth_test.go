@@ -162,7 +162,7 @@ func TestGetReceiptWithRetry_Success(t *testing.T) {
 	receipt := createTestReceipt(100, 1)
 	client.addReceipt(txHash, receipt, 0) // No failures
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := mw.getReceiptWithRetry(ctx, txHash)
 
 	require.NoError(t, err)
@@ -181,7 +181,7 @@ func TestGetReceiptWithRetry_SuccessAfterRetries(t *testing.T) {
 	receipt := createTestReceipt(100, 1)
 	client.addReceipt(txHash, receipt, 2) // Fail twice, then succeed
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := mw.getReceiptWithRetry(ctx, txHash)
 
 	require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestGetReceiptWithRetry_MaxRetriesExceeded(t *testing.T) {
 	receipt := createTestReceipt(100, 1)
 	client.addReceipt(txHash, receipt, 5) // More failures than max retries
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := mw.getReceiptWithRetry(ctx, txHash)
 
 	require.Error(t, err)
@@ -218,7 +218,7 @@ func TestGetReceiptWithRetry_NotFoundNoRetry(t *testing.T) {
 	txHash := common.HexToHash("0x123")
 	// Don't add receipt - will return NotFound
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := mw.getReceiptWithRetry(ctx, txHash)
 
 	require.Error(t, err)
@@ -241,7 +241,7 @@ func TestCheckTransaction_Success(t *testing.T) {
 	client.addReceipt(txHash, receipt, 0)
 	client.addTransaction(txHash, tx, 0)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	bestBlockNumber := big.NewInt(105) // More than MinConfidence ahead
 
 	result, err := mw.checkTransaction(ctx, txHash, bestBlockNumber)
@@ -269,7 +269,7 @@ func TestCheckTransaction_InsufficientConfirmations(t *testing.T) {
 
 	client.addReceipt(txHash, receipt, 0)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	bestBlockNumber := big.NewInt(101) // Only 1 confirmation
 
 	result, err := mw.checkTransaction(ctx, txHash, bestBlockNumber)

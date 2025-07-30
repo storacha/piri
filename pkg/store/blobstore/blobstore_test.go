@@ -2,7 +2,6 @@ package blobstore
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -33,10 +32,10 @@ func TestBlobstore(t *testing.T) {
 			data := testutil.RandomBytes(t, 10)
 			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
 
-			err := s.Put(context.Background(), digest, uint64(len(data)), bytes.NewBuffer(data))
+			err := s.Put(t.Context(), digest, uint64(len(data)), bytes.NewBuffer(data))
 			require.NoError(t, err)
 
-			obj, err := s.Get(context.Background(), digest)
+			obj, err := s.Get(t.Context(), digest)
 			require.NoError(t, err)
 			require.Equal(t, obj.Size(), int64(len(data)))
 			require.Equal(t, data, testutil.Must(io.ReadAll(obj.Body()))(t))
@@ -46,7 +45,7 @@ func TestBlobstore(t *testing.T) {
 			data := testutil.RandomBytes(t, 10)
 			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
 
-			obj, err := s.Get(context.Background(), digest)
+			obj, err := s.Get(t.Context(), digest)
 			require.Error(t, err)
 			require.Equal(t, store.ErrNotFound, err)
 			require.Nil(t, obj)
@@ -57,7 +56,7 @@ func TestBlobstore(t *testing.T) {
 			baddata := testutil.RandomBytes(t, 10)
 			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
 
-			err := s.Put(context.Background(), digest, uint64(len(data)), bytes.NewBuffer(baddata))
+			err := s.Put(t.Context(), digest, uint64(len(data)), bytes.NewBuffer(baddata))
 			require.Equal(t, ErrDataInconsistent, err)
 		})
 
@@ -65,7 +64,7 @@ func TestBlobstore(t *testing.T) {
 			data := testutil.RandomBytes(t, 10)
 			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
 
-			err := s.Put(context.Background(), digest, uint64(len(data)), bytes.NewBuffer(data))
+			err := s.Put(t.Context(), digest, uint64(len(data)), bytes.NewBuffer(data))
 			require.NoError(t, err)
 
 			fsr, ok := s.(FileSystemer)

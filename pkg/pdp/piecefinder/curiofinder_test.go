@@ -19,7 +19,7 @@ import (
 
 func TestFindPiece(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -44,7 +44,7 @@ func TestFindPiece(t *testing.T) {
 
 func TestFindPiece_RetryThenSuccess(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -73,7 +73,7 @@ func TestFindPiece_RetryThenSuccess(t *testing.T) {
 
 func TestFindPiece_ExceedMaxRetries(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -96,7 +96,7 @@ func TestFindPiece_ExceedMaxRetries(t *testing.T) {
 
 func TestFindPiece_UnexpectedError(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -119,7 +119,7 @@ func TestFindPiece_UnexpectedError(t *testing.T) {
 
 func TestFindPiece_ContextCanceled(t *testing.T) {
 	// Use a short retry delay to keep the test quick
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

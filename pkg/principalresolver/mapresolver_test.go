@@ -21,11 +21,11 @@ func TestPrincipalResolver(t *testing.T) {
 	ppr, err := principalresolver.NewMapResolver(pm)
 	require.NoError(t, err)
 
-	resolved, err := ppr.ResolveDIDKey(p0)
+	resolved, err := ppr.ResolveDIDKey(t.Context(), p0)
 	require.NoError(t, err)
 	require.Equal(t, r, resolved)
 
 	// cannot resolve DID not in mapping
-	_, err = ppr.ResolveDIDKey(p1)
+	_, err = ppr.ResolveDIDKey(t.Context(), p1)
 	require.NotNil(t, err)
 }
