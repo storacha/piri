@@ -28,7 +28,7 @@ func (p *PDPService) ProofSet(ctx context.Context, id int64) (*ProofSet, error) 
 	var proofSet models.PDPProofSet
 	if err := p.db.WithContext(ctx).First(&proofSet, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("proof set not found")
+			return nil, ErrProofSetNotFound
 		}
 		return nil, fmt.Errorf("failed to retrieve proof set: %w", err)
 	}

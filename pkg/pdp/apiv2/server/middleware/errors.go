@@ -6,8 +6,6 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-
-	"github.com/storacha/piri/pkg/pdp/apiv2"
 )
 
 // ContextualError is a richer error interface that provides additional context
@@ -79,15 +77,6 @@ func NewError(operation string, message string, err error, code int) *PDPError {
 		Code:          code,
 		Err:           err,
 		Context:       make(map[string]interface{}),
-	}
-}
-
-func FromAPIError(operation string, err error) *PDPError {
-	code, msg := apiv2.GetAPIError(err)
-	return &PDPError{
-		Operation: operation,
-		Message:   msg,
-		Code:      code,
 	}
 }
 

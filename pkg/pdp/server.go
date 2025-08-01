@@ -20,7 +20,8 @@ import (
 
 	"github.com/storacha/piri/pkg/database"
 	"github.com/storacha/piri/pkg/database/gormdb"
-	"github.com/storacha/piri/pkg/pdp/api"
+	"github.com/storacha/piri/pkg/pdp/apiv2"
+	"github.com/storacha/piri/pkg/pdp/apiv2/server"
 	"github.com/storacha/piri/pkg/pdp/curio"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
@@ -120,14 +121,14 @@ func NewServer(
 		return nil, fmt.Errorf("creating pdp service: %w", err)
 	}
 
-	pdpAPI := &api.PDP{Service: pdpService}
-	svr := api.NewServer(pdpAPI)
+	pdpAPI := apiv2.New(endpoint, pdpService)
+	svr := server.NewServer(pdpAPI)
 	return &Server{
 		pieceFinder: piecefinder.NewCurioFinder(localPDPClient),
 		pieceAdder:  pieceadder.NewCurioAdder(localPDPClient),
 		startFuncs: []func(ctx context.Context) error{
 			func(ctx context.Context) error {
-				if err := svr.Start(fmt.Sprintf(":%s", endpoint.Port())); err != nil {
+				if err := svr.Start(ctx, fmt.Sprintf(":%s", endpoint.Port())); err != nil {
 					return fmt.Errorf("starting local pdp server: %w", err)
 				}
 				if err := pdpService.Start(ctx); err != nil {
