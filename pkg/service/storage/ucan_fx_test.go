@@ -100,8 +100,8 @@ func TestFXServer(t *testing.T) {
 			},
 			Cause: cause,
 		}
-		cap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
-		inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
+		ucap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
+		inv, err := invocation.Invoke(testutil.Service, testutil.Alice, ucap, delegation.WithProof(prf))
 		require.NoError(t, err)
 
 		resp, err := client.Execute(t.Context(), []invocation.Invocation{inv}, conn)
@@ -116,7 +116,7 @@ func TestFXServer(t *testing.T) {
 
 		result.MatchResultR0(rcpt.Out(), func(ok blob.AllocateOk) {
 			fmt.Printf("%+v\n", ok)
-			require.Equal(t, size, uint64(ok.Size))
+			require.Equal(t, size, ok.Size)
 
 			allocs, err := svc.Blobs().Allocations().List(context.Background(), digest)
 			require.NoError(t, err)
@@ -148,10 +148,10 @@ func TestFXServer(t *testing.T) {
 			},
 			Cause: cause,
 		}
-		cap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
+		ucap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
 
 		invokeBlobAllocate := func() result.Result[blob.AllocateOk, fdm.FailureModel] {
-			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
+			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, ucap, delegation.WithProof(prf))
 			require.NoError(t, err)
 
 			resp, err := client.Execute(t.Context(), []invocation.Invocation{inv}, conn)
@@ -167,7 +167,7 @@ func TestFXServer(t *testing.T) {
 
 		result.MatchResultR0(invokeBlobAllocate(), func(ok blob.AllocateOk) {
 			fmt.Printf("%+v\n", ok)
-			require.Equal(t, size, uint64(ok.Size))
+			require.Equal(t, size, ok.Size)
 			require.NotNil(t, ok.Address)
 		}, func(f fdm.FailureModel) {
 			fmt.Println(f.Message)
@@ -219,9 +219,9 @@ func TestFXServer(t *testing.T) {
 				},
 				Cause: cause,
 			}
-			cap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
+			ucap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
 
-			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
+			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, ucap, delegation.WithProof(prf))
 			require.NoError(t, err)
 
 			resp, err := client.Execute(t.Context(), []invocation.Invocation{inv}, conn)
@@ -237,7 +237,7 @@ func TestFXServer(t *testing.T) {
 
 		result.MatchResultR0(invokeBlobAllocate(space0), func(ok blob.AllocateOk) {
 			fmt.Printf("%+v\n", ok)
-			require.Equal(t, size, uint64(ok.Size))
+			require.Equal(t, size, ok.Size)
 			require.NotNil(t, ok.Address)
 		}, func(f fdm.FailureModel) {
 			fmt.Println(f.Message)
@@ -252,7 +252,7 @@ func TestFXServer(t *testing.T) {
 		// now again after upload, but in different space
 		result.MatchResultR0(invokeBlobAllocate(space1), func(ok blob.AllocateOk) {
 			fmt.Printf("%+v\n", ok)
-			require.Equal(t, size, uint64(ok.Size))
+			require.Equal(t, size, ok.Size)
 			require.Nil(t, ok.Address)
 		}, func(f fdm.FailureModel) {
 			fmt.Println(f.Message)
@@ -437,7 +437,9 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			)
 
 			t.Cleanup(func() {
-				fakeServer.Close()
+				if err := fakeServer.Close(); err != nil {
+					t.Logf("failed to close fake http server: %v", err)
+				}
 				testApp.RequireStop()
 				cancel()
 			})
@@ -819,11 +821,11 @@ type FakePresigned struct {
 	uploadURL url.URL
 }
 
-func (f *FakePresigned) SignUploadURL(ctx context.Context, digest multihash.Multihash, size, ttl uint64) (url.URL, http.Header, error) {
+func (f *FakePresigned) SignUploadURL(_ context.Context, _ multihash.Multihash, _, _ uint64) (url.URL, http.Header, error) {
 	return f.uploadURL, nil, nil
 }
 
-func (f *FakePresigned) VerifyUploadURL(ctx context.Context, url url.URL, headers http.Header) (url.URL, http.Header, error) {
+func (f *FakePresigned) VerifyUploadURL(_ context.Context, _ url.URL, _ http.Header) (url.URL, http.Header, error) {
 	// TODO: implement when needed.
 	panic("implement me")
 }
