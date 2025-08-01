@@ -12,6 +12,7 @@ import (
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt/fx"
+	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/core/result/failure"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/server"
@@ -36,14 +37,14 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 		replica.AllocateAbility,
 		server.Provide(
 			replica.Allocate,
-			func(ctx context.Context, cap ucan.Capability[replica.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (replica.AllocateOk, fx.Effects, error) {
+			func(ctx context.Context, cap ucan.Capability[replica.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (result.Result[replica.AllocateOk, failure.IPLDBuilderFailure], fx.Effects, error) {
 				//
 				// UCAN Validation
 				//
 
 				// only service principal can perform an allocation
 				if cap.With() != iCtx.ID().DID().String() {
-					return replica.AllocateOk{}, nil, NewUnsupportedCapabilityError(cap)
+					return result.Error[replica.AllocateOk, failure.IPLDBuilderFailure](NewUnsupportedCapabilityError(cap)), nil, nil
 				}
 
 				//
@@ -54,22 +55,22 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 				// to replicate from on the primary storage node.
 				br, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(inv.Blocks()))
 				if err != nil {
-					return replica.AllocateOk{}, nil, failure.FromError(err)
+					return nil, nil, fmt.Errorf("creating block reader: %w", err)
 				}
 				claim, err := delegation.NewDelegationView(cap.Nb().Site, br)
 				if err != nil {
-					return replica.AllocateOk{}, nil, failure.FromError(err)
+					return nil, nil, fmt.Errorf("creating location commitment delegation view: %w", err)
 				}
 
 				// TODO since there is a slice of capabilities here we need to validate the 0th is the correct one
 				// unsure what `With()` should be compared with for a capability.
 				lc, err := assert.LocationCaveatsReader.Read(claim.Capabilities()[0].Nb())
 				if err != nil {
-					return replica.AllocateOk{}, nil, failure.FromError(err)
+					return nil, nil, err
 				}
 
 				if len(lc.Location) < 1 {
-					return replica.AllocateOk{}, nil, failure.FromError(fmt.Errorf("location missing from location claim"))
+					return nil, nil, fmt.Errorf("URI missing in location commitment")
 				}
 
 				// TODO: which one do we pick if > 1?
@@ -81,7 +82,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 					Cause: inv.Link(),
 				})
 				if err != nil {
-					return replica.AllocateOk{}, nil, failure.FromError(err)
+					return nil, nil, fmt.Errorf("allocating replica: %w", err)
 				}
 
 				// create the transfer invocation: an fx of the allocate invocation receipt.
@@ -102,14 +103,14 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 					},
 				)
 				if err != nil {
-					return replica.AllocateOk{}, nil, failure.FromError(err)
+					return nil, nil, err
 				}
 				for block, err := range inv.Blocks() {
 					if err != nil {
-						return replica.AllocateOk{}, nil, fmt.Errorf("iterating replica allocate invocation blocks: %w", err)
+						return nil, nil, fmt.Errorf("iterating replica allocate invocation blocks: %w", err)
 					}
 					if err := trnsfInv.Attach(block); err != nil {
-						return replica.AllocateOk{}, nil, fmt.Errorf("failed to replica allocate invocation block (%s) to transfer invocation: %w", block.Link().String(), err)
+						return nil, nil, fmt.Errorf("failed to replica allocate invocation block (%s) to transfer invocation: %w", block.Link().String(), err)
 					}
 				}
 				// iff we didn't allocate space for the data, and didn't provide an address, then it means we have
@@ -131,7 +132,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 					Sink:   sink,
 					Cause:  trnsfInv,
 				}); err != nil {
-					return replica.AllocateOk{}, nil, failure.FromError(fmt.Errorf("failed to enqueue replication task: %w", err))
+					return nil, nil, fmt.Errorf("failed to enqueue replication task: %w", err)
 				}
 
 				// Create a Promise for the transfer invocation
@@ -142,10 +143,12 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 					},
 				}
 
-				return replica.AllocateOk{
-					Size: resp.Size,
-					Site: transferPromise,
-				}, fx.NewEffects(fx.WithFork(fx.FromInvocation(trnsfInv))), nil
+				return result.Ok[replica.AllocateOk, failure.IPLDBuilderFailure](
+					replica.AllocateOk{
+						Size: resp.Size,
+						Site: transferPromise,
+					},
+				), fx.NewEffects(fx.WithFork(fx.FromInvocation(trnsfInv))), nil
 			},
 		),
 	)
