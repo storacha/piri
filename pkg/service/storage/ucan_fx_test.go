@@ -99,11 +99,11 @@ func TestFXServer(t *testing.T) {
 			},
 			Cause: cause,
 		}
-		cap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
-		inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
+		ucap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
+		inv, err := invocation.Invoke(testutil.Service, testutil.Alice, ucap, delegation.WithProof(prf))
 		require.NoError(t, err)
 
-		resp, err := client.Execute([]invocation.Invocation{inv}, conn)
+		resp, err := client.Execute(t.Context(), []invocation.Invocation{inv}, conn)
 		require.NoError(t, err)
 
 		// get the receipt link for the invocation from the response
@@ -115,7 +115,7 @@ func TestFXServer(t *testing.T) {
 
 		result.MatchResultR0(rcpt.Out(), func(ok blob.AllocateOk) {
 			fmt.Printf("%+v\n", ok)
-			require.Equal(t, size, uint64(ok.Size))
+			require.Equal(t, size, ok.Size)
 
 			allocs, err := svc.Blobs().Allocations().List(context.Background(), digest)
 			require.NoError(t, err)
@@ -147,13 +147,13 @@ func TestFXServer(t *testing.T) {
 			},
 			Cause: cause,
 		}
-		cap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
+		ucap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
 
 		invokeBlobAllocate := func() result.Result[blob.AllocateOk, fdm.FailureModel] {
-			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
+			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, ucap, delegation.WithProof(prf))
 			require.NoError(t, err)
 
-			resp, err := client.Execute([]invocation.Invocation{inv}, conn)
+			resp, err := client.Execute(t.Context(), []invocation.Invocation{inv}, conn)
 			require.NoError(t, err)
 
 			rcptlnk, ok := resp.Get(inv.Link())
@@ -166,7 +166,7 @@ func TestFXServer(t *testing.T) {
 
 		result.MatchResultR0(invokeBlobAllocate(), func(ok blob.AllocateOk) {
 			fmt.Printf("%+v\n", ok)
-			require.Equal(t, size, uint64(ok.Size))
+			require.Equal(t, size, ok.Size)
 			require.NotNil(t, ok.Address)
 		}, func(f fdm.FailureModel) {
 			fmt.Println(f.Message)
@@ -218,12 +218,12 @@ func TestFXServer(t *testing.T) {
 				},
 				Cause: cause,
 			}
-			cap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
+			ucap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
 
-			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, cap, delegation.WithProof(prf))
+			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, ucap, delegation.WithProof(prf))
 			require.NoError(t, err)
 
-			resp, err := client.Execute([]invocation.Invocation{inv}, conn)
+			resp, err := client.Execute(t.Context(), []invocation.Invocation{inv}, conn)
 			require.NoError(t, err)
 
 			rcptlnk, ok := resp.Get(inv.Link())
@@ -236,7 +236,7 @@ func TestFXServer(t *testing.T) {
 
 		result.MatchResultR0(invokeBlobAllocate(space0), func(ok blob.AllocateOk) {
 			fmt.Printf("%+v\n", ok)
-			require.Equal(t, size, uint64(ok.Size))
+			require.Equal(t, size, ok.Size)
 			require.NotNil(t, ok.Address)
 		}, func(f fdm.FailureModel) {
 			fmt.Println(f.Message)
@@ -251,7 +251,7 @@ func TestFXServer(t *testing.T) {
 		// now again after upload, but in different space
 		result.MatchResultR0(invokeBlobAllocate(space1), func(ok blob.AllocateOk) {
 			fmt.Printf("%+v\n", ok)
-			require.Equal(t, size, uint64(ok.Size))
+			require.Equal(t, size, ok.Size)
 			require.Nil(t, ok.Address)
 		}, func(f fdm.FailureModel) {
 			fmt.Println(f.Message)
@@ -279,7 +279,7 @@ func TestFXServer(t *testing.T) {
 		allocInv, err := invocation.Invoke(testutil.Service, testutil.Alice, allocCap, delegation.WithProof(prf))
 		require.NoError(t, err)
 
-		_, err = client.Execute([]invocation.Invocation{allocInv}, conn)
+		_, err = client.Execute(t.Context(), []invocation.Invocation{allocInv}, conn)
 		require.NoError(t, err)
 
 		// simulate a blob upload
@@ -308,7 +308,7 @@ func TestFXServer(t *testing.T) {
 		acceptInv, err := invocation.Invoke(testutil.Service, testutil.Alice, acceptCap, delegation.WithProof(prf))
 		require.NoError(t, err)
 
-		resp, err := client.Execute([]invocation.Invocation{acceptInv}, conn)
+		resp, err := client.Execute(t.Context(), []invocation.Invocation{acceptInv}, conn)
 		require.NoError(t, err)
 
 		// get the receipt link for the invocation from the response
@@ -436,7 +436,9 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			)
 
 			t.Cleanup(func() {
-				fakeServer.Close()
+				if err := fakeServer.Close(); err != nil {
+					t.Logf("failed to close fake http server: %v", err)
+				}
 				testApp.RequireStop()
 				cancel()
 			})
@@ -481,7 +483,7 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			rbi, expectedAllocateCaveats := buildAllocateInvocation(
 				t, bri, lcd, expectedSpace, expectedDigest, expectedSize,
 			)
-			res, err := client.Execute([]invocation.Invocation{rbi}, conn)
+			res, err := client.Execute(t.Context(), []invocation.Invocation{rbi}, conn)
 			require.NoError(t, err)
 
 			// The final assertion on the returned allocation size.
@@ -818,11 +820,11 @@ type FakePresigned struct {
 	uploadURL url.URL
 }
 
-func (f *FakePresigned) SignUploadURL(ctx context.Context, digest multihash.Multihash, size, ttl uint64) (url.URL, http.Header, error) {
+func (f *FakePresigned) SignUploadURL(_ context.Context, _ multihash.Multihash, _, _ uint64) (url.URL, http.Header, error) {
 	return f.uploadURL, nil, nil
 }
 
-func (f *FakePresigned) VerifyUploadURL(ctx context.Context, url url.URL, headers http.Header) (url.URL, http.Header, error) {
+func (f *FakePresigned) VerifyUploadURL(_ context.Context, _ url.URL, _ http.Header) (url.URL, http.Header, error) {
 	// TODO: implement when needed.
 	panic("implement me")
 }
