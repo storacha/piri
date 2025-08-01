@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/multiformats/go-multihash"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
@@ -28,7 +29,7 @@ func NewStore(path string) (objectstore.Store, error) {
 	return &leveldbStore{db: db}, nil
 }
 
-func (s *leveldbStore) Put(ctx context.Context, key string, size uint64, data io.Reader) error {
+func (s *leveldbStore) Put(ctx context.Context, key multihash.Multihash, size uint64, data io.Reader) error {
 	buf := make([]byte, size)
 	n, err := io.ReadFull(data, buf)
 	if err != nil {
@@ -38,15 +39,15 @@ func (s *leveldbStore) Put(ctx context.Context, key string, size uint64, data io
 		return fmt.Errorf("expected %d bytes but read %d", size, n)
 	}
 
-	if err := s.db.Put([]byte(key), buf, nil); err != nil {
+	if err := s.db.Put(key, buf, nil); err != nil {
 		return fmt.Errorf("failed to put data: %w", err)
 	}
 
 	return nil
 }
 
-func (s *leveldbStore) Get(ctx context.Context, key string, opts ...objectstore.GetOption) (objectstore.Object, error) {
-	data, err := s.db.Get([]byte(key), nil)
+func (s *leveldbStore) Get(ctx context.Context, key multihash.Multihash, opts ...objectstore.GetOption) (objectstore.Object, error) {
+	data, err := s.db.Get(key, nil)
 	if err != nil {
 		if errors.Is(err, leveldb.ErrNotFound) {
 			return nil, objectstore.ErrNotExist

@@ -7,6 +7,8 @@ import (
 	"io"
 	"sync"
 
+	"github.com/multiformats/go-multihash"
+
 	"github.com/storacha/piri/pkg/store/objectstore"
 )
 
@@ -21,7 +23,7 @@ func NewStore() objectstore.Store {
 	}
 }
 
-func (s *memoryStore) Put(ctx context.Context, key string, size uint64, data io.Reader) error {
+func (s *memoryStore) Put(ctx context.Context, key multihash.Multihash, size uint64, data io.Reader) error {
 	buf := make([]byte, size)
 	n, err := io.ReadFull(data, buf)
 	if err != nil {
@@ -32,15 +34,15 @@ func (s *memoryStore) Put(ctx context.Context, key string, size uint64, data io.
 	}
 
 	s.storeMu.Lock()
-	s.store[key] = buf
+	s.store[key.String()] = buf
 	s.storeMu.Unlock()
 
 	return nil
 }
 
-func (s *memoryStore) Get(ctx context.Context, key string, opts ...objectstore.GetOption) (objectstore.Object, error) {
+func (s *memoryStore) Get(ctx context.Context, key multihash.Multihash, opts ...objectstore.GetOption) (objectstore.Object, error) {
 	s.storeMu.RLock()
-	data, exists := s.store[key]
+	data, exists := s.store[key.String()]
 	s.storeMu.RUnlock()
 
 	if !exists {
