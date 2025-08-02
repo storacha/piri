@@ -12,9 +12,12 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
-func (p *PDPService) ProofSetCreate(ctx context.Context, recordKeeper common.Address) (common.Hash, error) {
+func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Address) (common.Hash, error) {
 	if len(recordKeeper.Bytes()) == 0 {
 		return common.Hash{}, fmt.Errorf("record keeper is empty")
+	}
+	if !common.IsHexAddress(recordKeeper.Hex()) {
+		return common.Hash{}, fmt.Errorf("invalid recordKeeper address: %s", recordKeeper)
 	}
 
 	// Obtain the ABI of the PDPVerifier contract

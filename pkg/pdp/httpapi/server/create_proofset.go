@@ -1,4 +1,4 @@
-package api
+package server
 
 import (
 	"net/http"
@@ -7,25 +7,17 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/labstack/echo/v4"
 
-	"github.com/storacha/piri/pkg/pdp/api/middleware"
+	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
+
+	"github.com/storacha/piri/pkg/pdp/httpapi"
 )
-
-type CreateProofSetRequest struct {
-	RecordKeeper string `json:"recordKeeper"`
-}
-
-// CreateProofSetResponse is the JSON output for the CreateProofSet endpoint.
-type CreateProofSetResponse struct {
-	TxHash   string `json:"txHash"`
-	Location string `json:"location"`
-}
 
 // echoHandleCreateProofSet -> POST /pdp/proof-sets
 func (p *PDP) handleCreateProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
 	operation := "CreateProofSet"
 
-	var req CreateProofSetRequest
+	var req httpapi.CreateProofSetRequest
 	if err := c.Bind(&req); err != nil {
 		return middleware.NewError(operation, "Invalid request body", err, http.StatusBadRequest)
 	}
@@ -40,7 +32,7 @@ func (p *PDP) handleCreateProofSet(c echo.Context) error {
 
 	log.Debugw("Processing CreateProofSet request", "recordKeeper", recordKeeperAddr)
 
-	txHash, err := p.Service.ProofSetCreate(ctx, recordKeeperAddr)
+	txHash, err := p.Service.CreateProofSet(ctx, recordKeeperAddr)
 	if err != nil {
 		return middleware.NewError(operation, "Failed to create proof set", err, http.StatusInternalServerError)
 	}
@@ -48,7 +40,7 @@ func (p *PDP) handleCreateProofSet(c echo.Context) error {
 	location := path.Join("/pdp/proof-sets/created", txHash.Hex())
 	c.Response().Header().Set("Location", location)
 
-	resp := CreateProofSetResponse{
+	resp := httpapi.CreateProofSetResponse{
 		TxHash:   txHash.Hex(),
 		Location: location,
 	}

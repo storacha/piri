@@ -1,10 +1,12 @@
-package api
+package server
 
 import (
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+
+	"github.com/storacha/piri/pkg/pdp/httpapi"
 )
 
 type GetProofSetResponse struct {
@@ -29,25 +31,25 @@ func (p *PDP) handleGetProofSet(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "missing proofSetID")
 	}
 
-	id, err := strconv.ParseInt(proofSetIDStr, 10, 64)
+	id, err := strconv.ParseUint(proofSetIDStr, 10, 64)
 	if err != nil {
 		return c.String(http.StatusBadRequest, "invalid proofSetID")
 	}
 
-	ps, err := p.Service.ProofSet(ctx, id)
+	ps, err := p.Service.GetProofSet(ctx, id)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "failed to fetch proofSet")
 	}
 
-	resp := GetProofSetResponse{
+	resp := httpapi.GetProofSetResponse{
 		ID:                 ps.ID,
-		NextChallengeEpoch: ps.NextChallengeEpoch,
+		NextChallengeEpoch: &ps.NextChallengeEpoch,
 	}
 	for _, root := range ps.Roots {
-		resp.Roots = append(resp.Roots, RootEntry{
-			RootID:        int64(root.RootID),
-			RootCID:       root.RootCID,
-			SubrootCID:    root.SubrootCID,
+		resp.Roots = append(resp.Roots, httpapi.RootEntry{
+			RootID:        root.RootID,
+			RootCID:       root.RootCID.String(),
+			SubrootCID:    root.SubrootCID.String(),
 			SubrootOffset: root.SubrootOffset,
 		})
 	}

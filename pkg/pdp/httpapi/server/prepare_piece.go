@@ -1,41 +1,18 @@
-package api
+package server
 
 import (
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/ipfs/go-cid"
 	"github.com/labstack/echo/v4"
 
-	"github.com/storacha/piri/pkg/pdp/api/middleware"
+	"github.com/storacha/piri/pkg/pdp/httpapi"
+	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 	"github.com/storacha/piri/pkg/pdp/proof"
-	"github.com/storacha/piri/pkg/pdp/service"
-	"github.com/storacha/piri/pkg/pdp/service/types"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
-
-type PieceHash struct {
-	// Name of the hash function used
-	// sha2-256-trunc254-padded - CommP
-	// sha2-256 - Blob sha256
-	Name string `json:"name"`
-
-	// hex encoded hash
-	Hash string `json:"hash"`
-
-	// Size of the piece in bytes
-	Size int64 `json:"size"`
-}
-
-type PreparePieceRequest struct {
-	Check  PieceHash `json:"check"`
-	Notify string    `json:"notify,omitempty"`
-}
-type PreparePieceResponse struct {
-	Location string `json:"location,omitempty"`
-	PieceCID string `json:"piece_cid,omitempty"`
-	Created  bool   `json:"created,omitempty"`
-}
 
 var PieceSizeLimit = abi.PaddedPieceSize(proof.MaxMemtreeSize).Unpadded()
 
@@ -44,7 +21,7 @@ func (p *PDP) handlePreparePiece(c echo.Context) error {
 	ctx := c.Request().Context()
 	operation := "PreparePiece"
 
-	var req PreparePieceRequest
+	var req httpapi.AddPieceRequest
 	if err := c.Bind(&req); err != nil {
 		return middleware.NewError(operation, "Invalid request body", err, http.StatusBadRequest)
 	}
@@ -60,32 +37,36 @@ func (p *PDP) handlePreparePiece(c echo.Context) error {
 		"hash", req.Check.Hash,
 		"size", req.Check.Size)
 	start := time.Now()
-	res, err := p.Service.PreparePiece(ctx, service.PiecePrepareRequest{
-		Check: types.PieceHash{
+	params := types.PieceAllocation{
+		Piece: types.Piece{
 			Name: req.Check.Name,
 			Hash: req.Check.Hash,
 			Size: req.Check.Size,
 		},
-		Notify: req.Notify,
-	})
+	}
+	if req.Notify != "" {
+		var err error
+		params.Notify, err = url.Parse(req.Notify)
+		if err != nil {
+			return middleware.NewError(operation, "Invalid notify URL", err, http.StatusBadRequest)
+		}
+	}
+	res, err := p.Service.AllocatePiece(ctx, params)
 	if err != nil {
 		return middleware.NewError(operation, "Failed to prepare piece", err, http.StatusInternalServerError)
 	}
 
-	resp := PreparePieceResponse{
-		Location: res.Location,
-		Created:  res.Created,
-	}
-	if res.PieceCID != cid.Undef {
-		resp.PieceCID = res.PieceCID.String()
+	resp := httpapi.AddPieceResponse{
+		Allocated: res.Allocated,
+		PieceCID:  res.Piece.String(),
+		UploadID:  res.UploadID.String(),
 	}
 	log.Infow("Successfully prepared piece",
-		"location", resp.Location,
-		"created", resp.Created,
+		"uploadID", resp.UploadID,
+		"allocated", resp.Allocated,
 		"duration", time.Since(start))
-	if res.Created {
-		c.Response().Header().Set(echo.HeaderLocation, res.Location)
+	if res.Allocated {
 		return c.JSON(http.StatusCreated, resp)
 	}
-	return c.JSON(http.StatusNoContent, resp)
+	return c.JSON(http.StatusOK, resp)
 }
