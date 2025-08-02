@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ipfs/go-cid"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 type ProofSet struct {
@@ -23,7 +25,7 @@ type RootEntry struct {
 	SubrootOffset int64  `json:"subrootOffset"`
 }
 
-func (p *PDPService) ProofSet(ctx context.Context, id int64) (*ProofSet, error) {
+func (p *PDPService) GetProofSet(ctx context.Context, id uint64) (*types.ProofSet, error) {
 	// Retrieve the proof set record.
 	var proofSet models.PDPProofSet
 	if err := p.db.WithContext(ctx).First(&proofSet, id).Error; err != nil {
@@ -47,18 +49,36 @@ func (p *PDPService) ProofSet(ctx context.Context, id int64) (*ProofSet, error) 
 	}
 
 	// Step 5: Build the response.
-	response := &ProofSet{
-		ID: proofSet.ID,
-		// TODO this will panic if ProveAtEpoch is nill, which it is when the proofset is first created
-		NextChallengeEpoch: *proofSet.ProveAtEpoch,
+	response := &types.ProofSet{
+		ID: uint64(proofSet.ID),
 	}
 	for _, r := range roots {
-		response.Roots = append(response.Roots, RootEntry{
+		rootCid, err := cid.Decode(r.Root)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode root cid %s for proof set %d: %w", r.Root, proofSet.ID, err)
+		}
+		subrootCid, err := cid.Decode(r.Subroot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode subroot cid %s for proof set %d: %w", r.Subroot, proofSet.ID, err)
+		}
+		response.Roots = append(response.Roots, types.RootEntry{
 			RootID:        uint64(r.RootID),
-			RootCID:       r.Root,
-			SubrootCID:    r.Subroot,
+			RootCID:       rootCid,
+			SubrootCID:    subrootCid,
 			SubrootOffset: r.SubrootOffset,
 		})
+	}
+	if proofSet.ProveAtEpoch != nil {
+		response.NextChallengeEpoch = *proofSet.ProveAtEpoch
+	}
+	if proofSet.PrevChallengeRequestEpoch != nil {
+		response.PreviousChallengeEpoch = *proofSet.PrevChallengeRequestEpoch
+	}
+	if proofSet.ProvingPeriod != nil {
+		response.ProvingPeriod = *proofSet.ProvingPeriod
+	}
+	if proofSet.ChallengeWindow != nil {
+		response.ChallengeWindow = *proofSet.ChallengeWindow
 	}
 
 	return response, nil

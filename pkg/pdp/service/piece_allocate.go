@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"path"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/google/uuid"
@@ -13,50 +12,23 @@ import (
 	"github.com/snadrus/must"
 	"gorm.io/gorm"
 
-	"github.com/storacha/piri/pkg/pdp/proof"
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/service/types"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-var PieceSizeLimit = abi.PaddedPieceSize(proof.MaxMemtreeSize).Unpadded()
-
-type PieceHash struct {
-	// Name of the hash function used
-	// sha2-256-trunc254-padded - CommP
-	// sha2-256 - Blob sha256
-	Name string
-
-	// hex encoded hash
-	Hash string
-
-	// Size of the piece in bytes
-	Size int64
-}
-
-type PiecePrepareRequest struct {
-	Check  types.PieceHash
-	Notify string
-}
-
-type PiecePrepareResponse struct {
-	Location string
-	PieceCID cid.Cid
-	Created  bool
-}
-
-func (p *PDPService) PreparePiece(ctx context.Context, req PiecePrepareRequest) (*PiecePrepareResponse, error) {
-	if abi.UnpaddedPieceSize(req.Check.Size) > PieceSizeLimit {
+func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAllocation) (*types.AllocatedPiece, error) {
+	if abi.UnpaddedPieceSize(allocation.Piece.Size) > PieceSizeLimit {
 		return nil, fmt.Errorf("piece size exceeds the maximum allowed size")
 	}
 
-	pieceCid, havePieceCid, err := req.Check.CommP(p.db)
+	// map pieceCID, if sha256, to filecoin commp cid
+	pieceCid, havePieceCid, err := CommP(allocation.Piece, p.db)
 	if err != nil {
 		return nil, err
 	}
 
 	// Variables to hold information outside the transaction
 	var uploadUUID uuid.UUID
-	var uploadURL string
 	var created bool
 
 	if err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -88,11 +60,11 @@ func (p *PDPService) PreparePiece(ctx context.Context, req PiecePrepareRequest) 
 					ID:             uploadUUID.String(),
 					Service:        "storacha",
 					PieceCID:       models.Ptr(pieceCid.String()),
-					NotifyURL:      req.Notify,
+					NotifyURL:      allocation.Notify.String(),
 					PieceRef:       &parkedRef.RefID,
-					CheckHashCodec: req.Check.Name,
-					CheckHash:      must.One(hex.DecodeString(req.Check.Hash)),
-					CheckSize:      req.Check.Size,
+					CheckHashCodec: allocation.Piece.Name,
+					CheckHash:      must.One(hex.DecodeString(allocation.Piece.Hash)),
+					CheckSize:      allocation.Piece.Size,
 				}
 				if createErr := tx.Create(&upload).Error; createErr != nil {
 					return fmt.Errorf("failed to insert into pdp_piece_uploads: %w", createErr)
@@ -108,25 +80,28 @@ func (p *PDPService) PreparePiece(ctx context.Context, req PiecePrepareRequest) 
 
 		// Store the upload request in the database
 		var pieceCidStr *string
-		if p, ok := req.Check.MaybeStaticCommp(); ok {
+		if p, ok := MaybeStaticCommp(allocation.Piece); ok {
 			ps := p.String()
 			pieceCidStr = &ps
+		}
+		notifyURL := ""
+		if allocation.Notify != nil {
+			notifyURL = allocation.Notify.String()
 		}
 
 		newUpload := &models.PDPPieceUpload{
 			ID:             uploadUUID.String(),
 			Service:        "storacha",
 			PieceCID:       pieceCidStr, // might be empty if no static commP
-			NotifyURL:      req.Notify,
-			CheckHashCodec: req.Check.Name,
-			CheckHash:      must.One(hex.DecodeString(req.Check.Hash)),
-			CheckSize:      req.Check.Size,
+			NotifyURL:      notifyURL,
+			CheckHashCodec: allocation.Piece.Name,
+			CheckHash:      must.One(hex.DecodeString(allocation.Piece.Hash)),
+			CheckSize:      allocation.Piece.Size,
 		}
 		if createErr := tx.Create(&newUpload).Error; createErr != nil {
 			return fmt.Errorf("failed to store upload request in database: %w", createErr)
 		}
 
-		uploadURL = path.Join("/pdp", "/piece/upload", uploadUUID.String())
 		created = true
 		return nil // Commit the transaction
 
@@ -135,14 +110,16 @@ func (p *PDPService) PreparePiece(ctx context.Context, req PiecePrepareRequest) 
 	}
 
 	if created {
-		return &PiecePrepareResponse{
-			Location: uploadURL,
-			Created:  created,
+		return &types.AllocatedPiece{
+			Allocated: true,
+			Piece:     cid.Undef,
+			UploadID:  uploadUUID,
 		}, nil
 	}
 
-	return &PiecePrepareResponse{
-		PieceCID: pieceCid,
-		Created:  false,
+	return &types.AllocatedPiece{
+		Allocated: false,
+		Piece:     pieceCid,
+		UploadID:  uuid.Nil,
 	}, nil
 }

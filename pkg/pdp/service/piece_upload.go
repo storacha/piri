@@ -16,37 +16,36 @@ import (
 
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	commp "github.com/filecoin-project/go-fil-commp-hashhash"
-	"github.com/google/uuid"
 	"github.com/multiformats/go-multihash"
 	mhreg "github.com/multiformats/go-multihash/core"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/service/types"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) UploadPiece(ctx context.Context, uploadUUID uuid.UUID, piece io.Reader) (interface{}, error) {
+func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpload) error {
 	// Lookup the expected pieceCID, notify_url, and piece_ref from the database using uploadUUID
 	var upload models.PDPPieceUpload
-	if err := p.db.First(&upload, "id = ?", uploadUUID.String()).Error; err != nil {
+	if err := p.db.First(&upload, "id = ?", pieceUpload.ID.String()).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("upload UUID not found")
+			return fmt.Errorf("upload UUID not found")
 		}
-		return nil, fmt.Errorf("database error: %w", err)
+		return fmt.Errorf("database error: %w", err)
 	}
 
 	// PieceRef is a pointer, so a nil value means it's NULL in the DB.
 	if upload.PieceRef != nil {
-		return nil, fmt.Errorf("data has already been uploaded")
+		return fmt.Errorf("data has already been uploaded")
 	}
 
-	ph := types.PieceHash{
+	ph := types.Piece{
 		Name: upload.CheckHashCodec,
 		Hash: hex.EncodeToString(upload.CheckHash),
 		Size: upload.CheckSize,
 	}
-	phMh, err := ph.Multihash()
+	phMh, err := Multihash(ph)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode hash: %w", err)
+		return fmt.Errorf("failed to decode hash: %w", err)
 	}
 
 	// Limit the size of the piece data
@@ -60,14 +59,14 @@ func (p *PDPService) UploadPiece(ctx context.Context, uploadUUID uuid.UUID, piec
 	if upload.CheckHashCodec != multihash.Codes[multihash.SHA2_256_TRUNC254_PADDED] {
 		hasher, err := mhreg.GetVariableHasher(multihash.Names[upload.CheckHashCodec], -1)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get hasher: %w", err)
+			return fmt.Errorf("failed to get hasher: %w", err)
 		}
 		vhash = hasher
 	}
 
 	// Function to write data into StashStore and calculate commP
 	writeFunc := func(f *os.File) error {
-		limitedReader := io.LimitReader(piece, maxPieceSize+1) // +1 to detect exceeding the limit
+		limitedReader := io.LimitReader(pieceUpload.Data, maxPieceSize+1) // +1 to detect exceeding the limit
 		multiWriter := io.MultiWriter(cp, f)
 		if vhash != nil {
 			multiWriter = io.MultiWriter(vhash, multiWriter)
@@ -91,7 +90,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, uploadUUID uuid.UUID, piec
 	// Upload into StashStore
 	stashID, err := p.storage.StashCreate(ctx, maxPieceSize, writeFunc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create stash: %w", err)
+		return fmt.Errorf("failed to create stash: %w", err)
 	}
 
 	// Finalize the commP calculation
@@ -99,12 +98,12 @@ func (p *PDPService) UploadPiece(ctx context.Context, uploadUUID uuid.UUID, piec
 	if err != nil {
 		// Remove the stash file as the data is invalid
 		_ = p.storage.StashRemove(ctx, stashID)
-		return nil, fmt.Errorf("failed to compute piece hash: %w", err)
+		return fmt.Errorf("failed to compute piece hash: %w", err)
 	}
 
 	if readSize != upload.CheckSize {
 		_ = p.storage.StashRemove(ctx, stashID)
-		return nil, fmt.Errorf("piece data does not match the expected size")
+		return fmt.Errorf("piece data does not match the expected size")
 	}
 
 	var outHash = digest
@@ -115,7 +114,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, uploadUUID uuid.UUID, piec
 	if !bytes.Equal(outHash, upload.CheckHash) {
 		// Remove the stash file as the data is invalid
 		_ = p.storage.StashRemove(ctx, stashID)
-		return nil, fmt.Errorf("computed hash doe not match expected hash")
+		return fmt.Errorf("computed hash doe not match expected hash")
 	}
 
 	// Convert commP digest into a piece CID
@@ -123,14 +122,14 @@ func (p *PDPService) UploadPiece(ctx context.Context, uploadUUID uuid.UUID, piec
 	if err != nil {
 		// Remove the stash file as the data is invalid
 		_ = p.storage.StashRemove(ctx, stashID)
-		return nil, fmt.Errorf("failed to compute piece hash: %w", err)
+		return fmt.Errorf("failed to compute piece hash: %w", err)
 	}
 
 	// Compare the computed piece CID with the expected one from the database
 	if upload.PieceCID != nil && pieceCIDComputed.String() != *upload.PieceCID {
 		// Remove the stash file as the data is invalid
 		_ = p.storage.StashRemove(ctx, stashID)
-		return nil, fmt.Errorf("computer piece CID does not match expected piece CID")
+		return fmt.Errorf("computer piece CID does not match expected piece CID")
 	}
 
 	if err := p.db.Transaction(func(tx *gorm.DB) error {
@@ -164,7 +163,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, uploadUUID uuid.UUID, piec
 
 		// 3. Update the pdp_piece_uploads entry.
 		if err := tx.Model(&models.PDPPieceUpload{}).
-			Where("id = ?", uploadUUID.String()).
+			Where("id = ?", pieceUpload.ID.String()).
 			Updates(map[string]interface{}{
 				"piece_ref": parkedPieceRef.RefID,
 				"piece_cid": pieceCIDComputed.String(),
@@ -190,9 +189,9 @@ func (p *PDPService) UploadPiece(ctx context.Context, uploadUUID uuid.UUID, piec
 	}); err != nil {
 		// Remove the stash file as the transaction failed
 		_ = p.storage.StashRemove(ctx, stashID)
-		return nil, fmt.Errorf("failed to process piece upload: %w", err)
+		return fmt.Errorf("failed to process piece upload: %w", err)
 
 	}
 
-	return nil, nil
+	return nil
 }

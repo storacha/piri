@@ -5,54 +5,46 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/filecoin-project/go-commp-utils/nonffi"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-type AddRootRequest struct {
-	RootCID     string
-	SubrootCIDs []string
-}
-
 // TODO return something useful here, like the transaction Hash.
-func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []AddRootRequest) (interface{}, error) {
+func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (common.Hash, error) {
 	if len(request) == 0 {
-		return nil, fmt.Errorf("at least one root must be provided")
+		return common.Hash{}, fmt.Errorf("at least one root must be provided")
 	}
 
 	// Collect all subrootCIDs to fetch their info in a batch
-	subrootCIDsSet := make(map[string]struct{})
+	newSubroots := cid.NewSet()
 	for _, addRootReq := range request {
-		if addRootReq.RootCID == "" {
-			return nil, fmt.Errorf("rootCID is required for each root")
+		if !addRootReq.Root.Defined() {
+			return common.Hash{}, fmt.Errorf("rootCID is required for each root")
 		}
 
-		if len(addRootReq.SubrootCIDs) == 0 {
-			return nil, fmt.Errorf("at least one subroot is required per root")
+		if len(addRootReq.SubRoots) == 0 {
+			return common.Hash{}, fmt.Errorf("at least one subroot is required per root")
 		}
 
-		for _, subrootEntry := range addRootReq.SubrootCIDs {
-			if subrootEntry == "" {
-				return nil, fmt.Errorf("subrootCid is required for each subroot")
+		for _, subrootEntry := range addRootReq.SubRoots {
+			if !subrootEntry.Defined() {
+				return common.Hash{}, fmt.Errorf("subrootCid is required for each subroot")
 			}
-			if _, exists := subrootCIDsSet[subrootEntry]; exists {
-				return nil, fmt.Errorf("duplicate subrootCid in request")
+			if newSubroots.Has(subrootEntry) {
+				return common.Hash{}, fmt.Errorf("duplicate subrootCid in request")
 			}
 
-			subrootCIDsSet[subrootEntry] = struct{}{}
+			newSubroots.Add(subrootEntry)
 		}
-	}
-
-	// Convert set to slice
-	subrootCIDsList := make([]string, 0, len(subrootCIDsSet))
-	for cidStr := range subrootCIDsSet {
-		subrootCIDsList = append(subrootCIDsList, cidStr)
 	}
 
 	// Map to store subrootCID -> [pieceInfo, pdp_pieceref.id, subrootOffset]
@@ -69,7 +61,10 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 		PiecePaddedSize uint64 `gorm:"column:piece_padded_size"`
 	}
 
-	subrootInfoMap := make(map[string]*SubrootInfo)
+	// Convert set to slice of string for db query
+	newSubrootsList := lo.Map(newSubroots.Keys(), func(c cid.Cid, _ int) string {
+		return c.String()
+	})
 
 	var rows []subrootRow
 	if err := p.db.WithContext(ctx).
@@ -77,46 +72,49 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 		Select("ppr.piece_cid, ppr.id as pdp_piece_ref_id, ppr.piece_ref, pp.piece_padded_size").
 		Joins("JOIN parked_piece_refs as pprf ON pprf.ref_id = ppr.piece_ref").
 		Joins("JOIN parked_pieces as pp ON pp.id = pprf.piece_id").
-		Where("ppr.service = ? AND ppr.piece_cid IN ?", p.name, subrootCIDsList).
+		Where("ppr.service = ? AND ppr.piece_cid IN ?", p.name, newSubrootsList).
 		Scan(&rows).Error; err != nil {
-		return nil, err
+		return common.Hash{}, err
 	}
-	// Start a GORM transaction.
-	foundSubroots := make(map[string]struct{})
+
+	subrootInfoMap := make(map[cid.Cid]*SubrootInfo)
+	currentSubroots := cid.NewSet()
 	for _, r := range rows {
 		// Decode the piece CID.
 		decodedCID, err := cid.Decode(r.PieceCID)
 		if err != nil {
-			return nil, fmt.Errorf("invalid piece CID in database: %s", r.PieceCID)
+			return common.Hash{}, fmt.Errorf("invalid piece CID in database: %s", r.PieceCID)
 		}
-		pieceInfo := abi.PieceInfo{
-			Size:     abi.PaddedPieceSize(r.PiecePaddedSize),
-			PieceCID: decodedCID,
-		}
-		subrootInfoMap[r.PieceCID] = &SubrootInfo{
-			PieceInfo:     pieceInfo,
+		subrootInfoMap[decodedCID] = &SubrootInfo{
+			PieceInfo: abi.PieceInfo{
+				Size:     abi.PaddedPieceSize(r.PiecePaddedSize),
+				PieceCID: decodedCID,
+			},
 			PDPPieceRefID: r.PDPPieceRefID,
 			SubrootOffset: 0, // will be computed below
 		}
-		foundSubroots[r.PieceCID] = struct{}{}
+		currentSubroots.Add(decodedCID)
 	}
 
 	// Ensure every requested subrootCID was found.
-	for _, cidStr := range subrootCIDsList {
-		if _, ok := foundSubroots[cidStr]; !ok {
-			return nil, fmt.Errorf("subroot CID %s not found or does not belong to service %s", cidStr, p.name)
+	if err := currentSubroots.ForEach(func(c cid.Cid) error {
+		if !newSubroots.Has(c) {
+			return fmt.Errorf("subroot CID %s not found or does not belong to service %s", c.String(), p.name)
 		}
+		return nil
+	}); err != nil {
+		return common.Hash{}, err
 	}
 
 	// For each AddRootRequest, validate the provided RootCID.
 	for _, addReq := range request {
 		// Collect pieceInfos for each subroot.
-		pieceInfos := make([]abi.PieceInfo, len(addReq.SubrootCIDs))
+		pieceInfos := make([]abi.PieceInfo, len(addReq.SubRoots))
 		var totalOffset uint64 = 0
-		for i, subCID := range addReq.SubrootCIDs {
+		for i, subCID := range addReq.SubRoots {
 			subInfo, exists := subrootInfoMap[subCID]
 			if !exists {
-				return nil, fmt.Errorf("subroot CID %s not found in subroot info map", subCID)
+				return common.Hash{}, fmt.Errorf("subroot CID %s not found in subroot info map", subCID)
 			}
 			// Set the offset for this subroot.
 			subInfo.SubrootOffset = totalOffset
@@ -128,16 +126,11 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 		proofType := abi.RegisteredSealProof_StackedDrg64GiBV1_1
 		generatedCID, err := nonffi.GenerateUnsealedCID(proofType, pieceInfos)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate RootCID: %v", err)
-		}
-		// Decode the provided RootCID.
-		providedCID, err := cid.Decode(addReq.RootCID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid provided RootCID: %v", err)
+			return common.Hash{}, fmt.Errorf("failed to generate RootCID: %v", err)
 		}
 		// Compare the generated and provided CIDs.
-		if !providedCID.Equals(generatedCID) {
-			return nil, fmt.Errorf("provided RootCID does not match generated RootCID: %s != %s", providedCID, generatedCID)
+		if !addReq.Root.Equals(generatedCID) {
+			return common.Hash{}, fmt.Errorf("provided RootCID does not match generated RootCID: %s != %s", addReq.Root, generatedCID)
 		}
 	}
 
@@ -145,7 +138,7 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 	// Obtain the ABI of the PDPVerifier contract
 	abiData, err := contract.PDPVerifierMetaData()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get abi data from PDPVerifierMetaData: %w", err)
+		return common.Hash{}, fmt.Errorf("failed to get abi data from PDPVerifierMetaData: %w", err)
 	}
 
 	// Prepare RootData array for Ethereum transaction
@@ -161,21 +154,18 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 
 	for _, addRootReq := range request {
 		// Convert RootCID to bytes
-		rootCID, err := cid.Decode(addRootReq.RootCID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid RootCID: %w", err)
-		}
+		rootCID := addRootReq.Root
 
 		// Get total size by summing up the sizes of subroots
 		// IMPORTANT: Using padded sizes here to match what's stored in the database
 		// and ensure the total is a multiple of 32 (as required by the smart contract)
 		var totalSize uint64 = 0
 		var totalUnpaddedSize uint64 = 0
-		var prevSubrootSize = subrootInfoMap[addRootReq.SubrootCIDs[0]].PieceInfo.Size
-		for i, subrootEntry := range addRootReq.SubrootCIDs {
+		var prevSubrootSize = subrootInfoMap[addRootReq.SubRoots[0]].PieceInfo.Size
+		for i, subrootEntry := range addRootReq.SubRoots {
 			subrootInfo := subrootInfoMap[subrootEntry]
 			if subrootInfo.PieceInfo.Size > prevSubrootSize {
-				return nil, fmt.Errorf("subroots must be in descending order of size, root %d %s is larger than prev subroot %s", i, subrootEntry, addRootReq.SubrootCIDs[i-1])
+				return common.Hash{}, fmt.Errorf("subroots must be in descending order of size, root %d %s is larger than prev subroot %s", i, subrootEntry, addRootReq.SubRoots[i-1])
 			}
 
 			prevSubrootSize = subrootInfo.PieceInfo.Size
@@ -194,13 +184,13 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 
 		// Log debug information
 		log.Debugw("Root data details",
-			"rootCID", addRootReq.RootCID,
+			"rootCID", addRootReq.Root,
 			"cidBytesLen", len(rootCID.Bytes()),
 			"totalSize", totalSize,
 			"totalSizeMod32", totalSize%32,
 			"totalUnpaddedSize", totalUnpaddedSize,
 			"totalUnpaddedSizeMod32", totalUnpaddedSize%32,
-			"subrootCount", len(addRootReq.SubrootCIDs))
+			"subrootCount", len(addRootReq.SubRoots))
 
 		// Prepare RootData for Ethereum transaction
 		rootData := RootData{
@@ -212,16 +202,16 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 	}
 
 	// Convert proofSetID to *big.Int
-	proofSetID := new(big.Int).SetUint64(uint64(id))
+	proofSetID := new(big.Int).SetUint64(id)
 
 	// Pack the method call data
 	data, err := abiData.Pack("addRoots", proofSetID, rootDataArray, []byte{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to pack addRoots: %w", err)
+		return common.Hash{}, fmt.Errorf("failed to pack addRoots: %w", err)
 	}
 
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
-	txEth := types.NewTransaction(
+	txEth := ethtypes.NewTransaction(
 		0,
 		contract.Addresses().PDPVerifier,
 		big.NewInt(0),
@@ -234,7 +224,7 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 	reason := "pdp-addroots"
 	txHash, err := p.sender.Send(ctx, p.address, txEth, reason)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send transaction: %w", err)
+		return common.Hash{}, fmt.Errorf("failed to send transaction: %w", err)
 	}
 
 	// Step 9: Insert into message_waits_eth and pdp_proofset_roots
@@ -258,14 +248,14 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 
 		// Insert into pdp_proofset_root_adds
 		for addMessageIndex, addReq := range request {
-			for _, subrootEntry := range addReq.SubrootCIDs {
+			for _, subrootEntry := range addReq.SubRoots {
 				subInfo := subrootInfoMap[subrootEntry]
 				newRootAdd := models.PDPProofsetRootAdd{
 					ProofsetID:      proofSetID.Int64(),
-					Root:            addReq.RootCID,
+					Root:            addReq.Root.String(),
 					AddMessageHash:  txHash.Hex(),
 					AddMessageIndex: models.Ptr(int64(addMessageIndex)),
-					Subroot:         subrootEntry,
+					Subroot:         subrootEntry.String(),
 					SubrootOffset:   int64(subInfo.SubrootOffset),
 					SubrootSize:     int64(subInfo.PieceInfo.Size),
 					PDPPieceRefID:   &subInfo.PDPPieceRefID,
@@ -280,7 +270,7 @@ func (p *PDPService) ProofSetAddRoot(ctx context.Context, id int64, request []Ad
 		return nil
 	}); err != nil {
 		log.Errorw("Failed to insert into database", "error", err, "txHash", txHash.Hex(), "subroots", subrootInfoMap)
-		return nil, fmt.Errorf("failed to insert into database: %w", err)
+		return common.Hash{}, fmt.Errorf("failed to insert into database: %w", err)
 	}
-	return nil, nil
+	return txHash, nil
 }

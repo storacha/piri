@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"net/url"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
@@ -26,9 +26,9 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/contract/mocks"
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	types2 "github.com/storacha/piri/pkg/pdp/service/types"
 	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/pdp/tasks"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/wallet"
@@ -61,7 +61,7 @@ func (h *Harness) SendCreateProofSet(proofSetID uint64) {
 		h.messageNonce++
 	}()
 	h.EthClient.MockSenderETHClient.EXPECT().EstimateGas(gomock.Any(), gomock.Any()).Return(uint64(1), nil)
-	h.EthClient.MockSenderETHClient.EXPECT().HeaderByNumber(gomock.Any(), nil).Return(&types.Header{
+	h.EthClient.MockSenderETHClient.EXPECT().HeaderByNumber(gomock.Any(), nil).Return(&ethtypes.Header{
 		BaseFee: big.NewInt(1),
 	}, nil)
 	h.EthClient.MockSenderETHClient.EXPECT().SuggestGasTipCap(gomock.Any()).Return(big.NewInt(1), nil)
@@ -129,37 +129,45 @@ func (h *Harness) WaitFor_PDPProofsetCreate_ProofsetCreated(signedTx common.Hash
 
 }
 
-func (h *Harness) UploadPiece(ctx context.Context, svc *service.PDPService, piece []byte, notify string) *service.PiecePrepareResponse {
+func (h *Harness) UploadPiece(ctx context.Context, svc *service.PDPService, piece []byte, notify string) *types.AllocatedPiece {
 	pieceDigest, err := sha256.Hasher.Sum(piece)
 	require.NoError(h.T, err)
 
 	decoded, err := multihash.Decode(pieceDigest.Bytes())
 	require.NoError(h.T, err)
 
-	prepareRequest := service.PiecePrepareRequest{
-		Check: types2.PieceHash{
+	var nurl *url.URL
+	if notify != "" {
+		nurl, err = url.Parse(notify)
+		require.NoError(h.T, err)
+	}
+	prepareRequest := types.PieceAllocation{
+		Piece: types.Piece{
 			Name: decoded.Name,
 			Hash: hex.EncodeToString(decoded.Digest),
 			Size: int64(len(piece)),
 		},
-		Notify: notify,
+		Notify: nurl,
 	}
-	resp, err := svc.PreparePiece(ctx, prepareRequest)
+	resp, err := svc.AllocatePiece(ctx, prepareRequest)
 	require.NoError(h.T, err)
 
 	// ensure the piece was added to the prepareUpload table
 	var prepareUpload []models.PDPPieceUpload
-	expectedID := strings.Split(resp.Location, "/")[4]
+	expectedID := resp.UploadID.String()
 	res := h.DB.Where(&models.PDPPieceUpload{ID: expectedID}).Find(&prepareUpload)
 	require.NoError(h.T, res.Error)
 	require.Len(h.T, prepareUpload, 1)
-	require.Equal(h.T, prepareUpload[0].CheckHashCodec, prepareRequest.Check.Name)
-	require.Equal(h.T, prepareUpload[0].CheckSize, prepareRequest.Check.Size)
+	require.Equal(h.T, prepareUpload[0].CheckHashCodec, prepareRequest.Piece.Name)
+	require.Equal(h.T, prepareUpload[0].CheckSize, prepareRequest.Piece.Size)
 
 	// upload piece we prepared above.
 	expectedUUID, err := uuid.Parse(expectedID)
 	require.NoError(h.T, err)
-	_, err = svc.UploadPiece(ctx, expectedUUID, bytes.NewReader(piece))
+	err = svc.UploadPiece(ctx, types.PieceUpload{
+		ID:   expectedUUID,
+		Data: bytes.NewReader(piece),
+	})
 	require.NoError(h.T, err)
 
 	// after a piece is uploaded, the prepareUpload table will be populated with its details.
@@ -213,7 +221,11 @@ func (h *Harness) UploadPiece(ctx context.Context, svc *service.PDPService, piec
 	require.True(h.T, parkedPieceReady[0].LongTerm)
 	require.True(h.T, parkedPieceReady[0].Complete)
 
-	pieceCid, found, err := svc.FindPiece(ctx, prepareRequest.Check.Name, prepareRequest.Check.Hash, prepareRequest.Check.Size)
+	pieceCid, found, err := svc.FindPiece(ctx, types.Piece{
+		Name: prepareRequest.Piece.Name,
+		Hash: prepareRequest.Piece.Hash,
+		Size: prepareRequest.Piece.Size,
+	})
 	require.NoError(h.T, err)
 	require.True(h.T, found)
 	// TODO make an actual assertion on the CID equal to the expected
@@ -226,7 +238,7 @@ func (h *Harness) UploadPiece(ctx context.Context, svc *service.PDPService, piec
 func (h *Harness) CreateProofSet(ctx context.Context, svc *service.PDPService, id, challengeWindow, provingPeriod uint64) *models.PDPProofSet {
 	h.SendCreateProofSet(id)
 
-	proofSetCreatTx, err := svc.ProofSetCreate(ctx, RecordKeepAddress)
+	proofSetCreatTx, err := svc.CreateProofSet(ctx, RecordKeepAddress)
 	require.NoError(h.T, err)
 
 	h.Require_MessageSendsEth_SendSuccess("pdp-mkproofset", proofSetCreatTx)
@@ -338,12 +350,12 @@ func Ptr[T any](v T) *T {
 	return &v
 }
 
-func NewCreateProofSetTransaction(t testing.TB) *types.Transaction {
+func NewCreateProofSetTransaction(t testing.TB) *ethtypes.Transaction {
 	abiData, err := contract.PDPVerifierMetaData()
 	require.NoError(t, err)
 	data, err := abiData.Pack("createProofSet", RecordKeepAddress, []byte{})
 	require.NoError(t, err)
-	return types.NewTransaction(
+	return ethtypes.NewTransaction(
 		0,
 		contract.Addresses().PDPVerifier,
 		contract.SybilFee(),
@@ -353,10 +365,10 @@ func NewCreateProofSetTransaction(t testing.TB) *types.Transaction {
 	)
 }
 
-func NewSuccessfulReceipt(height int64) *types.Receipt {
-	return &types.Receipt{
+func NewSuccessfulReceipt(height int64) *ethtypes.Receipt {
+	return &ethtypes.Receipt{
 		BlockNumber: big.NewInt(height),
-		Status:      types.ReceiptStatusSuccessful,
-		Logs:        make([]*types.Log, 0),
+		Status:      ethtypes.ReceiptStatusSuccessful,
+		Logs:        make([]*ethtypes.Log, 0),
 	}
 }
