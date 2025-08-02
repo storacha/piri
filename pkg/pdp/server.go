@@ -20,8 +20,8 @@ import (
 
 	"github.com/storacha/piri/pkg/database"
 	"github.com/storacha/piri/pkg/database/gormdb"
-	"github.com/storacha/piri/pkg/pdp/api"
 	"github.com/storacha/piri/pkg/pdp/curio"
+	"github.com/storacha/piri/pkg/pdp/httpapi/server"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/service"
@@ -120,8 +120,8 @@ func NewServer(
 		return nil, fmt.Errorf("creating pdp service: %w", err)
 	}
 
-	pdpAPI := &api.PDP{Service: pdpService}
-	svr := api.NewServer(pdpAPI)
+	pdpAPI := &server.PDP{Service: pdpService}
+	svr := server.NewServer(pdpAPI)
 	return &Server{
 		pieceFinder: piecefinder.NewCurioFinder(localPDPClient),
 		pieceAdder:  pieceadder.NewCurioAdder(localPDPClient),

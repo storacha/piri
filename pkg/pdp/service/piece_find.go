@@ -7,16 +7,11 @@ import (
 	"github.com/ipfs/go-cid"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/service/types"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) FindPiece(ctx context.Context, name, hash string, size int64) (cid.Cid, bool, error) {
-	req := types.PieceHash{
-		Name: name,
-		Hash: hash,
-		Size: size,
-	}
-	pieceCID, havePieceCid, err := req.CommP(p.db)
+func (p *PDPService) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, bool, error) {
+	pieceCID, havePieceCid, err := CommP(piece, p.db)
 	if err != nil {
 		return cid.Undef, false, err
 	}

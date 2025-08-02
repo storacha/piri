@@ -9,20 +9,13 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-type ProofSetStatus struct {
-	CreateMessageHash string
-	ProofsetCreated   bool
-	Service           string
-	OK                bool
-	TxStatus          string
-	ProofSetId        int64
-}
-
-func (p *PDPService) ProofSetStatus(ctx context.Context, txHash common.Hash) (*ProofSetStatus, error) {
+func (p *PDPService) GetProofSetStatus(ctx context.Context, txHash common.Hash) (*types.ProofSetStatus, error) {
 	var proofSetCreate models.PDPProofsetCreate
 	if err := p.db.WithContext(ctx).
+		Preload("MessageWait").
 		Where("create_message_hash = ?", txHash.Hex()).
 		First(&proofSetCreate).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -35,28 +28,7 @@ func (p *PDPService) ProofSetStatus(ctx context.Context, txHash common.Hash) (*P
 		return nil, fmt.Errorf("proof set creation not for given service")
 	}
 
-	response := &ProofSetStatus{
-		CreateMessageHash: proofSetCreate.CreateMessageHash,
-		ProofsetCreated:   proofSetCreate.ProofsetCreated,
-		Service:           proofSetCreate.Service,
-	}
-	if proofSetCreate.Ok != nil {
-		response.OK = *proofSetCreate.Ok
-	}
-
-	// Now get the tx_status from message_waits_eth
-	var ethMsgWait models.MessageWaitsEth
-	if err := p.db.WithContext(ctx).
-		Where("signed_tx_hash = ?", txHash.Hex()).
-		First(&ethMsgWait).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("proof set creation not for for given txHash")
-		}
-		return nil, fmt.Errorf("failed to query proof set creation: %w", err)
-	}
-
-	response.TxStatus = ethMsgWait.TxStatus
-
+	var id uint64
 	if proofSetCreate.ProofsetCreated {
 		// The proof set has been created, get the proofSetId from pdp_proof_sets
 		var proofSet models.PDPProofSet
@@ -68,9 +40,14 @@ func (p *PDPService) ProofSetStatus(ctx context.Context, txHash common.Hash) (*P
 			}
 			return nil, fmt.Errorf("failed to retrieve proof set: %w", err)
 		}
-		response.ProofSetId = proofSet.ID
+		id = uint64(proofSet.ID)
 
 	}
 
-	return response, nil
+	return &types.ProofSetStatus{
+		TxHash:   common.HexToHash(proofSetCreate.CreateMessageHash),
+		TxStatus: proofSetCreate.MessageWait.TxStatus,
+		Created:  proofSetCreate.ProofsetCreated,
+		ID:       id,
+	}, nil
 }
