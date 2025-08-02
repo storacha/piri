@@ -1,10 +1,12 @@
-package api
+package server
 
 import (
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+
+	"github.com/storacha/piri/pkg/pdp/httpapi"
 )
 
 func (p *PDP) handleDeleteRootFromProofSet(c echo.Context) error {
@@ -29,8 +31,9 @@ func (p *PDP) handleDeleteRootFromProofSet(c echo.Context) error {
 	}
 
 	// check if the proofset belongs to the service in pdp_proof_sets
-	if err := p.Service.RemoveRoot(ctx, proofSetID, rootID); err != nil {
+	txHash, err := p.Service.RemoveRoot(ctx, proofSetID, rootID)
+	if err != nil {
 		return c.String(http.StatusInternalServerError, "failed to remove root")
 	}
-	return c.NoContent(http.StatusNoContent)
+	return c.JSON(http.StatusNoContent, httpapi.RemoveRootResponse{TxHash: txHash.String()})
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
@@ -12,11 +13,11 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
-func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) error {
+func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (common.Hash, error) {
 	// Get the ABI and pack the transaction data
 	abiData, err := contract.PDPVerifierMetaData()
 	if err != nil {
-		return fmt.Errorf("get contract ABI: %w", err)
+		return common.Hash{}, fmt.Errorf("get contract ABI: %w", err)
 	}
 
 	// Pack the method call data
@@ -26,7 +27,7 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 		[]byte{},
 	)
 	if err != nil {
-		return fmt.Errorf("pack ABI method call: %w", err)
+		return common.Hash{}, fmt.Errorf("pack ABI method call: %w", err)
 	}
 
 	// Prepare the transaction
@@ -43,7 +44,7 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 	reason := "pdp-delete-root"
 	txHash, err := p.sender.Send(ctx, p.address, ethTx, reason)
 	if err != nil {
-		return fmt.Errorf("send transaction: %w", err)
+		return common.Hash{}, fmt.Errorf("send transaction: %w", err)
 	}
 
 	// Schedule deletion of the root from the proof set using a transaction
@@ -56,8 +57,8 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 		tx.WithContext(ctx).Create(&m)
 		return nil
 	}); err != nil {
-		return fmt.Errorf("shceduling delete root %d from proofset %d: %w", rootID, proofSetID, err)
+		return common.Hash{}, fmt.Errorf("shceduling delete root %d from proofset %d: %w", rootID, proofSetID, err)
 	}
 
-	return nil
+	return txHash, nil
 }

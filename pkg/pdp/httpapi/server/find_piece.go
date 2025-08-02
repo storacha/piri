@@ -1,15 +1,14 @@
-package api
+package server
 
 import (
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
-)
 
-type FindPieceResponse struct {
-	PieceCID string `json:"piece_cid"`
-}
+	"github.com/storacha/piri/pkg/pdp/httpapi"
+	"github.com/storacha/piri/pkg/pdp/types"
+)
 
 func (p *PDP) handleFindPiece(c echo.Context) error {
 	ctx := c.Request().Context()
@@ -33,7 +32,11 @@ func (p *PDP) handleFindPiece(c echo.Context) error {
 	}
 
 	// Verify that a 'parked_pieces' entry exists for the given 'piece_cid'
-	pieceCID, has, err := p.Service.FindPiece(ctx, name, hash, size)
+	pieceCID, has, err := p.Service.FindPiece(ctx, types.Piece{
+		Name: name,
+		Hash: hash,
+		Size: size,
+	})
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "failed to find piece in database")
 	}
@@ -41,7 +44,7 @@ func (p *PDP) handleFindPiece(c echo.Context) error {
 		return c.String(http.StatusNotFound, "piece not found")
 	}
 
-	resp := FindPieceResponse{
+	resp := httpapi.FoundPieceResponse{
 		PieceCID: pieceCID.String(),
 	}
 

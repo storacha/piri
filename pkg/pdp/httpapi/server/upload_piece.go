@@ -1,4 +1,4 @@
-package api
+package server
 
 import (
 	"net/http"
@@ -6,12 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-)
 
-type PieceUploadResponse struct {
-	UploadUUID string `json:"uploadUUID"`
-	Status     string `json:"status"`
-}
+	"github.com/storacha/piri/pkg/pdp/types"
+)
 
 func (p *PDP) handlePieceUpload(c echo.Context) error {
 	ctx := c.Request().Context()
@@ -28,7 +25,10 @@ func (p *PDP) handlePieceUpload(c echo.Context) error {
 
 	log.Debugw("Processing prepare piece request", "uploadID", uploadID)
 	start := time.Now()
-	if _, err := p.Service.UploadPiece(ctx, uploadID, c.Request().Body); err != nil {
+	if err := p.Service.UploadPiece(ctx, types.PieceUpload{
+		ID:   uploadID,
+		Data: c.Request().Body,
+	}); err != nil {
 		return c.String(http.StatusBadRequest, "Failed to upload piece")
 	}
 

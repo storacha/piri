@@ -1,4 +1,4 @@
-package api
+package server
 
 import (
 	"encoding/hex"
@@ -7,16 +7,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/labstack/echo/v4"
-)
 
-type GetProofSetCreationStatusResponse struct {
-	CreateMessageHash string `json:"createMessageHash"`
-	ProofsetCreated   bool   `json:"proofsetCreated"`
-	Service           string `json:"service"`
-	TxStatus          string `json:"txStatus"`
-	OK                bool   `json:"ok"`
-	ProofSetId        int64  `json:"proofSetId,omitempty"`
-}
+	"github.com/storacha/piri/pkg/pdp/httpapi"
+)
 
 // echoHandleGetProofSetCreationStatus -> GET /pdp/proof-sets/created/:txHash
 func (p *PDP) handleGetProofSetCreationStatus(c echo.Context) error {
@@ -38,19 +31,19 @@ func (p *PDP) handleGetProofSetCreationStatus(c echo.Context) error {
 	}
 	txh := common.HexToHash(txHash)
 
-	status, err := p.Service.ProofSetStatus(ctx, txh)
+	status, err := p.Service.GetProofSetStatus(ctx, txh)
 	if err != nil {
 		log.Errorw("failed to get status proof set creation", "error", err)
 		return c.String(http.StatusInternalServerError, "Failed to get proof set status")
 	}
 
-	resp := GetProofSetCreationStatusResponse{
-		CreateMessageHash: status.CreateMessageHash,
-		ProofsetCreated:   status.ProofsetCreated,
-		Service:           status.Service,
+	resp := httpapi.ProofSetStatusResponse{
+		CreateMessageHash: status.TxStatus,
+		ProofsetCreated:   status.Created,
+		Service:           "storacha",
 		TxStatus:          status.TxStatus,
-		OK:                status.OK,
-		ProofSetId:        status.ProofSetId,
+		OK:                nil,
+		ProofSetId:        &status.ID,
 	}
 	return c.JSON(http.StatusOK, resp)
 
