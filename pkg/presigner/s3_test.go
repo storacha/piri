@@ -10,7 +10,7 @@ import (
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
 	"github.com/stretchr/testify/require"
 
-	"github.com/storacha/piri/pkg/internal/testutil"
+	"github.com/storacha/go-libstoracha/testutil"
 )
 
 func TestS3Signer(t *testing.T) {

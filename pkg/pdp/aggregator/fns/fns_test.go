@@ -3,7 +3,7 @@ package fns_test
 import (
 	"testing"
 
-	"github.com/storacha/piri/pkg/internal/testutil"
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/storacha/go-libstoracha/piece/piece"
@@ -180,7 +180,7 @@ func TestAggregatePieces(t *testing.T) {
 
 			// Build the input pieces
 			for _, size := range tc.pieceSizes {
-				pl := testutil.CreatePiece(t, size)
+				pl := testutil.RandomPiece(t, size)
 				pieces = append(pieces, pl)
 			}
 

@@ -34,7 +34,7 @@ import (
 	"github.com/storacha/go-ucanto/ucan"
 	"github.com/stretchr/testify/require"
 
-	"github.com/storacha/piri/pkg/internal/testutil"
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 )
 

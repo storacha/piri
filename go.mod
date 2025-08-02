@@ -44,7 +44,7 @@ require (
 	github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.8.1
-	github.com/storacha/go-libstoracha v0.1.1-0.20250619162540-1e6082bcad68
+	github.com/storacha/go-libstoracha v0.1.2-0.20250802021827-dfe693e44229
 	github.com/storacha/go-ucanto v0.4.2-0.20250619152010-a37ab7e132b3
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0

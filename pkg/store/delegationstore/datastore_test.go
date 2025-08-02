@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-datastore"
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/result/ok"
 	"github.com/storacha/go-ucanto/ucan"
-	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 
