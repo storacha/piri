@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/piri/internal/mocks"
-	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/pdp/aggregator"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/fns"
@@ -55,9 +55,9 @@ func TestPieceAggregator_StoreAndSubmit(t *testing.T) {
 	pa := aggregator.NewPieceAggregator(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
 	// the below makes assertion that when three aggregates are returned by the aggregator of the piece-aggregator
 	// three writes are made to the aggregate-store and three submissions are made to the queue-submission function.
-	p1 := testutil.CreatePiece(t, MB)
-	p2 := testutil.CreatePiece(t, MB)
-	p3 := testutil.CreatePiece(t, MB)
+	p1 := testutil.RandomPiece(t, MB)
+	p2 := testutil.RandomPiece(t, MB)
+	p3 := testutil.RandomPiece(t, MB)
 	expectedPieces := []piece.PieceLink{p1, p2, p3}
 	expectedAggregates := []aggregate.Aggregate{{Root: p1}, {Root: p2}, {Root: p3}}
 	expectedBuffer := fns.Buffer{}
@@ -99,9 +99,9 @@ func TestPieceAggregator_PutBufferError(t *testing.T) {
 	workspaceMock, storeMock, queueSubMock, baMock := setupPieceAggregatorDependencies(ctrl)
 
 	pa := aggregator.NewPieceAggregator(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
-	p1 := testutil.CreatePiece(t, MB)
-	p2 := testutil.CreatePiece(t, MB)
-	p3 := testutil.CreatePiece(t, MB)
+	p1 := testutil.RandomPiece(t, MB)
+	p2 := testutil.RandomPiece(t, MB)
+	p3 := testutil.RandomPiece(t, MB)
 	expectedPieces := []piece.PieceLink{p1, p2, p3}
 	expectedAggregates := []aggregate.Aggregate{{Root: p1}, {Root: p2}, {Root: p3}}
 	expectedBuffer := fns.Buffer{}
@@ -124,9 +124,9 @@ func TestPieceAggregator_AggregatePieceError(t *testing.T) {
 	workspaceMock, storeMock, queueSubMock, baMock := setupPieceAggregatorDependencies(ctrl)
 
 	pa := aggregator.NewPieceAggregator(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
-	p1 := testutil.CreatePiece(t, MB)
-	p2 := testutil.CreatePiece(t, MB)
-	p3 := testutil.CreatePiece(t, MB)
+	p1 := testutil.RandomPiece(t, MB)
+	p2 := testutil.RandomPiece(t, MB)
+	p3 := testutil.RandomPiece(t, MB)
 	expectedPieces := []piece.PieceLink{p1, p2, p3}
 	expectedBuffer := fns.Buffer{}
 
@@ -147,9 +147,9 @@ func TestPieceAggregator_StorePutError(t *testing.T) {
 	workspaceMock, storeMock, queueSubMock, baMock := setupPieceAggregatorDependencies(ctrl)
 
 	pa := aggregator.NewPieceAggregator(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
-	p1 := testutil.CreatePiece(t, MB)
-	p2 := testutil.CreatePiece(t, MB)
-	p3 := testutil.CreatePiece(t, MB)
+	p1 := testutil.RandomPiece(t, MB)
+	p2 := testutil.RandomPiece(t, MB)
+	p3 := testutil.RandomPiece(t, MB)
 	expectedPieces := []piece.PieceLink{p1, p2, p3}
 	expectedBuffer := fns.Buffer{}
 	expectedAggregates := []aggregate.Aggregate{{Root: p1}, {Root: p2}, {Root: p3}}
