@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-datastore"
-	"github.com/storacha/piri/pkg/internal/testutil"
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 	"github.com/stretchr/testify/require"
 )

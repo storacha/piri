@@ -16,6 +16,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
@@ -25,7 +26,6 @@ import (
 	"github.com/storacha/go-ucanto/server"
 	"github.com/storacha/go-ucanto/ucan"
 	"github.com/storacha/piri/pkg/internal/digestutil"
-	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/service/publisher/advertisement"
 	"github.com/stretchr/testify/require"
 )

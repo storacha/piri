@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/multiformats/go-multihash"
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/piri/internal/mocks"
-	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/pdp/curio"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ func TestFindPiece(t *testing.T) {
 	expectedSize := uint64(1024)
 	expectedMh := testutil.RandomMultihash(t)
 	expectedDigest := testutil.Must(multihash.Decode(expectedMh))(t)
-	expectedPiece := testutil.CreatePiece(t, 1024)
+	expectedPiece := testutil.RandomPiece(t, 1024)
 	clientMock.EXPECT().
 		FindPiece(ctx, curio.PieceHash{
 			Hash: hex.EncodeToString(expectedDigest.Digest),
@@ -55,7 +55,7 @@ func TestFindPiece_RetryThenSuccess(t *testing.T) {
 
 	expectedSize := uint64(1024)
 	expectedMh := testutil.RandomMultihash(t)
-	expectedPiece := testutil.CreatePiece(t, 1024)
+	expectedPiece := testutil.RandomPiece(t, 1024)
 
 	// First 2 calls return a 404-like error, third call succeeds
 	clientMock.EXPECT().FindPiece(ctx, gomock.Any()).

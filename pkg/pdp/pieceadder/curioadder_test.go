@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/multiformats/go-multihash"
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/piri/internal/mocks"
-	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/pdp/curio"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/stretchr/testify/require"
