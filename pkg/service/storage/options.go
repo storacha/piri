@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"fmt"
 	"net/url"
 
 	"github.com/ipfs/go-datastore"
@@ -23,14 +24,6 @@ import (
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
-type PDPConfig struct {
-	PDPService   pdp.PDP
-	PDPDatastore datastore.Datastore
-	PDPServerURL *url.URL
-	ProofSet     uint64
-	DatabasePath string
-}
-
 type config struct {
 	id                    principal.Signer
 	publicURL             url.URL
@@ -48,12 +41,15 @@ type config struct {
 	publisherBlobAddress  multiaddr.Multiaddr
 	receiptStore          receiptstore.ReceiptStore
 	receiptDatastore      datastore.Datastore
-	pdp                   *PDPConfig
 	announceURLs          []url.URL
 	indexingService       client.Connection
 	indexingServiceProofs delegation.Proofs
 	uploadService         client.Connection
 	replicatorDB          *sql.DB
+
+	// to be used exclusively
+	pdpCfg  *pdp.Config
+	pdpImpl pdp.PDP
 }
 
 type Option func(*config) error
@@ -260,9 +256,22 @@ func WithLogLevel(name string, level string) Option {
 }
 
 // WithPDPConfig causes the service to run through Curio and do PDP proofs
-func WithPDPConfig(pdpConfig PDPConfig) Option {
+func WithPDPConfig(pdpConfig pdp.Config) Option {
 	return func(c *config) error {
-		c.pdp = &pdpConfig
+		if c.pdpImpl != nil {
+			return fmt.Errorf("cannot set PDP config when pdpImpl is set")
+		}
+		c.pdpCfg = &pdpConfig
+		return nil
+	}
+}
+
+func WithPDPImpl(pdpImpl pdp.PDP) Option {
+	return func(c *config) error {
+		if c.pdpCfg != nil {
+			return fmt.Errorf("cannot set PDP impl when pdpCfg is set")
+		}
+		c.pdpImpl = pdpImpl
 		return nil
 	}
 }

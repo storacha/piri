@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -33,7 +32,7 @@ import (
 	"github.com/storacha/piri/pkg/access"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/pdp/aggregator"
-	"github.com/storacha/piri/pkg/pdp/curio"
+	"github.com/storacha/piri/pkg/pdp/httpapi/client"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/presets"
@@ -86,21 +85,20 @@ func (p *PDP) PieceFinder() piecefinder.PieceFinder {
 }
 
 func NewPDP(cfg Config) (*PDP, error) {
-	curioURL, err := url.Parse(cfg.CurioURL)
+	pdpAPIURL, err := url.Parse(cfg.CurioURL)
 	if err != nil {
 		return nil, fmt.Errorf("parsing curio URL: %w", err)
 	}
-	curioAuth, err := curio.CreateCurioJWTAuthHeader("storacha", cfg.Signer)
+	pdpAPI, err := client.New(pdpAPIURL, client.WithBearerFromSigner(cfg.Signer))
 	if err != nil {
-		return nil, fmt.Errorf("generating curio JWT: %w", err)
+		return nil, fmt.Errorf("creating pdp api client: %w", err)
 	}
-	curioClient := curio.New(http.DefaultClient, curioURL, curioAuth)
 	return &PDP{
 		aggregator: &AWSAggregator{
 			pieceAggregatorQueue: NewSQSPieceQueue(cfg.Config, cfg.SQSPDPPieceAggregatorURL),
 		},
-		pieceAdder:  pieceadder.NewCurioAdder(curioClient),
-		pieceFinder: piecefinder.NewCurioFinder(curioClient),
+		pieceAdder:  pieceadder.NewCurioAdder(pdpAPI, pdpAPIURL),
+		pieceFinder: piecefinder.NewCurioFinder(pdpAPI, pdpAPIURL),
 	}, nil
 }
 
@@ -387,12 +385,12 @@ func Construct(cfg Config) (storage.Service, error) {
 			return nil, fmt.Errorf("setting up PDP: %w", err)
 		}
 
-		opts = append(opts, storage.WithPDPConfig(storage.PDPConfig{PDPService: pdp}))
-		curioURL, err := url.Parse(cfg.CurioURL)
+		opts = append(opts, storage.WithPDPImpl(pdp))
+		pdpAPIURL, err := url.Parse(cfg.CurioURL)
 		if err != nil {
 			return nil, fmt.Errorf("parsing curio URL: %w", err)
 		}
-		curioAddr, err := maurl.FromURL(curioURL)
+		pdpAddr, err := maurl.FromURL(pdpAPIURL)
 		if err != nil {
 			return nil, fmt.Errorf("parsing curio URL to multiaddr: %w", err)
 		}
@@ -400,7 +398,7 @@ func Construct(cfg Config) (storage.Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing piece addr for curio: %w", err)
 		}
-		blobAddr = multiaddr.Join(curioAddr, pieceAddr)
+		blobAddr = multiaddr.Join(pdpAddr, pieceAddr)
 	}
 
 	if cfg.BlobStoreBucketKeyPattern != "" {

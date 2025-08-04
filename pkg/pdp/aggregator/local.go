@@ -22,7 +22,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/pdp/curio"
+	types2 "github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -71,7 +71,7 @@ func (la *LocalAggregator) AggregatePiece(ctx context.Context, pieceLink piece.P
 func NewLocal(
 	ds datastore.Datastore,
 	dbPath string,
-	client *curio.Client,
+	client types2.ProofSetAPI,
 	proofSet uint64,
 	issuer ucan.Signer,
 	receiptStore receiptstore.ReceiptStore,

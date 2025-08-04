@@ -3,20 +3,29 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/storacha/go-ucanto/principal"
 
+	"github.com/storacha/piri/lib"
+	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp/httpapi"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
+
+var log = logging.Logger("pdp/client")
 
 var _ types.API = (*Client)(nil)
 
@@ -28,38 +37,103 @@ const (
 	rootsPath     = "/roots"
 )
 
+type EndpointType string
+
+const (
+	GenericEndpoint EndpointType = "generic"
+	PiriEndpoint    EndpointType = "piri"
+)
+
 type Client struct {
 	authHeader string
 	endpoint   *url.URL
 	client     *http.Client
-	serverType string // "piri" or "generic"
+	serverType EndpointType
 }
 
-// NewClient creates a new PDP API client and automatically detects the server type
-func NewClient(ctx context.Context, endpoint string, authHeader string, httpClient *http.Client) (*Client, error) {
-	u, err := url.Parse(endpoint)
+type Option func(c *Client) error
+
+func WithHTTPClient(client *http.Client) Option {
+	return func(c *Client) error {
+		c.client = client
+		return nil
+	}
+}
+
+func WithBearerFromSigner(id principal.Signer) Option {
+	return func(c *Client) error {
+		authHeader, err := createAuthBearerTokenFromID(id)
+		if err != nil {
+			return fmt.Errorf("creating auth header from ID: %w", err)
+		}
+		c.authHeader = authHeader
+		return nil
+	}
+}
+
+func WithEndpointType(t EndpointType) Option {
+	return func(c *Client) error {
+		c.serverType = t
+		return nil
+	}
+}
+
+// New creates a new PDP API client and automatically detects the server type
+func New(endpoint *url.URL, opts ...Option) (*Client, error) {
+	if endpoint == nil {
+		return nil, fmt.Errorf("endpoint is required")
+	}
+	c := &Client{
+		endpoint: endpoint,
+		client:   http.DefaultClient,
+	}
+	for _, opt := range opts {
+		if err := opt(c); err != nil {
+			return nil, fmt.Errorf("applying options: %w", err)
+		}
+	}
+
+	// if a server type wasn't provided, attempt to detect it by pinging the endpoint
+	if c.serverType == "" {
+		// Detect server type
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := c.detectServerType(ctx); err != nil {
+			log.Errorw("pdp client failed to ping endpoint", "endpoint", c.endpoint, "err", err)
+			c.serverType = GenericEndpoint
+		}
+	}
+
+	return c, nil
+}
+
+func NewFromConfig(cfg config.PDPClient) (*Client, error) {
+	endpoint, err := url.Parse(cfg.NodeURL)
 	if err != nil {
-		return nil, fmt.Errorf("invalid endpoint URL: %w", err)
+		return nil, fmt.Errorf("parsing node URL: %w", err)
+	}
+	id, err := lib.SignerFromEd25519PEMFile(cfg.Identity.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("loading identity key file: %w", err)
+	}
+	return New(endpoint, WithBearerFromSigner(id))
+}
+
+func createAuthBearerTokenFromID(id principal.Signer) (string, error) {
+	claims := jwt.MapClaims{
+		"service_name": "storacha",
 	}
 
-	if httpClient == nil {
-		httpClient = http.DefaultClient
+	// Create the token
+	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
+
+	// Sign the token
+	tokenString, err := token.SignedString(ed25519.PrivateKey(id.Raw()))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign token: %v", err)
 	}
 
-	client := &Client{
-		authHeader: authHeader,
-		endpoint:   u,
-		client:     httpClient,
-		serverType: "generic", // default
-	}
-
-	// Detect server type
-	if err := client.DetectServerType(ctx); err != nil {
-		// Log warning but don't fail - assume generic server
-		// The error is not critical as we can still work with a generic server
-	}
-
-	return client, nil
+	return "Bearer " + tokenString, nil
 }
 
 func (c *Client) CreateProofSet(ctx context.Context, recordKeeper common.Address) (common.Hash, error) {
@@ -139,7 +213,7 @@ func (c *Client) GetProofSet(ctx context.Context, proofSetID uint64) (*types.Pro
 		Roots:              roots,
 	}
 
-	if !c.IsPiriServer() {
+	if !c.isPiriServer() {
 		return out, nil
 	}
 
@@ -174,7 +248,7 @@ func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.
 		})
 	}
 	payload := httpapi.AddRootsRequest{Roots: addRoots}
-	if !c.IsPiriServer() {
+	if !c.isPiriServer() {
 		return common.Hash{}, c.verifySuccess(c.postJson(ctx, route, payload))
 	}
 	res, err := c.postJson(ctx, route, payload)
@@ -197,7 +271,7 @@ func (c *Client) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint6
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to remove root: %w", err)
 	}
-	if !c.IsPiriServer() {
+	if !c.isPiriServer() {
 		return common.Hash{}, nil
 	}
 	var payload httpapi.RemoveRootResponse
@@ -226,7 +300,7 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
 		return nil, errFromResponse(res)
 	}
-	if !c.IsPiriServer() {
+	if !c.isPiriServer() {
 		// piece already exists
 		if res.StatusCode == http.StatusOK {
 			var result map[string]interface{}
@@ -335,8 +409,8 @@ func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid) (*types.PieceRead
 	}, nil
 }
 
-// DetectServerType pings the server to determine if it's a piri server or generic server
-func (c *Client) DetectServerType(ctx context.Context) error {
+// detectServerType pings the server to determine if it's a piri server or generic server
+func (c *Client) detectServerType(ctx context.Context) error {
 	route := c.endpoint.JoinPath(pdpRoutePath, pingPath).String()
 	res, err := c.sendRequest(ctx, http.MethodGet, route, nil)
 	if err != nil {
@@ -375,24 +449,28 @@ func (c *Client) DetectServerType(ctx context.Context) error {
 	return nil
 }
 
-// IsPiriServer returns true if the client is connected to a piri server
-func (c *Client) IsPiriServer() bool {
+// isPiriServer returns true if the client is connected to a piri server
+func (c *Client) isPiriServer() bool {
 	return c.serverType == "piri"
 }
 
 func (c *Client) sendRequest(ctx context.Context, method string, url string, body io.Reader) (*http.Response, error) {
+	log.Debugf("requesting [%s]: %s", method, url)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("generating http request: %w", err)
 	}
 	// add authorization header
-	req.Header.Add("Authorization", c.authHeader)
+	if c.authHeader != "" {
+		req.Header.Add("Authorization", c.authHeader)
+	}
 	req.Header.Add("Content-Type", "application/json")
 	// send request
 	res, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("sending request to curio: %w", err)
 	}
+	log.Infof("sent request [%s]: %s response %s", method, url, res.Status)
 	return res, nil
 }
 

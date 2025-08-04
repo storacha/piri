@@ -19,6 +19,7 @@ import (
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
+	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/storage"
@@ -193,7 +194,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	var pdpConfig *storage.PDPConfig
+	var pdpConfig *pdp.Config
 	var blobAddr multiaddr.Multiaddr
 	if pdpServerURL := cfg.PDPServerURL; pdpServerURL != "" {
 		pdpServerURL, err := url.Parse(pdpServerURL)
@@ -216,7 +217,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
-		pdpConfig = &storage.PDPConfig{
+		pdpConfig = &pdp.Config{
 			PDPDatastore: aggDs,
 			PDPServerURL: pdpServerURL,
 			ProofSet:     cfg.ProofSet,
