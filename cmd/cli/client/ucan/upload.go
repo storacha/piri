@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/go-cid"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/storacha/go-ucanto/core/ipld/hash/sha256"
 	"github.com/storacha/go-ucanto/did"
 
@@ -35,6 +36,7 @@ func init() {
 	cobra.CheckErr(UploadCmd.MarkFlagRequired("blob"))
 
 	UploadCmd.PersistentFlags().String("proof", "", "CAR file containing storage proof authorizing client invocations")
+	cobra.CheckErr(viper.BindPFlag("proof", UploadCmd.PersistentFlags().Lookup("proof")))
 	cobra.CheckErr(UploadCmd.MarkPersistentFlagRequired("proof"))
 
 }

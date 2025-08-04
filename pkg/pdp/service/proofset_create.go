@@ -5,19 +5,20 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Address) (common.Hash, error) {
 	if len(recordKeeper.Bytes()) == 0 {
-		return common.Hash{}, fmt.Errorf("record keeper is empty")
+		return common.Hash{}, types.NewError(types.KindInvalidInput, "record keeper is required")
 	}
 	if !common.IsHexAddress(recordKeeper.Hex()) {
-		return common.Hash{}, fmt.Errorf("invalid recordKeeper address: %s", recordKeeper)
+		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "record keeper %s is not a valid address", recordKeeper)
 	}
 
 	// Obtain the ABI of the PDPVerifier contract
@@ -33,7 +34,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Add
 	}
 
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
-	tx := types.NewTransaction(
+	tx := ethtypes.NewTransaction(
 		0,
 		contract.Addresses().PDPVerifier,
 		contract.SybilFee(),

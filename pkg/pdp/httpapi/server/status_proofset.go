@@ -34,11 +34,11 @@ func (p *PDP) handleGetProofSetCreationStatus(c echo.Context) error {
 	status, err := p.Service.GetProofSetStatus(ctx, txh)
 	if err != nil {
 		log.Errorw("failed to get status proof set creation", "error", err)
-		return c.String(http.StatusInternalServerError, "Failed to get proof set status")
+		return err
 	}
 
 	resp := httpapi.ProofSetStatusResponse{
-		CreateMessageHash: status.TxStatus,
+		CreateMessageHash: status.TxHash.String(),
 		ProofsetCreated:   status.Created,
 		Service:           "storacha",
 		TxStatus:          status.TxStatus,

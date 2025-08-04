@@ -47,7 +47,7 @@ func WithMaxAttempts(n int) Option {
 const defaultMaxAttempts = 10
 const defaultRetryDelay = 5 * time.Second
 
-func NewCurioFinder(api types.PieceAPI, endpoint *url.URL, opts ...Option) PieceFinder {
+func New(api types.PieceAPI, endpoint *url.URL, opts ...Option) *CurioFinder {
 	cf := &CurioFinder{
 		api:         api,
 		endpoint:    endpoint.JoinPath("piece"),

@@ -15,12 +15,6 @@ import (
 
 var logger = logging.Logger("pdp/server")
 
-// customErrorHandler provides enhanced error handling for ContextualError types
-func customErrorHandler(err error, c echo.Context) {
-	// Let our middleware handle the error type and logging
-	middleware.HandleError(err, c)
-}
-
 type Server struct {
 	e *echo.Echo
 }
@@ -37,7 +31,7 @@ func NewServer(p *PDP) *Server {
 	e.Use(middleware.LogMiddleware(logger))
 
 	// Custom error handler for our ContextualError type
-	e.HTTPErrorHandler = customErrorHandler
+	e.HTTPErrorHandler = middleware.HandleError
 
 	RegisterEchoRoutes(e, p)
 

@@ -85,9 +85,9 @@ func (p *PDP) PieceFinder() piecefinder.PieceFinder {
 }
 
 func NewPDP(cfg Config) (*PDP, error) {
-	pdpAPIURL, err := url.Parse(cfg.CurioURL)
+	pdpAPIURL, err := url.Parse(cfg.PDPServerURL)
 	if err != nil {
-		return nil, fmt.Errorf("parsing curio URL: %w", err)
+		return nil, fmt.Errorf("parsing pdp server URL: %w", err)
 	}
 	pdpAPI, err := client.New(pdpAPIURL, client.WithBearerFromSigner(cfg.Signer))
 	if err != nil {
@@ -97,8 +97,8 @@ func NewPDP(cfg Config) (*PDP, error) {
 		aggregator: &AWSAggregator{
 			pieceAggregatorQueue: NewSQSPieceQueue(cfg.Config, cfg.SQSPDPPieceAggregatorURL),
 		},
-		pieceAdder:  pieceadder.NewCurioAdder(pdpAPI, pdpAPIURL),
-		pieceFinder: piecefinder.NewCurioFinder(pdpAPI, pdpAPIURL),
+		pieceAdder:  pieceadder.New(pdpAPI, pdpAPIURL),
+		pieceFinder: piecefinder.New(pdpAPI, pdpAPIURL),
 	}, nil
 }
 
@@ -141,7 +141,7 @@ type Config struct {
 	SQSPDPAggregateSubmitterURL    string
 	SQSPDPPieceAccepterURL         string
 	PDPProofSet                    uint64
-	CurioURL                       string
+	PDPServerURL                   string
 	PrincipalMapping               map[string]string
 	principal.Signer
 }
@@ -291,7 +291,7 @@ func FromEnv(ctx context.Context) Config {
 		SQSPDPAggregateSubmitterURL:    os.Getenv("AGGREGATE_SUBMITTER_QUEUE_URL"),
 		SQSPDPPieceAccepterURL:         os.Getenv("PIECE_ACCEPTER_QUEUE_URL"),
 		PDPProofSet:                    proofSet,
-		CurioURL:                       os.Getenv("CURIO_URL"),
+		PDPServerURL:                   os.Getenv("CURIO_URL"),
 		PrincipalMapping:               principalMapping,
 	}
 }
@@ -379,24 +379,24 @@ func Construct(cfg Config) (storage.Service, error) {
 	}
 
 	var blobAddr multiaddr.Multiaddr
-	if cfg.SQSPDPPieceAggregatorURL != "" && cfg.CurioURL != "" {
+	if cfg.SQSPDPPieceAggregatorURL != "" && cfg.PDPServerURL != "" {
 		pdp, err := NewPDP(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("setting up PDP: %w", err)
 		}
 
 		opts = append(opts, storage.WithPDPImpl(pdp))
-		pdpAPIURL, err := url.Parse(cfg.CurioURL)
+		pdpAPIURL, err := url.Parse(cfg.PDPServerURL)
 		if err != nil {
-			return nil, fmt.Errorf("parsing curio URL: %w", err)
+			return nil, fmt.Errorf("parsing pdp server URL: %w", err)
 		}
 		pdpAddr, err := maurl.FromURL(pdpAPIURL)
 		if err != nil {
-			return nil, fmt.Errorf("parsing curio URL to multiaddr: %w", err)
+			return nil, fmt.Errorf("parsing pdp server URL to multiaddr: %w", err)
 		}
 		pieceAddr, err := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape("piece/{blobCID}"))
 		if err != nil {
-			return nil, fmt.Errorf("parsing piece addr for curio: %w", err)
+			return nil, fmt.Errorf("parsing piece addr for pdp server: %w", err)
 		}
 		blobAddr = multiaddr.Join(pdpAddr, pieceAddr)
 	}

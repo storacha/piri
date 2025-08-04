@@ -46,10 +46,6 @@ type PDPService struct {
 	startFns []func(ctx context.Context) error
 }
 
-func (p *PDPService) Storage() blobstore.Blobstore {
-	return p.blobstore
-}
-
 func (p *PDPService) Start(ctx context.Context) error {
 	for _, startFn := range p.startFns {
 		if err := startFn(ctx); err != nil {

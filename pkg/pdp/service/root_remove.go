@@ -20,6 +20,8 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 		return common.Hash{}, fmt.Errorf("get contract ABI: %w", err)
 	}
 
+	// TODO should probably check if we even have the proof set before scheduling a removal
+
 	// Pack the method call data
 	data, err := abiData.Pack("scheduleRemovals",
 		big.NewInt(int64(proofSetID)),

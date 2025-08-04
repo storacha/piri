@@ -22,9 +22,6 @@ func LogMiddleware(logger *logging.ZapEventLogger) echo.MiddlewareFunc {
 
 			// Execute the next handler
 			err := next(c)
-			if err != nil {
-				c.Error(err)
-			}
 
 			// Calculate latency
 			stop := time.Now()

@@ -45,7 +45,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 	}
 	phMh, err := Multihash(ph)
 	if err != nil {
-		return fmt.Errorf("failed to decode hash: %w", err)
+		return err
 	}
 
 	// Limit the size of the piece data

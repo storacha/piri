@@ -36,20 +36,20 @@ func (p *PDP) handleDownloadByPieceCid(c echo.Context) error {
 	// Get a reader over the piece
 	// TODO we will want to wait on the PieceStore task to complete before allowing this read to go through,
 	// else the piece may not exist. Alternately, we could query it from the stash via a lookup of parked_pice_ref joinned on another table.
-	obj, err := p.Service.Storage().Get(ctx, pieceCid.Hash())
+	obj, err := p.Service.ReadPiece(ctx, pieceCid)
 	if err != nil {
 		errMsg := fmt.Sprintf("server error getting content for piece CID %s: %s", pieceCid, err)
 		log.Error(errMsg)
-		return c.String(http.StatusNotFound, errMsg)
+		return err
 
 	}
 
-	bodyReadSeeker, err := makeReadSeeker(obj.Body())
+	bodyReadSeeker, err := makeReadSeeker(obj.Data)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 	setHeaders(c.Response(), pieceCid)
-	serveContent(c.Response(), c.Request(), abi.UnpaddedPieceSize(obj.Size()), bodyReadSeeker)
+	serveContent(c.Response(), c.Request(), abi.UnpaddedPieceSize(obj.Size), bodyReadSeeker)
 	return nil
 }
 

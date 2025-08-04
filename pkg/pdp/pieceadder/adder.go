@@ -15,7 +15,7 @@ type PieceAdder interface {
 	AddPiece(ctx context.Context, digest multihash.Multihash, size uint64) (*url.URL, error)
 }
 
-func NewCurioAdder(api types.PieceAPI, endpoint *url.URL) *CurioAdder {
+func New(api types.PieceAPI, endpoint *url.URL) *CurioAdder {
 	return &CurioAdder{api: api, endpoint: endpoint.JoinPath("pdp", "piece", "upload")}
 }
 

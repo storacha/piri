@@ -30,13 +30,13 @@ func (p *PDPService) GetProofSet(ctx context.Context, id uint64) (*types.ProofSe
 	var proofSet models.PDPProofSet
 	if err := p.db.WithContext(ctx).First(&proofSet, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("proof set not found")
+			return nil, types.NewErrorf(types.KindNotFound, "proof set %d not found", id)
 		}
 		return nil, fmt.Errorf("failed to retrieve proof set: %w", err)
 	}
 
 	if proofSet.Service != p.name {
-		return nil, fmt.Errorf("proof set does not belong to your service")
+		return nil, types.NewError(types.KindUnauthorized, "not authorized")
 	}
 
 	// Retrieve the roots associated with the proof set.
@@ -50,7 +50,8 @@ func (p *PDPService) GetProofSet(ctx context.Context, id uint64) (*types.ProofSe
 
 	// Step 5: Build the response.
 	response := &types.ProofSet{
-		ID: uint64(proofSet.ID),
+		ID:          uint64(proofSet.ID),
+		Initialized: proofSet.InitReady,
 	}
 	for _, r := range roots {
 		rootCid, err := cid.Decode(r.Root)

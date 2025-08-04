@@ -113,8 +113,6 @@ func (pa *PieceAggregator) AggregatePieces(ctx context.Context, pieces []piece.P
 	return nil
 }
 
-// Step 2: Submit to curio
-
 type AggregateSubmitter struct {
 	proofSet uint64
 	store    AggregateStore
