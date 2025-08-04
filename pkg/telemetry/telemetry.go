@@ -166,7 +166,7 @@ import (
 )
 
 const (
-	defaultEndpoint    = "http://localhost:4317"
+	defaultEndpoint    = "telemetry.storacha.network:4317"
 	defaultEnvironment = "warm-staging"
 )
 
