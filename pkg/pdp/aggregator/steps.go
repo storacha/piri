@@ -9,10 +9,11 @@ import (
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/ucan"
+
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/fns"
-	"github.com/storacha/piri/pkg/pdp/curio"
+	types2 "github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -117,11 +118,11 @@ func (pa *PieceAggregator) AggregatePieces(ctx context.Context, pieces []piece.P
 type AggregateSubmitter struct {
 	proofSet uint64
 	store    AggregateStore
-	client   *curio.Client
+	client   types2.ProofSetAPI
 	queue    LinkQueue
 }
 
-func NewAggregateSubmitteer(proofSet uint64, store AggregateStore, client *curio.Client, queuePieceAccept LinkQueue) *AggregateSubmitter {
+func NewAggregateSubmitteer(proofSet uint64, store AggregateStore, client types2.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
 	return &AggregateSubmitter{
 		proofSet: proofSet,
 		store:    store,

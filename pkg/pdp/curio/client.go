@@ -138,7 +138,7 @@ type (
 
 var _ PDPClient = (*Client)(nil)
 
-func New(client *http.Client, endpoint *url.URL, authHeader string) *Client {
+func NEw(client *http.Client, endpoint *url.URL, authHeader string) *Client {
 	return &Client{
 		authHeader: authHeader,
 		endpoint:   endpoint,

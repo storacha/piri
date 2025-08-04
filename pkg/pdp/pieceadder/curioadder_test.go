@@ -21,7 +21,7 @@ func TestAddPiece(t *testing.T) {
 
 	clientMock := mocks.NewMockPDPClient(ctrl)
 
-	pa := pieceadder.NewCurioAdder(clientMock)
+	pa := pieceadder.NewCurioAdder(clientMock, nil)
 
 	expectedMh := testutil.RandomMultihash(t)
 	expectedDigest := testutil.Must(multihash.Decode(expectedMh))(t)

@@ -3,7 +3,6 @@ package pdp
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -20,10 +19,7 @@ import (
 
 	"github.com/storacha/piri/pkg/database"
 	"github.com/storacha/piri/pkg/database/gormdb"
-	"github.com/storacha/piri/pkg/pdp/curio"
 	"github.com/storacha/piri/pkg/pdp/httpapi/server"
-	"github.com/storacha/piri/pkg/pdp/pieceadder"
-	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/store"
@@ -32,10 +28,8 @@ import (
 )
 
 type Server struct {
-	pieceFinder piecefinder.PieceFinder
-	pieceAdder  pieceadder.PieceAdder
-	startFuncs  []func(ctx context.Context) error
-	stopFuncs   []func(ctx context.Context) error
+	startFuncs []func(ctx context.Context) error
+	stopFuncs  []func(ctx context.Context) error
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -79,9 +73,6 @@ func NewServer(
 	} else if !has {
 		return nil, fmt.Errorf("wallet for address %s not found", address)
 	}
-	// TODO our current in process endpoint, later create a client without http stuffs.
-	// NB: Auth not required
-	localPDPClient := curio.New(http.DefaultClient, endpoint, "")
 	lotusURL, err := url.Parse(lotusUrl)
 	if err != nil {
 		return nil, fmt.Errorf("parsing lotus client address: %w", err)
@@ -123,8 +114,6 @@ func NewServer(
 	pdpAPI := &server.PDP{Service: pdpService}
 	svr := server.NewServer(pdpAPI)
 	return &Server{
-		pieceFinder: piecefinder.NewCurioFinder(localPDPClient),
-		pieceAdder:  pieceadder.NewCurioAdder(localPDPClient),
 		startFuncs: []func(ctx context.Context) error{
 			func(ctx context.Context) error {
 				if err := svr.Start(fmt.Sprintf(":%s", endpoint.Port())); err != nil {
