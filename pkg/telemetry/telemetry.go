@@ -179,6 +179,7 @@ func New(ctx context.Context, cfg Config) (*Telemetry, error) {
 	// collector endpoint and environment will be hard-coded for now
 	cfg.endpoint = defaultEndpoint
 	cfg.environment = defaultEnvironment
+	cfg.insecure = true
 
 	provider, err := NewProvider(ctx, cfg)
 	if err != nil {
