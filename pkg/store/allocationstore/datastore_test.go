@@ -1,7 +1,6 @@
 package allocationstore
 
 import (
-	"context"
 	"math/rand/v2"
 	"testing"
 	"time"
@@ -27,10 +26,10 @@ func TestDsAllocationStore(t *testing.T) {
 			Cause:   testutil.RandomCID(t),
 		}
 
-		err = store.Put(context.Background(), alloc)
+		err = store.Put(t.Context(), alloc)
 		require.NoError(t, err)
 
-		allocs, err := store.List(context.Background(), alloc.Blob.Digest)
+		allocs, err := store.List(t.Context(), alloc.Blob.Digest)
 		require.NoError(t, err)
 		require.Len(t, allocs, 1)
 		require.Equal(t, alloc, allocs[0])
@@ -57,12 +56,12 @@ func TestDsAllocationStore(t *testing.T) {
 			Cause:   testutil.RandomCID(t),
 		}
 
-		err = store.Put(context.Background(), alloc0)
+		err = store.Put(t.Context(), alloc0)
 		require.NoError(t, err)
-		err = store.Put(context.Background(), alloc1)
+		err = store.Put(t.Context(), alloc1)
 		require.NoError(t, err)
 
-		allocs, err := store.List(context.Background(), alloc0.Blob.Digest)
+		allocs, err := store.List(t.Context(), alloc0.Blob.Digest)
 		require.NoError(t, err)
 		require.Len(t, allocs, 2)
 

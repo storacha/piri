@@ -21,7 +21,7 @@ func makeHandler(cfg aws.Config) (http.Handler, error) {
 		return nil, err
 	}
 
-	presolv, err := principalresolver.New(cfg.PrincipalMapping)
+	presolv, err := principalresolver.NewMapResolver(cfg.PrincipalMapping)
 	if err != nil {
 		return nil, err
 	}

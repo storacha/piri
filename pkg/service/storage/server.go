@@ -5,8 +5,10 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
+
 	"github.com/storacha/piri/internal/telemetry"
 )
 
@@ -23,13 +25,13 @@ func NewServer(service Service, options ...server.Option) (*Server, error) {
 	return &Server{ucanSrv}, nil
 }
 
-func (srv *Server) Serve(mux *http.ServeMux) {
-	mux.Handle("POST /", NewHandler(srv.ucanServer))
+func (srv *Server) RegisterRoutes(e *echo.Echo) {
+	e.POST("/", echo.WrapHandler(NewHandler(srv.ucanServer)))
 }
 
 func NewHandler(server server.ServerView) http.Handler {
 	handler := func(w http.ResponseWriter, r *http.Request) error {
-		res, err := server.Request(ucanhttp.NewHTTPRequest(r.Body, r.Header))
+		res, err := server.Request(r.Context(), ucanhttp.NewHTTPRequest(r.Body, r.Header))
 		if err != nil {
 			return telemetry.NewHTTPError(fmt.Errorf("handling UCAN request: %w", err), http.StatusInternalServerError)
 		}

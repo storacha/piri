@@ -1,5 +1,7 @@
 VERSION=$(shell awk -F'"' '/"version":/ {print $$4}' version.json)
-GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION)"
+COMMIT=$(shell git rev-parse --short HEAD)
+DATE=$(shell date -u -Iseconds)
+GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION) -X github.com/storacha/piri/pkg/build.Commit=$(COMMIT) -X github.com/storacha/piri/pkg/build.Date=$(DATE) -X github.com/storacha/piri/pkg/build.BuiltBy=make"
 TAGS?=
 
 .PHONY: all build piri install test clean calibnet mockgen check-docs-links
@@ -9,7 +11,7 @@ all: build
 build: piri
 
 piri:
-	go build $(GOFLAGS) $(TAGS) -o ./piri ./cmd/main.go
+	go build $(GOFLAGS) $(TAGS) -o ./piri github.com/storacha/piri/cmd
 
 install:
 	go install ./cmd/storage

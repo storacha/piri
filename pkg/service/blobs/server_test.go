@@ -2,7 +2,6 @@ package blobs
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,19 +13,21 @@ import (
 	"time"
 
 	"github.com/ipfs/go-datastore"
+	"github.com/labstack/echo/v4"
 	"github.com/multiformats/go-multihash"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
+	"github.com/stretchr/testify/require"
+
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/stretchr/testify/require"
 )
 
 func TestServer(t *testing.T) {
-	mux := http.NewServeMux()
+	mux := echo.New()
 	httpsrv := httptest.NewServer(mux)
 	t.Cleanup(httpsrv.Close)
 
@@ -53,14 +54,14 @@ func TestServer(t *testing.T) {
 	srv, err := NewServer(presigner, allocs, blobs)
 	require.NoError(t, err)
 
-	srv.Serve(mux)
+	srv.RegisterRoutes(mux)
 
 	t.Run("get blob", func(t *testing.T) {
 		data := testutil.RandomBytes(t, 32)
 		digest, err := multihash.Sum(data, multihash.SHA2_256, -1)
 		require.NoError(t, err)
 
-		err = blobs.Put(context.Background(), digest, uint64(len(data)), bytes.NewReader(data))
+		err = blobs.Put(t.Context(), digest, uint64(len(data)), bytes.NewReader(data))
 		require.NoError(t, err)
 
 		requireRetrievableBlob(t, *srvurl, digest, data)
@@ -73,7 +74,7 @@ func TestServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// create a fake allocation
-			err = allocs.Put(context.Background(), randomAllocation(t, digest, uint64(len(data))))
+			err = allocs.Put(t.Context(), randomAllocation(t, digest, uint64(len(data))))
 			require.NoError(t, err)
 
 			putBlob(t, presigner, digest, data, http.StatusOK)
@@ -86,7 +87,7 @@ func TestServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// create fake allocation
-			err = allocs.Put(context.Background(), randomAllocation(t, digest, uint64(len(data))))
+			err = allocs.Put(t.Context(), randomAllocation(t, digest, uint64(len(data))))
 			require.NoError(t, err)
 
 			putBlob(t, presigner, digest, data, http.StatusOK)
@@ -100,7 +101,7 @@ func TestServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// create a fake allocation
-			err = allocs.Put(context.Background(), randomAllocation(t, digest, uint64(len(data))))
+			err = allocs.Put(t.Context(), randomAllocation(t, digest, uint64(len(data))))
 			require.NoError(t, err)
 
 			putBlob(t, presigner, digest, data, http.StatusOK)
@@ -125,7 +126,7 @@ func randomAllocation(t *testing.T, digest multihash.Multihash, size uint64) all
 }
 
 func putBlob(t *testing.T, presigner presigner.RequestPresigner, digest multihash.Multihash, data []byte, expectStatus int) {
-	url, hd, err := presigner.SignUploadURL(context.Background(), digest, uint64(len(data)), 900)
+	url, hd, err := presigner.SignUploadURL(t.Context(), digest, uint64(len(data)), 900)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("PUT", url.String(), bytes.NewReader(data))

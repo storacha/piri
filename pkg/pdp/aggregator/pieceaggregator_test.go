@@ -46,7 +46,7 @@ const (
 )
 
 func TestPieceAggregator_StoreAndSubmit(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -76,7 +76,7 @@ func TestPieceAggregator_StoreAndSubmit(t *testing.T) {
 }
 
 func TestPieceAggregator_GetBufferError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -92,7 +92,7 @@ func TestPieceAggregator_GetBufferError(t *testing.T) {
 }
 
 func TestPieceAggregator_PutBufferError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -117,7 +117,7 @@ func TestPieceAggregator_PutBufferError(t *testing.T) {
 }
 
 func TestPieceAggregator_AggregatePieceError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -140,7 +140,7 @@ func TestPieceAggregator_AggregatePieceError(t *testing.T) {
 }
 
 func TestPieceAggregator_StorePutError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

@@ -61,7 +61,8 @@ var (
 	warmStageUploadServiceDID = lo.Must(did.Parse("did:web:staging.up.warm.storacha.network"))
 
 	warmStagePrincipalMapping = map[string]string{
-		warmStageUploadServiceDID.String(): "did:key:z6MkpR58oZpK7L3cdZZciKT25ynGro7RZm6boFouWQ7AzF7v",
+		warmStageUploadServiceDID.String():   "did:key:z6MkpR58oZpK7L3cdZZciKT25ynGro7RZm6boFouWQ7AzF7v",
+		warmStageIndexingServiceDID.String(): "did:key:z6Mkr4QkdinnXQmJ9JdnzwhcEjR8nMnuVPEwREyh9jp2Pb7k",
 	}
 )
 

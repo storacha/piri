@@ -1,7 +1,6 @@
 package delegationstore
 
 import (
-	"context"
 	"testing"
 
 	"github.com/ipfs/go-datastore"
@@ -26,10 +25,10 @@ func TestDsDelegationStore(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = store.Put(context.Background(), dlg)
+		err = store.Put(t.Context(), dlg)
 		require.NoError(t, err)
 
-		res, err := store.Get(context.Background(), dlg.Link())
+		res, err := store.Get(t.Context(), dlg.Link())
 		require.NoError(t, err)
 		testutil.RequireEqualDelegation(t, dlg, res)
 	})

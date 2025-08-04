@@ -1,7 +1,6 @@
 package testing
 
 import (
-	"context"
 	"testing"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -11,7 +10,7 @@ import (
 
 func TestCreateProofSet(t *testing.T) {
 	t.Skipf("Skipping for now until we implement a mockable clock in the scheduler.")
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -36,7 +35,7 @@ func TestCreateProofSet(t *testing.T) {
 func TestUploadPiece(t *testing.T) {
 	t.Skipf("Skipping for now until testhaness is more complete.")
 	logging.SetAllLoggers(logging.LevelInfo)
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

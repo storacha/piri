@@ -33,6 +33,11 @@ Deploy the client-facing API server
 ### Step 7: [Validate](./setup/validation.md)
 Test your complete deployment
 
+## Maintenance
+
+### [Upgrading Piri](./setup/upgrading.md)
+Keep your Piri installation up to date with the latest releases
+
 ---
 
 By the end of this guide, you'll have a fully operational Piri deployment ready to serve the Storacha network.

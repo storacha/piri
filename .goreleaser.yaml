@@ -1,12 +1,15 @@
 version: 2
 
+project_name: piri
+
 builds:
-  - main: ./cmd
+  - id: piri
+    main: ./cmd
     binary: piri
     ldflags:
       # Sets the version variable in the build package to the build version prefixed with a 'v'
       # Sets the main.date to a static date for checksum verification. See https://goreleaser.com/customization/builds/#reproducible-builds.
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser -X github.com/storacha/storage/pkg/build.version=v{{.Version}}
+      - -s -w -X github.com/storacha/piri/pkg/build.version=v{{.Version}} -X github.com/storacha/piri/pkg/build.Commit={{.Commit}} -X github.com/storacha/piri/pkg/build.Date={{.CommitDate}} -X github.com/storacha/piri/pkg/build.BuiltBy=goreleaser
     goos:
       - linux
       - darwin
@@ -17,17 +20,21 @@ builds:
     mod_timestamp: '{{.CommitTimestamp}}'
     env:
       - CGO_ENABLED=0
+
 universal_binaries:
   - replace: true
+
 archives:
   - format_overrides:
       - goos: darwin
-        format: zip
+        formats: zip
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_
       {{- if eq .Os "darwin" }}mac_os
       {{- else }}{{ .Os }}{{ end }}_{{ .Arch }}
+
 release:
   mode: keep-existing
+
 changelog:
   disable: true
