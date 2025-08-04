@@ -10,7 +10,6 @@ import (
 var (
 	globalTelemetry *Telemetry
 	globalMu        sync.RWMutex
-	globalOnce      sync.Once
 )
 
 // Initialize sets up the global telemetry instance.
@@ -39,13 +38,11 @@ func Global() *Telemetry {
 	globalMu.RUnlock()
 
 	// If not initialized, create a no-op instance
-	globalOnce.Do(func() {
-		globalMu.Lock()
-		defer globalMu.Unlock()
-		if globalTelemetry == nil {
-			globalTelemetry = NewWithMeter(noop.NewMeterProvider().Meter("noop"))
-		}
-	})
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	if globalTelemetry == nil {
+		globalTelemetry = NewWithMeter(noop.NewMeterProvider().Meter("noop"))
+	}
 
 	return globalTelemetry
 }
