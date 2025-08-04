@@ -578,6 +578,7 @@ func TestExtractDomainFromDID(t *testing.T) {
 }
 
 func TestRealTest(t *testing.T) {
+	t.Skip("test dials a real service - staging.indexer.warm.storacha.network - which is down causing the test to fail")
 	iKey, _ := did.Parse("did:key:z6Mkr4QkdinnXQmJ9JdnzwhcEjR8nMnuVPEwREyh9jp2Pb7k")
 	uKey, _ := did.Parse("did:key:z6MkpR58oZpK7L3cdZZciKT25ynGro7RZm6boFouWQ7AzF7v")
 
