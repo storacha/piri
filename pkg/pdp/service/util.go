@@ -21,7 +21,7 @@ func CommP(piece types.Piece, db *gorm.DB) (cid.Cid, bool, error) {
 	// commp, known, error
 	mh, err := Multihash(piece)
 	if err != nil {
-		return cid.Undef, false, fmt.Errorf("failed to decode hash: %w", err)
+		return cid.Undef, false, err
 	}
 
 	if piece.Name == multihash.Codes[multihash.SHA2_256_TRUNC254_PADDED] {
@@ -54,12 +54,12 @@ func CommP(piece types.Piece, db *gorm.DB) (cid.Cid, bool, error) {
 func Multihash(piece types.Piece) (multihash.Multihash, error) {
 	_, ok := multihash.Names[piece.Name]
 	if !ok {
-		return nil, fmt.Errorf("hash function name not recognized: %s", piece.Name)
+		return nil, types.NewErrorf(types.KindInvalidInput, "unknown multihash type: %s", piece.Name)
 	}
 
 	hashBytes, err := hex.DecodeString(piece.Hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode hash: %w", err)
+		return nil, types.WrapError(types.KindInvalidInput, "failed to decode hash", err)
 	}
 
 	return multihash.EncodeName(hashBytes, piece.Name)

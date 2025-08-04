@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 // ContextualError is a richer error interface that provides additional context
@@ -112,6 +114,24 @@ func HandleError(err error, c echo.Context) {
 	if errors.As(err, &he) {
 		_ = c.String(he.Code, fmt.Sprintf("%v", he.Message))
 		return
+	}
+
+	var tErr *types.Error
+	if errors.As(err, &tErr) {
+		switch tErr.Kind() {
+		case types.KindNotFound:
+			_ = c.String(http.StatusNotFound, tErr.Error())
+			return
+		case types.KindInvalidInput:
+			_ = c.String(http.StatusBadRequest, tErr.Error())
+			return
+		case types.KindUnauthorized:
+			_ = c.String(http.StatusUnauthorized, tErr.Error())
+			return
+		default:
+			_ = c.String(http.StatusInternalServerError, tErr.Error())
+			return
+		}
 	}
 
 	// Generic error handling

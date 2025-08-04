@@ -19,6 +19,7 @@ type ProofSetStatus struct {
 
 type ProofSet struct {
 	ID                     uint64
+	Initialized            bool
 	NextChallengeEpoch     int64
 	PreviousChallengeEpoch int64
 	ProvingPeriod          int64

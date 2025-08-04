@@ -197,7 +197,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if pdpServerURL := cfg.PDPServerURL; pdpServerURL != "" {
 		pdpServerURL, err := url.Parse(pdpServerURL)
 		if err != nil {
-			return fmt.Errorf("parsing curio URL: %w", err)
+			return fmt.Errorf("parsing pdp server URL: %w", err)
 		}
 		aggRootDir, err := cliutil.Mkdirp(cfg.DataDir, "aggregator")
 		if err != nil {
@@ -221,7 +221,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			ProofSet:     cfg.ProofSet,
 			DatabasePath: filepath.Join(aggJobQueueDir, "jobqueue.db"),
 		}
-		curioAddr, err := maurl.FromURL(pdpServerURL)
+		pdpServerAddr, err := maurl.FromURL(pdpServerURL)
 		if err != nil {
 			return fmt.Errorf("parsing pdp server url: %w", err)
 		}
@@ -229,7 +229,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
-		blobAddr = multiaddr.Join(curioAddr, pieceAddr)
+		blobAddr = multiaddr.Join(pdpServerAddr, pieceAddr)
 	}
 
 	var ipniAnnounceURLs []url.URL
@@ -261,15 +261,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing indexing service URL: %w", err)
 	}
 
-	var indexingServiceProof delegation.Proof
-	if cfg.IndexingServiceProof != "" {
-		dlg, err := delegation.Parse(cfg.IndexingServiceProof)
-		if err != nil {
-			return fmt.Errorf("parsing indexing service proof: %w", err)
-		}
-		indexingServiceProof = delegation.FromDelegation(dlg)
-	}
-
 	var pubURL *url.URL
 	if cfg.PublicURL == "" {
 		pubURL, err = url.Parse(fmt.Sprintf("http://%s:%d", cfg.Host, cfg.Port))
@@ -294,9 +285,17 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		storage.WithPublisherDirectAnnounce(ipniAnnounceURLs...),
 		storage.WithUploadServiceConfig(uploadServiceDID, *uploadServiceURL),
 		storage.WithPublisherIndexingServiceConfig(indexingServiceDID, *indexingServiceURL),
-		storage.WithPublisherIndexingServiceProof(indexingServiceProof),
 		storage.WithReceiptDatastore(receiptDs),
 	}
+
+	if cfg.IndexingServiceProof != "" {
+		dlg, err := delegation.Parse(cfg.IndexingServiceProof)
+		if err != nil {
+			return fmt.Errorf("parsing indexing service proof: %w", err)
+		}
+		opts = append(opts, storage.WithPublisherIndexingServiceProof(delegation.FromDelegation(dlg)))
+	}
+
 	if pdpConfig != nil {
 		opts = append(opts, storage.WithPDPConfig(*pdpConfig))
 	}

@@ -18,7 +18,7 @@ import (
 
 func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAllocation) (*types.AllocatedPiece, error) {
 	if abi.UnpaddedPieceSize(allocation.Piece.Size) > PieceSizeLimit {
-		return nil, fmt.Errorf("piece size exceeds the maximum allowed size")
+		return nil, types.NewErrorf(types.KindInvalidInput, "piece size %d exceeds limit %d", allocation.Piece.Size, PieceSizeLimit)
 	}
 
 	// map pieceCID, if sha256, to filecoin commp cid

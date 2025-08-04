@@ -19,7 +19,7 @@ func (p *PDPService) GetProofSetStatus(ctx context.Context, txHash common.Hash) 
 		Where("create_message_hash = ?", txHash.Hex()).
 		First(&proofSetCreate).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("proof set creation not for for given txHash")
+			return nil, types.NewErrorf(types.KindNotFound, "proof set with transaction hash %s not found", txHash.String())
 		}
 		return nil, fmt.Errorf("failed to retrieve proof set creation: %w", err)
 	}

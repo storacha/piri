@@ -21,26 +21,26 @@ import (
 // TODO return something useful here, like the transaction Hash.
 func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (common.Hash, error) {
 	if len(request) == 0 {
-		return common.Hash{}, fmt.Errorf("at least one root must be provided")
+		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "must provide at least one root")
 	}
 
 	// Collect all subrootCIDs to fetch their info in a batch
 	newSubroots := cid.NewSet()
 	for _, addRootReq := range request {
 		if !addRootReq.Root.Defined() {
-			return common.Hash{}, fmt.Errorf("rootCID is required for each root")
+			return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "must provide a root CID to add")
 		}
 
 		if len(addRootReq.SubRoots) == 0 {
-			return common.Hash{}, fmt.Errorf("at least one subroot is required per root")
+			return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "must provide at least one subroot CID to add")
 		}
 
 		for _, subrootEntry := range addRootReq.SubRoots {
 			if !subrootEntry.Defined() {
-				return common.Hash{}, fmt.Errorf("subrootCid is required for each subroot")
+				return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "subroot CID is required for each subroot")
 			}
 			if newSubroots.Has(subrootEntry) {
-				return common.Hash{}, fmt.Errorf("duplicate subrootCid in request")
+				return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "subroot CID %s is duplicated", subrootEntry.String())
 			}
 
 			newSubroots.Add(subrootEntry)

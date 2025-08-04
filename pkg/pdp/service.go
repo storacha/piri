@@ -72,8 +72,8 @@ func NewRemote(cfg *Config, id principal.Signer, receiptStore receiptstore.Recei
 	}
 	return &PDPService{
 		aggregator:  agg,
-		pieceFinder: piecefinder.NewCurioFinder(api, cfg.PDPServerURL),
-		pieceAdder:  pieceadder.NewCurioAdder(api, cfg.PDPServerURL),
+		pieceFinder: piecefinder.New(api, cfg.PDPServerURL),
+		pieceAdder:  pieceadder.New(api, cfg.PDPServerURL),
 		startFuncs: []func(ctx context.Context) error{
 			func(ctx context.Context) error {
 				return agg.Startup(ctx)

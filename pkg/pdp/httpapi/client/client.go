@@ -164,7 +164,7 @@ func (c *Client) GetProofSetStatus(ctx context.Context, txHash common.Hash) (*ty
 	var resp httpapi.ProofSetStatusResponse
 	err := c.getJsonResponse(ctx, route, &resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get proof-sets status: %w", err)
+		return nil, err
 	}
 
 	id := uint64(0)
@@ -441,8 +441,8 @@ func (c *Client) detectServerType(ctx context.Context) error {
 
 	// Check if response has "type" field set to "piri"
 	if typeValue, ok := pingResponse["type"]; ok {
-		if typeStr, ok := typeValue.(string); ok && typeStr == "piri" {
-			c.serverType = "piri"
+		if typeStr, ok := typeValue.(string); ok && typeStr == string(PiriEndpoint) {
+			c.serverType = PiriEndpoint
 		}
 	}
 
@@ -451,7 +451,7 @@ func (c *Client) detectServerType(ctx context.Context) error {
 
 // isPiriServer returns true if the client is connected to a piri server
 func (c *Client) isPiriServer() bool {
-	return c.serverType == "piri"
+	return c.serverType == PiriEndpoint
 }
 
 func (c *Client) sendRequest(ctx context.Context, method string, url string, body io.Reader) (*http.Response, error) {
@@ -468,7 +468,7 @@ func (c *Client) sendRequest(ctx context.Context, method string, url string, bod
 	// send request
 	res, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("sending request to curio: %w", err)
+		return nil, fmt.Errorf("sending request to pdp server: %w", err)
 	}
 	log.Infof("sent request [%s]: %s response %s", method, url, res.Status)
 	return res, nil
@@ -534,5 +534,5 @@ func errFromResponse(res *http.Response) ErrFailedResponse {
 }
 
 func (e ErrFailedResponse) Error() string {
-	return fmt.Sprintf("http request failed, status: %d %s, message: %s", e.StatusCode, http.StatusText(e.StatusCode), e.Body)
+	return fmt.Sprintf("http request receieved unexpected status: %d %s, message: %s", e.StatusCode, http.StatusText(e.StatusCode), e.Body)
 }

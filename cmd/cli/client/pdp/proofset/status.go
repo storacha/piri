@@ -63,7 +63,7 @@ func doStatus(cmd *cobra.Command, _ []string) error {
 func checkStatus(ctx context.Context, client types.ProofSetAPI, txHash common.Hash) (*types.ProofSetStatus, error) {
 	status, err := client.GetProofSetStatus(ctx, txHash)
 	if err != nil {
-		return nil, fmt.Errorf("getting proof set status: %w", err)
+		return nil, err
 	}
 	return status, nil
 }
