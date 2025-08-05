@@ -18,8 +18,8 @@ import (
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/piri/pkg/internal/digestutil"
-	"github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
