@@ -14,12 +14,15 @@ import (
 	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/internal/telemetry"
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
 var log = logging.Logger("blobs")
+
+var _ echofx.RouteRegistrar = (*Server)(nil)
 
 type Server struct {
 	blobs     blobstore.Blobstore

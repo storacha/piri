@@ -6,7 +6,11 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-libstoracha/ipnipublisher/server"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
+
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 )
+
+var _ echofx.RouteRegistrar = (*Server)(nil)
 
 type Server struct {
 	server *server.Server

@@ -48,6 +48,7 @@ require (
 	github.com/storacha/go-ucanto v0.4.2
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
+	go.uber.org/fx v1.23.0
 	go.uber.org/mock v0.5.0
 	golang.org/x/sync v0.13.0
 	gorm.io/datatypes v1.2.5
@@ -190,6 +191,7 @@ require (
 	go.opentelemetry.io/otel/exporters/prometheus v0.50.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.28.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.28.0 // indirect
+	go.uber.org/dig v1.18.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
