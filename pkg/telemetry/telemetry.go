@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	"go.opentelemetry.io/otel/attribute"
@@ -12,8 +13,9 @@ import (
 var log = logging.Logger("telemetry")
 
 const (
-	defaultEndpoint    = "telemetry.storacha.network:443"
-	defaultEnvironment = "warm-staging"
+	defaultEndpoint        = "telemetry.storacha.network:443"
+	defaultEnvironment     = "warm-staging"
+	defaultPublishInterval = 30 * time.Second
 )
 
 type Telemetry struct {
@@ -25,8 +27,11 @@ func New(ctx context.Context, cfg Config) (*Telemetry, error) {
 	// collector endpoint and environment will be hard-coded for now
 	cfg.endpoint = defaultEndpoint
 	cfg.environment = defaultEnvironment
+	if cfg.PublishInterval == 0 {
+		cfg.PublishInterval = defaultPublishInterval
+	}
 
-	provider, err := NewProvider(ctx, cfg)
+	provider, err := newProvider(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create telemetry provider: %w", err)
 	}

@@ -19,15 +19,16 @@ type Provider struct {
 }
 
 type Config struct {
-	ServiceName    string
-	ServiceVersion string
-	environment    string
-	endpoint       string
-	insecure       bool
-	headers        map[string]string
+	ServiceName     string
+	ServiceVersion  string
+	PublishInterval time.Duration
+	environment     string
+	endpoint        string
+	insecure        bool
+	headers         map[string]string
 }
 
-func NewProvider(ctx context.Context, cfg Config) (*Provider, error) {
+func newProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			attribute.String("service.name", cfg.ServiceName),
@@ -59,7 +60,7 @@ func NewProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	provider := sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(
 			sdkmetric.NewPeriodicReader(exporter,
-				sdkmetric.WithInterval(30*time.Second),
+				sdkmetric.WithInterval(cfg.PublishInterval),
 			),
 		),
 		sdkmetric.WithResource(res),
