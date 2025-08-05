@@ -1,6 +1,10 @@
 package cli
 
 import (
+	"context"
+	"os"
+	"time"
+
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -10,7 +14,9 @@ import (
 	"github.com/storacha/piri/cmd/cli/identity"
 	"github.com/storacha/piri/cmd/cli/serve"
 	"github.com/storacha/piri/cmd/cli/wallet"
+	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/config"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 func Execute() {
@@ -41,7 +47,7 @@ var (
 )
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(initConfig, initTelemetry)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "Error", "logging level")
@@ -78,5 +84,21 @@ func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 		cobra.CheckErr(viper.ReadInConfig())
+	}
+}
+
+func initTelemetry() {
+	// bail if this has been disabled.
+	if os.Getenv("PIRI_DISABLE_ANALYTICS") != "" {
+		return
+	}
+	telCfg := telemetry.Config{
+		ServiceName:    "piri",
+		ServiceVersion: build.Version,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	if err := telemetry.Initialize(ctx, telCfg); err != nil {
+		log.Warnf("failed to initialize telemetry: %s", err)
 	}
 }

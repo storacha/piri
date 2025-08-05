@@ -16,6 +16,7 @@ import (
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/telemetry"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
@@ -115,6 +116,9 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Println("Server started! Listening on ", cfg.Endpoint)
 
+	// publish version info metric
+	telemetry.RecordServerInfo(ctx, "pdp", telemetry.StringAttr("eth_address", cfg.EthAddress))
+
 	<-ctx.Done()
 
 	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -123,5 +127,4 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("stopping pdp server: %w", err)
 	}
 	return nil
-
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 var (
@@ -328,6 +329,15 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			cliutil.PrintHero(id.DID())
 		}
 	}()
+
+	telemetry.RecordServerInfo(ctx, "ucan",
+		telemetry.StringAttr("did", id.DID().String()),
+		telemetry.StringAttr("indexing_did", cfg.IndexingServiceDID),
+		telemetry.StringAttr("indexing_url", cfg.IndexingServiceURL),
+		telemetry.StringAttr("upload_did", cfg.UploadServiceDID),
+		telemetry.StringAttr("upload_url", cfg.UploadServiceURL),
+		telemetry.Int64Attr("proof_set", int64(cfg.ProofSet)),
+	)
 
 	err = server.ListenAndServe(
 		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
