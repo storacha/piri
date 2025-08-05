@@ -7,7 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -39,19 +39,19 @@ func NewProvider(ctx context.Context, cfg Config) (*Provider, error) {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	opts := []otlpmetricgrpc.Option{
-		otlpmetricgrpc.WithEndpoint(cfg.endpoint),
+	opts := []otlpmetrichttp.Option{
+		otlpmetrichttp.WithEndpoint(cfg.endpoint),
 	}
 
 	if cfg.insecure {
-		opts = append(opts, otlpmetricgrpc.WithInsecure())
+		opts = append(opts, otlpmetrichttp.WithInsecure())
 	}
 
 	if len(cfg.headers) > 0 {
-		opts = append(opts, otlpmetricgrpc.WithHeaders(cfg.headers))
+		opts = append(opts, otlpmetrichttp.WithHeaders(cfg.headers))
 	}
 
-	exporter, err := otlpmetricgrpc.New(ctx, opts...)
+	exporter, err := otlpmetrichttp.New(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric exporter: %w", err)
 	}

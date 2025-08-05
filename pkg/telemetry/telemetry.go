@@ -1,172 +1,18 @@
-// Package telemetry provides utilities for creating and managing OpenTelemetry metrics.
-//
-// # Features
-//
-//   - **Counters**: Track monotonically increasing values (e.g., request counts, processed items)
-//   - **Gauges**: Track values that can go up and down (e.g., active connections, CPU usage)
-//   - **Info**: Track version and other node information (e.g., version, commit hash)
-//   - **Timers/Histograms**: Track distributions of values (e.g., request latencies, response sizes)
-//   - **OpenTelemetry Integration**: Exports metrics to any OpenTelemetry-compatible collector
-//   - **Attribute Support**: Add contextual metadata to all metrics
-//   - **Type Safety**: Strongly typed configuration and metric creation
-//
-// # Quick Start
-//
-// ## Option 1: Dependency Injection (Recommended for testing)
-//
-//	ctx := context.Background()
-//	tel, err := telemetry.New(ctx, telemetry.Config{
-//	    ServiceName:    "my-service",
-//	    ServiceVersion: "1.0.0",
-//	    Environment:    "production",
-//	    Endpoint:       "localhost:4317",  // OpenTelemetry collector endpoint
-//	    Insecure:       true,              // Use for local development
-//	})
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer tel.Shutdown(ctx)
-//
-// ## Option 2: Global Instance (Simpler, less testable)
-//
-//	telemetry.InitGlobal(telemetry.Config{...})
-//	defer telemetry.ShutdownGlobal()
-//
-// # Metric Types
-//
-// ## Counters
-//
-// Counters track monotonically increasing values:
-//
-//	counter, _ := tel.NewCounter(telemetry.CounterConfig{
-//	    Name:        "requests_total",
-//	    Description: "Total number of requests",
-//	})
-//	counter.Add(ctx, 1, telemetry.StringAttr("endpoint", "/api"))
-//
-// ## Gauges
-//
-// Gauges track values that can go up and down:
-//
-//	gauge, _ := tel.NewGauge(telemetry.GaugeConfig{
-//	    Name:        "active_connections",
-//	    Description: "Number of active connections",
-//	})
-//	gauge.Set(ctx, 42, telemetry.StringAttr("server", "web-1"))
-//
-// ## Timers
-//
-// Timers measure duration of operations:
-//
-//	timer, _ := tel.NewTimer(telemetry.TimerConfig{
-//	    Name:        "request_duration",
-//	    Description: "Request processing time",
-//	    Unit:        "ms",
-//	})
-//
-//	// Method 1: Manual timing
-//	start := time.Now()
-//	// ... do work ...
-//	elapsed := time.Since(start)
-//	timer.Record(ctx, elapsed, telemetry.StringAttr("endpoint", "/api"))
-//
-//	// Method 2: Automatic timing
-//	operation := timer.Start(ctx, telemetry.StringAttr("operation", "database_query"))
-//	defer operation.End()
-//
-// ## Histograms
-//
-// Histograms track the distribution of arbitrary values:
-//
-//	histogram, _ := tel.NewHistogram(telemetry.HistogramConfig{
-//	    Name:        "response_size",
-//	    Description: "Response size in bytes",
-//	    Unit:        "bytes",
-//	    Boundaries:  telemetry.SizeBoundaries,  // Predefined size boundaries
-//	})
-//	histogram.Record(ctx, responseSize, telemetry.StringAttr("endpoint", "/api"))
-//
-// # Complete HTTP Server Example
-//
-//	func main() {
-//	    ctx := context.Background()
-//
-//	    // Initialize telemetry
-//	    tel, err := telemetry.New(ctx, telemetry.Config{
-//	        ServiceName:    "my-http-server",
-//	        ServiceVersion: "1.0.0",
-//	        Environment:    "production",
-//	    })
-//	    if err != nil {
-//	        log.Fatal(err)
-//	    }
-//	    defer tel.Shutdown(ctx)
-//
-//	    // Create metrics
-//	    requestCounter, _ := tel.NewCounter(telemetry.CounterConfig{
-//	        Name:        "http_requests_total",
-//	        Description: "Total number of HTTP requests",
-//	    })
-//
-//	    requestTimer, _ := tel.NewTimer(telemetry.TimerConfig{
-//	        Name:        "http_request_duration_seconds",
-//	        Description: "HTTP request duration in seconds",
-//	    })
-//
-//	    // HTTP handler
-//	    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-//	        start := time.Now()
-//
-//	        // Increment request counter
-//	        requestCounter.Add(r.Context(), 1,
-//	            telemetry.StringAttr("method", r.Method),
-//	            telemetry.StringAttr("path", r.URL.Path),
-//	        )
-//
-//	        // Your handler logic here
-//	        time.Sleep(100 * time.Millisecond) // Simulate work
-//	        w.Write([]byte("Hello, World!"))
-//
-//	        // Record request duration
-//	        elapsed := time.Since(start)
-//	        requestTimer.Record(r.Context(), elapsed,
-//	            telemetry.StringAttr("method", r.Method),
-//	            telemetry.StringAttr("path", r.URL.Path),
-//	            telemetry.IntAttr("status", 200),
-//	        )
-//	    })
-//
-//	    log.Println("Server starting on :8080")
-//	    log.Fatal(http.ListenAndServe(":8080", nil))
-//	}
-//
-// # Attributes
-//
-// Add contextual information to metrics using attributes:
-//
-//	telemetry.StringAttr("endpoint", "/api")
-//	telemetry.IntAttr("status_code", 200)
-//	telemetry.BoolAttr("success", true)
-//
-// # Predefined Boundaries
-//
-// The package provides predefined boundary values for common use cases:
-//
-//	telemetry.DefaultBoundaries  // General purpose boundaries
-//	telemetry.LatencyBoundaries  // For request latencies (seconds)
-//	telemetry.SizeBoundaries     // For response/request sizes (bytes)
 package telemetry
 
 import (
 	"context"
 	"fmt"
 
+	logging "github.com/ipfs/go-log/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
+var log = logging.Logger("telemetry")
+
 const (
-	defaultEndpoint    = "telemetry.storacha.network:4317"
+	defaultEndpoint    = "telemetry.storacha.network:443"
 	defaultEnvironment = "warm-staging"
 )
 
@@ -179,7 +25,6 @@ func New(ctx context.Context, cfg Config) (*Telemetry, error) {
 	// collector endpoint and environment will be hard-coded for now
 	cfg.endpoint = defaultEndpoint
 	cfg.environment = defaultEnvironment
-	cfg.insecure = true
 
 	provider, err := NewProvider(ctx, cfg)
 	if err != nil {

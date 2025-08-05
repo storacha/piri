@@ -17,7 +17,6 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 
 	"github.com/storacha/piri/cmd/cliutil"
-	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
@@ -133,25 +132,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
-
-	// initialize telemetry
-	telCfg := telemetry.Config{
-		ServiceName:    "piri/ucan",
-		ServiceVersion: build.Version,
-	}
-	if err := telemetry.Initialize(ctx, telCfg); err != nil {
-		return fmt.Errorf("initializing telemetry: %w", err)
-	}
-
-	// publish version info metric
-	info, err := telemetry.Global().NewInfo(telemetry.InfoConfig{
-		Name:        "piri_version",
-		Description: "Piri server version",
-	})
-	if err != nil {
-		return fmt.Errorf("creating version info metric: %w", err)
-	}
-	info.Record(ctx, telemetry.StringAttr("version", build.Version))
 
 	if cfg.PDPServerURL != "" && cfg.ProofSet == 0 {
 		return fmt.Errorf("must set --proof-set when using --pdp-server-url")
@@ -349,6 +329,15 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			cliutil.PrintHero(id.DID())
 		}
 	}()
+
+	telemetry.RecordServerInfo(ctx, "ucan",
+		telemetry.StringAttr("did", id.DID().String()),
+		telemetry.StringAttr("indexing_did", cfg.IndexingServiceDID),
+		telemetry.StringAttr("indexing_url", cfg.IndexingServiceURL),
+		telemetry.StringAttr("upload_did", cfg.UploadServiceDID),
+		telemetry.StringAttr("upload_url", cfg.UploadServiceURL),
+		telemetry.Int64Attr("proof_set", int64(cfg.ProofSet)),
+	)
 
 	err = server.ListenAndServe(
 		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
