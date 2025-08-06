@@ -172,7 +172,7 @@ func New(opts ...Option) (*StorageService, error) {
 	}
 
 	var pdpImpl pdp.PDP
-	if c.pdpCfg == nil {
+	if c.pdpCfg == nil && c.pdpImpl == nil {
 		blobStore := c.blobStore
 		if blobStore == nil {
 			blobStore = blobstore.NewMapBlobstore()
