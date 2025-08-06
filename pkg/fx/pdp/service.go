@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	"github.com/ethereum/go-ethereum/common"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -15,14 +16,24 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/store"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
 var Module = fx.Module("pdp-service",
 	fx.Provide(
-		ProvidePDPService,
-		ProvideProofSetID,
+		fx.Annotate(
+			ProvidePDPService,
+			fx.As(fx.Self()),      // provide service as concrete type
+			fx.As(new(types.API)), // also provide the server as the interface(s) it implements
+			fx.As(new(types.ProofSetAPI)),
+			fx.As(new(types.PieceAPI)),
+		),
+		fx.Annotate(
+			ProvideProofSetProvider,
+			fx.As(new(types.ProofSetProvider)),
+		),
 	),
 )
 
@@ -55,20 +66,24 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 	)
 }
 
-func ProvideProofSetID(svc *service.PDPService, cfg app.AppConfig) (uint64, error) {
-	ctx := context.TODO()
-	proofSets, err := svc.ListProofSets(ctx)
+type ProofSetProvider struct {
+	svc          *service.PDPService
+	recordKeeper common.Address
+}
+
+func (p *ProofSetProvider) GetOrCreateProofSet(ctx context.Context) (uint64, error) {
+	proofSets, err := p.svc.ListProofSets(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("listing proof sets: %w", err)
 	}
 	// we need to create one
 	if len(proofSets) == 0 {
-		createProofSetTxHash, err := svc.CreateProofSet(ctx, cfg.Blockchain.RecordKeeperAddr)
+		createProofSetTxHash, err := p.svc.CreateProofSet(ctx, p.recordKeeper)
 		if err != nil {
 			return 0, fmt.Errorf("creating proof set: %w", err)
 		}
 		proofSetID, err := backoff.Retry(ctx, func() (uint64, error) {
-			status, err := svc.GetProofSetStatus(ctx, createProofSetTxHash)
+			status, err := p.svc.GetProofSetStatus(ctx, createProofSetTxHash)
 			if err != nil {
 				return 0, backoff.Permanent(fmt.Errorf("getting proof set: %w", err))
 			}
@@ -86,4 +101,12 @@ func ProvideProofSetID(svc *service.PDPService, cfg app.AppConfig) (uint64, erro
 		return proofSets[0].ID, nil
 	}
 	return 0, fmt.Errorf("multiple proof sets found")
+
+}
+
+func ProvideProofSetProvider(svc *service.PDPService, cfg app.AppConfig) *ProofSetProvider {
+	return &ProofSetProvider{
+		svc:          svc,
+		recordKeeper: cfg.Blockchain.OwnerAddr,
+	}
 }

@@ -41,21 +41,19 @@ type SenderETH struct {
 	db *gorm.DB
 }
 
-func NewSenderTaskETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB) *SendTaskETH {
-	return &SendTaskETH{
+// NewSenderETH creates both a SenderETH and SendTaskETH to resolve circular dependency.
+func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB) (*SenderETH, *SendTaskETH) {
+	st := &SendTaskETH{
 		client: client,
 		wallet: wallet,
 		db:     db,
 	}
-}
 
-// NewSenderETH creates a new SenderETH.
-func NewSenderETH(client SenderETHClient, db *gorm.DB, task *SendTaskETH) *SenderETH {
 	return &SenderETH{
 		client:   client,
 		db:       db,
-		sendTask: task,
-	}
+		sendTask: st,
+	}, st
 }
 
 func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *types.Transaction, reason string) (common.Hash, error) {

@@ -10,12 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config"
-	"github.com/storacha/piri/pkg/fx/blockchain"
-	"github.com/storacha/piri/pkg/fx/database"
-	"github.com/storacha/piri/pkg/fx/scheduler"
-	"github.com/storacha/piri/pkg/fx/store"
-	"github.com/storacha/piri/pkg/fx/wallet"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	"github.com/storacha/piri/pkg/fx/app"
 )
 
 var FXPDPCmd = &cobra.Command{
@@ -73,13 +68,12 @@ func doFXPDPServe(cmd *cobra.Command, _ []string) error {
 
 	fxApp := fx.New(
 		fx.Supply(appCfg),
-		fx.Supply(contract.PDPContract{}),
-		wallet.Module,
-		store.FileSystemStoreModule,
-		blockchain.Module,
-		database.Module,
-		scheduler.Module,
+		app.PDPServiceModule(appCfg),
+		app.UCANServiceModule(appCfg),
 	)
+	if err := fxApp.Err(); err != nil {
+		return err
+	}
 	// Start the application
 	if err := fxApp.Start(ctx); err != nil {
 		return fmt.Errorf("starting fx app: %w", err)

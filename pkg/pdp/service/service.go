@@ -97,8 +97,7 @@ func NewPDPService(
 	chainScheduler := chainsched.New(chainClient)
 
 	var t []scheduler.TaskInterface
-	senderTask := tasks.NewSenderTaskETH(ethClient, wallet, db)
-	sender := tasks.NewSenderETH(ethClient, db, senderTask)
+	sender, senderTask := tasks.NewSenderETH(ethClient, wallet, db)
 	t = append(t, senderTask)
 
 	pdpInitTask, err := tasks.NewInitProvingPeriodTask(db, ethClient, contractClient, chainClient, chainScheduler, sender)
@@ -130,12 +129,7 @@ func NewPDPService(
 		return nil, fmt.Errorf("creating watcher root add: %w", err)
 	}
 
-	// TODO this needs configuration and or tuning
-	maxMoveStoreTasks := 8
-	pdpStorePieceTask, err := tasks.NewStorePieceTask(db, bs, maxMoveStoreTasks)
-	if err != nil {
-		return nil, fmt.Errorf("creating pdp store piece task: %w", err)
-	}
+	pdpStorePieceTask := tasks.NewStorePieceTask(db, bs)
 	t = append(t, pdpStorePieceTask)
 
 	engine, err := scheduler.NewEngine(db, t)
@@ -143,8 +137,7 @@ func NewPDPService(
 		return nil, fmt.Errorf("creating engine: %w", err)
 	}
 	stopFns = append(stopFns, func(ctx context.Context) error {
-		engine.GracefullyTerminate()
-		return nil
+		return engine.GracefullyTerminate(ctx)
 	})
 
 	// TODO this needs to be manually stopped

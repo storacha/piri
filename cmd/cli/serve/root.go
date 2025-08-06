@@ -15,6 +15,5 @@ var Cmd = &cobra.Command{
 func init() {
 	Cmd.AddCommand(PDPCmd)
 	Cmd.AddCommand(UCANCmd)
-	Cmd.AddCommand(FullCmd)
 	Cmd.AddCommand(FXPDPCmd)
 }

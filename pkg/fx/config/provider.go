@@ -76,7 +76,7 @@ func ProvideAppConfig(cfg config.UCANServer) (app.AppConfig, error) {
 			DataDir: cfg.Repo.DataDir,
 			TempDir: cfg.Repo.TempDir,
 			Aggregator: app.AggregatorStorageConfig{
-				DatastoreDir: filepath.Join(cfg.Repo.DataDir, "aggregator", "datastore"),
+				StoreDir: filepath.Join(cfg.Repo.DataDir, "aggregator", "datastore"),
 			},
 			Blobs: app.BlobStorageConfig{
 				StoreDir: filepath.Join(cfg.Repo.DataDir, "blobs"),

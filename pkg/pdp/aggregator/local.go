@@ -14,7 +14,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/database"
@@ -80,7 +80,7 @@ func NewLocal(
 	dbPath string,
 	client types2.ProofSetAPI,
 	proofSet uint64,
-	issuer ucan.Signer,
+	issuer principal.Signer,
 	receiptStore receiptstore.ReceiptStore,
 ) (*LocalAggregator, error) {
 	aggregateStore := ipldstore.IPLDStore[datamodel.Link, aggregate.Aggregate](
@@ -128,7 +128,7 @@ func NewLocal(
 
 	// construct queues -- somewhat frstratingly these have to be constructed backward for now
 	pieceAccepter := NewPieceAccepter(issuer, aggregateStore, receiptStore)
-	aggregationSubmitter := NewAggregateSubmitteer(proofSet, aggregateStore, client, linkQueue)
+	aggregationSubmitter := NewAggregateSubmitteer(&simpleProvider{proofSet: proofSet}, aggregateStore, client, linkQueue)
 	pieceAggregator := NewPieceAggregator(inProgressWorkspace, aggregateStore, linkQueue)
 
 	if err := linkQueue.Register(PieceAcceptTask, func(ctx context.Context, msg datamodel.Link) error {
@@ -153,4 +153,13 @@ func NewLocal(
 		pieceQueue: pieceQueue,
 		linkQueue:  linkQueue,
 	}, nil
+}
+
+// Create a simple provider that returns the proofSet value
+type simpleProvider struct {
+	proofSet uint64
+}
+
+func (p *simpleProvider) GetOrCreateProofSet(_ context.Context) (uint64, error) {
+	return p.proofSet, nil
 }

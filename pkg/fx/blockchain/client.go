@@ -10,12 +10,24 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/pdp/service"
+	"github.com/storacha/piri/pkg/pdp/service/contract"
 )
 
 var Module = fx.Module("blockchain",
 	fx.Provide(
-		ProvideEthAPI,
-		ProvideLotusAPI,
+		fx.Annotate(
+			func() *contract.PDPContract { return &contract.PDPContract{} },
+			fx.As(new(contract.PDP)),
+		),
+		fx.Annotate(
+			ProvideEthAPI,
+			fx.As(new(service.EthClient)),
+		),
+		fx.Annotate(
+			ProvideLotusAPI,
+			fx.As(new(service.ChainClient)),
+		),
 	),
 )
 

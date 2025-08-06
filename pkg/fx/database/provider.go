@@ -90,11 +90,12 @@ func ProviderAggregatorDB(cfg app.AppConfig) (*sql.DB, error) {
 }
 
 func ProvideTaskEngineDB(cfg app.AppConfig) (*gorm.DB, error) {
-	if cfg.Storage.SchedulerStorage.DatabasePath == "" {
-		return nil, fmt.Errorf("task engine database path required")
+	dbPath := cfg.Storage.SchedulerStorage.DBPath
+	if dbPath == "" {
+		dbPath = "file::memory:?cache=shared"
 	}
 
-	return gormdb.New(cfg.Storage.SchedulerStorage.DatabasePath,
+	return gormdb.New(dbPath,
 		// use a write ahead log for transactions, good for parallel operations.
 		database.WithJournalMode(database.JournalModeWAL),
 		// ensure foreign key constraints are respected.
