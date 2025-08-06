@@ -3,6 +3,7 @@ package app
 import (
 	"net/url"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
@@ -20,11 +21,23 @@ type AppConfig struct {
 	// Storage paths and directories
 	Storage StorageConfig
 
-	// External service connections
-	External ExternalServicesConfig
-
 	// Service-specific configurations
 	Services ServicesConfig
+
+	Blockchain BlockchainConfig
+}
+
+type BlockchainConfig struct {
+	// The users adddress; sender of PDP Contract messages
+	OwnerAddr common.Address
+	// The pdp contract address
+	RecordKeeperAddr common.Address
+	// The endpoint of a lotus node
+	LotusEndpoint *url.URL
+}
+
+type SchedulerConfig struct {
+	DatabasePath string
 }
 
 // IdentityConfig contains identity-related configuration
@@ -47,18 +60,23 @@ type StorageConfig struct {
 	TempDir string
 
 	// Service-specific storage subdirectories
-	Aggregator  AggregatorStorageConfig
-	Blobs       BlobStorageConfig
-	Claims      ClaimStorageConfig
-	Publisher   PublisherStorageConfig
-	Receipts    ReceiptStorageConfig
-	Allocations AllocationStorageConfig
-	Replicator  ReplicatorStorageConfig
+	Aggregator       AggregatorStorageConfig
+	Blobs            BlobStorageConfig
+	Claims           ClaimStorageConfig
+	Publisher        PublisherStorageConfig
+	Receipts         ReceiptStorageConfig
+	Allocations      AllocationStorageConfig
+	Replicator       ReplicatorStorageConfig
+	KeyStore         KeyStoreConfig
+	StashStore       StashStoreConfig
+	SchedulerStorage SchedulerConfig
+	PDPStore         PDPStoreConfig
 }
 
 // AggregatorStorageConfig contains aggregator-specific storage paths
 type AggregatorStorageConfig struct {
 	DatastoreDir string
+	DBPath       string
 }
 
 // BlobStorageConfig contains blob-specific storage paths
@@ -92,10 +110,26 @@ type ReplicatorStorageConfig struct {
 	DBPath string
 }
 
-// ExternalServicesConfig contains all external service connections
-type ExternalServicesConfig struct {
+type KeyStoreConfig struct {
+	StoreDir string
+}
+
+type StashStoreConfig struct {
+	StoreDir string
+}
+
+type PDPStoreConfig struct {
+	StoreDir string
+}
+
+// ServicesConfig contains all external service connections
+type ServicesConfig struct {
+	// Service DID to principal DID mapping for authentication
+	ServicePrincipalMapping map[string]string
+
 	UploadService   ServiceConnectionConfig
 	IndexingService IndexingServiceConfig
+	Publisher       PublisherConfig
 	PDPServer       *PDPServerConfig // Pointer because it's optional
 }
 
@@ -114,14 +148,6 @@ type IndexingServiceConfig struct {
 type PDPServerConfig struct {
 	URL      *url.URL
 	ProofSet uint64
-}
-
-// ServicesConfig contains service-specific configurations
-type ServicesConfig struct {
-	Publisher PublisherConfig
-	// Service DID to principal DID mapping for authentication
-	ServicePrincipalMapping map[string]string
-	// Future: Replicator, Blobs, Claims configs can be added here
 }
 
 // PublisherConfig contains publisher service configuration

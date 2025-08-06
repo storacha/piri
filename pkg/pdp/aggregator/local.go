@@ -67,6 +67,13 @@ func (la *LocalAggregator) AggregatePiece(ctx context.Context, pieceLink piece.P
 	return la.pieceQueue.Enqueue(ctx, PieceAggregateTask, pieceLink)
 }
 
+func New(pieceQueue *jobqueue.JobQueue[piece.PieceLink], linkQueue *jobqueue.JobQueue[datamodel.Link]) *LocalAggregator {
+	return &LocalAggregator{
+		pieceQueue: pieceQueue,
+		linkQueue:  linkQueue,
+	}
+}
+
 // NewLocal constructs an aggregator to run directly on a machine from a local datastore
 func NewLocal(
 	ds datastore.Datastore,

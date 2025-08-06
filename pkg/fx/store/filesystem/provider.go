@@ -13,16 +13,21 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
+	stash "github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
+	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 var Module = fx.Module("filesystem-store",
 	fx.Provide(
-		NewAggregatorStore,
+		fx.Annotate(
+			NewAggregatorDataStore,
+			fx.ResultTags(`name:"aggregator_datastore"`),
+		),
 		NewAllocationStore,
 		NewBlobStore,
 		NewClaimStore,
@@ -34,11 +39,14 @@ var Module = fx.Module("filesystem-store",
 			},
 		),
 		NewReceiptStore,
+		NewKeyStore,
+		NewStashStore,
+		NewPDPStore,
 	),
 )
 
 // TODO this likely needs a named fx tag, or it's own unique interface.
-func NewAggregatorStore(cfg app.AppConfig, lc fx.Lifecycle) (datastore.Datastore, error) {
+func NewAggregatorDataStore(cfg app.AppConfig, lc fx.Lifecycle) (datastore.Datastore, error) {
 	if cfg.Storage.Aggregator.DatastoreDir == "" {
 		return nil, fmt.Errorf("no data dir provided for aggregator store")
 	}
@@ -153,6 +161,49 @@ func NewReceiptStore(cfg app.AppConfig, lc fx.Lifecycle) (receiptstore.ReceiptSt
 
 	return receiptstore.NewDsReceiptStore(ds)
 
+}
+
+func NewKeyStore(cfg app.AppConfig, lc fx.Lifecycle) (keystore.KeyStore, error) {
+	if cfg.Storage.KeyStore.StoreDir == "" {
+		return nil, fmt.Errorf("no data dir provided for key store")
+	}
+
+	ds, err := newDs(cfg.Storage.KeyStore.StoreDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating key store: %w", err)
+	}
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return ds.Close()
+		},
+	})
+	return keystore.NewKeyStore(ds)
+}
+
+func NewStashStore(cfg app.AppConfig) (stash.Stash, error) {
+	if cfg.Storage.StashStore.StoreDir == "" {
+		return nil, fmt.Errorf("no data dir provided for stash store")
+	}
+	return stash.NewStashStore(cfg.Storage.StashStore.StoreDir)
+}
+
+// TODO whenever we are done with https://github.com/storacha/piri/issues/140
+// make this an object store.
+// We must do this before production network launch, else migration will be the end of me.
+func NewPDPStore(cfg app.AppConfig, lc fx.Lifecycle) (blobstore.PDPStore, error) {
+	if cfg.Storage.PDPStore.StoreDir == "" {
+		return nil, fmt.Errorf("no data dir provided for pdp store")
+	}
+	ds, err := newDs(cfg.Storage.PDPStore.StoreDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating pdp store: %w", err)
+	}
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return ds.Close()
+		},
+	})
+	return blobstore.NewTODO_DsBlobstore(ds), nil
 }
 
 func newDs(path string) (*leveldb.Datastore, error) {

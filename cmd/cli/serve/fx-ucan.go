@@ -12,11 +12,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/storacha/go-ucanto/client"
-	"github.com/storacha/go-ucanto/core/delegation"
-	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
-	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/cmd/cliutil"
@@ -210,12 +206,6 @@ func transformToAppConfig(cfg config.UCANServer) (configapp.AppConfig, error) {
 	// Build storage config
 	storageConfig := buildStorageConfig(cfg)
 
-	// Build external services config
-	externalConfig, err := buildExternalServicesConfig(cfg)
-	if err != nil {
-		return configapp.AppConfig{}, fmt.Errorf("building external services config: %w", err)
-	}
-
 	// Build services config
 	servicesConfig, err := buildServicesConfig(cfg, publicURL)
 	if err != nil {
@@ -232,7 +222,6 @@ func transformToAppConfig(cfg config.UCANServer) (configapp.AppConfig, error) {
 			PublicURL: publicURL,
 		},
 		Storage:  storageConfig,
-		External: externalConfig,
 		Services: servicesConfig,
 	}, nil
 }
@@ -283,72 +272,6 @@ func buildStorageConfig(cfg config.UCANServer) configapp.StorageConfig {
 	}
 
 	return storageConfig
-}
-
-func buildExternalServicesConfig(cfg config.UCANServer) (configapp.ExternalServicesConfig, error) {
-	var externalConfig configapp.ExternalServicesConfig
-
-	// Upload service
-	uploadDID, err := did.Parse(cfg.UploadServiceDID)
-	if err != nil {
-		return externalConfig, fmt.Errorf("parsing upload service DID: %w", err)
-	}
-	uploadURL, err := url.Parse(cfg.UploadServiceURL)
-	if err != nil {
-		return externalConfig, fmt.Errorf("parsing upload service URL: %w", err)
-	}
-	uploadChannel := ucanhttp.NewHTTPChannel(uploadURL)
-	uploadConn, err := client.NewConnection(uploadDID, uploadChannel)
-	if err != nil {
-		return externalConfig, fmt.Errorf("creating upload service connection: %w", err)
-	}
-	externalConfig.UploadService = configapp.ServiceConnectionConfig{
-		Connection: uploadConn,
-	}
-
-	// Indexing service
-	indexingDID, err := did.Parse(cfg.IndexingServiceDID)
-	if err != nil {
-		return externalConfig, fmt.Errorf("parsing indexing service DID: %w", err)
-	}
-	indexingURL, err := url.Parse(cfg.IndexingServiceURL)
-	if err != nil {
-		return externalConfig, fmt.Errorf("parsing indexing service URL: %w", err)
-	}
-	indexingChannel := ucanhttp.NewHTTPChannel(indexingURL)
-	indexingConn, err := client.NewConnection(indexingDID, indexingChannel)
-	if err != nil {
-		return externalConfig, fmt.Errorf("creating indexing service connection: %w", err)
-	}
-
-	// Parse indexing service proofs if provided
-	var indexingProofs delegation.Proofs
-	if cfg.IndexingServiceProof != "" {
-		dlg, err := delegation.Parse(cfg.IndexingServiceProof)
-		if err != nil {
-			return externalConfig, fmt.Errorf("parsing indexing service proof: %w", err)
-		}
-		indexingProofs = delegation.Proofs{delegation.FromDelegation(dlg)}
-	}
-
-	externalConfig.IndexingService = configapp.IndexingServiceConfig{
-		Connection: indexingConn,
-		Proofs:     indexingProofs,
-	}
-
-	// PDP server (optional)
-	if cfg.PDPServerURL != "" {
-		pdpURL, err := url.Parse(cfg.PDPServerURL)
-		if err != nil {
-			return externalConfig, fmt.Errorf("parsing PDP server URL: %w", err)
-		}
-		externalConfig.PDPServer = &configapp.PDPServerConfig{
-			URL:      pdpURL,
-			ProofSet: cfg.ProofSet,
-		}
-	}
-
-	return externalConfig, nil
 }
 
 func buildServicesConfig(cfg config.UCANServer, publicURL *url.URL) (configapp.ServicesConfig, error) {

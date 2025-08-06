@@ -9,7 +9,7 @@ import (
 	"github.com/storacha/piri/pkg/fx/database"
 	"github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/fx/identity"
-	"github.com/storacha/piri/pkg/fx/pdp"
+	"github.com/storacha/piri/pkg/fx/pdp/remotepdp"
 	"github.com/storacha/piri/pkg/fx/presigner"
 	"github.com/storacha/piri/pkg/fx/principalresolver"
 	"github.com/storacha/piri/pkg/fx/publisher"
@@ -49,8 +49,8 @@ func FullModule(cfg app.AppConfig) fx.Option {
 	}
 
 	// Conditionally include PDP module if configured
-	if cfg.External.PDPServer != nil {
-		modules = append(modules, pdp.Module)
+	if cfg.Services.PDPServer != nil {
+		modules = append(modules, remotepdp.Module)
 	}
 
 	return fx.Module("full-server", modules...)

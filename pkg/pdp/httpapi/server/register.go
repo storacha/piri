@@ -23,6 +23,7 @@ func RegisterEchoRoutes(e *echo.Echo, p *PDP) {
 	proofSets.POST("", p.handleCreateProofSet)
 	proofSets.GET("/created/:txHash", p.handleGetProofSetCreationStatus)
 
+	proofSets.GET("", p.handleListProofSet)
 	// /pdp/proof-sets/:proofSetID
 	proofSets.GET("/:proofSetID", p.handleGetProofSet)
 	proofSets.DELETE("/:proofSetID", p.handleDeleteProofSet)

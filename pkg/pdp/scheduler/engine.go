@@ -57,6 +57,7 @@ func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine,
 
 	log.Infof("Starting engine with session ID: %s", e.sessionID)
 
+	// TODO add dedicated start method to the engine that actually runs these routines
 	// Clean up tasks from previous sessions
 	if err := e.cleanupPreviousSessions(); err != nil {
 		cancel()

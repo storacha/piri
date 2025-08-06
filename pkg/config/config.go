@@ -10,30 +10,19 @@ import (
 	"github.com/storacha/piri/pkg/presets"
 )
 
-type Config struct {
-	Identity   Identity   `mapstructure:"identity" validate:"required"`
-	Repo       Repo       `mapstructure:"repo" validate:"required"`
-	UCANServer UCANServer `mapstructure:"ucan_server" validate:"required"`
-	PDPServer  PDPServer  `mapstructure:"pdp_server" validate:"required"`
-	PDPClient  PDPClient  `mapstructure:"pdp_client" validate:"required"`
-	UCANClient UCANClient `mapstructure:"ucan_client" validate:"required"`
+type IndexingService struct {
+	Proof string `mapstructure:"indexing_service_proof" flag:"indexing-service-proof"`
+	DID   string `mapstructure:"indexing_service_did" validate:"required" flag:"indexing-service-did"`
+	URL   string `mapstructure:"indexing_service_url" validate:"required,url" flag:"indexing-service-url"`
 }
 
-type Identity struct {
-	KeyFile string `mapstructure:"key_file" validate:"required" flag:"key-file"`
+type PublisherService struct {
+	AnnounceURLs []string `mapstructure:"ipni_announce_urls" validate:"required,min=1,dive,url" flag:"ipni-announce-urls"`
 }
 
-func (i Identity) Validate() error {
-	return validateConfig(i)
-}
-
-type Repo struct {
-	DataDir string `mapstructure:"data_dir" validate:"required" flag:"data-dir"`
-	TempDir string `mapstructure:"temp_dir" validate:"required" flag:"temp-dir"`
-}
-
-func (r Repo) Validate() error {
-	return validateConfig(r)
+type UploadService struct {
+	DID string `mapstructure:"upload_service_did" validate:"required" flag:"upload-service-did"`
+	URL string `mapstructure:"upload_service_url" validate:"required,url" flag:"upload-service-url"`
 }
 
 var DefaultRepo = Repo{

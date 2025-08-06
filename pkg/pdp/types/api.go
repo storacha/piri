@@ -62,11 +62,6 @@ type PieceUpload struct {
 	Data io.Reader
 }
 
-type API interface {
-	ProofSetAPI
-	PieceAPI
-}
-
 type AllocatedPiece struct {
 	Allocated bool
 	Piece     cid.Cid
@@ -76,6 +71,11 @@ type AllocatedPiece struct {
 type PieceReader struct {
 	Size int64
 	Data io.ReadCloser
+}
+
+type API interface {
+	ProofSetAPI
+	PieceAPI
 }
 
 type ProofSetAPI interface {
