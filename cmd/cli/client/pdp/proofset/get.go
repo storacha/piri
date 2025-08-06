@@ -3,14 +3,11 @@ package proofset
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 
 	"github.com/spf13/cobra"
 
-	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
-	"github.com/storacha/piri/pkg/pdp/curio"
+	"github.com/storacha/piri/pkg/pdp/httpapi/client"
 )
 
 var (
@@ -41,19 +38,9 @@ func doGet(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
+	api, err := client.NewFromConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("loading key file: %w", err)
-	}
-
-	nodeAuth, err := curio.CreateCurioJWTAuthHeader("storacha", id)
-	if err != nil {
-		return fmt.Errorf("generating node JWT: %w", err)
-	}
-
-	nodeURL, err := url.Parse(cfg.NodeURL)
-	if err != nil {
-		return fmt.Errorf("parsing node URL: %w", err)
+		return fmt.Errorf("creating client: %w", err)
 	}
 
 	proofSetID, err := cmd.Flags().GetUint64("proofset-id")
@@ -61,8 +48,7 @@ func doGet(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing proofset ID: %w", err)
 	}
 
-	client := curio.New(http.DefaultClient, nodeURL, nodeAuth)
-	proofSet, err := client.GetProofSet(ctx, proofSetID)
+	proofSet, err := api.GetProofSet(ctx, proofSetID)
 	if err != nil {
 		return fmt.Errorf("getting proof set status: %w", err)
 	}

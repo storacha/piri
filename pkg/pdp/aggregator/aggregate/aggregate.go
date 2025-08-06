@@ -5,16 +5,12 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/filecoin-project/go-data-segment/merkletree"
 	"github.com/ipld/go-ipld-prime/schema"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/go-ucanto/core/iterable"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/storacha/piri/pkg/pdp/curio"
 )
 
 //go:embed aggregate.ipldsch
@@ -64,13 +60,4 @@ func (a Aggregate) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	}))
 
 	return nil
-}
-
-func (aggregate Aggregate) ToCurioAddRoot() curio.AddRootRequest {
-	return curio.AddRootRequest{
-		RootCID: aggregate.Root.V1Link().String(),
-		Subroots: slices.Collect(iterable.Map(func(aggregatePiece AggregatePiece) curio.SubrootEntry {
-			return curio.SubrootEntry{SubrootCID: aggregatePiece.Link.V1Link().String()}
-		}, slices.Values(aggregate.Pieces))),
-	}
 }

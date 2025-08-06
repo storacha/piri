@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 
-	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
-	"github.com/storacha/piri/pkg/pdp/curio"
+	"github.com/storacha/piri/pkg/pdp/httpapi/client"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 var (
@@ -25,11 +24,11 @@ var (
 
 func init() {
 	StatusCmd.Flags().String(
-		"ref-url",
+		"txhash",
 		"",
-		"The reference URL of a proof set, e.g. /pdp/proof-sets/created/<TX_HASH>",
+		"The transaction hash resulting from a proof set create message",
 	)
-	cobra.CheckErr(StatusCmd.MarkFlagRequired("ref-url"))
+	cobra.CheckErr(StatusCmd.MarkFlagRequired("txhash"))
 }
 
 func doStatus(cmd *cobra.Command, _ []string) error {
@@ -40,27 +39,16 @@ func doStatus(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
+	api, err := client.NewFromConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("loading key file: %w", err)
+		return fmt.Errorf("creating client: %w", err)
 	}
 
-	nodeAuth, err := curio.CreateCurioJWTAuthHeader("storacha", id)
+	txhash, err := cmd.Flags().GetString("txhash")
 	if err != nil {
-		return fmt.Errorf("generating node JWT: %w", err)
+		return fmt.Errorf("parsing txHash: %w", err)
 	}
-
-	nodeURL, err := url.Parse(cfg.NodeURL)
-	if err != nil {
-		return fmt.Errorf("parsing node URL: %w", err)
-	}
-
-	client := curio.New(http.DefaultClient, nodeURL, nodeAuth)
-	refURL, err := cmd.Flags().GetString("ref-url")
-	if err != nil {
-		return fmt.Errorf("parsing ref URL: %w", err)
-	}
-	status, err := checkStatus(ctx, client, refURL)
+	status, err := checkStatus(ctx, api, common.HexToHash(txhash))
 	if err != nil {
 		return fmt.Errorf("getting proof set status: %w", err)
 	}
@@ -72,12 +60,10 @@ func doStatus(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func checkStatus(ctx context.Context, client curio.PDPClient, refURL string) (curio.ProofSetStatus, error) {
-	status, err := client.ProofSetCreationStatus(ctx, curio.StatusRef{
-		URL: refURL,
-	})
+func checkStatus(ctx context.Context, client types.ProofSetAPI, txHash common.Hash) (*types.ProofSetStatus, error) {
+	status, err := client.GetProofSetStatus(ctx, txHash)
 	if err != nil {
-		return curio.ProofSetStatus{}, fmt.Errorf("getting proof set status: %w", err)
+		return nil, err
 	}
 	return status, nil
 }

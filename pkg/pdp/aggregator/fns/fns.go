@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	ipldprime "github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/schema"
@@ -15,7 +16,6 @@ import (
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/core/invocation/ran"
 	"github.com/storacha/go-ucanto/core/ipld"
-	"github.com/storacha/go-ucanto/core/iterable"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/ucan"
@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
-	"github.com/storacha/piri/pkg/pdp/curio"
+	types2 "github.com/storacha/piri/pkg/pdp/types"
 )
 
 var log = logging.Logger("fns")
@@ -114,7 +114,7 @@ func AggregatePieces(buffer Buffer, pieces []piece.PieceLink) (Buffer, []aggrega
 	return buffer, aggregates, nil
 }
 
-func SubmitAggregates(ctx context.Context, client *curio.Client, proofSet uint64, aggregates []aggregate.Aggregate) error {
+func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet uint64, aggregates []aggregate.Aggregate) error {
 	log.Info("submit aggregates",
 		zap.Array("aggregates", zapcore.ArrayMarshalerFunc(func(arr zapcore.ArrayEncoder) error {
 			for _, agg := range aggregates { // aggregates is []Aggregate
@@ -123,9 +123,30 @@ func SubmitAggregates(ctx context.Context, client *curio.Client, proofSet uint64
 			return nil
 		})),
 	)
-	return client.AddRootsToProofSet(ctx, proofSet, slices.Collect(iterable.Map(func(aggregate aggregate.Aggregate) curio.AddRootRequest {
-		return aggregate.ToCurioAddRoot()
-	}, slices.Values(aggregates))))
+	newRoots := make([]types2.RootAdd, 0, len(aggregates))
+	for _, a := range aggregates {
+		rootCID, err := cid.Decode(a.Root.V1Link().String())
+		if err != nil {
+			return fmt.Errorf("failed to decode aggregate root CID: %w", err)
+		}
+		subRoots := make([]cid.Cid, 0, len(a.Pieces))
+		for _, p := range a.Pieces {
+			pcid, err := cid.Decode(p.Link.V1Link().String())
+			if err != nil {
+				return fmt.Errorf("failed to decode piece CID: %w", err)
+			}
+			subRoots = append(subRoots, pcid)
+		}
+		newRoots = append(newRoots, types2.RootAdd{
+			Root:     rootCID,
+			SubRoots: subRoots,
+		})
+	}
+	_, err := client.AddRoots(ctx, proofSet, newRoots)
+	if err != nil {
+		return fmt.Errorf("failed to submit aggregates: %w", err)
+	}
+	return nil
 }
 
 func GenerateReceipts(issuer ucan.Signer, aggregate aggregate.Aggregate) ([]receipt.AnyReceipt, error) {

@@ -4,16 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/ipfs/go-datastore"
-	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/pkg/pdp/aggregator"
-	"github.com/storacha/piri/pkg/pdp/curio"
+	"github.com/storacha/piri/pkg/pdp/httpapi/client"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
+
+type Config struct {
+	PDPDatastore datastore.Datastore
+	PDPServerURL *url.URL
+	ProofSet     uint64
+	DatabasePath string
+}
 
 type PDPService struct {
 	aggregator  aggregator.Aggregator
@@ -53,29 +61,26 @@ func (p *PDPService) Shutdown(ctx context.Context) error {
 
 var _ PDP = (*PDPService)(nil)
 
-func NewRemotePDPService(
-	ds datastore.Datastore,
-	dbPath string,
-	client *curio.Client,
-	proofSet uint64,
-	issuer ucan.Signer,
-	receiptStore receiptstore.ReceiptStore,
-) (*PDPService, error) {
-	aggregator, err := aggregator.NewLocal(ds, dbPath, client, proofSet, issuer, receiptStore)
+func NewRemote(cfg *Config, id principal.Signer, receiptStore receiptstore.ReceiptStore) (*PDPService, error) {
+	api, err := client.New(cfg.PDPServerURL, client.WithBearerFromSigner(id))
 	if err != nil {
-		return nil, fmt.Errorf("creating local aggregator: %w", err)
+		return nil, fmt.Errorf("creating PDP client api: %w", err)
+	}
+	agg, err := aggregator.NewLocal(cfg.PDPDatastore, cfg.DatabasePath, api, cfg.ProofSet, id, receiptStore)
+	if err != nil {
+		return nil, fmt.Errorf("creating aggregator: %w", err)
 	}
 	return &PDPService{
-		aggregator:  aggregator,
-		pieceFinder: piecefinder.NewCurioFinder(client),
-		pieceAdder:  pieceadder.NewCurioAdder(client),
+		aggregator:  agg,
+		pieceFinder: piecefinder.New(api, cfg.PDPServerURL),
+		pieceAdder:  pieceadder.New(api, cfg.PDPServerURL),
 		startFuncs: []func(ctx context.Context) error{
 			func(ctx context.Context) error {
-				return aggregator.Startup(ctx)
+				return agg.Startup(ctx)
 			},
 		},
 		closeFuncs: []func(context.Context) error{
-			func(ctx context.Context) error { aggregator.Shutdown(ctx); return nil },
+			func(ctx context.Context) error { agg.Shutdown(ctx); return nil },
 		},
 	}, nil
 }

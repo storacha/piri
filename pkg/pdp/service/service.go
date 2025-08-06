@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/chain/types"
+	filtypes "github.com/filecoin-project/lotus/chain/types"
 	"github.com/hashicorp/go-multierror"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -21,11 +21,14 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/pdp/tasks"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
 var log = logging.Logger("pdp/service")
+
+var _ types.API = (*PDPService)(nil)
 
 type PDPService struct {
 	address   common.Address
@@ -41,10 +44,6 @@ type PDPService struct {
 
 	stopFns  []func(ctx context.Context) error
 	startFns []func(ctx context.Context) error
-}
-
-func (p *PDPService) Storage() blobstore.Blobstore {
-	return p.blobstore
 }
 
 func (p *PDPService) Start(ctx context.Context) error {
@@ -67,9 +66,9 @@ func (p *PDPService) Stop(ctx context.Context) error {
 }
 
 type ChainClient interface {
-	ChainHead(ctx context.Context) (*types.TipSet, error)
+	ChainHead(ctx context.Context) (*filtypes.TipSet, error)
 	ChainNotify(ctx context.Context) (<-chan []*api.HeadChange, error)
-	StateGetRandomnessDigestFromBeacon(ctx context.Context, randEpoch abi.ChainEpoch, tsk types.TipSetKey) (abi.Randomness, error)
+	StateGetRandomnessDigestFromBeacon(ctx context.Context, randEpoch abi.ChainEpoch, tsk filtypes.TipSetKey) (abi.Randomness, error)
 }
 
 type EthClient interface {

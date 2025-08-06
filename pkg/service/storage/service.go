@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 
 	"github.com/ipfs/go-datastore"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp"
-	"github.com/storacha/piri/pkg/pdp/curio"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -174,7 +172,7 @@ func New(opts ...Option) (*StorageService, error) {
 	}
 
 	var pdpImpl pdp.PDP
-	if c.pdp == nil {
+	if c.pdpCfg == nil && c.pdpImpl == nil {
 		blobStore := c.blobStore
 		if blobStore == nil {
 			blobStore = blobstore.NewMapBlobstore()
@@ -198,21 +196,9 @@ func New(opts ...Option) (*StorageService, error) {
 			blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, pubURL))
 		}
 	} else {
-		curioAuth, err := curio.CreateCurioJWTAuthHeader("storacha", id)
-		if err != nil {
-			return nil, fmt.Errorf("generating curio JWT: %w", err)
-		}
-		pdpImpl = c.pdp.PDPService
+		pdpImpl = c.pdpImpl
 		if pdpImpl == nil {
-			curioClient := curio.New(http.DefaultClient, c.pdp.PDPServerURL, curioAuth)
-			pdpService, err := pdp.NewRemotePDPService(
-				c.pdp.PDPDatastore,
-				c.pdp.DatabasePath,
-				curioClient,
-				c.pdp.ProofSet,
-				id,
-				receiptStore,
-			)
+			pdpService, err := pdp.NewRemote(c.pdpCfg, id, receiptStore)
 			if err != nil {
 				return nil, fmt.Errorf("creating pdp service: %w", err)
 			}
