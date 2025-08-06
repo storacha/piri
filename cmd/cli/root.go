@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/storacha/piri/cmd/cli/client"
 	"github.com/storacha/piri/cmd/cli/delegate"
 	"github.com/storacha/piri/cmd/cli/identity"
 	"github.com/storacha/piri/cmd/cli/serve"
@@ -69,9 +68,8 @@ func init() {
 	rootCmd.AddCommand(serve.Cmd)
 	rootCmd.AddCommand(wallet.Cmd)
 	rootCmd.AddCommand(identity.Cmd)
-	rootCmd.AddCommand(delegate.Cmd)
-	rootCmd.AddCommand(client.Cmd)
-	rootCmd.AddCommand(LogCmd)
+		rootCmd.AddCommand(delegate.Cmd)
+	rootCmd.AddCommand(NewLogCmd())
 
 }
 

@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/labstack/gommon/color"
+	"github.com/spf13/cobra"
 	"github.com/storacha/go-ucanto/did"
 
 	"github.com/storacha/piri/pkg/build"
@@ -36,4 +37,12 @@ func Mkdirp(dirpath ...string) (string, error) {
 		return "", fmt.Errorf("creating directory: %s: %w", dir, err)
 	}
 	return dir, nil
+}
+
+func MustGetManageAPI(cmd *cobra.Command) string {
+	val, err := cmd.Flags().GetString("manage-api")
+	if err != nil {
+		panic(err)
+	}
+	return val
 }

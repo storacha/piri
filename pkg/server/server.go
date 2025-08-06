@@ -13,6 +13,7 @@ import (
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/server"
 
+	"github.com/storacha/piri/pkg/admin"
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -76,6 +77,8 @@ func NewServer(service storage.Service, options ...server.Option) (*echo.Echo, e
 		return nil, fmt.Errorf("creating IPNI publisher server: %w", err)
 	}
 	httpPublisherSrv.RegisterRoutes(mux)
+
+	admin.RegisterAdminRoutes(mux)
 
 	return mux, nil
 }

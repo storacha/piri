@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
 
+	"github.com/storacha/piri/pkg/admin"
 	"github.com/storacha/piri/pkg/pdp/api/middleware"
 )
 
@@ -40,6 +41,7 @@ func NewServer(p *PDP) *Server {
 	e.HTTPErrorHandler = customErrorHandler
 
 	RegisterEchoRoutes(e, p)
+	admin.RegisterAdminRoutes(e)
 
 	return &Server{e: e}
 }
