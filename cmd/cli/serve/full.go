@@ -23,6 +23,7 @@ import (
 	"github.com/storacha/piri/pkg/config"
 	configapp "github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/app"
+	"github.com/storacha/piri/pkg/management"
 )
 
 var (
@@ -148,6 +149,9 @@ func startFullServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("transforming config: %w", err)
 	}
 
+	// Start the management server
+	startManagementServer(viper.GetString("manage_api"))
+
 	// Create the fx application with the app config
 	fxApp := fx.New(
 		fx.Supply(appConfig),
@@ -175,6 +179,16 @@ func startFullServer(cmd *cobra.Command, _ []string) error {
 	}
 
 	return nil
+}
+
+func startManagementServer(addr string) {
+	go func() {
+		log.Infof("starting management server on %s", addr)
+		mgtSrv := management.NewServer()
+		if err := mgtSrv.Start(addr); err != nil {
+			log.Errorf("failed to start management server: %s", err)
+		}
+	}()
 }
 
 // printHero prints the hero banner after startup

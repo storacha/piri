@@ -62,12 +62,16 @@ func init() {
 	cobra.CheckErr(rootCmd.MarkPersistentFlagFilename("key-file", "pem"))
 	cobra.CheckErr(viper.BindPFlag("key_file", rootCmd.PersistentFlags().Lookup("key-file")))
 
+	rootCmd.PersistentFlags().String("manage-api", "127.0.0.1:8888", "Management API address")
+	cobra.CheckErr(viper.BindPFlag("manage_api", rootCmd.PersistentFlags().Lookup("manage-api")))
+
 	// register all commands and their subcommands
 	rootCmd.AddCommand(serve.Cmd)
 	rootCmd.AddCommand(wallet.Cmd)
 	rootCmd.AddCommand(identity.Cmd)
 	rootCmd.AddCommand(delegate.Cmd)
 	rootCmd.AddCommand(client.Cmd)
+	rootCmd.AddCommand(LogCmd)
 
 }
 
