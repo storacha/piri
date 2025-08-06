@@ -10,7 +10,6 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	"github.com/hashicorp/go-multierror"
-
 	logging "github.com/ipfs/go-log/v2"
 	"gorm.io/gorm"
 
@@ -92,13 +91,14 @@ func NewPDPService(
 		stopFns  []func(context.Context) error
 	)
 	// apply the PDP service database models to the database.
-	if err := models.AutoMigrateDB(db); err != nil {
+	if err := models.AutoMigrateDB(context.TODO(), db); err != nil {
 		return nil, err
 	}
 	chainScheduler := chainsched.New(chainClient)
 
 	var t []scheduler.TaskInterface
-	sender, senderTask := tasks.NewSenderETH(ethClient, wallet, db)
+	senderTask := tasks.NewSenderTaskETH(ethClient, wallet, db)
+	sender := tasks.NewSenderETH(ethClient, db, senderTask)
 	t = append(t, senderTask)
 
 	pdpInitTask, err := tasks.NewInitProvingPeriodTask(db, ethClient, contractClient, chainClient, chainScheduler, sender)

@@ -100,7 +100,7 @@ func NewServer(
 		database.WithJournalMode(database.JournalModeWAL),
 		// ensure foreign key constraints are respected.
 		database.WithForeignKeyConstraintsEnable(true),
-		// wait up to 5 seconds before failing to write due to bust database.
+		// wait up to 5 seconds before failing to write due to busted database.
 		database.WithTimeout(5*time.Second))
 
 	if err != nil {
@@ -110,7 +110,6 @@ func NewServer(
 	if err != nil {
 		return nil, fmt.Errorf("creating pdp service: %w", err)
 	}
-
 	pdpAPI := &server.PDP{Service: pdpService}
 	svr := server.NewServer(pdpAPI)
 	return &Server{

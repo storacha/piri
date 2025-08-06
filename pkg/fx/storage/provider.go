@@ -63,7 +63,7 @@ func NewStorageService(params StorageServiceParams, lc fx.Lifecycle) (storage.Se
 		pdp:          params.PDP,
 		receiptStore: params.ReceiptStore,
 		replicator:   params.Replicator,
-		uploadConn:   params.Config.External.UploadService.Connection,
+		uploadConn:   params.Config.Services.UploadService.Connection,
 	}
 
 	// Register lifecycle hooks

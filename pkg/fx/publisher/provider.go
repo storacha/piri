@@ -42,8 +42,8 @@ func NewService(
 		publisherStore,
 		pubCfg.PublicMaddr,
 		publisher.WithDirectAnnounce(pubCfg.AnnounceURLs...),
-		publisher.WithIndexingService(cfg.External.IndexingService.Connection),
-		publisher.WithIndexingServiceProof(cfg.External.IndexingService.Proofs...),
+		publisher.WithIndexingService(cfg.Services.IndexingService.Connection),
+		publisher.WithIndexingServiceProof(cfg.Services.IndexingService.Proofs...),
 		publisher.WithAnnounceAddress(pubCfg.AnnounceMaddr),
 		publisher.WithBlobAddress(pubCfg.BlobMaddr),
 	)

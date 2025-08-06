@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"time"
@@ -348,35 +349,36 @@ func Ptr[T any](v T) *T {
 	return &v
 }
 
-func AutoMigrateDB(db *gorm.DB) error {
-	if err := db.AutoMigrate(
-		&Machine{},
-		&Task{},
-		&TaskHistory{},
-		&TaskFollow{},
-		&TaskImpl{},
+func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
+	if err := db.WithContext(ctx).
+		AutoMigrate(
+			&Machine{},
+			&Task{},
+			&TaskHistory{},
+			&TaskFollow{},
+			&TaskImpl{},
 
-		&ParkedPiece{},
-		&ParkedPieceRef{},
+			&ParkedPiece{},
+			&ParkedPieceRef{},
 
-		&PDPService{},
-		&PDPPieceUpload{},
-		&PDPPieceRef{},
-		&PDPProofSet{},
-		&PDPProveTask{},
-		&PDPProofsetCreate{},
-		&PDPProofsetRoot{},
-		&PDPProofsetRootAdd{},
-		&PDPPieceMHToCommp{},
+			&PDPService{},
+			&PDPPieceUpload{},
+			&PDPPieceRef{},
+			&PDPProofSet{},
+			&PDPProveTask{},
+			&PDPProofsetCreate{},
+			&PDPProofsetRoot{},
+			&PDPProofsetRootAdd{},
+			&PDPPieceMHToCommp{},
 
-		&EthKey{},
-		&MessageSendsEth{},
-		&MessageSendEthLock{},
-		&MessageWaitsEth{},
-	); err != nil {
+			&EthKey{},
+			&MessageSendsEth{},
+			&MessageSendEthLock{},
+			&MessageWaitsEth{},
+		); err != nil {
 		return fmt.Errorf("failed to auto migrate database: %s", err)
 	}
-	if err := db.Exec(Triggers).Error; err != nil {
+	if err := db.WithContext(ctx).Exec(Triggers).Error; err != nil {
 		return fmt.Errorf("failed to install database triggers: %s", err)
 	}
 	return nil
