@@ -10,6 +10,12 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
+// ProofSetProvider is a function that provides a ProofSet ID when called.
+// This allows for lazy initialization of the ProofSet after the application has started.
+type ProofSetProvider interface {
+	GetOrCreateProofSet(ctx context.Context) (uint64, error)
+}
+
 type ProofSetStatus struct {
 	TxHash   common.Hash
 	TxStatus string

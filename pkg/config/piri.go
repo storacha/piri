@@ -62,12 +62,12 @@ func (r Repo) ToAppConfig() (app.StorageConfig, error) {
 		return app.StorageConfig{}, err
 	}
 
-	return app.StorageConfig{
+	out := app.StorageConfig{
 		DataDir: r.DataDir,
 		TempDir: r.TempDir,
 		Aggregator: app.AggregatorStorageConfig{
-			DatastoreDir: filepath.Join(r.DataDir, "aggregator", "datastore"),
-			DBPath:       filepath.Join(r.DataDir, "aggregator", "jobqueue", "jobqueue.db"),
+			StoreDir: filepath.Join(r.DataDir, "aggregator", "datastore"),
+			DBPath:   filepath.Join(r.DataDir, "aggregator", "jobqueue", "jobqueue.db"),
 		},
 		Blobs: app.BlobStorageConfig{
 			StoreDir: filepath.Join(r.DataDir, "blobs"),
@@ -92,15 +92,27 @@ func (r Repo) ToAppConfig() (app.StorageConfig, error) {
 			StoreDir: filepath.Join(r.DataDir, "wallet"),
 		},
 		StashStore: app.StashStoreConfig{
-			StoreDir: filepath.Join(r.DataDir, "pdp", "stash"),
+			StoreDir: filepath.Join(r.DataDir, "pdp"),
 		},
 		SchedulerStorage: app.SchedulerConfig{
-			DatabasePath: filepath.Join(r.DataDir, "pdp", "state", "scheduler.db"),
+			DBPath: filepath.Join(r.DataDir, "pdp", "state", "scheduler.db"),
 		},
 		PDPStore: app.PDPStoreConfig{
 			StoreDir: filepath.Join(r.DataDir, "pdp", "datastore"),
 		},
-	}, nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(out.Aggregator.DBPath), 0755); err != nil {
+		return app.StorageConfig{}, fmt.Errorf("creating aggregator db: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(out.Replicator.DBPath), 0755); err != nil {
+		return app.StorageConfig{}, fmt.Errorf("creating replicator db: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(out.SchedulerStorage.DBPath), 0755); err != nil {
+		return app.StorageConfig{}, fmt.Errorf("creating scheduler db: %w", err)
+	}
+
+	return out, nil
 
 }
 

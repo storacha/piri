@@ -47,11 +47,11 @@ var Module = fx.Module("filesystem-store",
 
 // TODO this likely needs a named fx tag, or it's own unique interface.
 func NewAggregatorDataStore(cfg app.AppConfig, lc fx.Lifecycle) (datastore.Datastore, error) {
-	if cfg.Storage.Aggregator.DatastoreDir == "" {
+	if cfg.Storage.Aggregator.StoreDir == "" {
 		return nil, fmt.Errorf("no data dir provided for aggregator store")
 	}
 
-	ds, err := newDs(cfg.Storage.Aggregator.DatastoreDir)
+	ds, err := newDs(cfg.Storage.Aggregator.StoreDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating aggregator store: %w", err)
 	}

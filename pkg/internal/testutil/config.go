@@ -36,12 +36,10 @@ func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 			DataDir: "", // Empty = memory stores by default
 			TempDir: "",
 		},
-		External: app.ExternalServicesConfig{
+		Services: app.ServicesConfig{
 			UploadService: app.ServiceConnectionConfig{
 				Connection: testutil.Must(client.NewConnection(presets.UploadServiceDID, ucanhttp.NewHTTPChannel(presets.UploadServiceURL)))(t),
 			},
-		},
-		Services: app.ServicesConfig{
 			Publisher: app.PublisherConfig{
 				PublicMaddr:   testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
 				AnnounceMaddr: testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
@@ -76,7 +74,7 @@ func WithUploadServiceURL(uploadURL *url.URL) TestConfigOption {
 				// Use Alice as a fallback for tests
 				did = testutil.Alice.DID()
 			}
-			cfg.External.UploadService.Connection = testutil.Must(client.NewConnection(
+			cfg.Services.UploadService.Connection = testutil.Must(client.NewConnection(
 				did,
 				ucanhttp.NewHTTPChannel(uploadURL),
 			))(t)

@@ -40,28 +40,15 @@ func WithSessionID(sessionID string) Option {
 
 // NewEngine creates a new TaskEngine with the provided task implementations.
 func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine, error) {
-	ctx, cancel := context.WithCancel(context.Background())
 	e := &TaskEngine{
-		ctx:       ctx,
 		sessionID: mustGenerateSessionID(),
-		cancel:    cancel,
 		db:        db,
 	}
 
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
-			cancel()
 			return nil, err
 		}
-	}
-
-	log.Infof("Starting engine with session ID: %s", e.sessionID)
-
-	// TODO add dedicated start method to the engine that actually runs these routines
-	// Clean up tasks from previous sessions
-	if err := e.cleanupPreviousSessions(); err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to cleanup previous sessions: %w", err)
 	}
 
 	for _, impl := range impls {
@@ -71,7 +58,25 @@ func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine,
 			TaskEngine:      e,
 		}
 		e.handlers = append(e.handlers, h)
+	}
 
+	return e, nil
+}
+
+func (e *TaskEngine) Start(ctx context.Context) error {
+	log.Infof("Starting engine with session ID: %s", e.sessionID)
+
+	if err := models.AutoMigrateDB(ctx, e.db); err != nil {
+		return fmt.Errorf("auto migrate db: %w", err)
+	}
+
+	// Clean up tasks from previous sessions
+	if err := e.cleanupPreviousSessions(ctx); err != nil {
+		return fmt.Errorf("failed to cleanup previous sessions: %w", err)
+	}
+
+	e.ctx, e.cancel = context.WithCancel(context.Background())
+	for _, h := range e.handlers {
 		// Start the adder routine for the task type.
 		go h.Adder(h.AddTask)
 
@@ -82,8 +87,7 @@ func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine,
 	}
 
 	go e.poller()
-
-	return e, nil
+	return nil
 }
 
 // SessionID returns the unique session ID of this engine instance
@@ -92,20 +96,20 @@ func (e *TaskEngine) SessionID() string {
 }
 
 // GracefullyTerminate stops new task scheduling and releases owned tasks.
-func (e *TaskEngine) GracefullyTerminate() {
+func (e *TaskEngine) GracefullyTerminate(ctx context.Context) error {
 	// Stop accepting new work
 	e.cancel()
 
 	// Release all tasks owned by this session
-	if err := e.db.Model(&models.Task{}).
+	if err := e.db.WithContext(ctx).
+		Model(&models.Task{}).
 		Where("session_id = ?", e.sessionID).
 		Updates(map[string]interface{}{
 			"session_id": nil,
 		}).Error; err != nil {
-		log.Errorf("Failed to release tasks during shutdown: %v", err)
-	} else {
-		log.Infof("Released tasks for session %s", e.sessionID)
+		return fmt.Errorf("failed to release tasks during engine shutdown: %w", err)
 	}
+	return nil
 }
 
 // poller continuously checks for work.
@@ -168,9 +172,10 @@ func (e *TaskEngine) pollerTryAllWork() bool {
 }
 
 // cleanupPreviousSessions releases tasks from previous sessions
-func (e *TaskEngine) cleanupPreviousSessions() error {
+func (e *TaskEngine) cleanupPreviousSessions(ctx context.Context) error {
 	// Release all tasks from previous sessions (any session ID != current)
-	result := e.db.Model(&models.Task{}).
+	result := e.db.WithContext(ctx).
+		Model(&models.Task{}).
 		Where("session_id IS NOT NULL AND session_id != ?", e.sessionID).
 		Updates(map[string]interface{}{
 			"session_id": nil,

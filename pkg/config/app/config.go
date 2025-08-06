@@ -37,7 +37,7 @@ type BlockchainConfig struct {
 }
 
 type SchedulerConfig struct {
-	DatabasePath string
+	DBPath string
 }
 
 // IdentityConfig contains identity-related configuration
@@ -75,8 +75,8 @@ type StorageConfig struct {
 
 // AggregatorStorageConfig contains aggregator-specific storage paths
 type AggregatorStorageConfig struct {
-	DatastoreDir string
-	DBPath       string
+	StoreDir string
+	DBPath   string
 }
 
 // BlobStorageConfig contains blob-specific storage paths

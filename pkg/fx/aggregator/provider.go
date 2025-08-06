@@ -29,10 +29,17 @@ var Module = fx.Module("aggregator",
 		aggregator.NewPieceAccepter,
 		aggregator.NewAggregateSubmitteer,
 		aggregator.NewPieceAggregator,
-		ProvideStore,
+		fx.Annotate(
+			ProvideStore,
+			fx.As(new(aggregator.AggregateStore)),
+		),
 		ProvideInProgressWorkspace,
 		ProvidePieceQueue,
-		ProvideLinkQueue, // TODO might need to decorate
+		fx.Annotate(
+			ProvideLinkQueue,
+			fx.As(fx.Self()),
+			fx.As(new(aggregator.LinkQueue)),
+		),
 	),
 
 	fx.Invoke(
@@ -55,6 +62,7 @@ const (
 )
 
 type StoreParams struct {
+	fx.In
 	Datastore datastore.Datastore `name:"aggregator_datastore"`
 }
 
@@ -70,11 +78,12 @@ func ProvideInProgressWorkspace(params StoreParams) aggregator.InProgressWorkspa
 }
 
 type LinkQueueParams struct {
+	fx.In
 	DB *sql.DB `name:"aggregator_db"`
 }
 
 func ProvideLinkQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQueue[datamodel.Link], error) {
-	linkQueue, err := jobqueue.New[datamodel.Link, aggregate.Aggregate](
+	linkQueue, err := jobqueue.New[datamodel.Link](
 		LinkQueueName,
 		params.DB,
 		&serializer.IPLDCBOR[datamodel.Link]{
@@ -103,7 +112,7 @@ func ProvideLinkQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQue
 }
 
 func ProvidePieceQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQueue[piece.PieceLink], error) {
-	pieceQueue, err := jobqueue.New(
+	pieceQueue, err := jobqueue.New[piece.PieceLink](
 		PieceQueueName,
 		params.DB,
 		&serializer.IPLDCBOR[piece.PieceLink]{

@@ -33,7 +33,7 @@ func ProvidePDP(cfg app.AppConfig, id principal.Signer, receiptStore receiptstor
 	}
 
 	// Create aggregator datastore
-	aggDs, err := leveldb.NewDatastore(cfg.Storage.Aggregator.DatastoreDir, nil)
+	aggDs, err := leveldb.NewDatastore(cfg.Storage.Aggregator.StoreDir, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating aggregator datastore: %w", err)
 	}
