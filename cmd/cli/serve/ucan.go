@@ -17,6 +17,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 
 	"github.com/storacha/piri/cmd/cliutil"
+	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
@@ -278,7 +279,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		}
 		log.Warnf("no public URL configured, using %s", pubURL)
 	} else {
-		pubURL, err = url.Parse(cfg.PublicURL)
+		pubURL, err = lib.ParseAndNormalizeURL(cfg.PublicURL)
 		if err != nil {
 			return fmt.Errorf("parsing server public url: %w", err)
 		}
