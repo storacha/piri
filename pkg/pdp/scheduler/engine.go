@@ -78,7 +78,7 @@ func (e *TaskEngine) Start(ctx context.Context) error {
 	e.ctx, e.cancel = context.WithCancel(context.Background())
 	for _, h := range e.handlers {
 		// Start the adder routine for the task type.
-		go h.Adder(h.AddTask)
+		h.Adder(h.AddTask)
 
 		// Start the periodic scheduler if provided
 		if h.TaskTypeDetails.PeriodicScheduler != nil {

@@ -31,12 +31,12 @@ var Module = fx.Module("filesystem-store",
 		NewAllocationStore,
 		NewBlobStore,
 		NewClaimStore,
-		NewPublisherStore,
 		// Also provide the interface
 		fx.Annotate(
-			func(s store.FullStore) store.PublisherStore {
-				return s
-			},
+			NewPublisherStore,
+			fx.As(fx.Self()),
+			fx.As(new(store.PublisherStore)),
+			fx.As(new(store.EncodeableStore)),
 		),
 		NewReceiptStore,
 		NewKeyStore,

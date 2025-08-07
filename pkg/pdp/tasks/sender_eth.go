@@ -70,6 +70,7 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *ty
 			Value: tx.Value(),
 			Data:  tx.Data(),
 		}
+		log.Infow("Sending message", "from", fromAddress.String(), "to", tx.To().String(), "msg", msg)
 
 		gasLimit, err := s.client.EstimateGas(ctx, msg)
 		if err != nil {
@@ -126,7 +127,9 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *ty
 	unsignedHash := tx.Hash().Hex()
 
 	// Push the task
+	log.Infof("SenderETH.Send: retrieving taskAdder, s.sendTask=%p", s.sendTask)
 	taskAdder := s.sendTask.sendTF.Val(ctx)
+	log.Infof("SenderETH.Send: taskAdder=%p", taskAdder)
 
 	var sendTaskID *scheduler.TaskID
 	taskAdder(func(id scheduler.TaskID, txdb *gorm.DB) (shouldCommit bool, seriousError error) {
@@ -392,5 +395,7 @@ func (s *SendTaskETH) TypeDetails() scheduler.TaskTypeDetails {
 }
 
 func (s *SendTaskETH) Adder(taskFunc scheduler.AddTaskFunc) {
+	log.Infof("SendTaskETH.Adder called: s=%p, taskFunc=%p", s, taskFunc)
 	s.sendTF.Set(taskFunc)
+	log.Infof("SendTaskETH.Adder: promise set successfully")
 }

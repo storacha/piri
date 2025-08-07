@@ -10,6 +10,7 @@ import (
 	"github.com/storacha/piri/pkg/fx/scheduler"
 	"github.com/storacha/piri/pkg/fx/store"
 	"github.com/storacha/piri/pkg/fx/wallet"
+	"github.com/storacha/piri/pkg/pdp/httpapi/server"
 )
 
 func PDPServiceModule(cfg app.AppConfig) fx.Option {
@@ -25,6 +26,7 @@ func PDPServiceModule(cfg app.AppConfig) fx.Option {
 		scheduler.Module,
 		// Provides the PDP Service
 		pdp.Module,
+		server.Module,
 	}
 
 	if cfg.Storage.DataDir == "" {
