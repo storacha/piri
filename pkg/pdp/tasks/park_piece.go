@@ -27,33 +27,20 @@ type ParkPieceTask struct {
 
 	TF promise.Promise[scheduler.AddTaskFunc]
 
-	max int
-
+	// TODO delete this.
 	longTerm bool // Indicates if the task is for long-term pieces
 }
 
-/*
-func NewParkPieceTask(db *gorm.DB, bs blobstore.Blobstore, max int) (*ParkPieceTask, error) {
-	return newPieceTask(db, bs, max, false)
-}
-*/
-
-func NewStorePieceTask(db *gorm.DB, bs blobstore.Blobstore, max int) (*ParkPieceTask, error) {
-	return newPieceTask(db, bs, max, true)
-}
-
-func newPieceTask(db *gorm.DB, bs blobstore.Blobstore, max int, longTerm bool) (*ParkPieceTask, error) {
-	pt := &ParkPieceTask{
+func NewStorePieceTask(db *gorm.DB, bs blobstore.Blobstore) *ParkPieceTask {
+	return &ParkPieceTask{
 		db:       db,
 		bs:       bs,
-		max:      max,
-		longTerm: longTerm,
+		longTerm: true,
 	}
+}
 
-	ctx := context.Background()
-
-	go pt.pollPieceTasks(ctx)
-	return pt, nil
+func (p *ParkPieceTask) Start(ctx context.Context) {
+	go p.pollPieceTasks(ctx)
 }
 
 func (p *ParkPieceTask) pollPieceTasks(ctx context.Context) {

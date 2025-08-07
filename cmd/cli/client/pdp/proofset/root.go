@@ -16,4 +16,5 @@ func init() {
 	Cmd.AddCommand(CreateCmd)
 	Cmd.AddCommand(StatusCmd)
 	Cmd.AddCommand(GetCmd)
+	Cmd.AddCommand(ListCmd)
 }

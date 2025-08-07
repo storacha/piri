@@ -8,20 +8,20 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/service/publisher"
 )
 
 var Module = fx.Module("publisher",
 	fx.Provide(
-		NewService,
 		// Also provide the interface
 		fx.Annotate(
-			func(svc *publisher.PublisherService) publisher.Publisher {
-				return svc
-			},
+			NewService,
+			fx.As(new(publisher.Publisher)),
 		),
 		fx.Annotate(
 			publisher.NewServer,
+			fx.As(new(echofx.RouteRegistrar)),
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 	),
@@ -42,8 +42,8 @@ func NewService(
 		publisherStore,
 		pubCfg.PublicMaddr,
 		publisher.WithDirectAnnounce(pubCfg.AnnounceURLs...),
-		publisher.WithIndexingService(cfg.External.IndexingService.Connection),
-		publisher.WithIndexingServiceProof(cfg.External.IndexingService.Proofs...),
+		publisher.WithIndexingService(cfg.Services.IndexingService.Connection),
+		publisher.WithIndexingServiceProof(cfg.Services.IndexingService.Proofs...),
 		publisher.WithAnnounceAddress(pubCfg.AnnounceMaddr),
 		publisher.WithBlobAddress(pubCfg.BlobMaddr),
 	)

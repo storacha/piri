@@ -31,6 +31,7 @@ var Module = fx.Module("root-handler",
 	fx.Provide(
 		fx.Annotate(
 			NewRootHandler,
+			fx.As(new(echofx.RouteRegistrar)),
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 	),

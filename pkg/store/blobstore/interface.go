@@ -72,6 +72,11 @@ type FileSystemer interface {
 	FileSystem() http.FileSystem
 }
 
+type PDPStore interface {
+	Blobstore
+	FileSystemer
+}
+
 type GetConfig interface {
 	ProcessOptions([]GetOption)
 	Range() Range

@@ -1,4 +1,4 @@
-package pdp
+package remotepdp
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
-var Module = fx.Module("pdp",
+var Module = fx.Module("remote-pdp",
 	fx.Provide(
 		ProvidePDP,
 	),
@@ -21,11 +21,11 @@ var Module = fx.Module("pdp",
 // ProvidePDP provides a PDP implementation based on configuration
 func ProvidePDP(cfg app.AppConfig, id principal.Signer, receiptStore receiptstore.ReceiptStore) (pdp.PDP, error) {
 	// If no PDP server is configured, return nil
-	if cfg.External.PDPServer == nil {
+	if cfg.Services.PDPServer == nil {
 		return nil, nil
 	}
 
-	pdpCfg := cfg.External.PDPServer
+	pdpCfg := cfg.Services.PDPServer
 
 	// Validate configuration
 	if pdpCfg.ProofSet == 0 {
@@ -33,7 +33,7 @@ func ProvidePDP(cfg app.AppConfig, id principal.Signer, receiptStore receiptstor
 	}
 
 	// Create aggregator datastore
-	aggDs, err := leveldb.NewDatastore(cfg.Storage.Aggregator.DatastoreDir, nil)
+	aggDs, err := leveldb.NewDatastore(cfg.Storage.Aggregator.StoreDir, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating aggregator datastore: %w", err)
 	}

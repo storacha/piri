@@ -49,6 +49,7 @@ type EchoServer struct {
 
 // NewEchoServer creates a new Echo server with lifecycle management
 func NewEchoServer(cfg app.AppConfig, e *echo.Echo, lc fx.Lifecycle) (*EchoServer, error) {
+	log.Info("NewEchoServer called")
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	server := &EchoServer{

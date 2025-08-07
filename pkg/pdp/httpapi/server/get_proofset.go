@@ -9,19 +9,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/httpapi"
 )
 
-type GetProofSetResponse struct {
-	ID                 int64       `json:"id"`
-	NextChallengeEpoch int64       `json:"nextChallengeEpoch"`
-	Roots              []RootEntry `json:"roots"`
-}
-
-type RootEntry struct {
-	RootID        int64  `json:"rootId"`
-	RootCID       string `json:"rootCid"`
-	SubrootCID    string `json:"subrootCid"`
-	SubrootOffset int64  `json:"subrootOffset"`
-}
-
 // handleGetProofSet -> GET /pdp/proof-sets/:proofSetID
 func (p *PDP) handleGetProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
@@ -38,7 +25,7 @@ func (p *PDP) handleGetProofSet(c echo.Context) error {
 
 	ps, err := p.Service.GetProofSet(ctx, id)
 	if err != nil {
-		return c.String(http.StatusInternalServerError, "failed to fetch proofSet")
+		return err
 	}
 
 	resp := httpapi.GetProofSetResponse{

@@ -3,11 +3,13 @@ package aggregator
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
+	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/ucan"
 
 	"github.com/storacha/piri/internal/ipldstore"
@@ -114,18 +116,32 @@ func (pa *PieceAggregator) AggregatePieces(ctx context.Context, pieces []piece.P
 }
 
 type AggregateSubmitter struct {
-	proofSet uint64
-	store    AggregateStore
-	client   types2.ProofSetAPI
-	queue    LinkQueue
+	proofSetProvider types2.ProofSetProvider
+	getProofSet      func(context.Context) (uint64, error)
+	store            AggregateStore
+	client           types2.ProofSetAPI
+	queue            LinkQueue
 }
 
-func NewAggregateSubmitteer(proofSet uint64, store AggregateStore, client types2.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
+func NewAggregateSubmitteer(proofSetProvider types2.ProofSetProvider, store AggregateStore, client types2.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
+	var once sync.Once
+	var proofSet uint64
+	var proofSetErr error
+
+	// Create a wrapper that ignores context but uses sync.Once
+	getProofSet := func(ctx context.Context) (uint64, error) {
+		once.Do(func() {
+			proofSet, proofSetErr = proofSetProvider.GetOrCreateProofSet(ctx)
+		})
+		return proofSet, proofSetErr
+	}
+
 	return &AggregateSubmitter{
-		proofSet: proofSet,
-		store:    store,
-		client:   client,
-		queue:    queuePieceAccept,
+		proofSetProvider: proofSetProvider,
+		getProofSet:      getProofSet,
+		store:            store,
+		client:           client,
+		queue:            queuePieceAccept,
 	}
 }
 
@@ -139,7 +155,12 @@ func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLin
 		}
 		aggregates = append(aggregates, aggregate)
 	}
-	if err := fns.SubmitAggregates(ctx, as.client, as.proofSet, aggregates); err != nil {
+	proofSet, err := as.getProofSet(ctx)
+	if err != nil {
+		return fmt.Errorf("getting proof set ID: %w", err)
+	}
+
+	if err := fns.SubmitAggregates(ctx, as.client, proofSet, aggregates); err != nil {
 		return fmt.Errorf("submitting aggregates to Curio: %w", err)
 	}
 	for _, aggregateLink := range aggregateLinks {
@@ -159,7 +180,7 @@ type PieceAccepter struct {
 	receiptStore   receiptstore.ReceiptStore
 }
 
-func NewPieceAccepter(issuer ucan.Signer, aggregateStore AggregateStore, receiptStore receiptstore.ReceiptStore) *PieceAccepter {
+func NewPieceAccepter(issuer principal.Signer, aggregateStore AggregateStore, receiptStore receiptstore.ReceiptStore) *PieceAccepter {
 	return &PieceAccepter{
 		issuer:         issuer,
 		aggregateStore: aggregateStore,

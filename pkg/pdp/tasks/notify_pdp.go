@@ -114,7 +114,8 @@ func (t *PDPNotifyTask) schedule(ctx context.Context, taskFunc scheduler.AddTask
 			// - notify_task_id is NULL
 
 			var uploads []models.PDPPieceUpload
-			err := tx.Model(&models.PDPPieceUpload{}).
+			err := tx.WithContext(ctx).
+				Model(&models.PDPPieceUpload{}).
 				Joins("JOIN parked_piece_refs pr ON pr.ref_id = pdp_piece_uploads.piece_ref").
 				Joins("JOIN parked_pieces pp ON pp.id = pr.piece_id").
 				Where("pdp_piece_uploads.piece_ref IS NOT NULL").
@@ -133,7 +134,8 @@ func (t *PDPNotifyTask) schedule(ctx context.Context, taskFunc scheduler.AddTask
 			}
 
 			// Update the pdp_piece_uploads entry to set notify_task_id
-			err = tx.Model(&models.PDPPieceUpload{}).
+			err = tx.WithContext(ctx).
+				Model(&models.PDPPieceUpload{}).
 				Where("id = ? AND notify_task_id IS NULL", uploads[0].ID).
 				Update("notify_task_id", id).Error
 			if err != nil {
