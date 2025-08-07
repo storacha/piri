@@ -38,6 +38,11 @@ Test your complete deployment
 ### [Upgrading Piri](./setup/upgrading.md)
 Keep your Piri installation up to date with the latest releases
 
+## Additional Information
+
+### [Telemetry and Analytics](./telemetry.md)
+Learn about the metrics Piri collects and how to opt out
+
 ---
 
 By the end of this guide, you'll have a fully operational Piri deployment ready to serve the Storacha network.
