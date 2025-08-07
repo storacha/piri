@@ -8,20 +8,20 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/service/publisher"
 )
 
 var Module = fx.Module("publisher",
 	fx.Provide(
-		NewService,
 		// Also provide the interface
 		fx.Annotate(
-			func(svc *publisher.PublisherService) publisher.Publisher {
-				return svc
-			},
+			NewService,
+			fx.As(new(publisher.Publisher)),
 		),
 		fx.Annotate(
 			publisher.NewServer,
+			fx.As(new(echofx.RouteRegistrar)),
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 	),

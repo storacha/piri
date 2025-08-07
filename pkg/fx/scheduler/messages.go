@@ -9,6 +9,7 @@ import (
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
+	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/tasks"
@@ -22,13 +23,16 @@ var MessageModule = fx.Module("scheduler-messages",
 		// - SendTaskETH is registered as a scheduler task
 		// - Other tasks (InitProvingPeriodTask, NextProvingPeriodTask, ProveTask) depend on ethereum.Sender (SenderETH)
 		// - Fx needs all tasks created before building the engine, but can't create tasks that depend on Sender until Sender exists
-		//   and Sender can't exist until SendTaskETH exists. So we make them both together and:
-		//     - label the task as a scheduler_tasks group, making it available to the scheduler.
-		//     - annotate the SenderETH as an ethereum.Sender, the interface it implements.
+		//   and Sender can't exist until SendTaskETH exists. So we make them both together
+		ProvideSenderETHPair,
 		fx.Annotate(
-			ProvideSenderETH,
-			fx.As(new(ethereum.Sender)),                  // First result as Sender interface
-			fx.ResultTags(``, `group:"scheduler_tasks"`), // Second result to task group
+			ProvideSenderFromPair,
+			fx.As(new(ethereum.Sender)),
+		),
+		fx.Annotate(
+			ProvideSendTaskFromPair,
+			fx.ResultTags(`group:"scheduler_tasks"`),
+			fx.As(new(scheduler.TaskInterface)),
 		),
 	),
 	// NB: these methods are invoked as they do not provide any types in their return or nothing depends on their return
@@ -46,8 +50,29 @@ type SenderETHParams struct {
 	Wallet wallet.Wallet
 }
 
-func ProvideSenderETH(params SenderETHParams) (*tasks.SenderETH, *tasks.SendTaskETH) {
-	return tasks.NewSenderETH(params.Client, params.Wallet, params.DB)
+// SenderETHPair holds both the sender and task to ensure they're created together
+type SenderETHPair struct {
+	Sender   *tasks.SenderETH
+	SendTask *tasks.SendTaskETH
+}
+
+func ProvideSenderETHPair(params SenderETHParams) *SenderETHPair {
+	sender, sendTask := tasks.NewSenderETH(params.Client, params.Wallet, params.DB)
+	fmt.Printf("ProvideSenderETHPair: created sender=%p, sendTask=%p\n", sender, sendTask)
+	return &SenderETHPair{
+		Sender:   sender,
+		SendTask: sendTask,
+	}
+}
+
+func ProvideSenderFromPair(pair *SenderETHPair) *tasks.SenderETH {
+	fmt.Printf("ProvideSenderFromPair: returning sender=%p from pair\n", pair.Sender)
+	return pair.Sender
+}
+
+func ProvideSendTaskFromPair(pair *SenderETHPair) *tasks.SendTaskETH {
+	fmt.Printf("ProvideSendTaskFromPair: returning sendTask=%p from pair\n", pair.SendTask)
+	return pair.SendTask
 }
 
 type WatcherMessageEthParams struct {

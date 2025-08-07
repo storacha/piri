@@ -25,7 +25,10 @@ import (
 
 var Module = fx.Module("aggregator",
 	fx.Provide(
-		aggregator.New,
+		fx.Annotate(
+			aggregator.New,
+			fx.As(new(aggregator.Aggregator)),
+		),
 		aggregator.NewPieceAccepter,
 		aggregator.NewAggregateSubmitteer,
 		aggregator.NewPieceAggregator,
@@ -100,7 +103,7 @@ func ProvideLinkQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQue
 	queueCtx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			linkQueue.Start(queueCtx)
+			go linkQueue.Start(queueCtx)
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
@@ -129,7 +132,7 @@ func ProvidePieceQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQu
 	queueCtx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			pieceQueue.Start(queueCtx)
+			go pieceQueue.Start(queueCtx)
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {

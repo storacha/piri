@@ -11,6 +11,7 @@ import (
 
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/fx/app"
+	"github.com/storacha/piri/pkg/fx/echo"
 )
 
 var FXPDPCmd = &cobra.Command{
@@ -70,6 +71,10 @@ func doFXPDPServe(cmd *cobra.Command, _ []string) error {
 		fx.Supply(appCfg),
 		app.PDPServiceModule(appCfg),
 		app.UCANServiceModule(appCfg),
+		// needed to actually start the server as nothing depends on it
+		fx.Invoke(func(server *echo.EchoServer) {
+			fmt.Println(server.Address())
+		}),
 	)
 	if err := fxApp.Err(); err != nil {
 		return err

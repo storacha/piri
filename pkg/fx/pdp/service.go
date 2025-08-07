@@ -11,14 +11,17 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/pdp"
+	"github.com/storacha/piri/pkg/pdp/aggregator"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
+	"github.com/storacha/piri/pkg/pdp/ethereum"
+	"github.com/storacha/piri/pkg/pdp/pieceadder"
+	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/storacha/piri/pkg/wallet"
 )
 
 var Module = fx.Module("pdp-service",
@@ -34,35 +37,62 @@ var Module = fx.Module("pdp-service",
 			ProvideProofSetProvider,
 			fx.As(new(types.ProofSetProvider)),
 		),
+		fx.Annotate(
+			ProvidePoorlyNamedPDPInterface,
+			fx.As(new(pdp.PDP)),
+		),
 	),
 )
+
+type Shit struct {
+	aggregator  aggregator.Aggregator
+	pieceFinder piecefinder.PieceFinder
+	pieceAdder  pieceadder.PieceAdder
+}
+
+func (s *Shit) PieceAdder() pieceadder.PieceAdder {
+	return s.pieceAdder
+}
+
+func (s *Shit) PieceFinder() piecefinder.PieceFinder {
+	return s.pieceFinder
+}
+
+func (s *Shit) Aggregator() aggregator.Aggregator {
+	return s.aggregator
+}
+
+func ProvidePoorlyNamedPDPInterface(service types.API, agg aggregator.Aggregator, cfg app.AppConfig) (*Shit, error) {
+	finder := piecefinder.New(service, cfg.Server.PublicURL)
+	adder := pieceadder.New(service, cfg.Server.PublicURL)
+	return &Shit{
+		aggregator:  agg,
+		pieceFinder: finder,
+		pieceAdder:  adder,
+	}, nil
+}
 
 type Params struct {
 	fx.In
 
+	DB             *gorm.DB `name:"engine_db"`
 	Config         app.AppConfig
-	Wallet         wallet.Wallet
 	Store          blobstore.PDPStore
 	Stash          store.Stash
-	ChainClient    service.ChainClient
-	EthClient      service.EthClient
-	ContractClient contract.PDP
-
-	DB             *gorm.DB `name:"engine_db"`
+	Sender         ethereum.Sender
+	Engine         *scheduler.TaskEngine
 	ChainScheduler *chainsched.Scheduler
-	TaskEngine     *scheduler.TaskEngine
 }
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
 	return service.NewPDPService(
 		params.DB,
 		params.Config.Blockchain.OwnerAddr,
-		params.Wallet,
 		params.Store,
 		params.Stash,
-		params.ChainClient,
-		params.EthClient,
-		params.ContractClient,
+		params.Sender,
+		params.Engine,
+		params.ChainScheduler,
 	)
 }
 
@@ -107,6 +137,6 @@ func (p *ProofSetProvider) GetOrCreateProofSet(ctx context.Context) (uint64, err
 func ProvideProofSetProvider(svc *service.PDPService, cfg app.AppConfig) *ProofSetProvider {
 	return &ProofSetProvider{
 		svc:          svc,
-		recordKeeper: cfg.Blockchain.OwnerAddr,
+		recordKeeper: cfg.Blockchain.RecordKeeperAddr,
 	}
 }
