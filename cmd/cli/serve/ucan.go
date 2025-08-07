@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -278,7 +279,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		}
 		log.Warnf("no public URL configured, using %s", pubURL)
 	} else {
-		pubURL, err = url.Parse(cfg.PublicURL)
+		pubURL, err = url.Parse(strings.TrimSuffix(cfg.PublicURL, "/"))
 		if err != nil {
 			return fmt.Errorf("parsing server public url: %w", err)
 		}
