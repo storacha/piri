@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -261,6 +262,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing indexing service URL: %w", err)
 	}
 
+	var opts []storage.Option
 	var indexingServiceProof delegation.Proof
 	if cfg.IndexingServiceProof != "" {
 		dlg, err := delegation.Parse(cfg.IndexingServiceProof)
@@ -268,6 +270,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("parsing indexing service proof: %w", err)
 		}
 		indexingServiceProof = delegation.FromDelegation(dlg)
+		opts = append(opts, storage.WithPublisherIndexingServiceProof(delegation.FromDelegation(dlg)))
 	}
 
 	var pubURL *url.URL
@@ -278,13 +281,13 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		}
 		log.Warnf("no public URL configured, using %s", pubURL)
 	} else {
-		pubURL, err = url.Parse(cfg.PublicURL)
+		pubURL, err = url.Parse(strings.TrimSuffix(cfg.PublicURL, "/"))
 		if err != nil {
 			return fmt.Errorf("parsing server public url: %w", err)
 		}
 	}
 
-	opts := []storage.Option{
+	opts = append(opts,
 		storage.WithIdentity(id),
 		storage.WithBlobstore(blobStore),
 		storage.WithAllocationDatastore(allocDs),
@@ -294,9 +297,8 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		storage.WithPublisherDirectAnnounce(ipniAnnounceURLs...),
 		storage.WithUploadServiceConfig(uploadServiceDID, *uploadServiceURL),
 		storage.WithPublisherIndexingServiceConfig(indexingServiceDID, *indexingServiceURL),
-		storage.WithPublisherIndexingServiceProof(indexingServiceProof),
 		storage.WithReceiptDatastore(receiptDs),
-	}
+	)
 	if pdpConfig != nil {
 		opts = append(opts, storage.WithPDPConfig(*pdpConfig))
 	}
@@ -312,6 +314,29 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("starting service: %w", err)
 	}
 
+	go func() {
+		serverConfig := cliutil.UCANServerConfig{
+			Host:                 cfg.Host,
+			Port:                 cfg.Port,
+			DataDir:              cfg.DataDir,
+			PublicURL:            pubURL,
+			BlobAddr:             blobAddr,
+			IndexingServiceDID:   indexingServiceDID,
+			IndexingServiceURL:   indexingServiceURL,
+			IndexingServiceProof: indexingServiceProof,
+			UploadServiceDID:     uploadServiceDID,
+			UploadServiceURL:     uploadServiceURL,
+			IPNIAnnounceURLs:     ipniAnnounceURLs,
+			PDPEnabled:           svc.PDP() != nil,
+		}
+		if svc.PDP() != nil {
+			serverConfig.PDPServerURL = pdpConfig.PDPServerURL
+			serverConfig.ProofSetID = pdpConfig.ProofSet
+		}
+		cliutil.PrintUCANServerConfig(cmd, serverConfig)
+		cliutil.PrintHero(id.DID())
+	}()
+
 	defer svc.Close(ctx)
 
 	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID})
@@ -322,13 +347,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("creating cached principal resolver: %w", err)
 	}
-
-	go func() {
-		time.Sleep(time.Millisecond * 50)
-		if err == nil {
-			cliutil.PrintHero(id.DID())
-		}
-	}()
 
 	telemetry.RecordServerInfo(ctx, "ucan",
 		telemetry.StringAttr("did", id.DID().String()),

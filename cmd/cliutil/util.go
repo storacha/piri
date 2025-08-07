@@ -2,11 +2,15 @@ package cliutil
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/labstack/gommon/color"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
+	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 
 	"github.com/storacha/piri/pkg/build"
@@ -39,10 +43,83 @@ func Mkdirp(dirpath ...string) (string, error) {
 	return dir, nil
 }
 
-func MustGetManageAPI(cmd *cobra.Command) string {
-	val, err := cmd.Flags().GetString("manage-api")
-	if err != nil {
-		panic(err)
+type UCANServerConfig struct {
+	Host                 string
+	Port                 uint
+	DataDir              string
+	PublicURL            *url.URL
+	BlobAddr             multiaddr.Multiaddr
+	IndexingServiceDID   did.DID
+	IndexingServiceURL   *url.URL
+	IndexingServiceProof delegation.Proof
+	UploadServiceDID     did.DID
+	UploadServiceURL     *url.URL
+	IPNIAnnounceURLs     []url.URL
+	PDPEnabled           bool
+	PDPServerURL         *url.URL
+	ProofSetID           uint64
+}
+
+type PDPServerConfig struct {
+	Endpoint     *url.URL
+	LotusURL     *url.URL
+	OwnerAddress common.Address
+	DataDir      string
+}
+
+func PrintPDPServerConfig(cmd *cobra.Command, cfg PDPServerConfig) {
+	cmd.Println("SERVER CONFIGURATION")
+	cmd.Println("--------------------")
+	cmd.Printf("Endpoint:		%s\n", cfg.Endpoint.String())
+	cmd.Printf("Data Dir:		%s\n", cfg.DataDir)
+	cmd.Printf("Lotus Endpoint:		%s\n", cfg.LotusURL.String())
+	cmd.Printf("Owner Address:		%s\n", cfg.OwnerAddress.String())
+	cmd.Println()
+}
+
+func PrintUCANServerConfig(cmd *cobra.Command, cfg UCANServerConfig) {
+	cmd.Println("SERVER CONFIGURATION")
+	cmd.Println("--------------------")
+	cmd.Printf("Host:        %s\n", cfg.Host)
+	cmd.Printf("Port:        %d\n", cfg.Port)
+	cmd.Printf("Data Dir:    %s\n", cfg.DataDir)
+	cmd.Printf("Public URL:  %s\n", cfg.PublicURL)
+	if cfg.BlobAddr != nil {
+		cmd.Printf("Blob Addr:   %s\n", cfg.BlobAddr)
 	}
-	return val
+
+	cmd.Println()
+	cmd.Println("SERVICES")
+	cmd.Println("--------")
+	cmd.Println("Indexing Service:")
+	cmd.Printf("  DID:       %s\n", cfg.IndexingServiceDID)
+	cmd.Printf("  URL:       %s\n", cfg.IndexingServiceURL)
+	cmd.Printf("  Proof Set: %t\n", cfg.IndexingServiceProof != delegation.Proof{})
+	cmd.Println()
+	cmd.Println("Upload Service:")
+	cmd.Printf("  DID:       %s\n", cfg.UploadServiceDID)
+	cmd.Printf("  URL:       %s\n", cfg.UploadServiceURL)
+
+	cmd.Println()
+	cmd.Println("IPNI ANNOUNCE URLS")
+	cmd.Println("------------------")
+	if len(cfg.IPNIAnnounceURLs) == 0 {
+		cmd.Println("  (none configured)")
+	} else {
+		for _, url := range cfg.IPNIAnnounceURLs {
+			cmd.Printf("  • %s\n", url.String())
+		}
+	}
+
+	cmd.Println()
+	if cfg.PDPEnabled {
+		cmd.Println("PDP CONFIGURATION")
+		cmd.Println("-----------------")
+		cmd.Println("Status:      Enabled")
+		cmd.Printf("Server URL:  %s\n", cfg.PDPServerURL)
+		cmd.Printf("Proof Set:   %d\n", cfg.ProofSetID)
+	} else {
+		cmd.Println("PDP Status:  Disabled")
+	}
+	cmd.Println()
 }

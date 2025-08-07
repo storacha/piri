@@ -61,7 +61,7 @@ func NewServer(
 	ctx context.Context,
 	dataDir string,
 	endpoint *url.URL,
-	lotusUrl string,
+	lotusEndpoint *url.URL,
 	address common.Address,
 	wlt *wallet.LocalWallet,
 ) (*Server, error) {
@@ -82,19 +82,15 @@ func NewServer(
 	// TODO our current in process endpoint, later create a client without http stuffs.
 	// NB: Auth not required
 	localPDPClient := curio.New(http.DefaultClient, endpoint, "")
-	lotusURL, err := url.Parse(lotusUrl)
-	if err != nil {
-		return nil, fmt.Errorf("parsing lotus client address: %w", err)
+	if lotusEndpoint.Scheme != "ws" && lotusEndpoint.Scheme != "wss" {
+		return nil, fmt.Errorf("lotus client address must be 'ws' or 'wss', got %s", lotusEndpoint.Scheme)
 	}
-	if lotusURL.Scheme != "ws" && lotusURL.Scheme != "wss" {
-		return nil, fmt.Errorf("lotus client address must be 'ws' or 'wss', got %s", lotusURL.Scheme)
-	}
-	chainClient, chainClientCloser, err := client.NewFullNodeRPCV1(ctx, lotusURL.String(), nil)
+	chainClient, chainClientCloser, err := client.NewFullNodeRPCV1(ctx, lotusEndpoint.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	ethClient, err := ethclient.Dial(lotusUrl)
+	ethClient, err := ethclient.Dial(lotusEndpoint.String())
 	if err != nil {
 		return nil, fmt.Errorf("connecting to eth client: %w", err)
 	}
