@@ -1,4 +1,3 @@
-
 package admin
 
 import (
@@ -23,6 +22,31 @@ func NewClient(addr string) *Client {
 		http:   http.DefaultClient,
 		scheme: "http",
 	}
+}
+
+// ListLogSubsystems lists all available logging subsystems.
+func (c *Client) ListLogSubsystems(ctx context.Context) (*ListLogSubsystemsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url("/log/subsystems"), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", res.StatusCode)
+	}
+
+	var out ListLogSubsystemsResponse
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
 }
 
 // ListLogLevels lists the log levels of all subsystems.

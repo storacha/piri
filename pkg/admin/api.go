@@ -1,4 +1,3 @@
-
 package admin
 
 import (
@@ -10,8 +9,14 @@ import (
 
 // RegisterAdminRoutes registers the admin API routes on the given echo server.
 func RegisterAdminRoutes(e *echo.Echo) {
+	e.GET("/log/subsystems", listLogSubsystems)
 	e.GET("/log/level", listLogLevels)
 	e.POST("/log/level", setLogLevel)
+}
+
+// ListLogSubsystemsResponse defines the response for the list log subsystems endpoint.
+type ListLogSubsystemsResponse struct {
+	Subsystems []string `json:"subsystems"`
 }
 
 // ListLogLevelsResponse defines the response for the list log levels endpoint.
@@ -25,11 +30,22 @@ type SetLogLevelRequest struct {
 	Level     string `json:"level"`
 }
 
+func listLogSubsystems(c echo.Context) error {
+	return c.JSON(http.StatusOK, &ListLogSubsystemsResponse{
+		Subsystems: logging.GetSubsystems(),
+	})
+}
+
 func listLogLevels(c echo.Context) error {
-	levels := make(map[string]string)
-	for _, subsystem := range logging.GetSubsystems() {
+	// First get the list of subsystems from the server
+	subsystems := logging.GetSubsystems()
+	levels := make(map[string]string, len(subsystems))
+
+	// Then get the level for each subsystem
+	for _, subsystem := range subsystems {
 		levels[subsystem] = logging.Logger(subsystem).Level().String()
 	}
+
 	return c.JSON(http.StatusOK, &ListLogLevelsResponse{Levels: levels})
 }
 

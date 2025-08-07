@@ -5,6 +5,7 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
+	"github.com/storacha/piri/pkg/admin"
 )
 
 func NewServer() *echo.Echo {
@@ -23,10 +24,7 @@ func listLogLevels(c echo.Context) error {
 }
 
 func setLogLevel(c echo.Context) error {
-	var req struct {
-		Subsystem string `json:"subsystem"`
-		Level     string `json:"level"`
-	}
+	var req admin.SetLogLevelRequest
 	if err := c.Bind(&req); err != nil {
 		return err
 	}

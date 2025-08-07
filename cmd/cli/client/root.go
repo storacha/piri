@@ -22,4 +22,5 @@ func init() {
 
 	Cmd.AddCommand(ucan.Cmd)
 	Cmd.AddCommand(pdp.Cmd)
+	Cmd.AddCommand(LogCmd)
 }
