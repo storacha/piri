@@ -88,33 +88,51 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	if !common.IsHexAddress(cfg.EthAddress) {
-		return fmt.Errorf("invalid eth address: %s", cfg.EthAddress)
-	}
-
+	// parse server endpoint to serve on, must be http as piri doesn't support tls termination
 	serverEndpoint, err := url.Parse(cfg.Endpoint)
 	if err != nil {
-		return fmt.Errorf("invalid endpoint %s: %w", cfg.Endpoint, err)
+		return fmt.Errorf("invalid server endpoint %s: %w", cfg.Endpoint, err)
 	}
 	if serverEndpoint.Scheme != "http" {
 		return fmt.Errorf("invalid endpoint %s: must use http", cfg.Endpoint)
 	}
+
+	// parse the lotus endpoint
+	lotusEndpoint, err := url.Parse(cfg.LotusURL)
+	if err != nil {
+		return fmt.Errorf("invalid lotus endpoint %s: %w", cfg.LotusURL, err)
+	}
+
+	// parse the users owner address, used to send message on chain
+	if !common.IsHexAddress(cfg.EthAddress) {
+		return fmt.Errorf("invalid eth address: %s", cfg.EthAddress)
+	}
+	ownerAddress := common.HexToAddress(cfg.EthAddress)
 	svr, err := pdp.NewServer(
 		ctx,
 		dataDir,
 		serverEndpoint,
-		cfg.LotusURL,
-		common.HexToAddress(cfg.EthAddress),
+		lotusEndpoint,
+		ownerAddress,
 		wlt,
 	)
 	if err != nil {
 		return fmt.Errorf("creating pdp server: %w", err)
 	}
 
+	serverConfig := cliutil.PDPServerConfig{
+		Endpoint:     serverEndpoint,
+		LotusURL:     lotusEndpoint,
+		OwnerAddress: ownerAddress,
+		DataDir:      cfg.DataDir,
+	}
+	cliutil.PrintPDPServerConfig(cmd, serverConfig)
+
 	if err := svr.Start(ctx); err != nil {
 		return fmt.Errorf("starting pdp server: %w", err)
 	}
-	fmt.Println("Server started! Listening on ", cfg.Endpoint)
+
+	cmd.Println("Server started! Listening on ", cfg.Endpoint)
 
 	// publish version info metric
 	telemetry.RecordServerInfo(ctx, "pdp", telemetry.StringAttr("eth_address", cfg.EthAddress))
