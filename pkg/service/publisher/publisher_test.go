@@ -198,7 +198,7 @@ func TestPublisherService(t *testing.T) {
 	})
 }
 
-func url2Ma(t *testing.T, u string) multiaddr.Multiaddr {
+func url2ma(t *testing.T, u string) multiaddr.Multiaddr {
 	return testutil.Must(maurl.FromURL(testutil.Must(url.Parse(u))(t)))(t)
 }
 
@@ -211,25 +211,25 @@ func TestJoinHTTPPath(t *testing.T) {
 	}{
 		{
 			name:     "from URL no trailing slash",
-			addr:     url2Ma(t, "https://example.org"),
+			addr:     url2ma(t, "https://example.org"),
 			path:     "claim/{claim}",
 			expected: "/dns/example.org/https/http-path/claim%2F%7Bclaim%7D",
 		},
 		{
 			name:     "from URL with trailing slash",
-			addr:     url2Ma(t, "https://example.org/"),
+			addr:     url2ma(t, "https://example.org/"),
 			path:     "claim/{claim}",
 			expected: "/dns/example.org/https/http-path/%2Fclaim%2F%7Bclaim%7D",
 		},
 		{
 			name:     "from URL with existing path no trailing slash",
-			addr:     url2Ma(t, "https://example.org/foo"),
+			addr:     url2ma(t, "https://example.org/foo"),
 			path:     "claim/{claim}",
 			expected: "/dns/example.org/https/http-path/%2Ffoo%2Fclaim%2F%7Bclaim%7D",
 		},
 		{
 			name:     "from URL with existing path with trailing slash",
-			addr:     url2Ma(t, "https://example.org/foo/"),
+			addr:     url2ma(t, "https://example.org/foo/"),
 			path:     "claim/{claim}",
 			expected: "/dns/example.org/https/http-path/%2Ffoo%2Fclaim%2F%7Bclaim%7D",
 		},
