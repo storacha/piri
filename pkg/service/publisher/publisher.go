@@ -267,7 +267,10 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("creating libp2p peer ID from private key: %w", err)
 	}
-	provInfo := providerInfo(peerid, publicAddr, o.blobAddr)
+	provInfo, err := providerInfo(peerid, publicAddr, o.blobAddr)
+	if err != nil {
+		return nil, fmt.Errorf("building provider info: %w", err)
+	}
 
 	if o.indexingService == nil {
 		log.Errorf("Indexing service is not configured - claims will not be cached")
@@ -283,18 +286,63 @@ func New(
 	}, nil
 }
 
-func providerInfo(peerID peer.ID, publicAddr multiaddr.Multiaddr, blobAddr multiaddr.Multiaddr) peer.AddrInfo {
+func providerInfo(peerID peer.ID, publicAddr multiaddr.Multiaddr, blobAddr multiaddr.Multiaddr) (peer.AddrInfo, error) {
 	provider := peer.AddrInfo{ID: peerID}
 	if blobAddr == nil {
-		blobSuffix, _ := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape("blob/{blob}"))
-		provider.Addrs = append(provider.Addrs, multiaddr.Join(publicAddr, blobSuffix))
-	} else {
-		provider.Addrs = append(provider.Addrs, blobAddr)
+		addr, err := joinHTTPPath(publicAddr, "blob/{blob}")
+		if err != nil {
+			return peer.AddrInfo{}, fmt.Errorf("joining blob pattern path to public multiaddr: %w", err)
+		}
+		blobAddr = addr
 	}
-	claimSuffix, _ := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape("claim/{claim}"))
-	provider.Addrs = append(provider.Addrs, multiaddr.Join(publicAddr, claimSuffix))
+	provider.Addrs = append(provider.Addrs, blobAddr)
 
-	return provider
+	claimAddr, err := joinHTTPPath(publicAddr, "claim/{claim}")
+	if err != nil {
+		return peer.AddrInfo{}, fmt.Errorf("joining claim pattern path to public multiaddr: %w", err)
+	}
+	provider.Addrs = append(provider.Addrs, claimAddr)
+
+	return provider, nil
+}
+
+// joinHTTPPath joins a HTTP path onto an existing multiaddr. If the multiaddr
+// includes the "http-path" protocol already, it is joined to the end of the
+// existing path. If the multiaddr does not contain the "http-path" protocol
+// then it is appended to the multiaddr, with the value specified.
+func joinHTTPPath(addr multiaddr.Multiaddr, path string) (multiaddr.Multiaddr, error) {
+	found := false
+	var out multiaddr.Multiaddr
+	for _, comp := range addr {
+		if comp.Code() == multiaddr.P_HTTP_PATH {
+			p, err := url.PathUnescape(comp.Value())
+			if err != nil {
+				return nil, err
+			}
+			u, err := url.Parse(p)
+			if err != nil {
+				return nil, err
+			}
+			p = u.JoinPath(path).Path
+			c, err := multiaddr.NewComponent("http-path", url.PathEscape(p))
+			if err != nil {
+				return nil, err
+			}
+			comp = *c
+			found = true
+		}
+		out = append(out, comp)
+	}
+
+	if !found {
+		c, err := multiaddr.NewComponent("http-path", url.PathEscape(path))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *c)
+	}
+
+	return out, nil
 }
 
 func asCID(link ipld.Link) cid.Cid {
