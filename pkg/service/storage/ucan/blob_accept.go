@@ -6,6 +6,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt/fx"
+	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/core/result/failure"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/server"
@@ -29,14 +30,14 @@ func BlobAccept(storageService BlobAcceptService) server.Option {
 		blob.AcceptAbility,
 		server.Provide(
 			blob.Accept,
-			func(ctx context.Context, cap ucan.Capability[blob.AcceptCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AcceptOk, fx.Effects, error) {
+			func(ctx context.Context, cap ucan.Capability[blob.AcceptCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (result.Result[blob.AcceptOk, failure.IPLDBuilderFailure], fx.Effects, error) {
 				//
 				// UCAN Validation
 				//
 
 				// only service principal can perform an allocation
 				if cap.With() != iCtx.ID().DID().String() {
-					return blob.AcceptOk{}, nil, NewUnsupportedCapabilityError(cap)
+					return result.Error[blob.AcceptOk, failure.IPLDBuilderFailure](NewUnsupportedCapabilityError(cap)), nil, nil
 				}
 
 				//
@@ -49,7 +50,7 @@ func BlobAccept(storageService BlobAcceptService) server.Option {
 					Put:   cap.Nb().Put,
 				})
 				if err != nil {
-					return blob.AcceptOk{}, nil, failure.FromError(err)
+					return nil, nil, err
 				}
 				forks := []fx.Effect{fx.FromInvocation(resp.Claim)}
 				res := blob.AcceptOk{
@@ -61,7 +62,7 @@ func BlobAccept(storageService BlobAcceptService) server.Option {
 					res.PDP = &tmp
 				}
 
-				return res, fx.NewEffects(fx.WithFork(forks...)), nil
+				return result.Ok[blob.AcceptOk, failure.IPLDBuilderFailure](res), fx.NewEffects(fx.WithFork(forks...)), nil
 			},
 		),
 	)
