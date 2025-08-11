@@ -98,11 +98,24 @@ func NewMessageWatcherEth(db *gorm.DB, pcs *chainsched.Scheduler, api MessageWat
 		opt(mw)
 	}
 
-	go mw.run()
 	if err := pcs.AddHandler(mw.processHeadChange); err != nil {
 		return nil, err
 	}
 	return mw, nil
+}
+
+func (mw *MessageWatcherEth) Start() {
+	go mw.run()
+}
+
+func (mw *MessageWatcherEth) Stop(ctx context.Context) error {
+	close(mw.stopping)
+	select {
+	case <-mw.stopped:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
 }
 
 func (mw *MessageWatcherEth) run() {
@@ -322,16 +335,6 @@ func (mw *MessageWatcherEth) updateTransaction(result *TransactionResult) error 
 			TxReceipt:            result.ReceiptJSON,
 			TxSuccess:            &result.TxSuccess,
 		}).Error
-}
-
-func (mw *MessageWatcherEth) Stop(ctx context.Context) error {
-	close(mw.stopping)
-	select {
-	case <-mw.stopped:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	return nil
 }
 
 func (mw *MessageWatcherEth) processHeadChange(ctx context.Context, revert, apply *types2.TipSet) error {
