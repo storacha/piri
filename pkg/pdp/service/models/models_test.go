@@ -27,7 +27,7 @@ func TestOnDeleteSetNull(t *testing.T) {
 	db, err := gormdb.New(dbPath)
 	require.NoError(t, err)
 
-	err = models.AutoMigrateDB(db)
+	err = models.AutoMigrateDB(t.Context(), db)
 	require.NoError(t, err)
 
 	sqlDB, err := db.DB()
@@ -143,7 +143,7 @@ func TestOnDeleteCascade(t *testing.T) {
 	db, err := gormdb.New(dbPath)
 	require.NoError(t, err)
 
-	err = models.AutoMigrateDB(db)
+	err = models.AutoMigrateDB(t.Context(), db)
 	require.NoError(t, err)
 
 	sqlDB, err := db.DB()
