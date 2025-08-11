@@ -125,12 +125,7 @@ func NewPDPService(
 		return nil, fmt.Errorf("creating watcher root add: %w", err)
 	}
 
-	// TODO this needs configuration and or tuning
-	maxMoveStoreTasks := 8
-	pdpStorePieceTask, err := tasks.NewStorePieceTask(db, bs, maxMoveStoreTasks)
-	if err != nil {
-		return nil, fmt.Errorf("creating pdp store piece task: %w", err)
-	}
+	pdpStorePieceTask := tasks.NewStorePieceTask(db, bs)
 	t = append(t, pdpStorePieceTask)
 
 	engine, err := scheduler.NewEngine(db, t)
@@ -148,10 +143,16 @@ func NewPDPService(
 	}
 
 	startFns = append(startFns, func(ctx context.Context) error {
+		// start the engine
 		if err := engine.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start task engine: %w", err)
 		}
+		// start chain scheduler
 		go chainScheduler.Run(ctx)
+
+		// start task(s)
+		pdpStorePieceTask.Start(ctx)
+		ethWatcher.Start()
 		return nil
 	})
 	stopFns = append(stopFns, ethWatcher.Stop)
