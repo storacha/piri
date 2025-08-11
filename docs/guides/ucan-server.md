@@ -66,9 +66,9 @@ Create a `.env` file with the configuration received:
 
 ```bash
 # Example .env file
-export INDEXING_SERVICE_DID="did:web:staging.indexing.warm.storacha.network"
-export INDEXING_SERVICE_URL="https://staging.indexing.warm.storacha.network"
-export INDEXING_SERVICE_PROOF="bafyrei..."
+export INDEXING_SERVICE_DID="did:web:staging.indexer.warm.storacha.network"
+export INDEXING_SERVICE_URL="https://staging.indexer.warm.storacha.network"
+export INDEXING_SERVICE_PROOF="mAYIEA..."
 export UPLOAD_SERVICE_DID="did:web:staging.upload.warm.storacha.network"
 export UPLOAD_SERVICE_URL="https://staging.upload.warm.storacha.network"
 ...
