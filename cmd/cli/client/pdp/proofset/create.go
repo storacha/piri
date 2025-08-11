@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 
-	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
-	"github.com/storacha/piri/pkg/pdp/curio"
+	"github.com/storacha/piri/pkg/pdp/httpapi/client"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 var (
@@ -48,19 +46,9 @@ func doCreate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
+	pdpClient, err := client.NewFromConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("loading key file: %w", err)
-	}
-
-	nodeAuth, err := curio.CreateCurioJWTAuthHeader("storacha", id)
-	if err != nil {
-		return fmt.Errorf("generating node JWT: %w", err)
-	}
-
-	nodeURL, err := url.Parse(cfg.NodeURL)
-	if err != nil {
-		return fmt.Errorf("parsing node URL: %w", err)
+		return fmt.Errorf("creating pdp client: %w", err)
 	}
 
 	recordKeeper, err := cmd.Flags().GetString("record-keeper")
@@ -71,17 +59,14 @@ func doCreate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("record keeper address (%s) is invalid", recordKeeper)
 	}
 
-	pdpClient := curio.New(http.DefaultClient, nodeURL, nodeAuth)
-	statusRef, err := pdpClient.CreateProofSet(ctx, curio.CreateProofSet{
-		RecordKeeper: recordKeeper,
-	})
+	txHash, err := pdpClient.CreateProofSet(ctx, common.HexToAddress(recordKeeper))
 	if err != nil {
 		return fmt.Errorf("creating proofset: %w", err)
 	}
 	// Write initial status to stderr
 	stderr := cmd.ErrOrStderr()
-	fmt.Fprintf(stderr, "Proof set being created, check status at:\n")
-	fmt.Fprintf(stderr, "%s\n", statusRef.URL)
+	fmt.Fprintf(stderr, "Proof set being created, transaction hash:\n")
+	fmt.Fprintf(stderr, "%s\n", txHash.String())
 
 	wait, err := cmd.Flags().GetBool("wait")
 	if err != nil {
@@ -93,18 +78,18 @@ func doCreate(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Poll for status updates
-	return pollProofSetStatus(ctx, pdpClient, statusRef.URL, cmd.OutOrStdout(), stderr)
+	return pollProofSetStatus(ctx, pdpClient, txHash, cmd.OutOrStdout(), stderr)
 }
 
 // pollProofSetStatus polls the proof set status until creation is complete
-func pollProofSetStatus(ctx context.Context, client curio.PDPClient, statusURL string, stdout, stderr io.Writer) error {
+func pollProofSetStatus(ctx context.Context, client types.ProofSetAPI, txHash common.Hash, stdout, stderr io.Writer) error {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	spinnerChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	spinnerIndex := 0
 
-	var lastStatus *curio.ProofSetStatus
+	var lastStatus *types.ProofSetStatus
 	var lastOutput string
 
 	for {
@@ -112,7 +97,7 @@ func pollProofSetStatus(ctx context.Context, client curio.PDPClient, statusURL s
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			status, err := checkStatus(ctx, client, statusURL)
+			status, err := checkStatus(ctx, client, txHash)
 			if err != nil {
 				return fmt.Errorf("checking status: %w", err)
 			}
@@ -121,22 +106,17 @@ func pollProofSetStatus(ctx context.Context, client curio.PDPClient, statusURL s
 			var output strings.Builder
 			output.WriteString(fmt.Sprintf("\r%s Polling proof set status...\n", spinnerChars[spinnerIndex]))
 			output.WriteString(fmt.Sprintf("  Status: %s\n", status.TxStatus))
-			output.WriteString(fmt.Sprintf("  Transaction Hash: %s\n", status.CreateMessageHash))
-			output.WriteString(fmt.Sprintf("  Created: %t\n", status.ProofsetCreated))
-			output.WriteString(fmt.Sprintf("  Service: %s\n", status.Service))
+			output.WriteString(fmt.Sprintf("  Transaction Hash: %s\n", status.TxHash))
+			output.WriteString(fmt.Sprintf("  Created: %t\n", status.Created))
 
-			if status.OK != nil {
-				output.WriteString(fmt.Sprintf("  Ready: %t\n", *status.OK))
-			}
-
-			if status.ProofSetId != nil {
-				output.WriteString(fmt.Sprintf("  ProofSet ID: %d\n", *status.ProofSetId))
+			if status.ID != 0 {
+				output.WriteString(fmt.Sprintf("  ProofSet ID: %d\n", status.ID))
 			}
 
 			currentOutput := output.String()
 
 			// Only update display if status changed
-			if lastStatus == nil || !statusEqual(lastStatus, &status) || currentOutput != lastOutput {
+			if lastStatus == nil || !statusEqual(lastStatus, status) || currentOutput != lastOutput {
 				// Clear previous lines
 				if lastOutput != "" {
 					lines := strings.Count(lastOutput, "\n")
@@ -146,7 +126,7 @@ func pollProofSetStatus(ctx context.Context, client curio.PDPClient, statusURL s
 				// Write new status
 				fmt.Fprint(stderr, currentOutput)
 
-				lastStatus = &status
+				lastStatus = status
 				lastOutput = currentOutput
 			}
 
@@ -154,19 +134,19 @@ func pollProofSetStatus(ctx context.Context, client curio.PDPClient, statusURL s
 			spinnerIndex = (spinnerIndex + 1) % len(spinnerChars)
 
 			// Check if creation is complete
-			if status.ProofSetId != nil {
+			if status.Created {
 				// Clear the status display
 				lines := strings.Count(lastOutput, "\n")
 				fmt.Fprintf(stderr, "\033[%dA\033[K", lines)
 
 				// Write final status to stderr
 				fmt.Fprintf(stderr, "✓ Proof set created successfully!\n")
-				fmt.Fprintf(stderr, "  Transaction Hash: %s\n", status.CreateMessageHash)
-				fmt.Fprintf(stderr, "  Service: %s\n", status.Service)
-				fmt.Fprintf(stderr, "  ProofSet ID: %d\n", *status.ProofSetId)
+				fmt.Fprintf(stderr, "  Transaction Hash: %s\n", status.TxHash)
+				fmt.Fprintf(stderr, "  ProofSet ID: %d\n", status.ID)
+				time.Sleep(time.Second)
 
 				// Write only the ProofSet ID to stdout for redirection
-				fmt.Fprintf(stdout, "%d\n", *status.ProofSetId)
+				fmt.Fprintf(stdout, "%d\n", status.ID)
 
 				return nil
 			}
@@ -175,31 +155,22 @@ func pollProofSetStatus(ctx context.Context, client curio.PDPClient, statusURL s
 }
 
 // statusEqual compares two ProofSetStatus structs for equality
-func statusEqual(a, b *curio.ProofSetStatus) bool {
+func statusEqual(a, b *types.ProofSetStatus) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
 
-	if a.CreateMessageHash != b.CreateMessageHash ||
-		a.ProofsetCreated != b.ProofsetCreated ||
-		a.Service != b.Service ||
+	if a.TxHash != b.TxHash ||
+		a.Created != b.Created ||
 		a.TxStatus != b.TxStatus {
 		return false
 	}
 
-	// Compare OK pointers
-	if (a.OK == nil) != (b.OK == nil) {
-		return false
-	}
-	if a.OK != nil && *a.OK != *b.OK {
-		return false
-	}
-
 	// Compare ProofSetId pointers
-	if (a.ProofSetId == nil) != (b.ProofSetId == nil) {
+	if (a.ID == 0) != (b.ID == 0) {
 		return false
 	}
-	if a.ProofSetId != nil && *a.ProofSetId != *b.ProofSetId {
+	if a.ID != 0 && a.ID != b.ID {
 		return false
 	}
 

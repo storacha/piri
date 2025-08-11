@@ -73,7 +73,11 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 			return nil, fmt.Errorf("finding piece for blob: %w", err)
 		}
 		// get a download url
-		loc = s.PDP().PieceFinder().URLForPiece(pdpPiece)
+		loc, err = s.PDP().PieceFinder().URLForPiece(ctx, pdpPiece)
+		if err != nil {
+			log.Errorw("creating retrieval URL for blob", "error", err)
+			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
+		}
 		// submit the piece for aggregation
 		err = s.PDP().Aggregator().AggregatePiece(ctx, pdpPiece)
 		if err != nil {
