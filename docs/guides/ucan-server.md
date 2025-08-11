@@ -66,9 +66,9 @@ Create a `.env` file with the configuration received:
 
 ```bash
 # Example .env file
-export INDEXING_SERVICE_DID="did:web:staging.indexing.warm.storacha.network"
-export INDEXING_SERVICE_URL="https://staging.indexing.warm.storacha.network"
-export INDEXING_SERVICE_PROOF="bafyrei..."
+export INDEXING_SERVICE_DID="did:web:staging.indexer.warm.storacha.network"
+export INDEXING_SERVICE_URL="https://staging.indexer.warm.storacha.network/claims"
+export INDEXING_SERVICE_PROOF="mAYIEA..."
 export UPLOAD_SERVICE_DID="did:web:staging.upload.warm.storacha.network"
 export UPLOAD_SERVICE_URL="https://staging.upload.warm.storacha.network"
 ...
@@ -83,10 +83,12 @@ source .env
 #### 4.3 Restart your Piri node
 
 ```bash
-piri serve ucan --key-file=service.pem --pdp-server-url=https://up.piri.example.com
+piri serve ucan --key-file=service.pem --pdp-server-url=https://up.piri.example.com --proof-set=123
 ```
 
-> **Note**: Replace `up.piri.example.com` with your actual PDP server domain configured in the [TLS Termination](../setup/tls-termination.md) section.
+> **Note**:
+> - Replace `up.piri.example.com` with your actual PDP server domain configured in the [TLS Termination](../setup/tls-termination.md) section.
+> - Replace `123` with the proof set ID you got when [a new proofset was created](./pdp-server.md#step-3-create-a-proof-set) as part of configuring the PDP server.
 
 **Expected output:**
 ```bash
