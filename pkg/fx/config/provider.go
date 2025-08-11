@@ -22,6 +22,7 @@ import (
 
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/mahttp"
 )
 
 var Module = fx.Module("config",
@@ -209,11 +210,10 @@ func ProvideAppConfig(cfg config.UCANServer) (app.AppConfig, error) {
 		if err != nil {
 			return app.AppConfig{}, fmt.Errorf("converting PDP URL to multiaddr: %w", err)
 		}
-		pieceAddr, err := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape("piece/{blobCID}"))
+		blobAddr, err = mahttp.JoinPath(curioAddr, "piece/{blobCID}")
 		if err != nil {
-			return app.AppConfig{}, fmt.Errorf("creating piece multiaddr: %w", err)
+			return app.AppConfig{}, fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}
-		blobAddr = multiaddr.Join(curioAddr, pieceAddr)
 	}
 
 	servicesConfig.Publisher = app.PublisherConfig{

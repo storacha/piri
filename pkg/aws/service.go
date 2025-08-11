@@ -31,6 +31,7 @@ import (
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 
 	"github.com/storacha/piri/pkg/access"
+	"github.com/storacha/piri/pkg/mahttp"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/pdp/aggregator"
 	"github.com/storacha/piri/pkg/pdp/curio"
@@ -396,11 +397,10 @@ func Construct(cfg Config) (storage.Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing curio URL to multiaddr: %w", err)
 		}
-		pieceAddr, err := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape("piece/{blobCID}"))
+		blobAddr, err = mahttp.JoinPath(curioAddr, "piece/{blobCID}")
 		if err != nil {
-			return nil, fmt.Errorf("parsing piece addr for curio: %w", err)
+			return nil, fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}
-		blobAddr = multiaddr.Join(curioAddr, pieceAddr)
 	}
 
 	if cfg.BlobStoreBucketKeyPattern != "" {
