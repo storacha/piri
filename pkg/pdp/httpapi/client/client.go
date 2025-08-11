@@ -231,6 +231,61 @@ func (c *Client) GetProofSet(ctx context.Context, proofSetID uint64) (*types.Pro
 	return out, nil
 }
 
+func (c *Client) ListProofSet(ctx context.Context) ([]types.ProofSet, error) {
+	if !c.isPiriServer() {
+		return nil, fmt.Errorf("method requires piri server implementation: unsupported method")
+	}
+	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath).String()
+	var proofSets httpapi.ListProofSetsResponse
+	err := c.getJsonResponse(ctx, route, &proofSets)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get proof-set: %w", err)
+	}
+	out := make([]types.ProofSet, 0, len(proofSets))
+	for _, p := range proofSets {
+		nextChallenge := int64(0)
+		if p.NextChallengeEpoch != nil {
+			nextChallenge = *p.NextChallengeEpoch
+		}
+		roots := make([]types.RootEntry, 0, len(p.Roots))
+		for _, root := range p.Roots {
+			rcid, err := cid.Decode(root.RootCID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode root CID: %w", err)
+			}
+			scid, err := cid.Decode(root.SubrootCID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode subroot CID: %w", err)
+			}
+			roots = append(roots, types.RootEntry{
+				RootCID:       rcid,
+				RootID:        root.RootID,
+				SubrootCID:    scid,
+				SubrootOffset: root.SubrootOffset,
+			})
+		}
+		entry := types.ProofSet{
+			ID:                 p.ID,
+			Initialized:        p.Initialized,
+			NextChallengeEpoch: nextChallenge,
+			Roots:              roots,
+		}
+
+		// response fields only supported by piri api.
+		if p.PreviousChallengeEpoch != nil {
+			entry.PreviousChallengeEpoch = *p.PreviousChallengeEpoch
+		}
+		if p.ProvingPeriod != nil {
+			entry.ProvingPeriod = *p.ProvingPeriod
+		}
+		if p.ChallengeWindow != nil {
+			entry.ChallengeWindow = *p.ChallengeWindow
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
 func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.RootAdd) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, "/", strconv.FormatUint(proofSetID, 10), rootsPath).String()
 
