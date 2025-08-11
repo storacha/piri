@@ -29,13 +29,6 @@ func setTestNodeURL(t *testing.T, ts *httptest.Server) func() {
 
 func TestLogList_PrintsSubsystemsAndLevels(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/log/subsystems", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Fatalf("unexpected method: %s", r.Method)
-		}
-		// Return a stable order
-		_, _ = w.Write([]byte(`{"subsystems":["alpha","beta"]}`))
-	})
 	mux.HandleFunc("/log/level", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Fatalf("unexpected method: %s", r.Method)
@@ -120,12 +113,6 @@ func TestLogSetLevel_AllSystemsWhenNoneSpecified(t *testing.T) {
 	var posted []string
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/log/subsystems", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Fatalf("unexpected method: %s", r.Method)
-		}
-		_, _ = w.Write([]byte(`{"subsystems":["alpha","beta","gamma"]}`))
-	})
 	mux.HandleFunc("/log/level", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -144,7 +131,7 @@ func TestLogSetLevel_AllSystemsWhenNoneSpecified(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		case http.MethodGet:
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"levels":{}}`))
+			_, _ = w.Write([]byte(`{"levels":{"alpha":"Info","beta":"Debug","gamma":"Warn"}}`))
 		default:
 			t.Fatalf("unexpected method: %s", r.Method)
 		}

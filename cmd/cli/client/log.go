@@ -21,24 +21,14 @@ func init() {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client := admin.NewClient(viper.GetString("node_url"))
 
-			// First get the list of subsystems from the server
-			subsystems, err := client.ListLogSubsystems(cmd.Context())
-			if err != nil {
-				return fmt.Errorf("failed to get logging subsystems: %w", err)
-			}
-
-			// Then get the current log levels
+			// Get the current log levels for all subsystems
 			levels, err := client.ListLogLevels(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("failed to get log levels: %w", err)
 			}
 
 			// Print each subsystem with its level
-			for _, subsystem := range subsystems.Subsystems {
-				level, exists := levels.Levels[subsystem]
-				if !exists {
-					level = "UNKNOWN"
-				}
+			for subsystem, level := range levels.Levels {
 				cmd.Printf("%-30s %s\n", subsystem, level)
 			}
 
@@ -61,11 +51,14 @@ func init() {
 
 			if len(systems) == 0 {
 				// If no systems are specified, get all subsystems from the server
-				subsystems, err := client.ListLogSubsystems(cmd.Context())
+				levels, err := client.ListLogLevels(cmd.Context())
 				if err != nil {
 					return fmt.Errorf("failed to get logging subsystems: %w", err)
 				}
-				systems = subsystems.Subsystems
+				// Extract subsystem names from the levels map keys
+				for subsystem := range levels.Levels {
+					systems = append(systems, subsystem)
+				}
 			}
 
 			for _, system := range systems {
