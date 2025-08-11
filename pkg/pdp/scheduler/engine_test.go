@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -134,7 +135,13 @@ func TestTaskEngineBasicExecution(t *testing.T) {
 	// Create the engine
 	engine, err := NewEngine(db, []TaskInterface{mockTask})
 	require.NoError(t, err)
-	defer engine.GracefullyTerminate()
+	err = engine.Start(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := engine.Stop(context.Background()); err != nil {
+			t.Logf("failed to stop engine: %v", err)
+		}
+	})
 
 	// Wait for addTaskFunc to be set
 	mockTask.WaitForReady()
@@ -305,17 +312,22 @@ func TestTaskEngineResume(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			db := setupTestDB(t)
 
-			// Create tasks before starting the engine
-			currentSession := mustGenerateSessionID()
-			initialTasks := tt.setup(db, currentSession)
-
 			// Create mock task that completes successfully
 			mockTask := NewMockTask("test_task", 5, true)
 
-			// Create engine
-			engine, err := NewEngine(db, []TaskInterface{mockTask}, WithSessionID(currentSession))
+			// Create the engine
+			engine, err := NewEngine(db, []TaskInterface{mockTask})
 			require.NoError(t, err)
-			defer engine.GracefullyTerminate()
+
+			// Create tasks using the engine's actual session ID
+			initialTasks := tt.setup(db, engine.SessionID())
+			err = engine.Start(t.Context())
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				if err := engine.Stop(context.Background()); err != nil {
+					t.Logf("failed to stop engine: %v", err)
+				}
+			})
 
 			// Wait for the engine to be ready
 			mockTask.WaitForReady()
@@ -412,7 +424,13 @@ func TestTaskEngineRetryFailedTasks(t *testing.T) {
 			// Create the engine
 			engine, err := NewEngine(db, []TaskInterface{mockTask})
 			require.NoError(t, err)
-			defer engine.GracefullyTerminate()
+			err = engine.Start(t.Context())
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				if err := engine.Stop(context.Background()); err != nil {
+					t.Logf("failed to stop engine: %v", err)
+				}
+			})
 
 			// Wait for addTaskFunc to be set
 			mockTask.WaitForReady()
