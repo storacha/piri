@@ -94,7 +94,9 @@ func (h *taskTypeHandler) considerWork(taskIDs []TaskID, db *gorm.DB) bool {
 	log.Debugf("Considering work for tasks %v", taskIDs)
 	for _, id := range taskIDs {
 		log.Debugf("Considering work for task %d", id)
-		result := db.Model(&models.Task{}).
+		result := db.
+			WithContext(h.TaskEngine.ctx).
+			Model(&models.Task{}).
 			Where(&models.Task{ID: int64(id), SessionID: nil}).
 			Updates(models.Task{
 				SessionID:  &h.TaskEngine.sessionID,
