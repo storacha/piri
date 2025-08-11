@@ -66,7 +66,7 @@ variable "indexing_service_did" {
 variable "indexing_service_url" {
   description = "url to use for the indexer"
   type        = string
-  default     = "https://indexer.storacha.network"
+  default     = "https://indexer.storacha.network/claims"
 }
 
 variable "indexing_service_proof" {
