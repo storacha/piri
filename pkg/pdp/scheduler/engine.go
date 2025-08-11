@@ -85,11 +85,11 @@ func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine,
 // engine, callers must use the Stop method rather than canceling the startup context.
 //
 // Start performs the following operations:
-//   1. Runs database migrations
-//   2. Cleans up tasks from previous sessions
-//   3. Starts task adders for each registered task type
-//   4. Starts periodic schedulers if configured
-//   5. Begins the main polling loop for unassigned tasks
+//  1. Runs database migrations
+//  2. Cleans up tasks from previous sessions
+//  3. Starts task adders for each registered task type
+//  4. Starts periodic schedulers if configured
+//  5. Begins the main polling loop for unassigned tasks
 func (e *TaskEngine) Start(ctx context.Context) error {
 	log.Infof("Starting engine with session ID: %s", e.sessionID)
 	if err := models.AutoMigrateDB(ctx, e.db); err != nil {
