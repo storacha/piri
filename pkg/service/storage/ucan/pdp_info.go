@@ -32,7 +32,7 @@ func PDPInfo(storageService PDPInfoService) server.Option {
 		pdp.InfoAbility,
 		server.Provide(
 			pdp.Info,
-			func(ctx context.Context, cap ucan.Capability[pdp.InfoCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (pdp.InfoOk, fx.Effects, error) {
+			func(ctx context.Context, cap ucan.Capability[pdp.InfoCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (result.Result[pdp.InfoOk, failure.IPLDBuilderFailure], fx.Effects, error) {
 				// generate the invocation that would submit when this was first submitted
 				pieceAccept, err := pdp.Accept.Invoke(
 					storageService.ID(),
@@ -43,35 +43,37 @@ func PDPInfo(storageService PDPInfoService) server.Option {
 					}, delegation.WithNoExpiration())
 				if err != nil {
 					log.Errorf("creating location commitment: %w", err)
-					return pdp.InfoOk{}, nil, failure.FromError(err)
+					return nil, nil, err
 				}
 				// look up the receipt for the accept invocation
 				rcpt, err := storageService.Receipts().GetByRan(ctx, pieceAccept.Link())
 				if err != nil {
 					log.Errorf("looking up receipt: %w", err)
-					return pdp.InfoOk{}, nil, failure.FromError(err)
+					return nil, nil, err
 				}
 				// rebind the receipt to get the specific types for pdp/accept
 				pieceAcceptReceipt, err := receipt.Rebind[pdp.AcceptOk, fdm.FailureModel](rcpt, pdp.AcceptOkType(), fdm.FailureType(), types.Converters...)
 				if err != nil {
 					log.Errorf("reading piece accept receipt: %w", err)
-					return pdp.InfoOk{}, nil, failure.FromError(err)
+					return nil, nil, err
 				}
 				// use the result from the accept receipt to generate the receipt for pdp/info
 				return result.MatchResultR3(pieceAcceptReceipt.Out(),
-					func(ok pdp.AcceptOk) (pdp.InfoOk, fx.Effects, error) {
-						return pdp.InfoOk{
-							Piece: cap.Nb().Piece,
-							Aggregates: []pdp.InfoAcceptedAggregate{
-								{
-									Aggregate:      ok.Aggregate,
-									InclusionProof: ok.InclusionProof,
+					func(ok pdp.AcceptOk) (result.Result[pdp.InfoOk, failure.IPLDBuilderFailure], fx.Effects, error) {
+						return result.Ok[pdp.InfoOk, failure.IPLDBuilderFailure](
+							pdp.InfoOk{
+								Piece: cap.Nb().Piece,
+								Aggregates: []pdp.InfoAcceptedAggregate{
+									{
+										Aggregate:      ok.Aggregate,
+										InclusionProof: ok.InclusionProof,
+									},
 								},
 							},
-						}, nil, nil
+						), nil, nil
 					},
-					func(err fdm.FailureModel) (pdp.InfoOk, fx.Effects, error) {
-						return pdp.InfoOk{}, nil, failure.FromFailureModel(err)
+					func(err fdm.FailureModel) (result.Result[pdp.InfoOk, failure.IPLDBuilderFailure], fx.Effects, error) {
+						return nil, nil, failure.FromFailureModel(err)
 					},
 				)
 			},

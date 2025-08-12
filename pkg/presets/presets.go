@@ -54,7 +54,7 @@ var (
 	warmStageStorachaIPNIAnnounceURL = lo.Must(url.Parse("https://staging.ipni.warm.storacha.network"))
 	warmStageIPNIAnnounceURLs        = []url.URL{*defaultIPNIAnnounceURL, *warmStageStorachaIPNIAnnounceURL}
 
-	warmStageIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.warm.storacha.network"))
+	warmStageIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.warm.storacha.network/claims"))
 	warmStageIndexingServiceDID = lo.Must(did.Parse("did:web:staging.indexer.warm.storacha.network"))
 
 	warmStageUploadServiceURL = lo.Must(url.Parse("https://staging.up.warm.storacha.network"))
@@ -71,7 +71,7 @@ var (
 	stagingStorachaIPNIAnnounceURL = lo.Must(url.Parse("https://staging.ipni.storacha.network"))
 	stagingIPNIAnnounceURLs        = []url.URL{*defaultIPNIAnnounceURL, *stagingStorachaIPNIAnnounceURL}
 
-	stagingIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.storacha.network"))
+	stagingIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.storacha.network/claims"))
 	stagingIndexingServiceDID = lo.Must(did.Parse("did:web:staging.indexer.storacha.network"))
 
 	stagingUploadServiceURL = lo.Must(url.Parse("https://staging.up.storacha.network"))
@@ -87,7 +87,7 @@ var (
 	prodStorachaIPNIAnnounceURL = lo.Must(url.Parse("https://ipni.storacha.network"))
 	prodIPNIAnnounceURLs        = []url.URL{*defaultIPNIAnnounceURL, *prodStorachaIPNIAnnounceURL}
 
-	prodIndexingServiceURL = lo.Must(url.Parse("https://indexer.storacha.network"))
+	prodIndexingServiceURL = lo.Must(url.Parse("https://indexer.storacha.network/claims"))
 	prodIndexingServiceDID = lo.Must(did.Parse("did:web:indexer.storacha.network"))
 
 	prodUploadServiceURL = lo.Must(url.Parse("https://up.storacha.network"))

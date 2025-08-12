@@ -21,6 +21,8 @@ import (
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt/fx"
+	"github.com/storacha/go-ucanto/core/result"
+	"github.com/storacha/go-ucanto/core/result/failure"
 	"github.com/storacha/go-ucanto/core/result/ok"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/server"
@@ -132,18 +134,18 @@ func TestPublisherService(t *testing.T) {
 		publisherStore := store.FromDatastore(dstore, store.WithMetadataContext(metadata.MetadataContext))
 
 		handlerCalled := false
-		handler := func(ctx context.Context, cap ucan.Capability[claim.CacheCaveats], inv invocation.Invocation, context server.InvocationContext) (ok.Unit, fx.Effects, error) {
+		handler := func(ctx context.Context, cap ucan.Capability[claim.CacheCaveats], inv invocation.Invocation, context server.InvocationContext) (result.Result[ok.Unit, failure.IPLDBuilderFailure], fx.Effects, error) {
 			handlerCalled = true
 			claim := cap.Nb().Claim
 			for b, err := range inv.Blocks() {
 				if err != nil {
-					return ok.Unit{}, nil, err
+					return nil, nil, err
 				}
 				if b.Link() == claim {
-					return ok.Unit{}, nil, nil
+					return result.Ok[ok.Unit, failure.IPLDBuilderFailure](ok.Unit{}), nil, nil
 				}
 			}
-			return ok.Unit{}, nil, fmt.Errorf("claim not found in invocation blocks: %s", claim.String())
+			return nil, nil, fmt.Errorf("claim not found in invocation blocks: %s", claim.String())
 		}
 
 		idxSvc := mockIndexingService(t, testutil.Bob, handler)
@@ -197,7 +199,7 @@ func TestPublisherService(t *testing.T) {
 	})
 }
 
-func mockIndexingService(t *testing.T, id principal.Signer, handler server.HandlerFunc[claim.CacheCaveats, ok.Unit]) server.ServerView {
+func mockIndexingService(t *testing.T, id principal.Signer, handler server.HandlerFunc[claim.CacheCaveats, ok.Unit, failure.IPLDBuilderFailure]) server.ServerView {
 	t.Helper()
 	return testutil.Must(
 		server.NewServer(

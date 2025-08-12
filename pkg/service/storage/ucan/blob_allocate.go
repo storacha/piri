@@ -6,6 +6,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt/fx"
+	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/core/result/failure"
 	"github.com/storacha/go-ucanto/server"
 	"github.com/storacha/go-ucanto/ucan"
@@ -27,19 +28,19 @@ func BlobAllocate(storageService BlobAllocateService) server.Option {
 		blob.AllocateAbility,
 		server.Provide(
 			blob.Allocate,
-			func(ctx context.Context, cap ucan.Capability[blob.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (blob.AllocateOk, fx.Effects, error) {
+			func(ctx context.Context, cap ucan.Capability[blob.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (result.Result[blob.AllocateOk, failure.IPLDBuilderFailure], fx.Effects, error) {
 				//
 				// UCAN Validation
 				//
 
 				// only service principal can perform an allocation
 				if cap.With() != iCtx.ID().DID().String() {
-					return blob.AllocateOk{}, nil, NewUnsupportedCapabilityError(cap)
+					return result.Error[blob.AllocateOk, failure.IPLDBuilderFailure](NewUnsupportedCapabilityError(cap)), nil, nil
 				}
 
 				// enforce max upload size requirements
 				if cap.Nb().Blob.Size > maxUploadSize {
-					return blob.AllocateOk{}, nil, NewBlobSizeLimitExceededError(cap.Nb().Blob.Size, maxUploadSize)
+					return result.Error[blob.AllocateOk, failure.IPLDBuilderFailure](NewBlobSizeLimitExceededError(cap.Nb().Blob.Size, maxUploadSize)), nil, nil
 				}
 
 				//
@@ -52,13 +53,15 @@ func BlobAllocate(storageService BlobAllocateService) server.Option {
 					Cause: inv.Link(),
 				})
 				if err != nil {
-					return blob.AllocateOk{}, nil, failure.FromError(err)
+					return nil, nil, err
 				}
 
-				return blob.AllocateOk{
-					Size:    resp.Size,
-					Address: resp.Address,
-				}, nil, nil
+				return result.Ok[blob.AllocateOk, failure.IPLDBuilderFailure](
+					blob.AllocateOk{
+						Size:    resp.Size,
+						Address: resp.Address,
+					},
+				), nil, nil
 			},
 		),
 	)

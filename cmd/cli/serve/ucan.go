@@ -19,6 +19,7 @@ import (
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
+	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/storage"
@@ -193,12 +194,12 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	var pdpConfig *storage.PDPConfig
+	var pdpConfig *pdp.Config
 	var blobAddr multiaddr.Multiaddr
 	if pdpServerURL := cfg.PDPServerURL; pdpServerURL != "" {
 		pdpServerURL, err := url.Parse(pdpServerURL)
 		if err != nil {
-			return fmt.Errorf("parsing curio URL: %w", err)
+			return fmt.Errorf("parsing pdp server URL: %w", err)
 		}
 		aggRootDir, err := cliutil.Mkdirp(cfg.DataDir, "aggregator")
 		if err != nil {
@@ -216,13 +217,13 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
-		pdpConfig = &storage.PDPConfig{
+		pdpConfig = &pdp.Config{
 			PDPDatastore: aggDs,
 			PDPServerURL: pdpServerURL,
 			ProofSet:     cfg.ProofSet,
 			DatabasePath: filepath.Join(aggJobQueueDir, "jobqueue.db"),
 		}
-		curioAddr, err := maurl.FromURL(pdpServerURL)
+		pdpServerAddr, err := maurl.FromURL(pdpServerURL)
 		if err != nil {
 			return fmt.Errorf("parsing pdp server url: %w", err)
 		}
@@ -269,7 +270,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("parsing indexing service proof: %w", err)
 		}
 		indexingServiceProof = delegation.FromDelegation(dlg)
-		opts = append(opts, storage.WithPublisherIndexingServiceProof(delegation.FromDelegation(dlg)))
+		opts = append(opts, storage.WithPublisherIndexingServiceProof(indexingServiceProof))
 	}
 
 	var pubURL *url.URL
@@ -298,6 +299,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		storage.WithPublisherIndexingServiceConfig(indexingServiceDID, *indexingServiceURL),
 		storage.WithReceiptDatastore(receiptDs),
 	)
+
 	if pdpConfig != nil {
 		opts = append(opts, storage.WithPDPConfig(*pdpConfig))
 	}

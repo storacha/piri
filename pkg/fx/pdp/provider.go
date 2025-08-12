@@ -2,7 +2,6 @@ package pdp
 
 import (
 	"fmt"
-	"net/http"
 
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/storacha/go-ucanto/principal"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/pdp"
-	"github.com/storacha/piri/pkg/pdp/curio"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -40,19 +38,14 @@ func ProvidePDP(cfg app.AppConfig, id principal.Signer, receiptStore receiptstor
 		return nil, fmt.Errorf("creating aggregator datastore: %w", err)
 	}
 
-	// Create curio client for authentication
-	curioAuth, err := curio.CreateCurioJWTAuthHeader("storacha", id)
-	if err != nil {
-		return nil, fmt.Errorf("creating curio auth header: %w", err)
-	}
-	curioClient := curio.New(http.DefaultClient, pdpCfg.URL, curioAuth)
-
 	// Create remote PDP service
-	pdpService, err := pdp.NewRemotePDPService(
-		aggDs,
-		cfg.Storage.Replicator.DBPath,
-		curioClient,
-		pdpCfg.ProofSet,
+	pdpService, err := pdp.NewRemote(
+		&pdp.Config{
+			PDPDatastore: aggDs,
+			PDPServerURL: pdpCfg.URL,
+			ProofSet:     pdpCfg.ProofSet,
+			DatabasePath: cfg.Storage.Replicator.DBPath,
+		},
 		id,
 		receiptStore,
 	)
