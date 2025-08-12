@@ -2,6 +2,7 @@ package cliutil
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -16,8 +17,8 @@ import (
 	"github.com/storacha/piri/pkg/build"
 )
 
-func PrintHero(id did.DID) {
-	fmt.Printf(`
+func PrintHero(w io.Writer, id did.DID) {
+	fmt.Fprintf(w, `
 ▗▄▄▖ ▄  ▄▄▄ ▄  %s
 ▐▌ ▐▌▄ █    ▄  %s
 ▐▛▀▘ █ █    █  %s

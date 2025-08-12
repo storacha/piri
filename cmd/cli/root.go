@@ -21,8 +21,8 @@ import (
 	"github.com/storacha/piri/pkg/telemetry"
 )
 
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+func ExecuteContext(ctx context.Context) {
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -49,10 +49,10 @@ var (
 )
 
 func init() {
-	cobra.OnInitialize(initConfig, initTelemetry)
+	cobra.OnInitialize(initLogging, initConfig, initTelemetry)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "warn", "logging level")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "logging level")
 
 	rootCmd.PersistentFlags().String("data-dir", filepath.Join(lo.Must(os.UserHomeDir()), ".storacha"), "Storage service data directory")
 	cobra.CheckErr(viper.BindPFlag("repo.data_dir", rootCmd.PersistentFlags().Lookup("data-dir")))
@@ -84,12 +84,6 @@ func initConfig() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.SetEnvPrefix("PIRI")
 
-	if logLevel != "" {
-		ll, err := logging.LevelFromString(logLevel)
-		cobra.CheckErr(err)
-		logging.SetAllLoggers(ll)
-	}
-
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 		cobra.CheckErr(viper.ReadInConfig())
@@ -110,4 +104,65 @@ func initTelemetry() {
 	if err := telemetry.Initialize(ctx, telCfg); err != nil {
 		log.Warnf("failed to initialize telemetry: %s", err)
 	}
+}
+
+func initLogging() {
+	if logLevel != "" {
+		ll, err := logging.LevelFromString(logLevel)
+		cobra.CheckErr(err)
+		logging.SetAllLoggers(ll)
+	} else {
+		logging.SetLogLevel("database/gorm", "error")
+		logging.SetLogLevel("fns", "error")
+		logging.SetLogLevel("blobs", "error")
+		logging.SetLogLevel("scheduler/chain", "error")
+		logging.SetLogLevel("pdp/service", "info")
+		logging.SetLogLevel("config", "error")
+		logging.SetLogLevel("f3/internal/caching", "error")
+		logging.SetLogLevel("rpc", "error")
+		logging.SetLogLevel("test-logger", "error")
+		logging.SetLogLevel("build/build-types", "error")
+		logging.SetLogLevel("merkledag", "error")
+		logging.SetLogLevel("pdp/client", "info")
+		logging.SetLogLevel("telemetry", "info")
+		logging.SetLogLevel("publisher", "warn")
+		logging.SetLogLevel("f3/gpbft", "error")
+		logging.SetLogLevel("alerting", "error")
+		logging.SetLogLevel("blockstore", "error")
+		logging.SetLogLevel("eventlog", "error")
+		logging.SetLogLevel("indexer/schema", "error")
+		logging.SetLogLevel("statetree", "error")
+		logging.SetLogLevel("cli/wallet", "info")
+		logging.SetLogLevel("httpreader", "error")
+		logging.SetLogLevel("blockservice", "error")
+		logging.SetLogLevel("pubsub", "error")
+		logging.SetLogLevel("gossiptopic", "error")
+		logging.SetLogLevel("announce", "warn")
+		logging.SetLogLevel("proof", "warn")
+		logging.SetLogLevel("pdp/aggregator", "warn")
+		logging.SetLogLevel("chainstore", "error")
+		logging.SetLogLevel("f3/manifest-provider", "error")
+		logging.SetLogLevel("store", "error")
+		logging.SetLogLevel("pdp/scheduler", "info")
+		logging.SetLogLevel("metrics", "warn")
+		logging.SetLogLevel("pdp/tasks", "info")
+		logging.SetLogLevel("pdp/api", "info")
+		logging.SetLogLevel("replicator", "info")
+		logging.SetLogLevel("storage/ucan", "info")
+		logging.SetLogLevel("fsutil", "error")
+		logging.SetLogLevel("types", "error")
+		logging.SetLogLevel("peerstore", "error")
+		logging.SetLogLevel("pdp/server", "info")
+		logging.SetLogLevel("cmd/serve", "info")
+		logging.SetLogLevel("amt", "error")
+		logging.SetLogLevel("discovery-backoff", "error")
+		logging.SetLogLevel("database", "warn")
+		logging.SetLogLevel("principal-resolver", "error")
+		logging.SetLogLevel("server", "info")
+		logging.SetLogLevel("auth", "error")
+		logging.SetLogLevel("rpcenc", "error")
+		logging.SetLogLevel("storage", "info")
+		logging.SetLogLevel("resources", "error")
+	}
+
 }

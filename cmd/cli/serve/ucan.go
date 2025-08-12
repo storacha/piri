@@ -338,7 +338,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			serverConfig.ProofSetID = pdpConfig.ProofSet
 		}
 		cliutil.PrintUCANServerConfig(cmd, serverConfig)
-		cliutil.PrintHero(id.DID())
+		cliutil.PrintHero(cmd.OutOrStdout(), id.DID())
 	}()
 
 	defer svc.Close(ctx)

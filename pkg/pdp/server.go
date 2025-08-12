@@ -99,12 +99,12 @@ func NewServer(
 	if err != nil {
 		return nil, err
 	}
-	pdpService, err := service.NewPDPService(stateDB, address, wlt, blobStore, stashStore, chainClient, ethClient, &contract.PDPContract{})
+	pdpService, err := service.SetupPDPService(stateDB, address, wlt, blobStore, stashStore, chainClient, ethClient, &contract.PDPContract{})
 	if err != nil {
 		return nil, fmt.Errorf("creating pdp service: %w", err)
 	}
 
-	pdpAPI := &server.PDP{Service: pdpService}
+	pdpAPI := &server.PDPHandler{Service: pdpService}
 	svr := server.NewServer(pdpAPI)
 	return &Server{
 		startFuncs: []func(ctx context.Context) error{

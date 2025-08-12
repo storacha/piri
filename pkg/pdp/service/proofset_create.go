@@ -13,7 +13,15 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Address) (common.Hash, error) {
+func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Address) (res common.Hash, retErr error) {
+	log.Infow("creating proof set", "recordKeeper", recordKeeper)
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to create proof set", "recordKeeper", recordKeeper, "retErr", retErr)
+		} else {
+			log.Infow("created proof set", "recordKeeper", recordKeeper, "tx", res.String())
+		}
+	}()
 	if len(recordKeeper.Bytes()) == 0 {
 		return common.Hash{}, types.NewError(types.KindInvalidInput, "record keeper is required")
 	}

@@ -14,7 +14,7 @@ import (
 
 const piecePrefix = "/piece/"
 
-func (p *PDP) handleDownloadByPieceCid(c echo.Context) error {
+func (p *PDPHandler) handleDownloadByPieceCid(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Remove the path up to the piece cid

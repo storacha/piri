@@ -12,7 +12,15 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) ListProofSets(ctx context.Context) ([]types.ProofSet, error) {
+func (p *PDPService) ListProofSets(ctx context.Context) (res []types.ProofSet, retErr error) {
+	log.Info("listing proof sets")
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to list proof sets", "error", retErr)
+		} else {
+			log.Infow("listed proof sets", "count", len(res))
+		}
+	}()
 	var proofSets []models.PDPProofSet
 	if err := p.db.
 		WithContext(ctx).

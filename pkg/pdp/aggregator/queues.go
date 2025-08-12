@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"runtime"
 
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/schema"
 	"github.com/storacha/go-libstoracha/capabilities/types"
@@ -24,7 +23,7 @@ func NewLinkQueue(db *sql.DB) (*jobqueue.JobQueue[datamodel.Link], error) {
 			Typ:  &schema.TypeLink{},
 			Opts: types.Converters,
 		},
-		jobqueue.WithLogger(logging.Logger("jobqueue").With("queue", LinkQueueName)),
+		jobqueue.WithLogger(log.With("queue", LinkQueueName)),
 		jobqueue.WithMaxRetries(50),
 		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
 	)
@@ -42,7 +41,7 @@ func NewPieceQueue(db *sql.DB) (*jobqueue.JobQueue[piece.PieceLink], error) {
 			Typ:  aggregate.PieceLinkType(),
 			Opts: types.Converters,
 		},
-		jobqueue.WithLogger(logging.Logger("jobqueue").With("queue", PieceQueueName)),
+		jobqueue.WithLogger(log.With("queue", PieceQueueName)),
 		jobqueue.WithMaxRetries(50),
 		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
 	)
