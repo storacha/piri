@@ -43,6 +43,7 @@ require (
 	github.com/samber/lo v1.39.0
 	github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb
 	github.com/spf13/cobra v1.8.1
+	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
 	github.com/storacha/go-libstoracha v0.2.0
 	github.com/storacha/go-ucanto v0.5.0
@@ -175,7 +176,6 @@ require (
 	github.com/spf13/afero v1.10.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/supranational/blst v0.3.14 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
@@ -296,7 +296,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.39.0
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

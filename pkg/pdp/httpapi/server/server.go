@@ -9,7 +9,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
-
+	"github.com/storacha/piri/pkg/admin"
 	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 )
 
@@ -34,6 +34,7 @@ func NewServer(p *PDP) *Server {
 	e.HTTPErrorHandler = middleware.HandleError
 
 	RegisterEchoRoutes(e, p)
+	admin.RegisterAdminRoutes(e)
 
 	return &Server{e: e}
 }
