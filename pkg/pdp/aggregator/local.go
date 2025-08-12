@@ -67,6 +67,13 @@ func (la *LocalAggregator) AggregatePiece(ctx context.Context, pieceLink piece.P
 	return la.pieceQueue.Enqueue(ctx, PieceAggregateTask, pieceLink)
 }
 
+func NewLocalAggregator(pieceQueue *jobqueue.JobQueue[piece.PieceLink], linkQueue *jobqueue.JobQueue[datamodel.Link]) *LocalAggregator {
+	return &LocalAggregator{
+		pieceQueue: pieceQueue,
+		linkQueue:  linkQueue,
+	}
+}
+
 // NewLocal constructs an aggregator to run directly on a machine from a local datastore
 func NewLocal(
 	ds datastore.Datastore,
@@ -121,7 +128,7 @@ func NewLocal(
 
 	// construct queues -- somewhat frstratingly these have to be constructed backward for now
 	pieceAccepter := NewPieceAccepter(issuer, aggregateStore, receiptStore)
-	aggregationSubmitter := NewAggregateSubmitteer(proofSet, aggregateStore, client, linkQueue)
+	aggregationSubmitter := NewAggregateSubmitteer(&ConfiguredProofSetProvider{ID: proofSet}, aggregateStore, client, linkQueue)
 	pieceAggregator := NewPieceAggregator(inProgressWorkspace, aggregateStore, linkQueue)
 
 	if err := linkQueue.Register(PieceAcceptTask, func(ctx context.Context, msg datamodel.Link) error {
