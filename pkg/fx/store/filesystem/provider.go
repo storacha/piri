@@ -17,33 +17,72 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
+	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
+	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var Module = fx.Module("filesystem-store",
 	fx.Provide(
-		NewAggregatorStore,
+		ProvideConfigs,
+		fx.Annotate(
+			NewAggregatorDatastore,
+			// tagged as aggregator_datastore since this returns a datastore.Datastore which is too generic to
+			// safely provide as is.
+			fx.ResultTags(`name:"aggregator_datastore"`),
+		),
+		fx.Annotate(
+			NewPublisherStore,
+			// provide as FullStore (self)
+			fx.As(fx.Self()),
+			// provide sub-interfaces of Full Store
+			fx.As(new(store.PublisherStore)),
+			fx.As(new(store.EncodeableStore)),
+		),
 		NewAllocationStore,
 		NewBlobStore,
 		NewClaimStore,
-		NewPublisherStore,
-		// Also provide the interface
-		fx.Annotate(
-			func(s store.FullStore) store.PublisherStore {
-				return s
-			},
-		),
 		NewReceiptStore,
+		NewKeyStore,
+		NewStashStore,
+		NewPDPStore,
 	),
 )
 
-// TODO this likely needs a named fx tag, or it's own unique interface.
-func NewAggregatorStore(cfg app.AppConfig, lc fx.Lifecycle) (datastore.Datastore, error) {
-	if cfg.Storage.Aggregator.DatastoreDir == "" {
+type Configs struct {
+	fx.Out
+	Aggregator app.AggregatorStorageConfig
+	Publisher  app.PublisherStorageConfig
+	Allocation app.AllocationStorageConfig
+	Blob       app.BlobStorageConfig
+	Claim      app.ClaimStorageConfig
+	Receipt    app.ReceiptStorageConfig
+	KeyStore   app.KeyStoreConfig
+	Stash      app.StashStoreConfig
+	PDP        app.PDPStoreConfig
+}
+
+// ProvideConfigs provides the fields of a storage config
+func ProvideConfigs(cfg app.StorageConfig) Configs {
+	return Configs{
+		Aggregator: cfg.Aggregator,
+		Publisher:  cfg.Publisher,
+		Allocation: cfg.Allocations,
+		Blob:       cfg.Blobs,
+		Claim:      cfg.Claims,
+		Receipt:    cfg.Receipts,
+		KeyStore:   cfg.KeyStore,
+		Stash:      cfg.StashStore,
+		PDP:        cfg.PDPStore,
+	}
+}
+
+func NewAggregatorDatastore(cfg app.AggregatorStorageConfig, lc fx.Lifecycle) (datastore.Datastore, error) {
+	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for aggregator store")
 	}
 
-	ds, err := newDs(cfg.Storage.Aggregator.DatastoreDir)
+	ds, err := newDs(cfg.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("creating aggregator store: %w", err)
 	}
@@ -56,12 +95,12 @@ func NewAggregatorStore(cfg app.AppConfig, lc fx.Lifecycle) (datastore.Datastore
 	return ds, nil
 }
 
-func NewAllocationStore(cfg app.AppConfig, lc fx.Lifecycle) (allocationstore.AllocationStore, error) {
-	if cfg.Storage.Allocations.StoreDir == "" {
+func NewAllocationStore(cfg app.AllocationStorageConfig, lc fx.Lifecycle) (allocationstore.AllocationStore, error) {
+	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for allocation store")
 	}
 
-	ds, err := newDs(cfg.Storage.Allocations.StoreDir)
+	ds, err := newDs(cfg.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("creating allocation store: %w", err)
 	}
@@ -75,16 +114,16 @@ func NewAllocationStore(cfg app.AppConfig, lc fx.Lifecycle) (allocationstore.All
 	return allocationstore.NewDsAllocationStore(ds)
 }
 
-func NewBlobStore(cfg app.AppConfig) (blobstore.Blobstore, error) {
-	if cfg.Storage.Blobs.StoreDir == "" {
+func NewBlobStore(cfg app.BlobStorageConfig) (blobstore.Blobstore, error) {
+	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for blob store")
 	}
-	var tmpDir = cfg.Storage.Blobs.TempDir
+	var tmpDir = cfg.TmpDir
 	if tmpDir == "" {
 		tmpDir = filepath.Join(os.TempDir(), "storage")
 	}
 
-	bs, err := blobstore.NewFsBlobstore(cfg.Storage.Blobs.StoreDir, tmpDir)
+	bs, err := blobstore.NewFsBlobstore(cfg.Dir, tmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating blob store: %w", err)
 	}
@@ -100,12 +139,12 @@ func NewBlobStore(cfg app.AppConfig) (blobstore.Blobstore, error) {
 	*/
 }
 
-func NewClaimStore(cfg app.AppConfig, lc fx.Lifecycle) (claimstore.ClaimStore, error) {
-	if cfg.Storage.Claims.StoreDir == "" {
+func NewClaimStore(cfg app.ClaimStorageConfig, lc fx.Lifecycle) (claimstore.ClaimStore, error) {
+	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for claim store")
 	}
 
-	ds, err := newDs(cfg.Storage.Claims.StoreDir)
+	ds, err := newDs(cfg.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("creating claim store: %w", err)
 	}
@@ -118,12 +157,12 @@ func NewClaimStore(cfg app.AppConfig, lc fx.Lifecycle) (claimstore.ClaimStore, e
 	return delegationstore.NewDsDelegationStore(ds)
 }
 
-func NewPublisherStore(cfg app.AppConfig, lc fx.Lifecycle) (store.FullStore, error) {
-	if cfg.Storage.Publisher.StoreDir == "" {
+func NewPublisherStore(cfg app.PublisherStorageConfig, lc fx.Lifecycle) (store.FullStore, error) {
+	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for publisher store")
 	}
 
-	ds, err := newDs(cfg.Storage.Publisher.StoreDir)
+	ds, err := newDs(cfg.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("creating publisher store: %w", err)
 	}
@@ -136,12 +175,12 @@ func NewPublisherStore(cfg app.AppConfig, lc fx.Lifecycle) (store.FullStore, err
 	return store.FromDatastore(ds, store.WithMetadataContext(metadata.MetadataContext)), nil
 }
 
-func NewReceiptStore(cfg app.AppConfig, lc fx.Lifecycle) (receiptstore.ReceiptStore, error) {
-	if cfg.Storage.Receipts.StoreDir == "" {
+func NewReceiptStore(cfg app.ReceiptStorageConfig, lc fx.Lifecycle) (receiptstore.ReceiptStore, error) {
+	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for receipt store")
 	}
 
-	ds, err := newDs(cfg.Storage.Receipts.StoreDir)
+	ds, err := newDs(cfg.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("creating receipt store: %w", err)
 	}
@@ -153,6 +192,49 @@ func NewReceiptStore(cfg app.AppConfig, lc fx.Lifecycle) (receiptstore.ReceiptSt
 
 	return receiptstore.NewDsReceiptStore(ds)
 
+}
+
+func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, error) {
+	if cfg.Dir == "" {
+		return nil, fmt.Errorf("no data dir provided for key store")
+	}
+
+	ds, err := newDs(cfg.Dir)
+	if err != nil {
+		return nil, fmt.Errorf("creating key store: %w", err)
+	}
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return ds.Close()
+		},
+	})
+	return keystore.NewKeyStore(ds)
+}
+
+func NewStashStore(cfg app.StashStoreConfig) (stashstore.Stash, error) {
+	if cfg.Dir == "" {
+		return nil, fmt.Errorf("no data dir provided for stash store")
+	}
+	return stashstore.NewStashStore(cfg.Dir)
+}
+
+// TODO whenever we are done with https://github.com/storacha/piri/issues/140
+// make this an object store.
+// We must do this before production network launch, else migration will be the end of me.
+func NewPDPStore(cfg app.PDPStoreConfig, lc fx.Lifecycle) (blobstore.PDPStore, error) {
+	if cfg.Dir == "" {
+		return nil, fmt.Errorf("no data dir provided for pdp store")
+	}
+	ds, err := newDs(cfg.Dir)
+	if err != nil {
+		return nil, fmt.Errorf("creating pdp store: %w", err)
+	}
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return ds.Close()
+		},
+	})
+	return blobstore.NewTODO_DsBlobstore(ds), nil
 }
 
 func newDs(path string) (*leveldb.Datastore, error) {

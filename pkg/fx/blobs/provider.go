@@ -8,6 +8,7 @@ import (
 
 	"github.com/storacha/piri/pkg/access"
 	"github.com/storacha/piri/pkg/config/app"
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/store/allocationstore"
@@ -25,6 +26,7 @@ var Module = fx.Module("blobs",
 		),
 		fx.Annotate(
 			blobs.NewServer,
+			fx.As(new(echofx.RouteRegistrar)),
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 	),
@@ -37,7 +39,7 @@ func NewService(
 	blobStore blobstore.Blobstore,
 	allocationStore allocationstore.AllocationStore,
 ) (*blobs.BlobService, error) {
-	if cfg.Server.PublicURL == nil {
+	if cfg.Server.PublicURL.Scheme == "" {
 		return nil, fmt.Errorf("public URL required for blob service")
 	}
 

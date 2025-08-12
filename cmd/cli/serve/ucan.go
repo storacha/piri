@@ -12,7 +12,6 @@ import (
 	"github.com/ipni/go-libipni/maurl"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
@@ -36,6 +35,7 @@ var (
 	}
 )
 
+/*
 func init() {
 	UCANCmd.Flags().String(
 		"host",
@@ -127,6 +127,7 @@ func init() {
 
 }
 
+*/
 func startServer(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 

@@ -18,10 +18,10 @@ import (
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
-	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/stashstore"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
@@ -32,7 +32,7 @@ var _ types.API = (*PDPService)(nil)
 type PDPService struct {
 	address   common.Address
 	blobstore blobstore.Blobstore
-	storage   store.Stash
+	storage   stashstore.Stash
 	sender    ethereum.Sender
 
 	db   *gorm.DB
@@ -76,12 +76,33 @@ type EthClient interface {
 	bind.ContractBackend
 }
 
+func New(
+	db *gorm.DB,
+	address common.Address,
+	bs blobstore.PDPStore,
+	stash stashstore.Stash,
+	sender ethereum.Sender,
+	engine *scheduler.TaskEngine,
+	chainScheduler *chainsched.Scheduler,
+) (*PDPService, error) {
+	return &PDPService{
+		address:        address,
+		db:             db,
+		name:           "storacha",
+		blobstore:      bs,
+		storage:        stash,
+		sender:         sender,
+		engine:         engine,
+		chainScheduler: chainScheduler,
+	}, nil
+}
+
 func NewPDPService(
 	db *gorm.DB,
 	address common.Address,
 	wallet wallet.Wallet,
 	bs blobstore.Blobstore,
-	ss store.Stash,
+	ss stashstore.Stash,
 	chainClient ChainClient,
 	ethClient EthClient,
 	contractClient contract.PDP,

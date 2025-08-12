@@ -17,7 +17,12 @@ import (
 )
 
 var Module = fx.Module("replicator",
-	fx.Provide(New),
+	fx.Provide(
+		fx.Annotate(
+			New,
+			fx.As(new(replicator.Replicator)),
+		),
+	),
 )
 
 type Params struct {
@@ -25,7 +30,7 @@ type Params struct {
 
 	Config       app.AppConfig
 	ID           principal.Signer
-	PDP          pdp.PDP `optional:"true"`
+	PDP          pdp.PDP
 	Blobs        blobs.Blobs
 	Claims       claims.Claims
 	ReceiptStore receiptstore.ReceiptStore
@@ -39,7 +44,7 @@ func New(params Params, lc fx.Lifecycle) (*replicator.Service, error) {
 		params.Blobs,
 		params.Claims,
 		params.ReceiptStore,
-		params.Config.External.UploadService.Connection,
+		params.Config.ExternalServices.Upload.Connection,
 		params.DB,
 	)
 	if err != nil {

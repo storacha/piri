@@ -55,12 +55,12 @@ func init() {
 	rootCmd.PersistentFlags().String("data-dir", config.DefaultRepo.DataDir, "Storage service data directory")
 	rootCmd.PersistentFlags().String("temp-dir", config.DefaultRepo.TempDir, "Storage service temp directory")
 	// Bind flags to viper
-	cobra.CheckErr(viper.BindPFlag("data_dir", rootCmd.PersistentFlags().Lookup("data-dir")))
-	cobra.CheckErr(viper.BindPFlag("temp_dir", rootCmd.PersistentFlags().Lookup("temp-dir")))
+	cobra.CheckErr(viper.BindPFlag("repo.data_dir", rootCmd.PersistentFlags().Lookup("data-dir")))
+	cobra.CheckErr(viper.BindPFlag("repo.temp_dir", rootCmd.PersistentFlags().Lookup("temp-dir")))
 
 	rootCmd.PersistentFlags().String("key-file", "", "Path to a PEM file containing ed25519 private key")
 	cobra.CheckErr(rootCmd.MarkPersistentFlagFilename("key-file", "pem"))
-	cobra.CheckErr(viper.BindPFlag("key_file", rootCmd.PersistentFlags().Lookup("key-file")))
+	cobra.CheckErr(viper.BindPFlag("identity.key_file", rootCmd.PersistentFlags().Lookup("key-file")))
 
 	// register all commands and their subcommands
 	rootCmd.AddCommand(serve.Cmd)

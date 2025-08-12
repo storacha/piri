@@ -12,7 +12,7 @@ var Cmd = &cobra.Command{
 
 func init() {
 	Cmd.PersistentFlags().String("node-did", "", "DID of a Piri node")
-	cobra.CheckErr(viper.BindPFlag("node_did", Cmd.PersistentFlags().Lookup("node-did")))
+	cobra.CheckErr(viper.BindPFlag("api.did", Cmd.PersistentFlags().Lookup("node-did")))
 	cobra.CheckErr(Cmd.MarkPersistentFlagRequired("node-did"))
 
 	Cmd.AddCommand(UploadCmd)

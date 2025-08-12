@@ -18,7 +18,7 @@ var (
 
 func init() {
 	Cmd.PersistentFlags().String("node-url", config.DefaultPDPClient.NodeURL, "URL of a Piri node")
-	cobra.CheckErr(viper.BindPFlag("node_url", Cmd.PersistentFlags().Lookup("node-url")))
+	cobra.CheckErr(viper.BindPFlag("api.endpoint", Cmd.PersistentFlags().Lookup("node-url")))
 
 	Cmd.AddCommand(ucan.Cmd)
 	Cmd.AddCommand(pdp.Cmd)

@@ -66,6 +66,11 @@ type Blobstore interface {
 	Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error)
 }
 
+type PDPStore interface {
+	Blobstore
+	FileSystemer
+}
+
 // FileSystemer exposes the filesystem interface for reading blobs.
 type FileSystemer interface {
 	// FileSystem returns a filesystem interface for reading blobs.

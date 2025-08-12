@@ -14,12 +14,12 @@ import (
 	"github.com/storacha/piri/pkg/config"
 )
 
-func New(cfg config.UCANClient) (*client.Client, error) {
-	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
+func New(cfg config.Client) (*client.Client, error) {
+	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.Identity.KeyFile)
 	if err != nil {
 		return nil, err
 	}
-	proofFile, err := os.Open(cfg.Proof)
+	proofFile, err := os.Open(cfg.API.Proof)
 	if err != nil {
 		return nil, fmt.Errorf("opening delegation car file: %w", err)
 	}
@@ -31,11 +31,11 @@ func New(cfg config.UCANClient) (*client.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("extracting storage proof: %w", err)
 	}
-	nodeDID, err := did.Parse(cfg.NodeDID)
+	nodeDID, err := did.Parse(cfg.API.DID)
 	if err != nil {
 		return nil, fmt.Errorf("parsing node did: %w", err)
 	}
-	nodeURL, err := url.Parse(cfg.NodeURL)
+	nodeURL, err := url.Parse(cfg.API.Endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("parsing node url: %w", err)
 	}

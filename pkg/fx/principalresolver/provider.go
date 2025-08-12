@@ -26,10 +26,10 @@ var Module = fx.Module("principalresolver",
 // NewPrincipalResolver creates a principal resolver from configuration
 func NewPrincipalResolver(cfg app.AppConfig) (validator.PrincipalResolver, error) {
 	services := make([]did.DID, 0, 2)
-	if idxSvc := cfg.External.IndexingService.Connection; idxSvc != nil {
+	if idxSvc := cfg.ExternalServices.Indexer.Connection; idxSvc != nil {
 		services = append(services, idxSvc.ID().DID())
 	}
-	if uplSvc := cfg.External.UploadService.Connection; uplSvc != nil {
+	if uplSvc := cfg.ExternalServices.Upload.Connection; uplSvc != nil {
 		services = append(services, uplSvc.ID().DID())
 	}
 	hr, err := principalresolver.NewHTTPResolver(services)

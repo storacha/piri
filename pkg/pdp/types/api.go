@@ -92,3 +92,7 @@ type PieceAPI interface {
 	FindPiece(ctx context.Context, piece Piece) (cid.Cid, bool, error)
 	ReadPiece(ctx context.Context, piece cid.Cid) (*PieceReader, error)
 }
+
+type ProofSetIDProvider interface {
+	GetProofSetID(ctx context.Context) (uint64, error)
+}

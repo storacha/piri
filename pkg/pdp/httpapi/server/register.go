@@ -17,7 +17,17 @@ const (
 	PiecePrefix      = "/piece"
 )
 
-func RegisterEchoRoutes(e *echo.Echo, p *PDP) {
+func NewPDPServer(service *service.PDPService) *PDP {
+	return &PDP{
+		service,
+	}
+}
+
+type PDP struct {
+	Service *service.PDPService
+}
+
+func (p *PDP) RegisterRoutes(e *echo.Echo) {
 	// /pdp/proof-sets
 	proofSets := e.Group(path.Join(PDPRoutePath, PRoofSetRoutPath))
 	proofSets.POST("", p.handleCreateProofSet)
@@ -44,8 +54,4 @@ func RegisterEchoRoutes(e *echo.Echo, p *PDP) {
 
 	// retrival
 	e.GET(path.Join(PiecePrefix, ":cid"), p.handleDownloadByPieceCid)
-}
-
-type PDP struct {
-	Service *service.PDPService
 }

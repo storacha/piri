@@ -36,21 +36,21 @@ type StorageServiceParams struct {
 
 	Config       app.AppConfig
 	ID           principal.Signer
-	Blobs        *blobs.BlobService
-	Claims       *claims.ClaimService
-	PDP          pdp.PDP `optional:"true"`
+	Blobs        blobs.Blobs
+	Claims       claims.Claims
+	PDP          pdp.PDP
 	ReceiptStore receiptstore.ReceiptStore
-	Replicator   *replicator.Service
+	Replicator   replicator.Replicator
 }
 
 // storageServiceWrapper wraps the storage service to implement the storage.Service interface
 type storageServiceWrapper struct {
 	id           principal.Signer
-	blobs        *blobs.BlobService
-	claims       *claims.ClaimService
+	blobs        blobs.Blobs
+	claims       claims.Claims
 	pdp          pdp.PDP
 	receiptStore receiptstore.ReceiptStore
-	replicator   *replicator.Service
+	replicator   replicator.Replicator
 	uploadConn   client.Connection
 }
 
@@ -63,7 +63,7 @@ func NewStorageService(params StorageServiceParams, lc fx.Lifecycle) (storage.Se
 		pdp:          params.PDP,
 		receiptStore: params.ReceiptStore,
 		replicator:   params.Replicator,
-		uploadConn:   params.Config.External.UploadService.Connection,
+		uploadConn:   params.Config.ExternalServices.Upload.Connection,
 	}
 
 	// Register lifecycle hooks

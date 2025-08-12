@@ -36,13 +36,13 @@ func init() {
 	cobra.CheckErr(UploadCmd.MarkFlagRequired("blob"))
 
 	UploadCmd.PersistentFlags().String("proof", "", "CAR file containing storage proof authorizing client invocations")
-	cobra.CheckErr(viper.BindPFlag("proof", UploadCmd.PersistentFlags().Lookup("proof")))
+	cobra.CheckErr(viper.BindPFlag("api.proof", UploadCmd.PersistentFlags().Lookup("proof")))
 	cobra.CheckErr(UploadCmd.MarkPersistentFlagRequired("proof"))
 
 }
 
 func doUpload(cmd *cobra.Command, _ []string) error {
-	cfg, err := config.Load[config.UCANClient]()
+	cfg, err := config.Load[config.Client]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}

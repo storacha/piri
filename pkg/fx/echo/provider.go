@@ -18,9 +18,9 @@ var log = logging.Logger("fx/echo")
 var Module = fx.Module("echo",
 	fx.Provide(
 		NewEcho,
-		NewEchoServer,
 	),
 	fx.Invoke(RegisterRoutes),
+	fx.Invoke(NewEchoServer),
 )
 
 // RouteRegistrar defines the interface for services that register Echo routes

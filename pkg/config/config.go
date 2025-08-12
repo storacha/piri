@@ -1,45 +1,10 @@
 package config
 
 import (
-	"os"
-	"path/filepath"
-
-	"github.com/samber/lo"
 	"github.com/spf13/viper"
 
 	"github.com/storacha/piri/pkg/presets"
 )
-
-type Config struct {
-	Identity   Identity   `mapstructure:"identity" validate:"required"`
-	Repo       Repo       `mapstructure:"repo" validate:"required"`
-	UCANServer UCANServer `mapstructure:"ucan_server" validate:"required"`
-	PDPServer  PDPServer  `mapstructure:"pdp_server" validate:"required"`
-	PDPClient  PDPClient  `mapstructure:"pdp_client" validate:"required"`
-	UCANClient UCANClient `mapstructure:"ucan_client" validate:"required"`
-}
-
-type Identity struct {
-	KeyFile string `mapstructure:"key_file" validate:"required" flag:"key-file"`
-}
-
-func (i Identity) Validate() error {
-	return validateConfig(i)
-}
-
-type Repo struct {
-	DataDir string `mapstructure:"data_dir" validate:"required" flag:"data-dir"`
-	TempDir string `mapstructure:"temp_dir" validate:"required" flag:"temp-dir"`
-}
-
-func (r Repo) Validate() error {
-	return validateConfig(r)
-}
-
-var DefaultRepo = Repo{
-	DataDir: filepath.Join(lo.Must(os.UserHomeDir()), ".storacha"),
-	TempDir: filepath.Join(os.TempDir(), "storage"),
-}
 
 type UCANServer struct {
 	Identity `mapstructure:"identity,squash" validate:"required"`
@@ -118,6 +83,11 @@ func Load[T Validatable]() (T, error) {
 	if err := viper.Unmarshal(&out); err != nil {
 		return out, err
 	}
+	if err := viper.WriteConfigAs("test.toml"); err != nil {
+		panic(err)
+	}
+	v := viper.GetViper()
+	_ = v
 	if err := out.Validate(); err != nil {
 		return out, err
 	}

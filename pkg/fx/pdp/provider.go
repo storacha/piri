@@ -1,57 +1,103 @@
 package pdp
 
 import (
-	"fmt"
-
-	leveldb "github.com/ipfs/go-ds-leveldb"
-	"github.com/storacha/go-ucanto/principal"
 	"go.uber.org/fx"
+	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/config/app"
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/pdp"
-	"github.com/storacha/piri/pkg/store/receiptstore"
+	"github.com/storacha/piri/pkg/pdp/aggregator"
+	"github.com/storacha/piri/pkg/pdp/chainsched"
+	"github.com/storacha/piri/pkg/pdp/ethereum"
+	"github.com/storacha/piri/pkg/pdp/httpapi/server"
+	"github.com/storacha/piri/pkg/pdp/pieceadder"
+	"github.com/storacha/piri/pkg/pdp/piecefinder"
+	"github.com/storacha/piri/pkg/pdp/scheduler"
+	"github.com/storacha/piri/pkg/pdp/service"
+	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
-var Module = fx.Module("pdp",
+var Module = fx.Module("pdp-service",
 	fx.Provide(
-		ProvidePDP,
+		fx.Annotate(
+			ProvidePDPService,
+			fx.As(fx.Self()),      // provide service as concrete type
+			fx.As(new(types.API)), // also provide the server as the interface(s) it implements
+			fx.As(new(types.ProofSetAPI)),
+			fx.As(new(types.PieceAPI)),
+		),
+		fx.Annotate(
+			ProvideProofSetIDProvider,
+			fx.As(new(types.ProofSetIDProvider)),
+		),
+
+		fx.Annotate(
+			ProvidePoorlyNamedPDPInterface,
+			fx.As(new(pdp.PDP)),
+		),
+		fx.Annotate(
+			server.NewPDPServer,
+			fx.As(new(echofx.RouteRegistrar)),
+			fx.ResultTags(`group:"route_registrar"`),
+		),
 	),
 )
 
-// ProvidePDP provides a PDP implementation based on configuration
-func ProvidePDP(cfg app.AppConfig, id principal.Signer, receiptStore receiptstore.ReceiptStore) (pdp.PDP, error) {
-	// If no PDP server is configured, return nil
-	if cfg.External.PDPServer == nil {
-		return nil, nil
-	}
+type Shit struct {
+	aggregator  aggregator.Aggregator
+	pieceFinder piecefinder.PieceFinder
+	pieceAdder  pieceadder.PieceAdder
+}
 
-	pdpCfg := cfg.External.PDPServer
+func (s *Shit) PieceAdder() pieceadder.PieceAdder {
+	return s.pieceAdder
+}
 
-	// Validate configuration
-	if pdpCfg.ProofSet == 0 {
-		return nil, fmt.Errorf("must set proof-set when using pdp-server-url")
-	}
+func (s *Shit) PieceFinder() piecefinder.PieceFinder {
+	return s.pieceFinder
+}
 
-	// Create aggregator datastore
-	aggDs, err := leveldb.NewDatastore(cfg.Storage.Aggregator.DatastoreDir, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating aggregator datastore: %w", err)
-	}
+func (s *Shit) Aggregator() aggregator.Aggregator {
+	return s.aggregator
+}
 
-	// Create remote PDP service
-	pdpService, err := pdp.NewRemote(
-		&pdp.Config{
-			PDPDatastore: aggDs,
-			PDPServerURL: pdpCfg.URL,
-			ProofSet:     pdpCfg.ProofSet,
-			DatabasePath: cfg.Storage.Replicator.DBPath,
-		},
-		id,
-		receiptStore,
+func ProvidePoorlyNamedPDPInterface(service types.API, agg aggregator.Aggregator, cfg app.AppConfig) (*Shit, error) {
+	finder := piecefinder.New(service, &cfg.Server.PublicURL)
+	adder := pieceadder.New(service, &cfg.Server.PublicURL)
+	return &Shit{
+		aggregator:  agg,
+		pieceFinder: finder,
+		pieceAdder:  adder,
+	}, nil
+}
+
+type Params struct {
+	fx.In
+
+	DB             *gorm.DB `name:"engine_db"`
+	Config         app.PDPServiceConfig
+	Store          blobstore.PDPStore
+	Stash          stashstore.Stash
+	Sender         ethereum.Sender
+	Engine         *scheduler.TaskEngine
+	ChainScheduler *chainsched.Scheduler
+}
+
+func ProvidePDPService(params Params) (*service.PDPService, error) {
+	return service.New(
+		params.DB,
+		params.Config.Local.OwnerAddress,
+		params.Store,
+		params.Stash,
+		params.Sender,
+		params.Engine,
+		params.ChainScheduler,
 	)
-	if err != nil {
-		return nil, fmt.Errorf("creating remote PDP service: %w", err)
-	}
+}
 
-	return pdpService, nil
+func ProvideProofSetIDProvider(cfg app.PDPServiceConfig) (*aggregator.ConfiguredProofSetIDProvider, error) {
+	return &aggregator.ConfiguredProofSetIDProvider{ID: cfg.Local.ProofSetID}, nil
 }

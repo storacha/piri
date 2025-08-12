@@ -22,8 +22,8 @@ import (
 	"github.com/storacha/piri/pkg/pdp/httpapi/server"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
-	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/stashstore"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
@@ -64,7 +64,7 @@ func NewServer(
 		return nil, err
 	}
 	blobStore := blobstore.NewTODO_DsBlobstore(namespace.Wrap(ds, datastore.NewKey("blobs")))
-	stashStore, err := store.NewStashStore(path.Join(dataDir))
+	stashStore, err := stashstore.NewStashStore(path.Join(dataDir))
 	if err != nil {
 		return nil, err
 	}

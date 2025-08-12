@@ -33,7 +33,7 @@ func NewServer(p *PDP) *Server {
 	// Custom error handler for our ContextualError type
 	e.HTTPErrorHandler = middleware.HandleError
 
-	RegisterEchoRoutes(e, p)
+	p.RegisterRoutes(e)
 
 	return &Server{e: e}
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
@@ -26,6 +25,8 @@ var PDPCmd = &cobra.Command{
 	Short: `Start a PDP server`,
 	RunE:  doPDPServe,
 }
+
+/*
 
 func init() {
 	PDPCmd.Flags().String(
@@ -49,6 +50,8 @@ func init() {
 	cobra.CheckErr(viper.BindPFlag("eth_address", PDPCmd.Flags().Lookup("eth-address")))
 }
 
+
+*/
 func doPDPServe(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 

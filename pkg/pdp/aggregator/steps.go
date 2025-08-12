@@ -114,18 +114,18 @@ func (pa *PieceAggregator) AggregatePieces(ctx context.Context, pieces []piece.P
 }
 
 type AggregateSubmitter struct {
-	proofSet uint64
-	store    AggregateStore
-	client   types2.ProofSetAPI
-	queue    LinkQueue
+	proofSetProvider types2.ProofSetIDProvider
+	store            AggregateStore
+	client           types2.ProofSetAPI
+	queue            LinkQueue
 }
 
-func NewAggregateSubmitteer(proofSet uint64, store AggregateStore, client types2.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
+func NewAggregateSubmitteer(proofSetProvider types2.ProofSetIDProvider, store AggregateStore, client types2.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
 	return &AggregateSubmitter{
-		proofSet: proofSet,
-		store:    store,
-		client:   client,
-		queue:    queuePieceAccept,
+		proofSetProvider: proofSetProvider,
+		store:            store,
+		client:           client,
+		queue:            queuePieceAccept,
 	}
 }
 
@@ -139,7 +139,11 @@ func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLin
 		}
 		aggregates = append(aggregates, aggregate)
 	}
-	if err := fns.SubmitAggregates(ctx, as.client, as.proofSet, aggregates); err != nil {
+	psID, err := as.proofSetProvider.GetProofSetID(ctx)
+	if err != nil {
+		return fmt.Errorf("getting proof set ID: %w", err)
+	}
+	if err := fns.SubmitAggregates(ctx, as.client, psID, aggregates); err != nil {
 		return fmt.Errorf("submitting aggregates to Curio: %w", err)
 	}
 	for _, aggregateLink := range aggregateLinks {
