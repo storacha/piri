@@ -50,18 +50,18 @@ func init() {
 		0,
 		"Proofset to use with PDP",
 	)
-	cobra.CheckErr(viper.BindPFlag("ucan_service.proof_set", UCANCmd.Flags().Lookup("proof-set")))
+	cobra.CheckErr(viper.BindPFlag("ucan.proof_set", UCANCmd.Flags().Lookup("proof-set")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan_service.proof_set", "PIRI_PROOF_SET"))
+	cobra.CheckErr(viper.BindEnv("ucan.proof_set", "PIRI_PROOF_SET"))
 
 	UCANCmd.Flags().String(
 		"indexing-service-proof",
 		"",
 		"A delegation that allows the node to cache claims with the indexing service",
 	)
-	cobra.CheckErr(viper.BindPFlag("ucan_service.services.indexer.proof", UCANCmd.Flags().Lookup("indexing-service-proof")))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.indexer.proof", UCANCmd.Flags().Lookup("indexing-service-proof")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan_service.services.indexer.proof", "PIRI_INDEXING_SERVICE_PROOF"))
+	cobra.CheckErr(viper.BindEnv("ucan.services.indexer.proof", "PIRI_INDEXING_SERVICE_PROOF"))
 
 	UCANCmd.Flags().String(
 		"indexing-service-did",
@@ -69,9 +69,9 @@ func init() {
 		"DID of the indexing service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("indexing-service-did"))
-	cobra.CheckErr(viper.BindPFlag("ucan_service.services.indexer.did", UCANCmd.Flags().Lookup("indexing-service-did")))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.indexer.did", UCANCmd.Flags().Lookup("indexing-service-did")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan_service.services.indexer.did", "PIRI_INDEXING_SERVICE_DID"))
+	cobra.CheckErr(viper.BindEnv("ucan.services.indexer.did", "PIRI_INDEXING_SERVICE_DID"))
 
 	UCANCmd.Flags().String(
 		"indexing-service-url",
@@ -79,9 +79,9 @@ func init() {
 		"URL of the indexing service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("indexing-service-url"))
-	cobra.CheckErr(viper.BindPFlag("ucan_service.services.indexer.url", UCANCmd.Flags().Lookup("indexing-service-url")))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.indexer.url", UCANCmd.Flags().Lookup("indexing-service-url")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan_service.services.indexer.url", "PIRI_INDEXING_SERVICE_URL"))
+	cobra.CheckErr(viper.BindEnv("ucan.services.indexer.url", "PIRI_INDEXING_SERVICE_URL"))
 
 	UCANCmd.Flags().String(
 		"upload-service-did",
@@ -89,9 +89,9 @@ func init() {
 		"DID of the upload service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("upload-service-did"))
-	cobra.CheckErr(viper.BindPFlag("ucan_service.services.upload.did", UCANCmd.Flags().Lookup("upload-service-did")))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.upload.did", UCANCmd.Flags().Lookup("upload-service-did")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan_service.services.upload.did", "PIRI_UPLOAD_SERVICE_DID"))
+	cobra.CheckErr(viper.BindEnv("ucan.services.upload.did", "PIRI_UPLOAD_SERVICE_DID"))
 
 	UCANCmd.Flags().String(
 		"upload-service-url",
@@ -99,9 +99,9 @@ func init() {
 		"URL of the upload service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("upload-service-url"))
-	cobra.CheckErr(viper.BindPFlag("ucan_service.services.upload.url", UCANCmd.Flags().Lookup("upload-service-url")))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.upload.url", UCANCmd.Flags().Lookup("upload-service-url")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan_service.services.upload.did", "PIRI_UPLOAD_SERVICE_URL"))
+	cobra.CheckErr(viper.BindEnv("ucan.services.upload.did", "PIRI_UPLOAD_SERVICE_URL"))
 
 	UCANCmd.Flags().StringSlice(
 		"ipni-announce-urls",
@@ -114,9 +114,9 @@ func init() {
 		}(),
 		"A list of IPNI announce URLs")
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("ipni-announce-urls"))
-	cobra.CheckErr(viper.BindPFlag("ucan_service.services.publisher.ipni_announce_urls", UCANCmd.Flags().Lookup("ipni-announce-urls")))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.publisher.ipni_announce_urls", UCANCmd.Flags().Lookup("ipni-announce-urls")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan_service.services.publisher.ipni_announce_urls", "PIRI_IPNI_ANNOUNCE_URLS"))
+	cobra.CheckErr(viper.BindEnv("ucan.services.publisher.ipni_announce_urls", "PIRI_IPNI_ANNOUNCE_URLS"))
 
 	UCANCmd.Flags().StringToString(
 		"service-principal-mapping",
@@ -124,9 +124,9 @@ func init() {
 		"Mapping of service DIDs to principal DIDs",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("service-principal-mapping"))
-	cobra.CheckErr(viper.BindPFlag("ucan_service.services.principal_mapping", UCANCmd.Flags().Lookup("service-principal-mapping")))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.principal_mapping", UCANCmd.Flags().Lookup("service-principal-mapping")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan_service.services.principal_mapping", "PIRI_SERVICE_PRINCIPAL_MAPPING"))
+	cobra.CheckErr(viper.BindEnv("ucan.services.principal_mapping", "PIRI_SERVICE_PRINCIPAL_MAPPING"))
 
 }
 

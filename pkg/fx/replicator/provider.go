@@ -39,7 +39,7 @@ func New(params Params, lc fx.Lifecycle) (*replicator.Service, error) {
 		params.Blobs,
 		params.Claims,
 		params.ReceiptStore,
-		params.Config.External.UploadService.Connection,
+		params.Config.UCANService.Services.Upload.Connection,
 		params.DB,
 	)
 	if err != nil {
