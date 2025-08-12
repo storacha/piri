@@ -18,10 +18,10 @@ import (
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
-	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/stashstore"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
@@ -32,7 +32,7 @@ var _ types.API = (*PDPService)(nil)
 type PDPService struct {
 	address   common.Address
 	blobstore blobstore.Blobstore
-	storage   store.Stash
+	storage   stashstore.Stash
 	sender    ethereum.Sender
 
 	db   *gorm.DB
@@ -81,7 +81,7 @@ func NewPDPService(
 	address common.Address,
 	wallet wallet.Wallet,
 	bs blobstore.Blobstore,
-	ss store.Stash,
+	ss stashstore.Stash,
 	chainClient ChainClient,
 	ethClient EthClient,
 	contractClient contract.PDP,
