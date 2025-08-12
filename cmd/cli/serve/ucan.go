@@ -227,7 +227,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("parsing pdp server url: %w", err)
 		}
-		blobAddr, err = lib.JoinHTTPPath(curioAddr, "piece/{blobCID}")
+		blobAddr, err = lib.JoinHTTPPath(pdpServerAddr, "piece/{blobCID}")
 		if err != nil {
 			return fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}

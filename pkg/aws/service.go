@@ -395,7 +395,7 @@ func Construct(cfg Config) (storage.Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing pdp server URL to multiaddr: %w", err)
 		}
-		blobAddr, err = lib.JoinHTTPPath(curioAddr, "piece/{blobCID}")
+		blobAddr, err = lib.JoinHTTPPath(pdpAddr, "piece/{blobCID}")
 		if err != nil {
 			return nil, fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}
