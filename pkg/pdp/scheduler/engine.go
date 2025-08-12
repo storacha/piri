@@ -29,8 +29,11 @@ type TaskEngine struct {
 	handlers  []*taskTypeHandler
 }
 
+// Option is a functional option for configuring a TaskEngine.
 type Option func(*TaskEngine) error
 
+// WithSessionID sets a custom session ID for the TaskEngine.
+// If not provided, a new UUID v7 will be generated.
 func WithSessionID(sessionID string) Option {
 	return func(e *TaskEngine) error {
 		e.sessionID = sessionID
@@ -39,28 +42,24 @@ func WithSessionID(sessionID string) Option {
 }
 
 // NewEngine creates a new TaskEngine with the provided task implementations.
+// The engine manages task scheduling with session-based ownership, ensuring
+// clean boundaries between different engine instances and automatic cleanup
+// of tasks from previous sessions.
+//
+// Parameters:
+//   - db: The database connection for task persistence
+//   - impls: Task implementations that define the work to be scheduled
+//   - opts: Optional configuration (e.g., WithSessionID)
 func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine, error) {
-	ctx, cancel := context.WithCancel(context.Background())
 	e := &TaskEngine{
-		ctx:       ctx,
 		sessionID: mustGenerateSessionID(),
-		cancel:    cancel,
 		db:        db,
 	}
 
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
-			cancel()
 			return nil, err
 		}
-	}
-
-	log.Infof("Starting engine with session ID: %s", e.sessionID)
-
-	// Clean up tasks from previous sessions
-	if err := e.cleanupPreviousSessions(); err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to cleanup previous sessions: %w", err)
 	}
 
 	for _, impl := range impls {
@@ -70,44 +69,82 @@ func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine,
 			TaskEngine:      e,
 		}
 		e.handlers = append(e.handlers, h)
+	}
 
-		// Start the adder routine for the task type.
-		go h.Adder(h.AddTask)
+	return e, nil
+}
 
-		// Start the periodic scheduler if provided
+// Start initializes and begins the task engine's operation.
+//
+// The provided context is used only for database migration and session cleanup
+// during startup. Callers should pass a context with a timeout if they want to
+// limit how long startup operations can take.
+//
+// After startup completes, the engine creates its own internal context for
+// ongoing operations, which is separate from the startup context. To stop the
+// engine, callers must use the Stop method rather than canceling the startup context.
+//
+// Start performs the following operations:
+//  1. Runs database migrations
+//  2. Cleans up tasks from previous sessions
+//  3. Starts task adders for each registered task type
+//  4. Starts periodic schedulers if configured
+//  5. Begins the main polling loop for unassigned tasks
+func (e *TaskEngine) Start(ctx context.Context) error {
+	log.Infof("Starting engine with session ID: %s", e.sessionID)
+	if err := models.AutoMigrateDB(ctx, e.db); err != nil {
+		return fmt.Errorf("auto migrate db: %w", err)
+	}
+
+	if err := e.cleanupPreviousSessions(ctx); err != nil {
+		return fmt.Errorf("failed to cleanup previous sessions: %w", err)
+	}
+
+	e.ctx, e.cancel = context.WithCancel(context.Background())
+	for _, h := range e.handlers {
+		h.Adder(h.AddTask)
+
 		if h.TaskTypeDetails.PeriodicScheduler != nil {
 			go h.runPeriodicTask()
 		}
 	}
 
 	go e.poller()
-
-	return e, nil
+	return nil
 }
 
-// SessionID returns the unique session ID of this engine instance
+// SessionID returns the unique session ID of this engine instance.
+// This ID is used to track task ownership and ensure clean session boundaries.
 func (e *TaskEngine) SessionID() string {
 	return e.sessionID
 }
 
-// GracefullyTerminate stops new task scheduling and releases owned tasks.
-func (e *TaskEngine) GracefullyTerminate() {
+// Stop gracefully shuts down the task engine.
+// It stops accepting new work and releases all tasks owned by this session,
+// making them available for other engine instances to pick up.
+// The context parameter can be used to set a timeout for the shutdown operation.
+func (e *TaskEngine) Stop(ctx context.Context) error {
+	log.Debugw("Stopping task engine", "session_id", e.sessionID)
 	// Stop accepting new work
 	e.cancel()
 
 	// Release all tasks owned by this session
-	if err := e.db.Model(&models.Task{}).
+	if err := e.db.
+		WithContext(ctx).
+		Model(&models.Task{}).
 		Where("session_id = ?", e.sessionID).
 		Updates(map[string]interface{}{
 			"session_id": nil,
 		}).Error; err != nil {
-		log.Errorf("Failed to release tasks during shutdown: %v", err)
-	} else {
-		log.Infof("Released tasks for session %s", e.sessionID)
+		return fmt.Errorf("failed to release tasks during shutdown: %w", err)
 	}
+	log.Infow("Stopped task engine", "session_id", e.sessionID)
+	return nil
 }
 
-// poller continuously checks for work.
+// poller is the main work loop that continuously checks for unassigned tasks.
+// It uses an adaptive polling strategy: polling more frequently when work is found
+// (100ms) and less frequently when idle (3s).
 func (e *TaskEngine) poller() {
 	pollDuration := 3 * time.Second
 	pollNextDuration := 100 * time.Millisecond
@@ -125,16 +162,15 @@ func (e *TaskEngine) poller() {
 		if accepted {
 			nextWait = pollNextDuration
 		}
-		// Here you could also call a follow-up work routine if needed.
 	}
 }
 
-// pollerTryAllWork looks for unassigned tasks in the DB and schedules them.
+// pollerTryAllWork attempts to find and schedule unassigned tasks for all registered task types.
+// It returns true if any work was accepted, which signals the poller to check again sooner.
+// Tasks are fetched in order of update time to ensure fair scheduling.
 func (e *TaskEngine) pollerTryAllWork() bool {
-	// Iterate over all registered task types.
 	for _, h := range e.handlers {
 		var tasks []models.Task
-		// Fetch tasks for this type that are unassigned (no session).
 		if err := e.db.WithContext(e.ctx).
 			Where("name = ? AND session_id IS NULL", h.TaskTypeDetails.Name).
 			Order("update_time").
@@ -144,9 +180,6 @@ func (e *TaskEngine) pollerTryAllWork() bool {
 		}
 
 		var taskIDs []TaskID
-		// Filter tasks based on retry logic.
-		// Since the Task model no longer has a retries field, we assume a default value (e.g., 0)
-		// or adjust the logic if you retrieve retries from another source.
 		for _, t := range tasks {
 			if h.TaskTypeDetails.RetryWait == nil ||
 				time.Since(t.UpdateTime) > h.TaskTypeDetails.RetryWait(0) {
@@ -166,10 +199,14 @@ func (e *TaskEngine) pollerTryAllWork() bool {
 	return false
 }
 
-// cleanupPreviousSessions releases tasks from previous sessions
-func (e *TaskEngine) cleanupPreviousSessions() error {
-	// Release all tasks from previous sessions (any session ID != current)
-	result := e.db.Model(&models.Task{}).
+// cleanupPreviousSessions releases tasks that were owned by previous engine sessions.
+// This ensures that if an engine instance crashes or stops ungracefully, its tasks
+// can be picked up by new engine instances. Only tasks with session IDs different
+// from the current session are released.
+func (e *TaskEngine) cleanupPreviousSessions(ctx context.Context) error {
+	result := e.db.
+		WithContext(ctx).
+		Model(&models.Task{}).
 		Where("session_id IS NOT NULL AND session_id != ?", e.sessionID).
 		Updates(map[string]interface{}{
 			"session_id": nil,
@@ -186,6 +223,8 @@ func (e *TaskEngine) cleanupPreviousSessions() error {
 	return nil
 }
 
+// mustGenerateSessionID generates a new UUID v7 for use as a session identifier.
+// It panics if UUID generation fails, as a session ID is critical for engine operation.
 func mustGenerateSessionID() string {
 	id, err := uuid.NewV7()
 	if err != nil {

@@ -124,7 +124,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	db, err := gormdb.New(dbPath)
 	require.NoError(t, err)
 
-	err = models.AutoMigrateDB(db)
+	err = models.AutoMigrateDB(t.Context(), db)
 	require.NoError(t, err)
 
 	return db

@@ -47,6 +47,19 @@ type (
 	}
 )
 
+type (
+	ListProofSetsResponse []ProofSetEntry
+	ProofSetEntry         struct {
+		ID                     uint64      `json:"id"`
+		Initialized            bool        `json:"initialized"`
+		Roots                  []RootEntry `json:"roots"`
+		NextChallengeEpoch     *int64      `json:"nextChallengeEpoch,omitempty"`
+		PreviousChallengeEpoch *int64      `json:"previousChallengeEpoch,omitempty"`
+		ProvingPeriod          *int64      `json:"provingPeriod,omitempty"`
+		ChallengeWindow        *int64      `json:"challengeWindow,omitempty"`
+	}
+)
+
 // AddRoots types
 type (
 	AddRootsRequest struct {

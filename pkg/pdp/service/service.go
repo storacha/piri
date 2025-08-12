@@ -18,7 +18,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
-	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
@@ -91,10 +90,6 @@ func NewPDPService(
 		startFns []func(context.Context) error
 		stopFns  []func(context.Context) error
 	)
-	// apply the PDP service database models to the database.
-	if err := models.AutoMigrateDB(db); err != nil {
-		return nil, err
-	}
 	chainScheduler := chainsched.New(chainClient)
 
 	var t []scheduler.TaskInterface
@@ -130,12 +125,7 @@ func NewPDPService(
 		return nil, fmt.Errorf("creating watcher root add: %w", err)
 	}
 
-	// TODO this needs configuration and or tuning
-	maxMoveStoreTasks := 8
-	pdpStorePieceTask, err := tasks.NewStorePieceTask(db, bs, maxMoveStoreTasks)
-	if err != nil {
-		return nil, fmt.Errorf("creating pdp store piece task: %w", err)
-	}
+	pdpStorePieceTask := tasks.NewStorePieceTask(db, bs)
 	t = append(t, pdpStorePieceTask)
 
 	engine, err := scheduler.NewEngine(db, t)
@@ -143,8 +133,7 @@ func NewPDPService(
 		return nil, fmt.Errorf("creating engine: %w", err)
 	}
 	stopFns = append(stopFns, func(ctx context.Context) error {
-		engine.GracefullyTerminate()
-		return nil
+		return engine.Stop(ctx)
 	})
 
 	// TODO this needs to be manually stopped
@@ -154,7 +143,16 @@ func NewPDPService(
 	}
 
 	startFns = append(startFns, func(ctx context.Context) error {
+		// start the engine
+		if err := engine.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start task engine: %w", err)
+		}
+		// start chain scheduler
 		go chainScheduler.Run(ctx)
+
+		// start task(s)
+		pdpStorePieceTask.Start(ctx)
+		ethWatcher.Start()
 		return nil
 	})
 	stopFns = append(stopFns, ethWatcher.Stop)
