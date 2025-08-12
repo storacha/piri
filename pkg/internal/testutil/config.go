@@ -9,6 +9,7 @@ import (
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/principal"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
+	"github.com/stretchr/testify/require"
 
 	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/presets"
@@ -22,6 +23,8 @@ type TestConfigOption func(*testing.T, *app.AppConfig)
 func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 	t.Helper()
 
+	publicURL, err := url.Parse("http://localhost:8080")
+	require.NoError(t, err)
 	// Start with sensible defaults for testing
 	cfg := app.AppConfig{
 		Identity: app.IdentityConfig{
@@ -30,24 +33,25 @@ func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 		Server: app.ServerConfig{
 			Host:      "localhost",
 			Port:      8080,
-			PublicURL: testutil.Must(url.Parse("http://localhost:8080"))(t),
+			PublicURL: *publicURL,
 		},
 		Storage: app.StorageConfig{
 			DataDir: "", // Empty = memory stores by default
 			TempDir: "",
 		},
-		External: app.ExternalServicesConfig{
-			UploadService: app.ServiceConnectionConfig{
-				Connection: testutil.Must(client.NewConnection(presets.UploadServiceDID, ucanhttp.NewHTTPChannel(presets.UploadServiceURL)))(t),
+		UCANService: app.UCANServiceConfig{
+			Services: app.ExternalServicesConfig{
+				PrincipalMapping: map[string]string{},
+				Upload: app.UploadServiceConfig{
+					Connection: testutil.Must(client.NewConnection(presets.UploadServiceDID, ucanhttp.NewHTTPChannel(presets.UploadServiceURL)))(t),
+				},
+				Publisher: app.PublisherServiceConfig{
+					PublicMaddr:   testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
+					AnnounceMaddr: testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
+					AnnounceURLs:  []url.URL{}, // Empty by default for tests
+				},
 			},
-		},
-		Services: app.ServicesConfig{
-			Publisher: app.PublisherConfig{
-				PublicMaddr:   testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
-				AnnounceMaddr: testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
-				AnnounceURLs:  []url.URL{}, // Empty by default for tests
-			},
-			ServicePrincipalMapping: map[string]string{}, // Empty by default
+			ProofSetID: 0,
 		},
 	}
 
@@ -76,7 +80,7 @@ func WithUploadServiceURL(uploadURL *url.URL) TestConfigOption {
 				// Use Alice as a fallback for tests
 				did = testutil.Alice.DID()
 			}
-			cfg.External.UploadService.Connection = testutil.Must(client.NewConnection(
+			cfg.UCANService.Services.Upload.Connection = testutil.Must(client.NewConnection(
 				did,
 				ucanhttp.NewHTTPChannel(uploadURL),
 			))(t)

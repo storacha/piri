@@ -9,7 +9,6 @@ import (
 	"github.com/storacha/piri/pkg/fx/database"
 	"github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/fx/identity"
-	"github.com/storacha/piri/pkg/fx/pdp"
 	"github.com/storacha/piri/pkg/fx/presigner"
 	"github.com/storacha/piri/pkg/fx/principalresolver"
 	"github.com/storacha/piri/pkg/fx/publisher"
@@ -46,11 +45,6 @@ func FullModule(cfg app.AppConfig) fx.Option {
 	} else {
 		// Use filesystem stores for production
 		modules = append(modules, store.FileSystemStoreModule)
-	}
-
-	// Conditionally include PDP module if configured
-	if cfg.External.PDPServer != nil {
-		modules = append(modules, pdp.Module)
 	}
 
 	return fx.Module("full-server", modules...)

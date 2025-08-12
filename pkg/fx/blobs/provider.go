@@ -37,7 +37,7 @@ func NewService(
 	blobStore blobstore.Blobstore,
 	allocationStore allocationstore.AllocationStore,
 ) (*blobs.BlobService, error) {
-	if cfg.Server.PublicURL == nil {
+	if cfg.Server.PublicURL.Scheme == "" {
 		return nil, fmt.Errorf("public URL required for blob service")
 	}
 
