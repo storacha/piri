@@ -176,8 +176,6 @@ func NewHTTPResolver(webKeys []did.DID, opts ...Option) (*HTTPResolver, error) {
 	return resolver, nil
 }
 
-// TODO(forrest): the interface this implements in go-ucanto should probably accept a context
-// since means of resolution here are open ended, and may go to network or disk.
 func (r *HTTPResolver) ResolveDIDKey(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 	endpoint, ok := r.webKeys[input]
 	if !ok {
