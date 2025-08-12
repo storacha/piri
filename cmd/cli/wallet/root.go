@@ -54,7 +54,7 @@ func init() {
 func doList(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	cfg, err := config.Load[config.Repo]()
+	cfg, err := config.Load[config.RepoConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
@@ -105,7 +105,7 @@ func doList(cmd *cobra.Command, _ []string) error {
 func doImport(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
-	cfg, err := config.Load[config.Repo]()
+	cfg, err := config.Load[config.RepoConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}

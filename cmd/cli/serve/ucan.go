@@ -20,6 +20,7 @@ import (
 	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp"
+	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/storage"
@@ -38,130 +39,132 @@ var (
 
 func init() {
 	UCANCmd.Flags().String(
-		"host",
-		config.DefaultUCANServer.Host,
-		"Host to listen on")
-	cobra.CheckErr(viper.BindPFlag("host", UCANCmd.Flags().Lookup("host")))
-
-	UCANCmd.Flags().Uint(
-		"port",
-		config.DefaultUCANServer.Port,
-		"Port to listen on",
-	)
-	cobra.CheckErr(viper.BindPFlag("port", UCANCmd.Flags().Lookup("port")))
-
-	UCANCmd.Flags().String(
-		"public-url",
-		config.DefaultUCANServer.PublicURL,
-		"URL the node is publicly accessible at and exposed to other storacha services",
-	)
-	cobra.CheckErr(viper.BindPFlag("public_url", UCANCmd.Flags().Lookup("public-url")))
-
-	UCANCmd.Flags().String(
 		"pdp-server-url",
-		config.DefaultUCANServer.PDPServerURL,
+		"",
 		"URL used to connect to pdp server",
 	)
 	cobra.CheckErr(viper.BindPFlag("pdp_server_url", UCANCmd.Flags().Lookup("pdp-server-url")))
 
 	UCANCmd.Flags().Uint64(
 		"proof-set",
-		config.DefaultUCANServer.ProofSet,
+		0,
 		"Proofset to use with PDP",
 	)
-	cobra.CheckErr(viper.BindPFlag("proof_set", UCANCmd.Flags().Lookup("proof-set")))
+	cobra.CheckErr(viper.BindPFlag("ucan_service.proof_set", UCANCmd.Flags().Lookup("proof-set")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("ucan_service.proof_set", "PIRI_PROOF_SET"))
 
 	UCANCmd.Flags().String(
 		"indexing-service-proof",
-		config.DefaultUCANServer.IndexingServiceProof,
+		"",
 		"A delegation that allows the node to cache claims with the indexing service",
 	)
-	cobra.CheckErr(viper.BindPFlag("indexing_service_proof", UCANCmd.Flags().Lookup("indexing-service-proof")))
+	cobra.CheckErr(viper.BindPFlag("ucan_service.services.indexer.proof", UCANCmd.Flags().Lookup("indexing-service-proof")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("ucan_service.services.indexer.proof", "PIRI_INDEXING_SERVICE_PROOF"))
 
 	UCANCmd.Flags().String(
 		"indexing-service-did",
-		config.DefaultUCANServer.IndexingServiceDID,
+		presets.IndexingServiceDID.String(),
 		"DID of the indexing service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("indexing-service-did"))
-	cobra.CheckErr(viper.BindPFlag("indexing_service_did", UCANCmd.Flags().Lookup("indexing-service-did")))
+	cobra.CheckErr(viper.BindPFlag("ucan_service.services.indexer.did", UCANCmd.Flags().Lookup("indexing-service-did")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("ucan_service.services.indexer.did", "PIRI_INDEXING_SERVICE_DID"))
 
 	UCANCmd.Flags().String(
 		"indexing-service-url",
-		config.DefaultUCANServer.IndexingServiceURL,
+		presets.IndexingServiceURL.String(),
 		"URL of the indexing service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("indexing-service-url"))
-	cobra.CheckErr(viper.BindPFlag("indexing_service_url", UCANCmd.Flags().Lookup("indexing-service-url")))
+	cobra.CheckErr(viper.BindPFlag("ucan_service.services.indexer.url", UCANCmd.Flags().Lookup("indexing-service-url")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("ucan_service.services.indexer.url", "PIRI_INDEXING_SERVICE_URL"))
 
 	UCANCmd.Flags().String(
 		"upload-service-did",
-		config.DefaultUCANServer.UploadServiceDID,
+		presets.UploadServiceDID.String(),
 		"DID of the upload service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("upload-service-did"))
-	cobra.CheckErr(viper.BindPFlag("upload_service_did", UCANCmd.Flags().Lookup("upload-service-did")))
+	cobra.CheckErr(viper.BindPFlag("ucan_service.services.upload.did", UCANCmd.Flags().Lookup("upload-service-did")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("ucan_service.services.upload.did", "PIRI_UPLOAD_SERVICE_DID"))
 
 	UCANCmd.Flags().String(
 		"upload-service-url",
-		config.DefaultUCANServer.UploadServiceURL,
+		presets.UploadServiceURL.String(),
 		"URL of the upload service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("upload-service-url"))
-	cobra.CheckErr(viper.BindPFlag("upload_service_url", UCANCmd.Flags().Lookup("upload-service-url")))
+	cobra.CheckErr(viper.BindPFlag("ucan_service.services.upload.url", UCANCmd.Flags().Lookup("upload-service-url")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("ucan_service.services.upload.did", "PIRI_UPLOAD_SERVICE_URL"))
 
 	UCANCmd.Flags().StringSlice(
 		"ipni-announce-urls",
-		config.DefaultUCANServer.IPNIAnnounceURLs,
+		func() []string {
+			out := make([]string, 0)
+			for _, u := range presets.IPNIAnnounceURLs {
+				out = append(out, u.String())
+			}
+			return out
+		}(),
 		"A list of IPNI announce URLs")
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("ipni-announce-urls"))
-	cobra.CheckErr(viper.BindPFlag("ipni_announce_urls", UCANCmd.Flags().Lookup("ipni-announce-urls")))
+	cobra.CheckErr(viper.BindPFlag("ucan_service.services.publisher.ipni_announce_urls", UCANCmd.Flags().Lookup("ipni-announce-urls")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("ucan_service.services.publisher.ipni_announce_urls", "PIRI_IPNI_ANNOUNCE_URLS"))
 
 	UCANCmd.Flags().StringToString(
 		"service-principal-mapping",
-		config.DefaultUCANServer.ServicePrincipalMapping,
+		presets.PrincipalMapping,
 		"Mapping of service DIDs to principal DIDs",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("service-principal-mapping"))
-	cobra.CheckErr(viper.BindPFlag("service_principal_mapping", UCANCmd.Flags().Lookup("service-principal-mapping")))
+	cobra.CheckErr(viper.BindPFlag("ucan_service.services.principal_mapping", UCANCmd.Flags().Lookup("service-principal-mapping")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("ucan_service.services.principal_mapping", "PIRI_SERVICE_PRINCIPAL_MAPPING"))
 
 }
 
 func startServer(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	cfg, err := config.Load[config.UCANServer]()
+	cfg, err := config.Load[config.UCANServerConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	if cfg.PDPServerURL != "" && cfg.ProofSet == 0 {
+	if cfg.PDPServerURL != "" && cfg.UCANService.ProofSetID == 0 {
 		return fmt.Errorf("must set --proof-set when using --pdp-server-url")
 	}
-	if cfg.ProofSet != 0 && cfg.PDPServerURL == "" {
+	if cfg.UCANService.ProofSetID != 0 && cfg.PDPServerURL == "" {
 		return fmt.Errorf("must set --pdp-server-url when using --proofset")
 	}
 
-	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
+	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.Identity.KeyFile)
 	if err != nil {
 		return fmt.Errorf("loading principal signer: %w", err)
 	}
 
-	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
-		return fmt.Errorf("creating directory: %s: %w", cfg.DataDir, err)
+	if err := os.MkdirAll(cfg.Repo.DataDir, 0755); err != nil {
+		return fmt.Errorf("creating directory: %s: %w", cfg.Repo.DataDir, err)
 	}
-	if err := os.MkdirAll(cfg.TempDir, 0755); err != nil {
-		return fmt.Errorf("creating directory: %s: %w", cfg.TempDir, err)
+	if err := os.MkdirAll(cfg.Repo.TempDir, 0755); err != nil {
+		return fmt.Errorf("creating directory: %s: %w", cfg.Repo.TempDir, err)
 	}
 	blobStore, err := blobstore.NewFsBlobstore(
-		filepath.Join(cfg.DataDir, "blobs"),
-		filepath.Join(cfg.TempDir, "blobs"),
+		filepath.Join(cfg.Repo.DataDir, "blobs"),
+		filepath.Join(cfg.Repo.TempDir, "blobs"),
 	)
 	if err != nil {
 		return fmt.Errorf("creating blob storage: %w", err)
 	}
 
-	allocsDir, err := cliutil.Mkdirp(cfg.DataDir, "allocation")
+	allocsDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "allocation")
 	if err != nil {
 		return err
 	}
@@ -169,7 +172,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	claimsDir, err := cliutil.Mkdirp(cfg.DataDir, "claim")
+	claimsDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "claim")
 	if err != nil {
 		return err
 	}
@@ -177,7 +180,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	publisherDir, err := cliutil.Mkdirp(cfg.DataDir, "publisher")
+	publisherDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "publisher")
 	if err != nil {
 		return err
 	}
@@ -185,7 +188,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	receiptDir, err := cliutil.Mkdirp(cfg.DataDir, "receipt")
+	receiptDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "receipt")
 	if err != nil {
 		return err
 	}
@@ -201,7 +204,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("parsing pdp server URL: %w", err)
 		}
-		aggRootDir, err := cliutil.Mkdirp(cfg.DataDir, "aggregator")
+		aggRootDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "aggregator")
 		if err != nil {
 			return err
 		}
@@ -220,7 +223,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		pdpConfig = &pdp.Config{
 			PDPDatastore: aggDs,
 			PDPServerURL: pdpServerURL,
-			ProofSet:     cfg.ProofSet,
+			ProofSet:     cfg.UCANService.ProofSetID,
 			DatabasePath: filepath.Join(aggJobQueueDir, "jobqueue.db"),
 		}
 		pdpServerAddr, err := maurl.FromURL(pdpServerURL)
@@ -234,7 +237,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	}
 
 	var ipniAnnounceURLs []url.URL
-	for _, s := range cfg.IPNIAnnounceURLs {
+	for _, s := range cfg.UCANService.Services.Publisher.AnnounceURLs {
 		url, err := url.Parse(s)
 		if err != nil {
 			return fmt.Errorf("parsing IPNI announce URL: %s: %w", s, err)
@@ -242,30 +245,30 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		ipniAnnounceURLs = append(ipniAnnounceURLs, *url)
 	}
 
-	uploadServiceDID, err := did.Parse(cfg.UploadServiceDID)
+	uploadServiceDID, err := did.Parse(cfg.UCANService.Services.Upload.DID)
 	if err != nil {
 		return fmt.Errorf("parsing upload service DID: %w", err)
 	}
 
-	uploadServiceURL, err := url.Parse(cfg.UploadServiceURL)
+	uploadServiceURL, err := url.Parse(cfg.UCANService.Services.Upload.URL)
 	if err != nil {
 		return fmt.Errorf("parsing upload service URL: %w", err)
 	}
 
-	indexingServiceDID, err := did.Parse(cfg.IndexingServiceDID)
+	indexingServiceDID, err := did.Parse(cfg.UCANService.Services.Indexer.DID)
 	if err != nil {
 		return fmt.Errorf("parsing indexing service DID: %w", err)
 	}
 
-	indexingServiceURL, err := url.Parse(cfg.IndexingServiceURL)
+	indexingServiceURL, err := url.Parse(cfg.UCANService.Services.Indexer.URL)
 	if err != nil {
 		return fmt.Errorf("parsing indexing service URL: %w", err)
 	}
 
 	var opts []storage.Option
 	var indexingServiceProof delegation.Proof
-	if cfg.IndexingServiceProof != "" {
-		dlg, err := delegation.Parse(cfg.IndexingServiceProof)
+	if cfg.UCANService.Services.Indexer.Proof != "" {
+		dlg, err := delegation.Parse(cfg.UCANService.Services.Indexer.Proof)
 		if err != nil {
 			return fmt.Errorf("parsing indexing service proof: %w", err)
 		}
@@ -274,14 +277,14 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	}
 
 	var pubURL *url.URL
-	if cfg.PublicURL == "" {
-		pubURL, err = url.Parse(fmt.Sprintf("http://%s:%d", cfg.Host, cfg.Port))
+	if cfg.Server.PublicURL == "" {
+		pubURL, err = url.Parse(fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port))
 		if err != nil {
 			return fmt.Errorf("DEVELOPER ERROR parsing public URL: %w", err)
 		}
 		log.Warnf("no public URL configured, using %s", pubURL)
 	} else {
-		pubURL, err = url.Parse(cfg.PublicURL)
+		pubURL, err = url.Parse(cfg.Server.PublicURL)
 		if err != nil {
 			return fmt.Errorf("parsing server public url: %w", err)
 		}
@@ -317,9 +320,9 @@ func startServer(cmd *cobra.Command, _ []string) error {
 
 	go func() {
 		serverConfig := cliutil.UCANServerConfig{
-			Host:                 cfg.Host,
-			Port:                 cfg.Port,
-			DataDir:              cfg.DataDir,
+			Host:                 cfg.Server.Host,
+			Port:                 cfg.Server.Port,
+			DataDir:              cfg.Repo.DataDir,
 			PublicURL:            pubURL,
 			BlobAddr:             blobAddr,
 			IndexingServiceDID:   indexingServiceDID,
@@ -351,15 +354,15 @@ func startServer(cmd *cobra.Command, _ []string) error {
 
 	telemetry.RecordServerInfo(ctx, "ucan",
 		telemetry.StringAttr("did", id.DID().String()),
-		telemetry.StringAttr("indexing_did", cfg.IndexingServiceDID),
-		telemetry.StringAttr("indexing_url", cfg.IndexingServiceURL),
-		telemetry.StringAttr("upload_did", cfg.UploadServiceDID),
-		telemetry.StringAttr("upload_url", cfg.UploadServiceURL),
-		telemetry.Int64Attr("proof_set", int64(cfg.ProofSet)),
+		telemetry.StringAttr("indexing_did", indexingServiceDID.String()),
+		telemetry.StringAttr("indexing_url", indexingServiceURL.String()),
+		telemetry.StringAttr("upload_did", uploadServiceDID.String()),
+		telemetry.StringAttr("upload_url", uploadServiceURL.String()),
+		telemetry.Int64Attr("proof_set", int64(cfg.UCANService.ProofSetID)),
 	)
 
 	err = server.ListenAndServe(
-		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 		svc,
 		ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
 	)

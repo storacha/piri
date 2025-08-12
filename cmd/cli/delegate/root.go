@@ -61,7 +61,7 @@ func init() {
 }
 
 func doGenerate(cmd *cobra.Command, _ []string) error {
-	cfg, err := config.Load[config.Identity]()
+	cfg, err := config.Load[config.IdentityConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}

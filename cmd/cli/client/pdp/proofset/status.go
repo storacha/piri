@@ -34,7 +34,7 @@ func init() {
 func doStatus(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	cfg, err := config.Load[config.PDPClient]()
+	cfg, err := config.Load[config.Client]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}

@@ -11,10 +11,16 @@ import (
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/client"
-	"github.com/storacha/piri/pkg/config"
 )
 
-func New(cfg config.UCANClient) (*client.Client, error) {
+type Config struct {
+	KeyFile string
+	Proof   string
+	NodeDID string
+	NodeURL string
+}
+
+func New(cfg Config) (*client.Client, error) {
 	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
 	if err != nil {
 		return nil, err

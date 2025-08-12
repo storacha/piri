@@ -29,24 +29,25 @@ var PDPCmd = &cobra.Command{
 
 func init() {
 	PDPCmd.Flags().String(
-		"endpoint",
-		config.DefaultPDPServer.Endpoint,
-		"Endpoint for PDP server")
-	cobra.CheckErr(viper.BindPFlag("endpoint", PDPCmd.Flags().Lookup("endpoint")))
-
-	PDPCmd.Flags().String(
 		"lotus-url",
 		"",
 		"A websocket url for lotus node",
 	)
-	cobra.CheckErr(viper.BindPFlag("lotus_url", PDPCmd.Flags().Lookup("lotus-url")))
+	cobra.CheckErr(viper.BindPFlag("pdp.lotus_endpoint", PDPCmd.Flags().Lookup("lotus-url")))
 
 	PDPCmd.Flags().String(
-		"eth-address",
+		"owner-address",
 		"",
-		"The ethereum address to submit PDP Proofs with (must be in piri wallet - see `piri wallet` command for help",
+		"The ethereum address to submit PDP Proofs with (must be in piri wallet - see `piri wallet` command for help)",
 	)
-	cobra.CheckErr(viper.BindPFlag("eth_address", PDPCmd.Flags().Lookup("eth-address")))
+	cobra.CheckErr(viper.BindPFlag("pdp.owner_address", PDPCmd.Flags().Lookup("owner-address")))
+
+	PDPCmd.Flags().String(
+		"contract-address",
+		"0x6170dE2b09b404776197485F3dc6c968Ef948505", // NB(forrest): default to calibration contract addrese
+		"The ethereum address of the PDP Contract",
+	)
+	cobra.CheckErr(viper.BindPFlag("pdp.contract_address", PDPCmd.Flags().Lookup("contract-address")))
 }
 
 func doPDPServe(cmd *cobra.Command, _ []string) error {
@@ -54,16 +55,16 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 
 	// load and validate the PDPServer configuration, applying all flags, env vars, and config file to config.
 	// Failing if a required field is not present
-	cfg, err := config.Load[config.PDPServer]()
+	cfg, err := config.Load[config.PDPServerConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
-		return fmt.Errorf("creating data directory: %s: %w", cfg.DataDir, err)
+	if err := os.MkdirAll(cfg.Repo.DataDir, 0755); err != nil {
+		return fmt.Errorf("creating data directory: %s: %w", cfg.Repo.DataDir, err)
 	}
 
-	walletDir, err := cliutil.Mkdirp(cfg.DataDir, "wallet")
+	walletDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "wallet")
 	if err != nil {
 		return err
 	}
@@ -83,31 +84,31 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	dataDir, err := cliutil.Mkdirp(cfg.DataDir, "pdp")
+	dataDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "pdp")
 	if err != nil {
 		return err
 	}
 
 	// parse server endpoint to serve on, must be http as piri doesn't support tls termination
-	serverEndpoint, err := url.Parse(cfg.Endpoint)
+	serverEndpoint, err := url.Parse(fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port))
 	if err != nil {
-		return fmt.Errorf("invalid server endpoint %s: %w", cfg.Endpoint, err)
+		return fmt.Errorf("invalid server endpoint %s: %w", serverEndpoint, err)
 	}
 	if serverEndpoint.Scheme != "http" {
-		return fmt.Errorf("invalid endpoint %s: must use http", cfg.Endpoint)
+		return fmt.Errorf("invalid endpoint %s: must use http", serverEndpoint)
 	}
 
 	// parse the lotus endpoint
-	lotusEndpoint, err := url.Parse(cfg.LotusURL)
+	lotusEndpoint, err := url.Parse(cfg.PDPService.LotusEndpoint)
 	if err != nil {
-		return fmt.Errorf("invalid lotus endpoint %s: %w", cfg.LotusURL, err)
+		return fmt.Errorf("invalid lotus endpoint %s: %w", cfg.PDPService.LotusEndpoint, err)
 	}
 
 	// parse the users owner address, used to send message on chain
-	if !common.IsHexAddress(cfg.EthAddress) {
-		return fmt.Errorf("invalid eth address: %s", cfg.EthAddress)
+	if !common.IsHexAddress(cfg.PDPService.OwnerAddress) {
+		return fmt.Errorf("invalid eth address: %s", cfg.PDPService.OwnerAddress)
 	}
-	ownerAddress := common.HexToAddress(cfg.EthAddress)
+	ownerAddress := common.HexToAddress(cfg.PDPService.OwnerAddress)
 	svr, err := pdp.NewServer(
 		ctx,
 		dataDir,
@@ -124,7 +125,7 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 		Endpoint:     serverEndpoint,
 		LotusURL:     lotusEndpoint,
 		OwnerAddress: ownerAddress,
-		DataDir:      cfg.DataDir,
+		DataDir:      cfg.Repo.DataDir,
 	}
 	cliutil.PrintPDPServerConfig(cmd, serverConfig)
 
@@ -132,10 +133,10 @@ func doPDPServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("starting pdp server: %w", err)
 	}
 
-	cmd.Println("Server started! Listening on ", cfg.Endpoint)
+	cmd.Printf("Server started! Listening on %s\n", serverEndpoint.String())
 
 	// publish version info metric
-	telemetry.RecordServerInfo(ctx, "pdp", telemetry.StringAttr("eth_address", cfg.EthAddress))
+	telemetry.RecordServerInfo(ctx, "pdp", telemetry.StringAttr("eth_address", cfg.PDPService.OwnerAddress))
 
 	<-ctx.Done()
 

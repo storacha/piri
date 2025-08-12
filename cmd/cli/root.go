@@ -3,9 +3,12 @@ package cli
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -15,7 +18,6 @@ import (
 	"github.com/storacha/piri/cmd/cli/serve"
 	"github.com/storacha/piri/cmd/cli/wallet"
 	"github.com/storacha/piri/pkg/build"
-	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/telemetry"
 )
 
@@ -50,17 +52,23 @@ func init() {
 	cobra.OnInitialize(initConfig, initTelemetry)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "Error", "logging level")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "warn", "logging level")
 
-	rootCmd.PersistentFlags().String("data-dir", config.DefaultRepo.DataDir, "Storage service data directory")
-	rootCmd.PersistentFlags().String("temp-dir", config.DefaultRepo.TempDir, "Storage service temp directory")
-	// Bind flags to viper
-	cobra.CheckErr(viper.BindPFlag("data_dir", rootCmd.PersistentFlags().Lookup("data-dir")))
-	cobra.CheckErr(viper.BindPFlag("temp_dir", rootCmd.PersistentFlags().Lookup("temp-dir")))
+	rootCmd.PersistentFlags().String("data-dir", filepath.Join(lo.Must(os.UserHomeDir()), ".storacha"), "Storage service data directory")
+	cobra.CheckErr(viper.BindPFlag("repo.data_dir", rootCmd.PersistentFlags().Lookup("data-dir")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("repo.data_dir", "PIRI_DATA_DIR"))
+
+	rootCmd.PersistentFlags().String("temp-dir", filepath.Join(os.TempDir(), "storage"), "Storage service temp directory")
+	cobra.CheckErr(viper.BindPFlag("repo.temp_dir", rootCmd.PersistentFlags().Lookup("temp-dir")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("repo.temp_dir", "PIRI_TEMP_DIR"))
 
 	rootCmd.PersistentFlags().String("key-file", "", "Path to a PEM file containing ed25519 private key")
 	cobra.CheckErr(rootCmd.MarkPersistentFlagFilename("key-file", "pem"))
-	cobra.CheckErr(viper.BindPFlag("key_file", rootCmd.PersistentFlags().Lookup("key-file")))
+	cobra.CheckErr(viper.BindPFlag("identity.key_file", rootCmd.PersistentFlags().Lookup("key-file")))
+	// backwards compatibility
+	cobra.CheckErr(viper.BindEnv("identity.key_file", "PIRI_KEY_FILE"))
 
 	// register all commands and their subcommands
 	rootCmd.AddCommand(serve.Cmd)
@@ -73,6 +81,7 @@ func init() {
 
 func initConfig() {
 	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.SetEnvPrefix("PIRI")
 
 	if logLevel != "" {

@@ -30,18 +30,19 @@ func init() {
 		"",
 		"Hex Address of the PDP Contract Record Keeper (Service Contract)",
 	)
+	cobra.CheckErr(CreateCmd.MarkFlagRequired("record-keeper"))
+
 	CreateCmd.Flags().Bool(
 		"wait",
 		false,
 		"Poll proof set creation status, exits when proof set is created",
 	)
-	cobra.CheckErr(CreateCmd.MarkFlagRequired("record-keeper"))
 }
 
 func doCreate(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	cfg, err := config.Load[config.PDPClient]()
+	cfg, err := config.Load[config.Client]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
