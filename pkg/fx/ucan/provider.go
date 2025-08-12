@@ -8,6 +8,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 	"go.uber.org/fx"
 
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/fx/ucan/handlers"
 	"github.com/storacha/piri/pkg/service/storage"
 )
@@ -18,11 +19,9 @@ type Handler struct {
 
 var Module = fx.Module("ucan/server",
 	fx.Provide(
-		NewHandler,
 		fx.Annotate(
-			func(h *Handler) *Handler {
-				return h
-			},
+			NewHandler,
+			fx.As(new(echofx.RouteRegistrar)),
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 		ProvideServerView,
