@@ -20,9 +20,9 @@ import (
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"go.uber.org/fx"
 
+	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/mahttp"
 )
 
 var Module = fx.Module("config",
@@ -210,7 +210,7 @@ func ProvideAppConfig(cfg config.UCANServer) (app.AppConfig, error) {
 		if err != nil {
 			return app.AppConfig{}, fmt.Errorf("converting PDP URL to multiaddr: %w", err)
 		}
-		blobAddr, err = mahttp.JoinPath(curioAddr, "piece/{blobCID}")
+		blobAddr, err = lib.JoinHTTPPath(curioAddr, "piece/{blobCID}")
 		if err != nil {
 			return app.AppConfig{}, fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}

@@ -27,7 +27,7 @@ import (
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/core/result/ok"
 	"github.com/storacha/go-ucanto/principal"
-	"github.com/storacha/piri/pkg/mahttp"
+	"github.com/storacha/piri/lib"
 
 	"github.com/storacha/go-libstoracha/advertisement"
 )
@@ -289,7 +289,7 @@ func New(
 func providerInfo(peerID peer.ID, publicAddr multiaddr.Multiaddr, blobAddr multiaddr.Multiaddr) (peer.AddrInfo, error) {
 	provider := peer.AddrInfo{ID: peerID}
 	if blobAddr == nil {
-		addr, err := mahttp.JoinPath(publicAddr, "blob/{blob}")
+		addr, err := lib.JoinHTTPPath(publicAddr, "blob/{blob}")
 		if err != nil {
 			return peer.AddrInfo{}, fmt.Errorf("joining blob pattern path to public multiaddr: %w", err)
 		}
@@ -297,7 +297,7 @@ func providerInfo(peerID peer.ID, publicAddr multiaddr.Multiaddr, blobAddr multi
 	}
 	provider.Addrs = append(provider.Addrs, blobAddr)
 
-	claimAddr, err := mahttp.JoinPath(publicAddr, "claim/{claim}")
+	claimAddr, err := lib.JoinHTTPPath(publicAddr, "claim/{claim}")
 	if err != nil {
 		return peer.AddrInfo{}, fmt.Errorf("joining claim pattern path to public multiaddr: %w", err)
 	}

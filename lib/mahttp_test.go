@@ -1,4 +1,4 @@
-package mahttp
+package lib
 
 import (
 	"net/url"
@@ -73,7 +73,7 @@ func TestJoinPath(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			joined, err := JoinPath(testCase.addr, testCase.path)
+			joined, err := JoinHTTPPath(testCase.addr, testCase.path)
 			require.NoError(t, err)
 
 			// multiaddrs should be valid URLs!

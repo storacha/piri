@@ -17,8 +17,8 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 
 	"github.com/storacha/piri/cmd/cliutil"
+	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
-	"github.com/storacha/piri/pkg/mahttp"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/storage"
@@ -226,7 +226,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("parsing pdp server url: %w", err)
 		}
-		blobAddr, err = mahttp.JoinPath(curioAddr, "piece/{blobCID}")
+		blobAddr, err = lib.JoinHTTPPath(curioAddr, "piece/{blobCID}")
 		if err != nil {
 			return fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}

@@ -30,8 +30,8 @@ import (
 
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 
+	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/access"
-	"github.com/storacha/piri/pkg/mahttp"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/pdp/aggregator"
 	"github.com/storacha/piri/pkg/pdp/curio"
@@ -397,7 +397,7 @@ func Construct(cfg Config) (storage.Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing curio URL to multiaddr: %w", err)
 		}
-		blobAddr, err = mahttp.JoinPath(curioAddr, "piece/{blobCID}")
+		blobAddr, err = lib.JoinHTTPPath(curioAddr, "piece/{blobCID}")
 		if err != nil {
 			return nil, fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}
