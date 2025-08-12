@@ -6,6 +6,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (p *PDP) handleGetProofSetRoot(c echo.Context) error {
+func (p *PDPHandler) handleGetProofSetRoot(c echo.Context) error {
 	return c.NoContent(http.StatusNotImplemented)
 }

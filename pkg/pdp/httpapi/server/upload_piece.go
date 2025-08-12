@@ -10,7 +10,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDP) handlePieceUpload(c echo.Context) error {
+func (p *PDPHandler) handlePieceUpload(c echo.Context) error {
 	ctx := c.Request().Context()
 	uploadUUID := c.Param("uploadUUID")
 

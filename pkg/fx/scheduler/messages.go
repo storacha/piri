@@ -58,7 +58,6 @@ type SenderETHPair struct {
 
 func ProvideSenderETHPair(params SenderETHParams) *SenderETHPair {
 	sender, sendTask := tasks.NewSenderETH(params.Client, params.Wallet, params.DB)
-	fmt.Printf("ProvideSenderETHPair: created sender=%p, sendTask=%p\n", sender, sendTask)
 	return &SenderETHPair{
 		Sender:   sender,
 		SendTask: sendTask,
@@ -66,12 +65,10 @@ func ProvideSenderETHPair(params SenderETHParams) *SenderETHPair {
 }
 
 func ProvideSenderFromPair(pair *SenderETHPair) *tasks.SenderETH {
-	fmt.Printf("ProvideSenderFromPair: returning sender=%p from pair\n", pair.Sender)
 	return pair.Sender
 }
 
 func ProvideSendTaskFromPair(pair *SenderETHPair) *tasks.SendTaskETH {
-	fmt.Printf("ProvideSendTaskFromPair: returning sendTask=%p from pair\n", pair.SendTask)
 	return pair.SendTask
 }
 

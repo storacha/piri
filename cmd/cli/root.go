@@ -27,6 +27,12 @@ func Execute() {
 	}
 }
 
+func ExecuteContext(ctx context.Context) {
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+
 var log = logging.Logger("cmd")
 
 const piriShortDescription = `

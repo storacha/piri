@@ -321,7 +321,7 @@ func SetupTestDeps(t testing.TB, ctx context.Context, ctrl *gomock.Controller) (
 	t.Logf("Client address: %s", clientAddress.Hex())
 
 	// The PDP service, backed by mocks and a fake chain
-	svc, err := service.NewPDPService(
+	svc, err := service.SetupPDPService(
 		db,
 		clientAddress,
 		wlt,

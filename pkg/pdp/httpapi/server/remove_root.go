@@ -9,7 +9,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/httpapi"
 )
 
-func (p *PDP) handleDeleteRootFromProofSet(c echo.Context) error {
+func (p *PDPHandler) handleDeleteRootFromProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
 	// Step 2: Extract parameters from the URL
 	proofSetIdStr := c.Param("proofSetID")

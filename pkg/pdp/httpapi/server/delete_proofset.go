@@ -8,7 +8,7 @@ import (
 )
 
 // echoHandleDeleteProofSet -> DELETE /pdp/proof-sets/:proofSetID
-func (p *PDP) handleDeleteProofSet(c echo.Context) error {
+func (p *PDPHandler) handleDeleteProofSet(c echo.Context) error {
 	proofSetIDStr := c.Param("proofSetID")
 	_, _ = strconv.ParseUint(proofSetIDStr, 10, 64) // ignoring error for brevity
 

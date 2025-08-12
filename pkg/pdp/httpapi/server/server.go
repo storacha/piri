@@ -19,7 +19,7 @@ type Server struct {
 	e *echo.Echo
 }
 
-func NewServer(p *PDP) *Server {
+func NewServer(h *PDPHandler) *Server {
 	e := echo.New()
 	// don't print echo stuff when we start, our logs cover this.
 	e.HideBanner = true
@@ -33,7 +33,7 @@ func NewServer(p *PDP) *Server {
 	// Custom error handler for our ContextualError type
 	e.HTTPErrorHandler = middleware.HandleError
 
-	RegisterEchoRoutes(e, p)
+	h.RegisterRoutes(e)
 
 	return &Server{e: e}
 }

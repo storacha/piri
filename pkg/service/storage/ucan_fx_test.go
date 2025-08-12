@@ -55,8 +55,8 @@ func TestFXServer(t *testing.T) {
 
 	appConfig := piritestutil.NewTestConfig(t, piritestutil.WithSigner(testutil.Alice))
 	testApp := fxtest.New(t,
-		fx.Supply(appConfig),
-		app.FullModule(appConfig),
+		app.CommonModules(appConfig),
+		app.UCANModule,
 		fx.Populate(&svc, &srv),
 	)
 
@@ -354,7 +354,7 @@ func TestFXServer(t *testing.T) {
 
 // TestFXReplicaAllocateTransfer validates the full replica allocation flow in the UCAN server,
 // ensuring that invocations are correctly constructed and executed, and that the simulated endpoints
-// interact as expected. A lightweight HTTP server (on port 8080) is used to simulate external endpoints:
+// interact as expected. A lightweight HTTP server (on port 8081) is used to simulate external endpoints:
 //   - "/get": Represents the source node that returns the original blob data.
 //   - "/put": Emulates the replica node that accepts and stores the blob.
 //   - "/upload-service": Acts as the upload service by decoding a CAR payload and triggering a transfer receipt.
@@ -403,7 +403,7 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 				multihash.Sum(expectedData, multihash.SHA2_256, -1),
 			)(t)
 			replicas := uint(1)
-			serverAddr := ":8080"
+			serverAddr := ":8081"
 			sourcePath, sinkPath, uploadServicePath := "get", "put", "upload-service"
 
 			// Spin up storage service, using injected values for testing.
@@ -421,8 +421,8 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			)
 
 			testApp := fxtest.New(t,
-				fx.Supply(appConfig),
-				app.FullModule(appConfig),
+				app.CommonModules(appConfig),
+				app.UCANModule,
 				fx.Decorate(func() presigner.RequestPresigner {
 					return fakeBlobPresigner
 				}),

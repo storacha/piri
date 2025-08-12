@@ -76,7 +76,28 @@ type EthClient interface {
 	bind.ContractBackend
 }
 
-func NewPDPService(
+func New(
+	db *gorm.DB,
+	address common.Address,
+	bs blobstore.PDPStore,
+	stash stashstore.Stash,
+	sender ethereum.Sender,
+	engine *scheduler.TaskEngine,
+	chainScheduler *chainsched.Scheduler,
+) (*PDPService, error) {
+	return &PDPService{
+		address:        address,
+		db:             db,
+		name:           "storacha",
+		blobstore:      bs,
+		storage:        stash,
+		sender:         sender,
+		engine:         engine,
+		chainScheduler: chainScheduler,
+	}, nil
+}
+
+func SetupPDPService(
 	db *gorm.DB,
 	address common.Address,
 	wallet wallet.Wallet,

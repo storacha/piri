@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
+	pirimiddleware "github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 )
 
 var log = logging.Logger("fx/echo")
@@ -18,9 +19,11 @@ var log = logging.Logger("fx/echo")
 var Module = fx.Module("echo",
 	fx.Provide(
 		NewEcho,
-		NewEchoServer,
 	),
-	fx.Invoke(RegisterRoutes),
+	fx.Invoke(
+		RegisterRoutes,
+		StartEchoServer,
+	),
 )
 
 // RouteRegistrar defines the interface for services that register Echo routes
@@ -35,7 +38,7 @@ func NewEcho() *echo.Echo {
 	e.HidePort = true
 
 	// Add default middleware
-	e.Use(middleware.Logger())
+	e.Use(pirimiddleware.LogMiddleware(logging.Logger("server")))
 	e.Use(middleware.Recover())
 
 	return e
@@ -47,8 +50,8 @@ type EchoServer struct {
 	addr string
 }
 
-// NewEchoServer creates a new Echo server with lifecycle management
-func NewEchoServer(cfg app.AppConfig, e *echo.Echo, lc fx.Lifecycle) (*EchoServer, error) {
+// StartEchoServer runs a Echo server with lifecycle management
+func StartEchoServer(cfg app.AppConfig, e *echo.Echo, lc fx.Lifecycle) (*EchoServer, error) {
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	server := &EchoServer{

@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -34,7 +35,7 @@ var Module = fx.Module("database",
 )
 
 // ProvideReplicatorDB provides the SQLite database for the replicator job queue
-func ProvideReplicatorDB(cfg app.StorageConfig) (*sql.DB, error) {
+func ProvideReplicatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error) {
 	// If no path is provided, use in-memory database
 	if cfg.Replicator.DBPath == "" {
 		db, err := sqlitedb.NewMemory()
@@ -56,10 +57,19 @@ func ProvideReplicatorDB(cfg app.StorageConfig) (*sql.DB, error) {
 		return nil, fmt.Errorf("creating replicator database: %w", err)
 	}
 
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return db.PingContext(ctx)
+		},
+		OnStop: func(ctx context.Context) error {
+			return db.Close()
+		},
+	})
+
 	return db, nil
 }
 
-func ProviderAggregatorDB(cfg app.StorageConfig) (*sql.DB, error) {
+func ProviderAggregatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error) {
 	// If no path is provided, use in-memory database
 	if cfg.Aggregator.DBPath == "" {
 		db, err := sqlitedb.NewMemory()
@@ -85,17 +95,26 @@ func ProviderAggregatorDB(cfg app.StorageConfig) (*sql.DB, error) {
 		return nil, fmt.Errorf("creating aggregator database: %w", err)
 	}
 
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return db.PingContext(ctx)
+		},
+		OnStop: func(ctx context.Context) error {
+			return db.Close()
+		},
+	})
+
 	return db, nil
 
 }
 
-func ProvideTaskEngineDB(cfg app.StorageConfig) (*gorm.DB, error) {
+func ProvideTaskEngineDB(lc fx.Lifecycle, cfg app.StorageConfig) (*gorm.DB, error) {
 	dbPath := cfg.SchedulerStorage.DBPath
 	if dbPath == "" {
 		dbPath = "file::memory:?cache=shared"
 	}
 
-	return gormdb.New(dbPath,
+	db, err := gormdb.New(dbPath,
 		// use a write ahead log for transactions, good for parallel operations.
 		database.WithJournalMode(database.JournalModeWAL),
 		// ensure foreign key constraints are respected.
@@ -103,4 +122,31 @@ func ProvideTaskEngineDB(cfg app.StorageConfig) (*gorm.DB, error) {
 		// wait up to 5 seconds before failing to write due to busted database.
 		database.WithTimeout(5*time.Second),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("creating task engine db: %w", err)
+	}
+
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			ddb, err := db.DB()
+			if err != nil {
+				return fmt.Errorf("starting task engine db: %w", err)
+			}
+			if err := ddb.PingContext(ctx); err != nil {
+				return fmt.Errorf("starting task engine db: %w", err)
+			}
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			ddb, err := db.DB()
+			if err != nil {
+				return fmt.Errorf("stopping task engine db: %w", err)
+			}
+			if err := ddb.Close(); err != nil {
+				return fmt.Errorf("stopping task engine db: %w", err)
+			}
+			return nil
+		},
+	})
+	return db, nil
 }
