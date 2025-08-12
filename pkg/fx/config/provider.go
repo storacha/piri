@@ -20,6 +20,7 @@ import (
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"go.uber.org/fx"
 
+	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/config/app"
 )
@@ -209,11 +210,10 @@ func ProvideAppConfig(cfg config.UCANServer) (app.AppConfig, error) {
 		if err != nil {
 			return app.AppConfig{}, fmt.Errorf("converting PDP URL to multiaddr: %w", err)
 		}
-		pieceAddr, err := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape("piece/{blobCID}"))
+		blobAddr, err = lib.JoinHTTPPath(curioAddr, "piece/{blobCID}")
 		if err != nil {
-			return app.AppConfig{}, fmt.Errorf("creating piece multiaddr: %w", err)
+			return app.AppConfig{}, fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}
-		blobAddr = multiaddr.Join(curioAddr, pieceAddr)
 	}
 
 	servicesConfig.Publisher = app.PublisherConfig{
