@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -18,6 +17,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 
 	"github.com/storacha/piri/cmd/cliutil"
+	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
@@ -226,11 +226,10 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("parsing pdp server url: %w", err)
 		}
-		pieceAddr, err := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape("piece/{blobCID}"))
+		blobAddr, err = lib.JoinHTTPPath(curioAddr, "piece/{blobCID}")
 		if err != nil {
-			return err
+			return fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
 		}
-		blobAddr = multiaddr.Join(curioAddr, pieceAddr)
 	}
 
 	var ipniAnnounceURLs []url.URL
@@ -281,7 +280,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		}
 		log.Warnf("no public URL configured, using %s", pubURL)
 	} else {
-		pubURL, err = url.Parse(strings.TrimSuffix(cfg.PublicURL, "/"))
+		pubURL, err = url.Parse(cfg.PublicURL)
 		if err != nil {
 			return fmt.Errorf("parsing server public url: %w", err)
 		}
