@@ -59,7 +59,7 @@ func New(
 		"replication",
 		db,
 		&serializer.JSON[*replicahandler.TransferRequest]{},
-		jobqueue.WithLogger(log),
+		jobqueue.WithLogger(log.With("queue", "replication")),
 		jobqueue.WithMaxRetries(10),
 		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
 	)

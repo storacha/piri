@@ -51,13 +51,12 @@ func (a Aggregate) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddString("root", a.Root.Link().String())
 
 	// One approach is to encode the slice as a separate array:
-	enc.AddArray("pieces", zapcore.ArrayMarshalerFunc(func(arr zapcore.ArrayEncoder) error {
+	return enc.AddArray("pieces", zapcore.ArrayMarshalerFunc(func(arr zapcore.ArrayEncoder) error {
 		for _, p := range a.Pieces {
-			// Log each piece as a string, or you can nest objects here.
+			// Log each piece as a string.
 			arr.AppendString(p.Link.Link().String())
 		}
 		return nil
 	}))
 
-	return nil
 }

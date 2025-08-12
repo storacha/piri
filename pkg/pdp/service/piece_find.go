@@ -10,7 +10,13 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, bool, error) {
+func (p *PDPService) FindPiece(ctx context.Context, piece types.Piece) (_ cid.Cid, _ bool, retErr error) {
+	log.Infow("finding piece", "request", piece)
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to find piece", "request", piece, "error", retErr)
+		}
+	}()
 	pieceCID, havePieceCid, err := CommP(piece, p.db)
 	if err != nil {
 		return cid.Undef, false, err

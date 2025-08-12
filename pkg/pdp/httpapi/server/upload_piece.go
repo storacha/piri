@@ -10,7 +10,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDP) handlePieceUpload(c echo.Context) error {
+func (p *PDPHandler) handlePieceUpload(c echo.Context) error {
 	ctx := c.Request().Context()
 	uploadUUID := c.Param("uploadUUID")
 
@@ -32,7 +32,7 @@ func (p *PDP) handlePieceUpload(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Failed to upload piece")
 	}
 
-	log.Infow("Successfully added roots to proofSet",
+	log.Infow("Successfully uploaded piece",
 		"uploadID", uploadID,
 		"duration", time.Since(start))
 

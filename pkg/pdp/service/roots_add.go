@@ -19,7 +19,15 @@ import (
 )
 
 // TODO return something useful here, like the transaction Hash.
-func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (common.Hash, error) {
+func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (res common.Hash, retErr error) {
+	log.Infow("adding roots", "id", id, "request", request)
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to add roots", "id", id, "request", request, "err", retErr)
+		} else {
+			log.Infow("added roots", "id", id, "request", request, "response", res)
+		}
+	}()
 	if len(request) == 0 {
 		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "must provide at least one root")
 	}

@@ -118,7 +118,7 @@ func (r *Worker[T]) Register(name string, fn func(ctx context.Context, msg T) er
 }
 
 func (r *Worker[T]) Enqueue(ctx context.Context, name string, msg T) error {
-	r.log.Infof("Enqueue -> %s: %v", name, msg)
+	r.log.Debugf("Enqueue -> %s: %v", name, msg)
 	m, err := r.serializer.Serialize(msg)
 	if err != nil {
 		return fmt.Errorf("serializer error: %w", err)
@@ -180,7 +180,7 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 		return
 	}
 
-	r.log.Infof("Dequeue -> %s: %v", jm.Name, jobInput)
+	r.log.Debugw("Dequeue -> %s: %v", jm.Name, jobInput)
 	job, ok := r.jobs[jm.Name]
 	if !ok {
 		panic(fmt.Sprintf(`job "%v" not registered`, jm.Name))

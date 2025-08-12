@@ -2,6 +2,7 @@ package gormdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"runtime"
@@ -180,7 +181,11 @@ func (g *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 
 	switch {
 	case err != nil && g.level >= logger.Error:
-		// Always log SQL errors with call stack
+		// Skip logging "record not found" errors for pdp_piece_mh_to_commp table
+		if errors.Is(err, gorm.ErrRecordNotFound) && strings.Contains(sql, "pdp_piece_mh_to_commp") {
+			return
+		}
+		// Log other SQL errors with call stack
 		g.log.Errorw("SQL Error",
 			"error", err,
 			"elapsed", elapsed,

@@ -23,7 +23,7 @@ type RootEntry struct {
 }
 
 // handleGetProofSet -> GET /pdp/proof-sets/:proofSetID
-func (p *PDP) handleGetProofSet(c echo.Context) error {
+func (p *PDPHandler) handleGetProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
 	proofSetIDStr := c.Param("proofSetID")
 

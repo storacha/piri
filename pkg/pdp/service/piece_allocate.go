@@ -16,7 +16,15 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAllocation) (*types.AllocatedPiece, error) {
+func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAllocation) (res *types.AllocatedPiece, retErr error) {
+	log.Infow("allocating piece", "request", allocation)
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to allocate piece", "request", allocation, "err", retErr)
+		} else {
+			log.Infow("allocated piece", "request", allocation, "response", res)
+		}
+	}()
 	if abi.UnpaddedPieceSize(allocation.Piece.Size) > PieceSizeLimit {
 		return nil, types.NewErrorf(types.KindInvalidInput, "piece size %d exceeds limit %d", allocation.Piece.Size, PieceSizeLimit)
 	}

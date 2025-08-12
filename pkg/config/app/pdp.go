@@ -13,5 +13,4 @@ type PDPServiceConfig struct {
 	ContractAddress common.Address
 	// The URL endpoint of a lotus node used for interaction with chain state.
 	LotusEndpoint *url.URL
-	ProofSetID    uint64
 }

@@ -68,7 +68,7 @@ func InsertOrderedByDescendingSize(sortedPieces []piece.PieceLink, newPiece piec
 const MinAggregateSize = 128 << 20
 
 func AggregatePiece(buffer Buffer, newPiece piece.PieceLink) (Buffer, *aggregate.Aggregate, error) {
-	log.Infow("Aggregate Piece",
+	log.Infow("aggregating Piece",
 		"link", newPiece.Link().String(),
 		"padded size", newPiece.PaddedSize(),
 		"buffer size", buffer.TotalSize,
@@ -115,10 +115,12 @@ func AggregatePieces(buffer Buffer, pieces []piece.PieceLink) (Buffer, []aggrega
 }
 
 func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet uint64, aggregates []aggregate.Aggregate) error {
-	log.Info("submit aggregates",
+	log.Infow("submit aggregates",
 		zap.Array("aggregates", zapcore.ArrayMarshalerFunc(func(arr zapcore.ArrayEncoder) error {
 			for _, agg := range aggregates { // aggregates is []Aggregate
-				arr.AppendObject(agg) // agg already implements ObjectMarshaler
+				if err := arr.AppendObject(agg); err != nil {
+					return err
+				}
 			}
 			return nil
 		})),
