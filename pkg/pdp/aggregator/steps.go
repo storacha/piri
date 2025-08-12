@@ -8,7 +8,7 @@ import (
 	libtypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
@@ -158,12 +158,12 @@ func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLin
 // Step 3: generate receipts for piece accept
 
 type PieceAccepter struct {
-	issuer         ucan.Signer
+	issuer         principal.Signer
 	aggregateStore AggregateStore
 	receiptStore   receiptstore.ReceiptStore
 }
 
-func NewPieceAccepter(issuer ucan.Signer, aggregateStore AggregateStore, receiptStore receiptstore.ReceiptStore) *PieceAccepter {
+func NewPieceAccepter(issuer principal.Signer, aggregateStore AggregateStore, receiptStore receiptstore.ReceiptStore) *PieceAccepter {
 	return &PieceAccepter{
 		issuer:         issuer,
 		aggregateStore: aggregateStore,
