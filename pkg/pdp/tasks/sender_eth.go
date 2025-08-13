@@ -57,6 +57,7 @@ func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB) (*S
 }
 
 func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *types.Transaction, reason string) (common.Hash, error) {
+	log.Infow("Send message", "from", fromAddress.String(), "tx", tx.Hash().Hex(), "reason", reason)
 	// Ensure the transaction has zero nonce; it will be assigned during send task
 	if tx.Nonce() != 0 {
 		return common.Hash{}, xerrors.Errorf("Send expects transaction nonce to be 0, was %d", tx.Nonce())
