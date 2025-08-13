@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/ipfs/go-cid"
@@ -26,8 +27,14 @@ import (
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/core/result/ok"
+	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
+	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
+	"github.com/storacha/go-ucanto/principal/verifier"
+	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/validator"
 	"github.com/storacha/piri/lib"
+	"github.com/storacha/piri/pkg/principalresolver"
 
 	"github.com/storacha/go-libstoracha/advertisement"
 )
@@ -284,6 +291,67 @@ func New(
 		indexingService:       o.indexingService,
 		indexingServiceProofs: o.indexingServiceProofs,
 	}, nil
+}
+
+func validateClaimCacheDelegation(ctx context.Context, id ucan.Signer, serviceID ucan.Principal, proofs []delegation.Proof, options ...principalresolver.Option) error {
+	var authority principal.Verifier
+	var principalResolver validator.PrincipalResolverFunc
+	if strings.HasPrefix(serviceID.DID().String(), "did:web:") {
+		reslv, err := principalresolver.NewHTTPResolver([]did.DID{serviceID.DID()}, options...)
+		if err != nil {
+			return fmt.Errorf("creating HTTP resolver: %w", err)
+		}
+		didkey, err := reslv.ResolveDIDKey(ctx, serviceID.DID())
+		if err != nil {
+			return fmt.Errorf("resolving indexing service DID: %w", err)
+		}
+		v, err := edverifier.Decode(didkey.Bytes())
+		if err != nil {
+			return fmt.Errorf("decoding indexing service DID: %w", err)
+		}
+		authority, err = verifier.Wrap(v, serviceID.DID())
+		if err != nil {
+			return fmt.Errorf("wrapping indexing service DID: %w", err)
+		}
+		principalResolver = reslv.ResolveDIDKey
+	} else {
+		v, err := edverifier.Decode(serviceID.DID().Bytes())
+		if err != nil {
+			return fmt.Errorf("decoding indexing service DID: %w", err)
+		}
+		authority = v
+		principalResolver = validator.FailDIDKeyResolution
+	}
+
+	vctx := validator.NewValidationContext(
+		authority,
+		claim.Cache,
+		validator.IsSelfIssued,
+		// TODO: check revocation status when revocation API is implemented.
+		func(ctx context.Context, auth validator.Authorization[any]) validator.Revoked {
+			return nil
+		},
+		validator.ProofUnavailable,
+		edverifier.Parse,
+		principalResolver,
+	)
+
+	placeholder, _ := cid.Parse("bafkqaaa")
+	inv, err := claim.Cache.Invoke(
+		id,
+		serviceID,
+		serviceID.DID().String(),
+		claim.CacheCaveats{
+			Claim: cidlink.Link{Cid: placeholder},
+		},
+		delegation.WithProof(proofs...),
+	)
+	if err != nil {
+		return fmt.Errorf("creating claim cache invocation: %w", err)
+	}
+
+	_, err = validator.Access(ctx, inv, vctx)
+	return err
 }
 
 func providerInfo(peerID peer.ID, publicAddr multiaddr.Multiaddr, blobAddr multiaddr.Multiaddr) (peer.AddrInfo, error) {
