@@ -205,6 +205,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	proofSetID := new(big.Int).SetUint64(id)
 
 	// Pack the method call data
+	log.Infow("Adding root to proof set", "proofSetID", proofSetID)
 	data, err := abiData.Pack("addRoots", proofSetID, rootDataArray, []byte{})
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack addRoots: %w", err)
