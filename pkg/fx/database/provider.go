@@ -52,7 +52,11 @@ func ProvideReplicatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error
 	}
 
 	// Create SQLite database connection
-	db, err := sqlitedb.New(cfg.Replicator.DBPath)
+	db, err := sqlitedb.New(cfg.Replicator.DBPath,
+		database.WithJournalMode(database.JournalModeWAL),
+		database.WithTimeout(5*time.Second),
+		database.WithSyncMode(database.SyncModeNORMAL),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("creating replicator database: %w", err)
 	}
