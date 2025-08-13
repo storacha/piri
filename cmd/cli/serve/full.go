@@ -8,15 +8,14 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/storacha/piri/cmd/cli/flags"
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/fx/app"
-	"github.com/storacha/piri/pkg/presets"
 )
 
 var (
@@ -29,117 +28,8 @@ var (
 )
 
 func init() {
-	FullCmd.Flags().String(
-		"pdp-server-url",
-		"",
-		"URL used to connect to pdp server",
-	)
-	cobra.CheckErr(viper.BindPFlag("pdp_server_url", FullCmd.Flags().Lookup("pdp-server-url")))
-
-	FullCmd.Flags().Uint64(
-		"proof-set",
-		0,
-		"Proofset to use with PDP",
-	)
-	cobra.CheckErr(viper.BindPFlag("ucan.proof_set", FullCmd.Flags().Lookup("proof-set")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.proof_set", "PIRI_PROOF_SET"))
-
-	FullCmd.Flags().String(
-		"indexing-service-proof",
-		"",
-		"A delegation that allows the node to cache claims with the indexing service",
-	)
-	cobra.CheckErr(viper.BindPFlag("ucan.services.indexer.proof", FullCmd.Flags().Lookup("indexing-service-proof")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.services.indexer.proof", "PIRI_INDEXING_SERVICE_PROOF"))
-
-	FullCmd.Flags().String(
-		"indexing-service-did",
-		presets.IndexingServiceDID.String(),
-		"DID of the indexing service",
-	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("indexing-service-did"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.indexer.did", FullCmd.Flags().Lookup("indexing-service-did")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.services.indexer.did", "PIRI_INDEXING_SERVICE_DID"))
-
-	FullCmd.Flags().String(
-		"indexing-service-url",
-		presets.IndexingServiceURL.String(),
-		"URL of the indexing service",
-	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("indexing-service-url"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.indexer.url", FullCmd.Flags().Lookup("indexing-service-url")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.services.indexer.url", "PIRI_INDEXING_SERVICE_URL"))
-
-	FullCmd.Flags().String(
-		"upload-service-did",
-		presets.UploadServiceDID.String(),
-		"DID of the upload service",
-	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("upload-service-did"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.upload.did", FullCmd.Flags().Lookup("upload-service-did")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.services.upload.did", "PIRI_UPLOAD_SERVICE_DID"))
-
-	FullCmd.Flags().String(
-		"upload-service-url",
-		presets.UploadServiceURL.String(),
-		"URL of the upload service",
-	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("upload-service-url"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.upload.url", FullCmd.Flags().Lookup("upload-service-url")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.services.upload.did", "PIRI_UPLOAD_SERVICE_URL"))
-
-	FullCmd.Flags().StringSlice(
-		"ipni-announce-urls",
-		func() []string {
-			out := make([]string, 0)
-			for _, u := range presets.IPNIAnnounceURLs {
-				out = append(out, u.String())
-			}
-			return out
-		}(),
-		"A list of IPNI announce URLs")
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("ipni-announce-urls"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.publisher.ipni_announce_urls", FullCmd.Flags().Lookup("ipni-announce-urls")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.services.publisher.ipni_announce_urls", "PIRI_IPNI_ANNOUNCE_URLS"))
-
-	FullCmd.Flags().StringToString(
-		"service-principal-mapping",
-		presets.PrincipalMapping,
-		"Mapping of service DIDs to principal DIDs",
-	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("service-principal-mapping"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.principal_mapping", FullCmd.Flags().Lookup("service-principal-mapping")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.services.principal_mapping", "PIRI_SERVICE_PRINCIPAL_MAPPING"))
-
-	FullCmd.Flags().String(
-		"lotus-url",
-		"",
-		"A websocket url for lotus node",
-	)
-	cobra.CheckErr(viper.BindPFlag("pdp.lotus_endpoint", FullCmd.Flags().Lookup("lotus-url")))
-
-	FullCmd.Flags().String(
-		"owner-address",
-		"",
-		"The ethereum address to submit PDP Proofs with (must be in piri wallet - see `piri wallet` command for help)",
-	)
-	cobra.CheckErr(viper.BindPFlag("pdp.owner_address", FullCmd.Flags().Lookup("owner-address")))
-
-	FullCmd.Flags().String(
-		"contract-address",
-		"0x6170dE2b09b404776197485F3dc6c968Ef948505", // NB(forrest): default to calibration contract addrese
-		"The ethereum address of the PDP Contract",
-	)
-	cobra.CheckErr(viper.BindPFlag("pdp.contract_address", FullCmd.Flags().Lookup("contract-address")))
-
+	cobra.CheckErr(flags.SetupPDPFlags(FullCmd.Flags()))
+	cobra.CheckErr(flags.SetupUCANFlags(FullCmd.Flags()))
 }
 
 func fullServer(cmd *cobra.Command, _ []string) error {
