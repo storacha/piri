@@ -149,6 +149,7 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 		return nil, fmt.Errorf("failed to read allocation after write")
 	}
 	log.Info("successfully read allocation after write")
+	log.Infow("allocation created for piece", "size", size, "address_url", address.URL.String())
 
 	return &AllocateResponse{
 		Size:    size,
