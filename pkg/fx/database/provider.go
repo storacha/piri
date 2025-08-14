@@ -130,27 +130,5 @@ func ProvideTaskEngineDB(lc fx.Lifecycle, cfg app.StorageConfig) (*gorm.DB, erro
 		return nil, fmt.Errorf("creating task engine db: %w", err)
 	}
 
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			ddb, err := db.DB()
-			if err != nil {
-				return fmt.Errorf("starting task engine db: %w", err)
-			}
-			if err := ddb.PingContext(ctx); err != nil {
-				return fmt.Errorf("starting task engine db: %w", err)
-			}
-			return nil
-		},
-		OnStop: func(ctx context.Context) error {
-			ddb, err := db.DB()
-			if err != nil {
-				return fmt.Errorf("stopping task engine db: %w", err)
-			}
-			if err := ddb.Close(); err != nil {
-				return fmt.Errorf("stopping task engine db: %w", err)
-			}
-			return nil
-		},
-	})
 	return db, nil
 }
