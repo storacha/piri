@@ -6,6 +6,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
 
+	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 	"github.com/storacha/piri/pkg/pdp/service"
 )
 
@@ -20,11 +21,14 @@ const (
 func NewPDPHandler(service *service.PDPService) *PDPHandler {
 	return &PDPHandler{
 		Service: service,
+		// TODO we will want the limit of uploads to be configured, possibly as a function of host resources.
+		uploadLimiter: middleware.NewUploadLimiter(10), // Max 10 concurrent uploads
 	}
 }
 
 type PDPHandler struct {
-	Service *service.PDPService
+	Service       *service.PDPService
+	uploadLimiter *middleware.UploadLimiter
 }
 
 func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
@@ -48,9 +52,9 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 	e.GET("/pdp/ping", p.handlePing)
 
 	// /pdp/piece
-	e.POST(path.Join(PDPRoutePath, piecePrefix), p.handlePreparePiece)
-	e.PUT(path.Join(PDPRoutePath, piecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload)
-	e.GET(path.Join(PDPRoutePath, piecePrefix), p.handleFindPiece)
+	e.POST(path.Join(PDPRoutePath, PiecePrefix), p.handlePreparePiece)
+	e.PUT(path.Join(PDPRoutePath, PiecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload, p.uploadLimiter.Middleware())
+	e.GET(path.Join(PDPRoutePath, PiecePrefix), p.handleFindPiece)
 
 	// retrival
 	e.GET(path.Join(PiecePrefix, ":cid"), p.handleDownloadByPieceCid)
