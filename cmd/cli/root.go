@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/storacha/piri/cmd/cli/benchmark"
 	"github.com/storacha/piri/cmd/cli/client"
 	"github.com/storacha/piri/cmd/cli/delegate"
 	"github.com/storacha/piri/cmd/cli/identity"
@@ -76,6 +77,7 @@ func init() {
 	rootCmd.AddCommand(identity.Cmd)
 	rootCmd.AddCommand(delegate.Cmd)
 	rootCmd.AddCommand(client.Cmd)
+	rootCmd.AddCommand(benchmark.Cmd)
 
 }
 
