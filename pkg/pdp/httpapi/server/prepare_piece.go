@@ -17,7 +17,7 @@ import (
 var PieceSizeLimit = abi.PaddedPieceSize(proof.MaxMemtreeSize).Unpadded()
 
 // handlePreparePiece -> POST /pdp/piece
-func (p *PDP) handlePreparePiece(c echo.Context) error {
+func (p *PDPHandler) handlePreparePiece(c echo.Context) error {
 	ctx := c.Request().Context()
 	operation := "PreparePiece"
 

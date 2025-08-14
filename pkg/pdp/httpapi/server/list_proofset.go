@@ -9,7 +9,7 @@ import (
 )
 
 // handleListProofSet -> GET /pdp/proof-sets
-func (p *PDP) handleListProofSet(c echo.Context) error {
+func (p *PDPHandler) handleListProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	ps, err := p.Service.ListProofSets(ctx)

@@ -3,6 +3,7 @@ package claims
 import (
 	"go.uber.org/fx"
 
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/service/claims"
 	publisherSvc "github.com/storacha/piri/pkg/service/publisher"
 	"github.com/storacha/piri/pkg/store/claimstore"
@@ -10,15 +11,13 @@ import (
 
 var Module = fx.Module("claims",
 	fx.Provide(
-		NewService,
-		// Also provide the interface
 		fx.Annotate(
-			func(svc *claims.ClaimService) claims.Claims {
-				return svc
-			},
+			NewService,
+			fx.As(new(claims.Claims)),
 		),
 		fx.Annotate(
 			claims.NewServer,
+			fx.As(new(echofx.RouteRegistrar)),
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 	),

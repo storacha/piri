@@ -13,7 +13,15 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
-func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (common.Hash, error) {
+func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (res common.Hash, retErr error) {
+	log.Infow("removing root", "proofSetID", proofSetID, "rootID", rootID)
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to remove root", "proofSetID", proofSetID, "rootID", rootID, "err", retErr)
+		} else {
+			log.Infow("removed root", "proofSetID", proofSetID, "rootID", rootID, "response", res)
+		}
+	}()
 	// Get the ABI and pack the transaction data
 	abiData, err := contract.PDPVerifierMetaData()
 	if err != nil {

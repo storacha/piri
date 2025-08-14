@@ -36,21 +36,21 @@ type StorageServiceParams struct {
 
 	Config       app.AppConfig
 	ID           principal.Signer
-	Blobs        *blobs.BlobService
-	Claims       *claims.ClaimService
+	Blobs        blobs.Blobs
+	Claims       claims.Claims
 	PDP          pdp.PDP `optional:"true"`
 	ReceiptStore receiptstore.ReceiptStore
-	Replicator   *replicator.Service
+	Replicator   replicator.Replicator
 }
 
 // storageServiceWrapper wraps the storage service to implement the storage.Service interface
 type storageServiceWrapper struct {
 	id           principal.Signer
-	blobs        *blobs.BlobService
-	claims       *claims.ClaimService
+	blobs        blobs.Blobs
+	claims       claims.Claims
 	pdp          pdp.PDP
 	receiptStore receiptstore.ReceiptStore
-	replicator   *replicator.Service
+	replicator   replicator.Replicator
 	uploadConn   client.Connection
 }
 

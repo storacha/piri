@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/storacha/go-libstoracha/piece/piece"
+
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/fns"
 )
@@ -16,4 +17,8 @@ type Aggregator interface {
 type BufferedAggregator interface {
 	AggregatePiece(buffer fns.Buffer, newPiece piece.PieceLink) (fns.Buffer, *aggregate.Aggregate, error)
 	AggregatePieces(buffer fns.Buffer, pieces []piece.PieceLink) (fns.Buffer, []aggregate.Aggregate, error)
+}
+
+type ProofSetIDProvider interface {
+	ProofSetID(ctx context.Context) (uint64, error)
 }

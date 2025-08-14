@@ -25,7 +25,15 @@ type RootEntry struct {
 	SubrootOffset int64  `json:"subrootOffset"`
 }
 
-func (p *PDPService) GetProofSet(ctx context.Context, id uint64) (*types.ProofSet, error) {
+func (p *PDPService) GetProofSet(ctx context.Context, id uint64) (res *types.ProofSet, retErr error) {
+	log.Infow("getting proof set", "id", id)
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to get proof set", "id", id, "err", retErr)
+		} else {
+			log.Infow("got proof set", "id", id, "response", res)
+		}
+	}()
 	// Retrieve the proof set record.
 	var proofSet models.PDPProofSet
 	if err := p.db.WithContext(ctx).First(&proofSet, id).Error; err != nil {

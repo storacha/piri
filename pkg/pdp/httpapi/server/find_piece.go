@@ -10,7 +10,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDP) handleFindPiece(c echo.Context) error {
+func (p *PDPHandler) handleFindPiece(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	sizeStr := c.QueryParam("size")

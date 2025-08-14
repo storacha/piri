@@ -13,7 +13,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDP) handleAddRootToProofSet(c echo.Context) error {
+func (p *PDPHandler) handleAddRootToProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
 	operation := "AddRootToProofSet"
 

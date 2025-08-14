@@ -9,6 +9,7 @@ import (
 	"hash"
 	"io"
 	"os"
+	"time"
 
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -23,7 +24,16 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpload) error {
+func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpload) (retErr error) {
+	start := time.Now()
+	log.Infow("uploading piece", "request", pieceUpload)
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to upload piece", "request", pieceUpload, "duration", time.Since(start), "error", retErr)
+		} else {
+			log.Infow("uploaded piece", "request", pieceUpload, "duration", time.Since(start))
+		}
+	}()
 	// Lookup the expected pieceCID, notify_url, and piece_ref from the database using uploadUUID
 	var upload models.PDPPieceUpload
 	if err := p.db.First(&upload, "id = ?", pieceUpload.ID.String()).Error; err != nil {
@@ -84,6 +94,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 
 		readSize = n
 
+		log.Infow("wrote piece", "request", pieceUpload, "duration", time.Since(start))
 		return nil
 	}
 
@@ -124,6 +135,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		_ = p.storage.StashRemove(ctx, stashID)
 		return fmt.Errorf("failed to compute piece hash: %w", err)
 	}
+	log.Infow("computed piece commp", "request", pieceUpload, "commp", pieceCIDComputed.String(), "duration", time.Since(start))
 
 	// Compare the computed piece CID with the expected one from the database
 	if upload.PieceCID != nil && pieceCIDComputed.String() != *upload.PieceCID {

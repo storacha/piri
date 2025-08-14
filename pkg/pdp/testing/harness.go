@@ -26,11 +26,11 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/contract/mocks"
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/store/stashstore"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
@@ -304,7 +304,7 @@ func SetupTestDeps(t testing.TB, ctx context.Context, ctrl *gomock.Controller) (
 	require.NoError(t, err)
 
 	// memory backed blob and stash store for PDP pieces.
-	ss, err := store.NewStashStore(testDir)
+	ss, err := stashstore.NewStashStore(testDir)
 	require.NoError(t, err)
 	bs := blobstore.NewTODOMapBlobstore()
 
@@ -321,7 +321,7 @@ func SetupTestDeps(t testing.TB, ctx context.Context, ctrl *gomock.Controller) (
 	t.Logf("Client address: %s", clientAddress.Hex())
 
 	// The PDP service, backed by mocks and a fake chain
-	svc, err := service.NewPDPService(
+	svc, err := service.SetupPDPService(
 		db,
 		clientAddress,
 		wlt,

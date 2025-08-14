@@ -12,7 +12,7 @@ import (
 )
 
 // echoHandleGetProofSetCreationStatus -> GET /pdp/proof-sets/created/:txHash
-func (p *PDP) handleGetProofSetCreationStatus(c echo.Context) error {
+func (p *PDPHandler) handleGetProofSetCreationStatus(c echo.Context) error {
 	ctx := c.Request().Context()
 	txHash := c.Param("txHash")
 

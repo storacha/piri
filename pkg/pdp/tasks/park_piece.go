@@ -13,8 +13,8 @@ import (
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/store"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var PieceParkPollInterval = time.Second
@@ -120,7 +120,7 @@ func (p *ParkPieceTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 
 	for i := range refs {
 		if refs[i].DataURL != "" {
-			sr, err := store.OpenStashFromURL(refs[i].DataURL)
+			sr, err := stashstore.OpenStashFromURL(refs[i].DataURL)
 			if err != nil {
 				return false, fmt.Errorf("reading stash url: %w", err)
 			}

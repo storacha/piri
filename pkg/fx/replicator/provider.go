@@ -17,7 +17,12 @@ import (
 )
 
 var Module = fx.Module("replicator",
-	fx.Provide(New),
+	fx.Provide(
+		fx.Annotate(
+			New,
+			fx.As(new(replicator.Replicator)),
+		),
+	),
 )
 
 type Params struct {
