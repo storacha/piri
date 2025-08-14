@@ -1,8 +1,6 @@
 package scheduler
 
 import (
-	"context"
-
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -28,17 +26,7 @@ var TasksModule = fx.Module("scheduler-tasks",
 			fx.ResultTags(`group:"scheduler_tasks"`),
 		),
 		fx.Annotate(
-			ProvidePDPNotifyTask,
-			fx.As(new(scheduler.TaskInterface)),
-			fx.ResultTags(`group:"scheduler_tasks"`),
-		),
-		fx.Annotate(
 			ProvidePDPProveTask,
-			fx.As(new(scheduler.TaskInterface)),
-			fx.ResultTags(`group:"scheduler_tasks"`),
-		),
-		fx.Annotate(
-			ProvideStorePieceTask,
 			fx.As(new(scheduler.TaskInterface)),
 			fx.ResultTags(`group:"scheduler_tasks"`),
 		),
@@ -87,15 +75,6 @@ func ProvideNextProvingPeriodTask(params NextProvingPeriodTaskParams) (*tasks.Ne
 	)
 }
 
-type PDPNotifyTaskParams struct {
-	fx.In
-	DB *gorm.DB `name:"engine_db"`
-}
-
-func ProvidePDPNotifyTask(params PDPNotifyTaskParams) *tasks.PDPNotifyTask {
-	return tasks.NewPDPNotifyTask(params.DB)
-}
-
 type PDPProveTaskParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
@@ -119,24 +98,3 @@ func ProvidePDPProveTask(params PDPProveTaskParams) (*tasks.ProveTask, error) {
 	)
 }
 
-type StorePieceTaskParams struct {
-	fx.In
-	DB    *gorm.DB `name:"engine_db"`
-	Store blobstore.PDPStore
-}
-
-func ProvideStorePieceTask(lc fx.Lifecycle, params StorePieceTaskParams) *tasks.ParkPieceTask {
-	t := tasks.NewStorePieceTask(params.DB, params.Store)
-	tctx, cancel := context.WithCancel(context.Background())
-	lc.Append(fx.Hook{
-		OnStart: func(_ context.Context) error {
-			t.Start(tctx)
-			return nil
-		},
-		OnStop: func(_ context.Context) error {
-			cancel()
-			return nil
-		},
-	})
-	return t
-}

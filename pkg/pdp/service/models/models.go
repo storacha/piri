@@ -13,20 +13,6 @@ import (
 //go:embed triggers.sqlite.sql
 var Triggers string
 
-// Machine represents the machines table.
-type Machine struct {
-	ID          int       `gorm:"primaryKey;autoIncrement;column:id"`
-	LastContact time.Time `gorm:"not null;default:current_timestamp;column:last_contact"`
-	HostAndPort string    `gorm:"size:300;not null;column:host_and_port"`
-	CPU         int       `gorm:"not null;column:cpu"`
-	RAM         int64     `gorm:"not null;column:ram"`
-	GPU         float64   `gorm:"not null;column:gpu"`
-}
-
-func (Machine) TableName() string {
-	return "machines"
-}
-
 // Task represents the task table.
 type Task struct {
 	ID           int64     `gorm:"primaryKey;autoIncrement;column:id"`
@@ -63,29 +49,6 @@ type TaskHistory struct {
 
 func (TaskHistory) TableName() string {
 	return "task_history"
-}
-
-// TaskFollow represents the task_follow table.
-type TaskFollow struct {
-	ID       int64  `gorm:"primaryKey;autoIncrement;column:id"`
-	OwnerID  int    `gorm:"not null;column:owner_id"`
-	ToType   string `gorm:"size:16;not null;column:to_type"`
-	FromType string `gorm:"size:16;not null;column:from_type"`
-}
-
-func (TaskFollow) TableName() string {
-	return "task_follow"
-}
-
-// TaskImpl represents the task_impl table.
-type TaskImpl struct {
-	ID      int64  `gorm:"primaryKey;autoIncrement;column:id"`
-	OwnerID int    `gorm:"not null;column:owner_id"`
-	Name    string `gorm:"size:16;not null;column:name"`
-}
-
-func (TaskImpl) TableName() string {
-	return "task_impl"
 }
 
 // ParkedPiece represents the parked_pieces table.
@@ -125,18 +88,6 @@ func (ParkedPieceRef) TableName() string {
 	return "parked_piece_refs"
 }
 
-// pdp_services
-type PDPService struct {
-	ID           int64     `gorm:"primaryKey;autoIncrement"`
-	Pubkey       []byte    `gorm:"not null;unique"`
-	ServiceLabel string    `gorm:"not null;unique"`
-	CreatedAt    time.Time `gorm:"default:CURRENT_TIMESTAMP;not null"`
-}
-
-func (PDPService) TableName() string {
-	return "pdp_services"
-}
-
 // pdp_piece_uploads
 type PDPPieceUpload struct {
 	ID      string `gorm:"primaryKey;type:uuid"` // or use a UUID type
@@ -163,7 +114,6 @@ func (PDPPieceUpload) TableName() string {
 type PDPPieceRef struct {
 	ID      int64  `gorm:"primaryKey;autoIncrement"`
 	Service string `gorm:"not null"` // references pdp_services(service_label)
-	//ServiceModel   *PDPService     `gorm:"foreignKey:Service;references:ServiceLabel;constraint:OnDelete:CASCADE"`
 
 	PieceCID       string          `gorm:"not null;column:piece_cid"`
 	PieceRef       int64           // references parked_piece_refs(ref_id)
@@ -287,17 +237,6 @@ func (PDPProofsetRootAdd) TableName() string {
 	return "pdp_proofset_root_adds"
 }
 
-// EthKey represents the eth_keys table.
-type EthKey struct {
-	Address    string `gorm:"primaryKey;column:address;not null"`
-	PrivateKey []byte `gorm:"not null;column:private_key"`
-	Role       string `gorm:"not null;column:role"`
-}
-
-func (EthKey) TableName() string {
-	return "eth_keys"
-}
-
 // MessageSendsEth represents the message_sends_eth table.
 type MessageSendsEth struct {
 	FromAddress  string     `gorm:"not null;column:from_address"`
@@ -353,16 +292,12 @@ func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
 	if err := db.
 		WithContext(ctx).
 		AutoMigrate(
-			&Machine{},
 			&Task{},
 			&TaskHistory{},
-			&TaskFollow{},
-			&TaskImpl{},
 
 			&ParkedPiece{},
 			&ParkedPieceRef{},
 
-			&PDPService{},
 			&PDPPieceUpload{},
 			&PDPPieceRef{},
 			&PDPProofSet{},
@@ -372,7 +307,6 @@ func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
 			&PDPProofsetRootAdd{},
 			&PDPPieceMHToCommp{},
 
-			&EthKey{},
 			&MessageSendsEth{},
 			&MessageSendEthLock{},
 			&MessageWaitsEth{},

@@ -39,6 +39,9 @@ func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAl
 	var uploadUUID uuid.UUID
 	var created bool
 
+	// TODO if the piece has already been stored, then we should bail early, and not create any new database tables.
+	// currently we create another upload and piece ref entry now since curio (this is based on) allows more than
+	// one service to talk to a node. We do not support that mode of operation.
 	if err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if havePieceCid {
 			// Check if a 'parked_pieces' entry exists for the given 'piece_cid'
