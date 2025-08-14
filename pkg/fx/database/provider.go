@@ -60,6 +60,11 @@ func ProvideReplicatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error
 	if err != nil {
 		return nil, fmt.Errorf("creating replicator database: %w", err)
 	}
+	// there can only be ONE connection or sqlite throws a massive tantrum about the
+	// database being locked...sobs...wipes tears with mouse pad...
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0) // Don't expire the connection
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -98,6 +103,11 @@ func ProviderAggregatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, erro
 	if err != nil {
 		return nil, fmt.Errorf("creating aggregator database: %w", err)
 	}
+	// there can only be ONE connection or sqlite throws a massive tantrum about the
+	// database being locked...sobs...wipes tears with mouse pad...
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0) // Don't expire the connection
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -130,5 +140,28 @@ func ProvideTaskEngineDB(lc fx.Lifecycle, cfg app.StorageConfig) (*gorm.DB, erro
 		return nil, fmt.Errorf("creating task engine db: %w", err)
 	}
 
+	// Ensure single connection for SQLite to prevent locking issues
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("getting underlying sql.DB: %w", err)
+	}
+	// there can only be ONE connection or sqlite throws a massive tantrum about the
+	// database being locked...sobs...wipes tears with mouse pad...
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetConnMaxLifetime(0) // Don't expire the connection
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			ddb, err := db.DB()
+			if err != nil {
+				return fmt.Errorf("stopping task engine db: %w", err)
+			}
+			if err := ddb.Close(); err != nil {
+				return fmt.Errorf("stopping task engine db: %w", err)
+			}
+			return nil
+		},
+	})
 	return db, nil
 }
