@@ -98,6 +98,6 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 	)
 }
 
-func ProvideProofSetIDProvider(cfg app.PDPServiceConfig) (*aggregator.ConfiguredProofSetProvider, error) {
+func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (*aggregator.ConfiguredProofSetProvider, error) {
 	return &aggregator.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
 }
