@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
@@ -55,6 +56,18 @@ type EchoServer struct {
 func StartEchoServer(cfg app.AppConfig, e *echo.Echo, lc fx.Lifecycle) (*EchoServer, error) {
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
+	// Configure server timeouts and limits
+	e.Server = &http.Server{
+		Addr:         addr,
+		ReadTimeout:  300 * time.Second, // 5 minutes for large uploads
+		WriteTimeout: 300 * time.Second, // 5 minutes for large downloads
+		IdleTimeout:  120 * time.Second,
+		// MaxHeaderBytes is set by Go to 1MB by default which is reasonable
+	}
+
+	// Configure body size limit (256MB + some overhead)
+	e.Use(middleware.BodyLimit("268435456")) // 256MB in bytes
+
 	server := &EchoServer{
 		echo: e,
 		addr: addr,
@@ -66,7 +79,7 @@ func StartEchoServer(cfg app.AppConfig, e *echo.Echo, lc fx.Lifecycle) (*EchoSer
 
 			// Start server in a goroutine
 			go func() {
-				if err := e.Start(addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				if err := e.StartServer(e.Server); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					log.Errorf("Echo server error: %v", err)
 				}
 			}()
