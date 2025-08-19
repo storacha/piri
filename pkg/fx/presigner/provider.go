@@ -20,7 +20,7 @@ var Module = fx.Module("presigner",
 
 // NewRequestPresigner creates a new S3 request presigner
 func NewRequestPresigner(cfg app.AppConfig, id principal.Signer) (presigner.RequestPresigner, error) {
-	if cfg.Server.PublicURL == nil {
+	if cfg.Server.PublicURL.Scheme == "" {
 		return nil, fmt.Errorf("public URL required for presigner")
 	}
 
@@ -28,5 +28,5 @@ func NewRequestPresigner(cfg app.AppConfig, id principal.Signer) (presigner.Requ
 	idDigest, _ := multihash.Sum(id.Encode(), multihash.SHA2_256, -1)
 	secretAccessKey := digestutil.Format(idDigest)
 
-	return presigner.NewS3RequestPresigner(accessKeyID, secretAccessKey, *cfg.Server.PublicURL, "blob")
+	return presigner.NewS3RequestPresigner(accessKeyID, secretAccessKey, cfg.Server.PublicURL, "blob")
 }

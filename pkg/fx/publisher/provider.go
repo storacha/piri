@@ -32,7 +32,7 @@ func NewService(
 	id principal.Signer,
 	publisherStore store.PublisherStore,
 ) (*publisher.PublisherService, error) {
-	pubCfg := cfg.Services.Publisher
+	pubCfg := cfg.UCANService.Services.Publisher
 	if pubCfg.PublicMaddr.String() == "" {
 		return nil, fmt.Errorf("public address is required for publisher service")
 	}
@@ -42,8 +42,8 @@ func NewService(
 		publisherStore,
 		pubCfg.PublicMaddr,
 		publisher.WithDirectAnnounce(pubCfg.AnnounceURLs...),
-		publisher.WithIndexingService(cfg.External.IndexingService.Connection),
-		publisher.WithIndexingServiceProof(cfg.External.IndexingService.Proofs...),
+		publisher.WithIndexingService(cfg.UCANService.Services.Indexer.Connection),
+		publisher.WithIndexingServiceProof(cfg.UCANService.Services.Indexer.Proofs...),
 		publisher.WithAnnounceAddress(pubCfg.AnnounceMaddr),
 		publisher.WithBlobAddress(pubCfg.BlobMaddr),
 	)

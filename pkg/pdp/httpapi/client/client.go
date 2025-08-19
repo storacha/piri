@@ -107,8 +107,8 @@ func New(endpoint *url.URL, opts ...Option) (*Client, error) {
 	return c, nil
 }
 
-func NewFromConfig(cfg config.PDPClient) (*Client, error) {
-	endpoint, err := url.Parse(cfg.NodeURL)
+func NewFromConfig(cfg config.Client) (*Client, error) {
+	endpoint, err := url.Parse(cfg.API.Endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("parsing node URL: %w", err)
 	}
