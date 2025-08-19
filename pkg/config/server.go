@@ -26,7 +26,7 @@ func (s ServerConfig) ToAppConfig() (app.ServerConfig, error) {
 			return app.ServerConfig{}, fmt.Errorf("parsing public URL: %w", err)
 		}
 	} else {
-		log.Warn("public URL not set, using http://host+port")
+		log.Warnf("public URL not set, using http://%s:%d", s.Host, s.Port)
 		publicURL, err = url.Parse(fmt.Sprintf("http://%s:%d", s.Host, s.Port))
 		if err != nil {
 			return app.ServerConfig{}, fmt.Errorf("creating default public URL: %w", err)

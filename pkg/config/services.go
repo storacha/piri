@@ -5,12 +5,12 @@ import (
 	"net/url"
 
 	"github.com/ipni/go-libipni/maurl"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 
+	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config/app"
 )
 
@@ -89,6 +89,14 @@ func (s *IndexingServiceConfig) ToAppConfig() (app.IndexingServiceConfig, error)
 			return app.IndexingServiceConfig{}, fmt.Errorf("parsing indexing service proof: %w", err)
 		}
 		out.Proofs = delegation.Proofs{delegation.FromDelegation(dlg)}
+	} else {
+		// TODO(forrest): in the event a node is run without an indexing service proof, it will
+		// almost always fail to index...obviously.
+		// The TODO here is one of:
+		//   1. Fail to start the node (will be annoying for testing
+		//   2. Return an app config with a nil indexing service connection
+		//      dependencies of this config are usually fine with a nil connection, as they check it before use.
+		log.Warn("no indexing service proof provided, indexing will likely fail, please provide indexing proof")
 	}
 	return out, nil
 }
@@ -149,14 +157,14 @@ func (s *PublisherServiceConfig) ToAppConfig(publicURL url.URL) (app.PublisherSe
 	if err != nil {
 		return app.PublisherServiceConfig{}, fmt.Errorf("converting PDP URL to multiaddr: %w", err)
 	}
-	pieceAddr, err := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape("piece/{blobCID}"))
+	blobMaddr, err := lib.JoinHTTPPath(pdpEndpoint, "piece/{blobCID}")
 	if err != nil {
-		return app.PublisherServiceConfig{}, fmt.Errorf("creating piece multiaddr: %w", err)
+		return app.PublisherServiceConfig{}, fmt.Errorf("creating blob multiaddr: %w", err)
 	}
 	return app.PublisherServiceConfig{
 		PublicMaddr:   pubMaddr,
 		AnnounceMaddr: pubMaddr,
 		AnnounceURLs:  announceURLs,
-		BlobMaddr:     multiaddr.Join(pdpEndpoint, pieceAddr),
+		BlobMaddr:     blobMaddr,
 	}, nil
 }
