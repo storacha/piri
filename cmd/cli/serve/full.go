@@ -135,7 +135,7 @@ func init() {
 
 	FullCmd.Flags().String(
 		"contract-address",
-		"0x6170dE2b09b404776197485F3dc6c968Ef948505", // NB(forrest): default to calibration contract addrese
+		presets.PDPRecordKeeperAddress,
 		"The ethereum address of the PDP Contract",
 	)
 	cobra.CheckErr(viper.BindPFlag("pdp.contract_address", FullCmd.Flags().Lookup("contract-address")))

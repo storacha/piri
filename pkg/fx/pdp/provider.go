@@ -35,7 +35,7 @@ var Module = fx.Module("pdp-service",
 		),
 
 		fx.Annotate(
-			ProvidePoorlyNamedPDPInterface,
+			ProvideTODOPDPImplInterface,
 			fx.As(new(pdp.PDP)),
 		),
 		fx.Annotate(
@@ -46,28 +46,29 @@ var Module = fx.Module("pdp-service",
 	),
 )
 
-type Shit struct {
+// TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface
+type TODO_PDP_Impl struct {
 	aggregator  aggregator.Aggregator
 	pieceFinder piecefinder.PieceFinder
 	pieceAdder  pieceadder.PieceAdder
 }
 
-func (s *Shit) PieceAdder() pieceadder.PieceAdder {
+func (s *TODO_PDP_Impl) PieceAdder() pieceadder.PieceAdder {
 	return s.pieceAdder
 }
 
-func (s *Shit) PieceFinder() piecefinder.PieceFinder {
+func (s *TODO_PDP_Impl) PieceFinder() piecefinder.PieceFinder {
 	return s.pieceFinder
 }
 
-func (s *Shit) Aggregator() aggregator.Aggregator {
+func (s *TODO_PDP_Impl) Aggregator() aggregator.Aggregator {
 	return s.aggregator
 }
 
-func ProvidePoorlyNamedPDPInterface(service types.API, agg aggregator.Aggregator, cfg app.AppConfig) (*Shit, error) {
+func ProvideTODOPDPImplInterface(service types.API, agg aggregator.Aggregator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
 	finder := piecefinder.New(service, &cfg.Server.PublicURL)
 	adder := pieceadder.New(service, &cfg.Server.PublicURL)
-	return &Shit{
+	return &TODO_PDP_Impl{
 		aggregator:  agg,
 		pieceFinder: finder,
 		pieceAdder:  adder,

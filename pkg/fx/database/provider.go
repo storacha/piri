@@ -28,7 +28,7 @@ var Module = fx.Module("database",
 			fx.ResultTags(`name:"engine_db"`),
 		),
 		fx.Annotate(
-			ProviderAggregatorDB,
+			ProvideAggregatorDB,
 			fx.ResultTags(`name:"aggregator_db"`),
 		),
 	),
@@ -74,7 +74,7 @@ func ProvideReplicatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error
 	return db, nil
 }
 
-func ProviderAggregatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error) {
+func ProvideAggregatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error) {
 	// If no path is provided, use in-memory database
 	if cfg.Aggregator.DBPath == "" {
 		db, err := sqlitedb.NewMemory()

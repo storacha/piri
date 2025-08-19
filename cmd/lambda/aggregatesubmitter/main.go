@@ -38,7 +38,7 @@ func makeHandler(cfg aws.Config) (lambda.SQSEventHandler, error) {
 		aws.NewS3Store(cfg.Config, cfg.AggregatesBucket, cfg.AggregatesPrefix),
 		aggregate.AggregateType(), types.Converters...)
 	aggregateSubmitterQueue := aws.NewSQSAggregateQueue(cfg.Config, cfg.SQSPDPPieceAggregatorURL)
-	aggregateSubmitter := aggregator.NewAggregateSubmitteer(
+	aggregateSubmitter := aggregator.NewAggregateSubmitter(
 		&aggregator.ConfiguredProofSetProvider{ID: cfg.PDPProofSet},
 		aggregateStore,
 		apiClient,

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ipld/go-ipld-prime/datamodel"
-	libtypes "github.com/storacha/go-libstoracha/capabilities/types"
+	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/principal"
@@ -13,7 +13,7 @@ import (
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/fns"
-	types "github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -49,7 +49,7 @@ func (i *inProgressWorkSpace) PutBuffer(ctx context.Context, buffer fns.Buffer) 
 
 func NewInProgressWorkspace(store store.Store) InProgressWorkspace {
 	return &inProgressWorkSpace{
-		ipldstore.IPLDStore[bufferKey, fns.Buffer](store, fns.BufferType(), libtypes.Converters...),
+		ipldstore.IPLDStore[bufferKey, fns.Buffer](store, fns.BufferType(), captypes.Converters...),
 	}
 }
 
@@ -120,7 +120,7 @@ type AggregateSubmitter struct {
 	queue  LinkQueue
 }
 
-func NewAggregateSubmitteer(psp ProofSetIDProvider, store AggregateStore, client types.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
+func NewAggregateSubmitter(psp ProofSetIDProvider, store AggregateStore, client types.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
 	return &AggregateSubmitter{
 		psp:    psp,
 		store:  store,

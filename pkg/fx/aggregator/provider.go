@@ -26,7 +26,7 @@ var Module = fx.Module("aggregator",
 			fx.As(new(aggregator.Aggregator)),
 		),
 		aggregator.NewPieceAccepter,
-		aggregator.NewAggregateSubmitteer,
+		aggregator.NewAggregateSubmitter,
 		aggregator.NewPieceAggregator,
 		fx.Annotate(
 			ProvideStore,

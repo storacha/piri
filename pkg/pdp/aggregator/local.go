@@ -105,7 +105,7 @@ func NewLocal(
 
 	// construct queues -- somewhat frstratingly these have to be constructed backward for now
 	pieceAccepter := NewPieceAccepter(issuer, aggregateStore, receiptStore)
-	aggregationSubmitter := NewAggregateSubmitteer(&ConfiguredProofSetProvider{ID: proofSet}, aggregateStore, client, linkQueue)
+	aggregationSubmitter := NewAggregateSubmitter(&ConfiguredProofSetProvider{ID: proofSet}, aggregateStore, client, linkQueue)
 	pieceAggregator := NewPieceAggregator(inProgressWorkspace, aggregateStore, linkQueue)
 
 	if err := linkQueue.Register(PieceAcceptTask, func(ctx context.Context, msg datamodel.Link) error {
