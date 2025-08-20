@@ -44,7 +44,7 @@ func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAl
 			// Check if a 'parked_pieces' entry exists for the given 'piece_cid'
 			// Look up existing parked piece with the given pieceCid, long_term = true, complete = true
 			var parkedPiece models.ParkedPiece
-			err := tx.Where("piece_cid = ? AND long_term = ? AND complete = ?", pieceCid, true, true).
+			err := tx.Where("piece_cid = ? AND long_term = ? AND complete = ?", pieceCid.String(), true, true).
 				First(&parkedPiece).Error
 
 			// If it's neither "record not found" nor nil, it's some other error
@@ -65,10 +65,15 @@ func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAl
 				// Create the pdp_piece_uploads record pointing to the parked_piece_refs entry
 				uploadUUID = uuid.New()
 				upload := &models.PDPPieceUpload{
-					ID:             uploadUUID.String(),
-					Service:        "storacha",
-					PieceCID:       models.Ptr(pieceCid.String()),
-					NotifyURL:      allocation.Notify.String(),
+					ID:       uploadUUID.String(),
+					Service:  "storacha",
+					PieceCID: models.Ptr(pieceCid.String()),
+					NotifyURL: func() string {
+						if allocation.Notify == nil {
+							return ""
+						}
+						return allocation.Notify.String()
+					}(),
 					PieceRef:       &parkedRef.RefID,
 					CheckHashCodec: allocation.Piece.Name,
 					CheckHash:      must.One(hex.DecodeString(allocation.Piece.Hash)),

@@ -20,6 +20,8 @@ import (
 
 var log = logging.Logger("cli/wallet")
 
+// TODO this needs to become a client command, rather than mutating the
+// local filesystem directly.
 var (
 	Cmd = &cobra.Command{
 		Use:   "wallet",
@@ -54,31 +56,34 @@ func init() {
 func doList(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	cfg, err := config.Load[config.RepoConfig]()
+	cfg, err := config.Load[config.LocalConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
 	// NB: sure we could just create one with mkdirp, but this allows us to inform
 	// a user that they didn't have dir and where we are creating one now
-	if _, err := os.Stat(cfg.DataDir); err != nil {
+	if _, err := os.Stat(cfg.Repo.DataDir); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			log.Infof("data dir not found, creating one at %s", cfg.DataDir)
-			if err := os.MkdirAll(cfg.DataDir, 0700); err != nil {
+			log.Infof("data dir not found, creating one at %s", cfg.Repo.DataDir)
+			if err := os.MkdirAll(cfg.Repo.DataDir, 0700); err != nil {
 				return fmt.Errorf("creating data dir: %w", err)
 			}
 		}
 	}
 
-	walletDir := filepath.Join(cfg.DataDir, "wallet")
+	walletDir := filepath.Join(cfg.Repo.DataDir, "wallet")
 	if err := os.MkdirAll(walletDir, 0755); err != nil {
 		return fmt.Errorf("creating wallet data dir at %s: %w", walletDir, err)
 	}
 
-	pdpDs, err := leveldb.NewDatastore(walletDir, nil)
+	pdpDs, err := leveldb.NewDatastore(walletDir, &leveldb.Options{
+		ReadOnly: true,
+	})
 	if err != nil {
 		return err
 	}
+	defer pdpDs.Close()
 
 	keyStore, err := keystore.NewKeyStore(pdpDs)
 	if err != nil {
@@ -105,17 +110,17 @@ func doList(cmd *cobra.Command, _ []string) error {
 func doImport(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
-	cfg, err := config.Load[config.RepoConfig]()
+	cfg, err := config.Load[config.LocalConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
 	// NB: sure we could just create one with mkdirp, but this allows us to inform
 	// a user that they didn't have dir and where we are creating one now
-	if _, err := os.Stat(cfg.DataDir); err != nil {
+	if _, err := os.Stat(cfg.Repo.DataDir); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			log.Infof("data dir not found, creating one at %s", cfg.DataDir)
-			if err := os.MkdirAll(cfg.DataDir, 0700); err != nil {
+			log.Infof("data dir not found, creating one at %s", cfg.Repo.DataDir)
+			if err := os.MkdirAll(cfg.Repo.DataDir, 0700); err != nil {
 				return fmt.Errorf("creating data dir: %w", err)
 			}
 		}
@@ -139,7 +144,7 @@ func doImport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	walletDir := filepath.Join(cfg.DataDir, "wallet")
+	walletDir := filepath.Join(cfg.Repo.DataDir, "wallet")
 	if err := os.MkdirAll(walletDir, 0755); err != nil {
 		return fmt.Errorf("creating wallet data dir at %s: %w", walletDir, err)
 	}
