@@ -365,6 +365,13 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 		svc,
 		ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
+		ucanserver.WithErrorHandler(func(err ucanserver.HandlerExecutionError[any]) {
+			log.Error(err.Error())
+			stack := err.Stack()
+			if stack != "" {
+				log.Error(stack)
+			}
+		}),
 	)
 	return err
 
