@@ -13,9 +13,9 @@ import (
 	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multihash"
 
-	"github.com/storacha/piri/internal/telemetry"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/presigner"
+	"github.com/storacha/piri/pkg/server/handler"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
@@ -35,50 +35,53 @@ func NewServer(presigner presigner.RequestPresigner, allocs allocationstore.Allo
 }
 
 func (srv *Server) RegisterRoutes(e *echo.Echo) {
-	e.GET("/blob/:blob", echo.WrapHandler(NewBlobGetHandler(srv.blobs)))
-	e.PUT("/blob/:blob", echo.WrapHandler(NewBlobPutHandler(srv.presigner, srv.allocs, srv.blobs)))
+	e.GET("/blob/:blob", NewBlobGetHandler(srv.blobs).ToEcho())
+	e.PUT("/blob/:blob", NewBlobPutHandler(srv.presigner, srv.allocs, srv.blobs).ToEcho())
 }
 
-func NewBlobGetHandler(blobs blobstore.Blobstore) http.Handler {
+func NewBlobGetHandler(blobs blobstore.Blobstore) handler.Func {
 	if fsblobs, ok := blobs.(blobstore.FileSystemer); ok {
 		serveHTTP := http.FileServer(fsblobs.FileSystem()).ServeHTTP
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return func(ctx handler.Context) error {
+			r, w := ctx.Request(), ctx.Response()
 			r.URL.Path = r.URL.Path[len("/blob"):]
 			serveHTTP(w, r)
-		})
+			return nil
+		}
 	}
 
 	log.Error("blobstore does not support filesystem access")
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "not supported", http.StatusInternalServerError)
-	})
+	return func(ctx handler.Context) error {
+		return echo.ErrMethodNotAllowed
+	}
 }
 
-func NewBlobPutHandler(presigner presigner.RequestPresigner, allocs allocationstore.AllocationStore, blobs blobstore.Blobstore) http.Handler {
-	handler := func(w http.ResponseWriter, r *http.Request) error {
+func NewBlobPutHandler(presigner presigner.RequestPresigner, allocs allocationstore.AllocationStore, blobs blobstore.Blobstore) handler.Func {
+	return func(ctx handler.Context) error {
+		r, w := ctx.Request(), ctx.Response()
 		_, sHeaders, err := presigner.VerifyUploadURL(r.Context(), *r.URL, r.Header)
 		if err != nil {
-			return telemetry.NewHTTPError(err, http.StatusUnauthorized)
+			return echo.NewHTTPError(http.StatusUnauthorized, err)
 		}
 
 		parts := strings.Split(r.URL.Path, "/")
 		_, bytes, err := multibase.Decode(parts[len(parts)-1])
 		if err != nil {
-			return telemetry.NewHTTPError(fmt.Errorf("decoding multibase encoded digest: %w", err), http.StatusBadRequest)
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("decoding multibase encoded digest: %w", err))
 		}
 
 		digest, err := multihash.Cast(bytes)
 		if err != nil {
-			return telemetry.NewHTTPError(fmt.Errorf("invalid multihash digest: %w", err), http.StatusBadRequest)
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("invalid multihash digest: %w", err))
 		}
 
 		results, err := allocs.List(r.Context(), digest)
 		if err != nil {
-			return telemetry.NewHTTPError(fmt.Errorf("list allocations failed: %w", err), http.StatusInternalServerError)
+			return fmt.Errorf("listing allocations: %w", err)
 		}
 
 		if len(results) == 0 {
-			return telemetry.NewHTTPError(fmt.Errorf("missing allocation for write to: z%s", digest.B58String()), http.StatusForbidden)
+			return echo.NewHTTPError(http.StatusForbidden, fmt.Errorf("missing allocation for write to: z%s", digest.B58String()))
 		}
 
 		expired := true
@@ -91,7 +94,7 @@ func NewBlobPutHandler(presigner presigner.RequestPresigner, allocs allocationst
 		}
 
 		if expired {
-			return telemetry.NewHTTPError(errors.New("expired allocation"), http.StatusForbidden)
+			return echo.NewHTTPError(http.StatusForbidden, "expired allocation")
 		}
 
 		log.Infof("Found %d allocations for write to: z%s", len(results), digest.B58String())
@@ -99,22 +102,20 @@ func NewBlobPutHandler(presigner presigner.RequestPresigner, allocs allocationst
 		// ensure the size comes from a signed header
 		contentLength, err := strconv.ParseInt(sHeaders.Get("Content-Length"), 10, 64)
 		if err != nil {
-			return telemetry.NewHTTPError(fmt.Errorf("parsing signed Content-Length header: %w", err), http.StatusInternalServerError)
+			return fmt.Errorf("parsing signed Content-Length header: %w", err)
 		}
 
 		err = blobs.Put(r.Context(), digest, uint64(contentLength), r.Body)
 		if err != nil {
 			log.Errorf("writing to: z%s: %w", digest.B58String(), err)
 			if errors.Is(err, blobstore.ErrDataInconsistent) {
-				return telemetry.NewHTTPError(errors.New("data consistency check failed"), http.StatusConflict)
+				return echo.NewHTTPError(http.StatusConflict, "data consistency check failed")
 			}
 
-			return telemetry.NewHTTPError(fmt.Errorf("write failed: %w", err), http.StatusInternalServerError)
+			return fmt.Errorf("write failed: %w", err)
 		}
 
 		w.WriteHeader(http.StatusOK)
 		return nil
 	}
-
-	return telemetry.NewErrorReportingHandler(handler)
 }

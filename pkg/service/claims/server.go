@@ -3,7 +3,6 @@ package claims
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -11,8 +10,9 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/labstack/echo/v4"
 
-	"github.com/storacha/piri/internal/telemetry"
+	"github.com/storacha/go-ucanto/core/car"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
+	"github.com/storacha/piri/pkg/server/handler"
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/claimstore"
 )
@@ -28,33 +28,26 @@ func NewServer(claims claimstore.ClaimStore) (*Server, error) {
 }
 
 func (srv *Server) RegisterRoutes(e *echo.Echo) {
-	e.GET("/claim/:claim", echo.WrapHandler(NewHandler(srv.claims)))
+	e.GET("/claim/:claim", NewHandler(srv.claims).ToEcho())
 }
 
-func NewHandler(claims claimstore.ClaimStore) http.Handler {
-	handler := func(w http.ResponseWriter, r *http.Request) error {
+func NewHandler(claims claimstore.ClaimStore) handler.Func {
+	return func(ctx handler.Context) error {
+		r := ctx.Request()
 		parts := strings.Split(r.URL.Path, "/")
 		c, err := cid.Parse(parts[len(parts)-1])
 		if err != nil {
-			return telemetry.NewHTTPError(fmt.Errorf("invalid claim CID: %w", err), http.StatusBadRequest)
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("invalid claim CID: %w", err))
 		}
 
 		dlg, err := claims.Get(r.Context(), cidlink.Link{Cid: c})
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				return telemetry.NewHTTPError(fmt.Errorf("not found: %s", c), http.StatusNotFound)
+				return echo.NewHTTPError(http.StatusNotFound, fmt.Errorf("not found: %s", c))
 			}
-
-			return telemetry.NewHTTPError(fmt.Errorf("failed to get claim: %w", err), http.StatusInternalServerError)
+			return fmt.Errorf("failed to get claim: %w", err)
 		}
 
-		_, err = io.Copy(w, dlg.Archive())
-		if err != nil {
-			return fmt.Errorf("serving claim: %s: %w", c, err)
-		}
-
-		return nil
+		return ctx.Stream(http.StatusOK, car.ContentType, dlg.Archive())
 	}
-
-	return telemetry.NewErrorReportingHandler(handler)
 }
