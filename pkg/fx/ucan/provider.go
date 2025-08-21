@@ -68,6 +68,11 @@ func AsRouteRegistrar(h *Handler) echofx.RouteRegistrar {
 	return h
 }
 
+// AsRouteRegistrar provides the Handler as a RouteRegistrar
+func AsRouteRegistrar(h *Handler) echofx.RouteRegistrar {
+	return h
+}
+
 // ProvideServerView provides the UCAN ServerView for testing
 func ProvideServerView(h *Handler) ucanserver.ServerView {
 	return h.ucanServer
