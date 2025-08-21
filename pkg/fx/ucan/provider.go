@@ -3,6 +3,7 @@ package ucan
 import (
 	"fmt"
 
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-ucanto/principal"
 	ucanserver "github.com/storacha/go-ucanto/server"
@@ -11,6 +12,8 @@ import (
 	"github.com/storacha/piri/pkg/fx/ucan/handlers"
 	"github.com/storacha/piri/pkg/service/storage"
 )
+
+var log = logging.Logger("fx/ucan")
 
 type Handler struct {
 	ucanServer ucanserver.ServerView
@@ -38,7 +41,17 @@ type Params struct {
 }
 
 func NewHandler(p Params) (*Handler, error) {
-	ucanSvr, err := ucanserver.NewServer(p.ID, p.Options...)
+	options := []ucanserver.Option{
+		ucanserver.WithErrorHandler(func(err ucanserver.HandlerExecutionError[any]) {
+			l := log.With("error", err.Error())
+			if s := err.Stack(); s != "" {
+				l.With("stack", s)
+			}
+			l.Error("ucan handler execution error")
+		}),
+	}
+	options = append(options, p.Options...)
+	ucanSvr, err := ucanserver.NewServer(p.ID, options...)
 	if err != nil {
 		return nil, fmt.Errorf("creating ucan server: %w", err)
 	}

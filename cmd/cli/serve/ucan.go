@@ -366,11 +366,11 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		svc,
 		ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
 		ucanserver.WithErrorHandler(func(err ucanserver.HandlerExecutionError[any]) {
-			log.Error(err.Error())
-			stack := err.Stack()
-			if stack != "" {
-				log.Error(stack)
+			l := log.With("error", err.Error())
+			if s := err.Stack(); s != "" {
+				l.With("stack", s)
 			}
+			l.Error("ucan handler execution error")
 		}),
 	)
 	return err
