@@ -31,6 +31,7 @@ func (srv *Server) RegisterRoutes(e *echo.Echo) {
 
 func NewHandler(server server.ServerView) http.Handler {
 	handler := func(w http.ResponseWriter, r *http.Request) error {
+		log.Infow("ucan server received request", "url", r.URL.Path)
 		res, err := server.Request(r.Context(), ucanhttp.NewHTTPRequest(r.Body, r.Header))
 		if err != nil {
 			return telemetry.NewHTTPError(fmt.Errorf("handling UCAN request: %w", err), http.StatusInternalServerError)

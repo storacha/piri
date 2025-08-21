@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	"github.com/storacha/go-libstoracha/capabilities/types"
@@ -29,6 +30,8 @@ import (
 	blobhandler "github.com/storacha/piri/pkg/service/storage/handlers/blob"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
+
+var log = logging.Logger("handlers/ucan/replication")
 
 type TransferService interface {
 	// ID is the storage service identity, used to sign UCAN invocations and receipts.
@@ -131,21 +134,27 @@ func (t *TransferRequest) UnmarshalJSON(b []byte) error {
 }
 
 func Transfer(ctx context.Context, service TransferService, request *TransferRequest) error {
+	l := log.With("space", request.Space, "blob", request.Blob, "source", request.Source, "sink", request.Sink, "cause", request.Cause.Root().Link().String())
 	// pull the data from the source if required
 	if request.Sink != nil {
+		l.Info("pulling data from replication source")
 		replicaResp, err := http.Get(request.Source.String())
 		if err != nil {
+			l.Errorw("failed to get data from replication source", "error", err)
 			return fmt.Errorf("http get replication source (%s) failed: %w", request.Source.String(), err)
 		}
 
 		// stream the source to the sink
+		l.Info("putting data to replication sink")
 		req, err := http.NewRequest(http.MethodPut, request.Sink.String(), replicaResp.Body)
 		if err != nil {
+			l.Errorw("failed to create request for data from replication sink", "error", err)
 			return fmt.Errorf("failed to create replication sink request: %w", err)
 		}
 		req.Header = replicaResp.Header
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
+			l.Errorw("failed to put data to replication sink", "error", err)
 			return fmt.Errorf(
 				"failed http PUT to replicate blob %s from %s to %s failed: %w",
 				request.Blob.Digest,
@@ -163,6 +172,7 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 				request.Sink.String(),
 				res.StatusCode,
 			)
+			l.Errorw("received unexpected status from replication sink put", "status", res.StatusCode, "error", topErr)
 			resData, err := io.ReadAll(res.Body)
 			if err != nil {
 				return fmt.Errorf("%s failed to read replication sink response body: %w", topErr, err)
@@ -182,6 +192,7 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		},
 	})
 	if err != nil {
+		l.Errorw("failed to blob accept replicated data", "error", err)
 		return fmt.Errorf("failed to accept replication source blob %s: %w", request.Blob.Digest, err)
 	}
 
@@ -206,25 +217,30 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		return fmt.Errorf("issuing receipt: %w", err)
 	}
 	if err := service.Receipts().Put(ctx, rcpt); err != nil {
+		l.Errorw("failed to put receipt", "error", err)
 		return fmt.Errorf("failed to put transfer receipt: %w", err)
 	}
 
 	msg, err := message.Build([]invocation.Invocation{request.Cause}, []receipt.AnyReceipt{rcpt})
 	if err != nil {
+		l.Errorw("failed to build message", "error", err)
 		return fmt.Errorf("building message for receipt failed: %w", err)
 	}
 
 	uploadServiceRequest, err := service.UploadConnection().Codec().Encode(msg)
 	if err != nil {
+		l.Errorw("failed to encode upload connection", "error", err)
 		return fmt.Errorf("failed to encode message for receipt to http request: %w", err)
 	}
 
 	uploadServiceResponse, err := service.UploadConnection().Channel().Request(ctx, uploadServiceRequest)
 	if err != nil {
+		l.Errorw("failed to send upload connection", "error", err)
 		return fmt.Errorf("failed to send request for receipt: %w", err)
 	}
 	if uploadServiceResponse.Status() >= 300 || uploadServiceResponse.Status() < 200 {
 		topErr := fmt.Errorf("unsuccessful http POST to upload service")
+		l.Errorw("upload service returned unexpected response", "error", err, "status", uploadServiceResponse.Status())
 		resData, err := io.ReadAll(uploadServiceResponse.Body())
 		if err != nil {
 			return fmt.Errorf("%s failed to read replication sink response body: %w", topErr, err)

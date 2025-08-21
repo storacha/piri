@@ -38,12 +38,14 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 		server.Provide(
 			replica.Allocate,
 			func(ctx context.Context, cap ucan.Capability[replica.AllocateCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (result.Result[replica.AllocateOk, failure.IPLDBuilderFailure], fx.Effects, error) {
+				l := log.With("ability", cap.Can(), "caveats", cap.Nb(), "resource", cap.With())
 				//
 				// UCAN Validation
 				//
 
 				// only service principal can perform an allocation
 				if cap.With() != iCtx.ID().DID().String() {
+					l.Error("only service principal can perform a replica allocation")
 					return result.Error[replica.AllocateOk, failure.IPLDBuilderFailure](NewUnsupportedCapabilityError(cap)), nil, nil
 				}
 
@@ -59,6 +61,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 				}
 				claim, err := delegation.NewDelegationView(cap.Nb().Site, br)
 				if err != nil {
+					l.Errorw("creating location commitment delegation view", "error", err)
 					return nil, nil, fmt.Errorf("creating location commitment delegation view: %w", err)
 				}
 
@@ -66,10 +69,12 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 				// unsure what `With()` should be compared with for a capability.
 				lc, err := assert.LocationCaveatsReader.Read(claim.Capabilities()[0].Nb())
 				if err != nil {
+					l.Errorw("failed to read attached location claim")
 					return nil, nil, err
 				}
 
 				if len(lc.Location) < 1 {
+					l.Errorw("location claim URI missing in location commitment")
 					return nil, nil, fmt.Errorf("URI missing in location commitment")
 				}
 
@@ -82,6 +87,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 					Cause: inv.Link(),
 				})
 				if err != nil {
+					l.Errorw("failed to allocate blob for replication", "error", err)
 					return nil, nil, fmt.Errorf("allocating replica: %w", err)
 				}
 
@@ -103,13 +109,16 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 					},
 				)
 				if err != nil {
+					l.Errorw("failed to create replica transfer invocation", "error", err)
 					return nil, nil, err
 				}
 				for block, err := range inv.Blocks() {
 					if err != nil {
+						l.Errorw("iterating replicate allocate invocation blocks", "error", err)
 						return nil, nil, fmt.Errorf("iterating replica allocate invocation blocks: %w", err)
 					}
 					if err := trnsfInv.Attach(block); err != nil {
+						l.Errorw("iteration while attaching replicate allocate invocation blocks", "error", err)
 						return nil, nil, fmt.Errorf("failed to replica allocate invocation block (%s) to transfer invocation: %w", block.Link().String(), err)
 					}
 				}
@@ -132,6 +141,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 					Sink:   sink,
 					Cause:  trnsfInv,
 				}); err != nil {
+					l.Errorw("failed to enqueue replication task", "error", err)
 					return nil, nil, fmt.Errorf("failed to enqueue replication task: %w", err)
 				}
 
