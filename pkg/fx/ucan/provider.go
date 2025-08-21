@@ -61,10 +61,7 @@ func NewHandler(p Params) (*Handler, error) {
 
 // RegisterRoutes registers the UCAN routes with Echo
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
-	handler := storage.NewHandler(h.ucanServer)
-	e.POST("/", func(ctx echo.Context) error {
-		return handler(ctx)
-	})
+	e.POST("/", storage.NewHandler(h.ucanServer).ToEcho())
 }
 
 // ProvideServerView provides the UCAN ServerView for testing
