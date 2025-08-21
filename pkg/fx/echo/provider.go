@@ -37,6 +37,8 @@ func NewEcho() *echo.Echo {
 	// Add default middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	// Custom middlewares
+	e.Use(ErrorHandler(log))
 
 	return e
 }
