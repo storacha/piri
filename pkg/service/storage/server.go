@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
+
 	"github.com/storacha/piri/pkg/server/handler"
 )
 
@@ -29,8 +30,10 @@ func (srv *Server) RegisterRoutes(e *echo.Echo) {
 func NewHandler(server server.ServerView) handler.Func {
 	return func(ctx handler.Context) error {
 		r := ctx.Request()
+		log.Infow("UCAN SERVER REQUEST", "method", r.Method, "path", r.URL.Path)
 		res, err := server.Request(r.Context(), ucanhttp.NewHTTPRequest(r.Body, r.Header))
 		if err != nil {
+			log.Error("UCAN SERVER REQUEST error", "error", err.Error())
 			return fmt.Errorf("handling UCAN request: %w", err)
 		}
 
@@ -40,6 +43,7 @@ func NewHandler(server server.ServerView) handler.Func {
 			}
 		}
 
+		log.Info("UCAN SERVER STREAM RESPONSE")
 		// content type is empty as it will have been set by ucanto transport codec
 		return ctx.Stream(res.Status(), "", res.Body())
 	}
