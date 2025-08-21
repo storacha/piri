@@ -60,7 +60,7 @@ func NewHandler(p Params) (*Handler, error) {
 
 // RegisterRoutes registers the UCAN routes with Echo
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
-	e.POST("/", echo.WrapHandler(storage.NewHandler(h.ucanServer)))
+	e.POST("/", storage.NewHandler(h.ucanServer).ToEcho())
 }
 
 // AsRouteRegistrar provides the Handler as a RouteRegistrar

@@ -41,6 +41,8 @@ func NewEcho() *echo.Echo {
 	// Add default middleware
 	e.Use(pirimiddleware.RequestLogger(log))
 	e.Use(middleware.Recover())
+	// Custom middlewares
+	e.Use(ErrorHandler(log))
 
 	return e
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	sentryhttp "github.com/getsentry/sentry-go/http"
+	"github.com/labstack/echo/v4"
 	"github.com/storacha/piri/pkg/build"
 )
 
@@ -55,8 +56,11 @@ func NewErrorReportingHandler(errorReturningHandler ErrorReturningHTTPHandler) h
 		if err := errorReturningHandler(w, r); err != nil {
 			ReportError(r.Context(), err)
 
-			// if the error is an HTTPError, send an appropriate response aside from reporting it
-			if e, ok := err.(HTTPError); ok {
+			// if the error is an HTTPError or *echo.HTTPError, send an appropriate
+			// response as well as reporting it
+			if httperr, ok := err.(*echo.HTTPError); ok {
+				http.Error(w, http.StatusText(httperr.Code), httperr.Code)
+			} else if e, ok := err.(HTTPError); ok {
 				http.Error(w, e.Error(), e.StatusCode())
 			}
 		}

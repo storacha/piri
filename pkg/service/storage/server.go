@@ -2,14 +2,11 @@ package storage
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
-
-	"github.com/storacha/piri/internal/telemetry"
+	"github.com/storacha/piri/pkg/server/handler"
 )
 
 type Server struct {
@@ -26,33 +23,24 @@ func NewServer(service Service, options ...server.Option) (*Server, error) {
 }
 
 func (srv *Server) RegisterRoutes(e *echo.Echo) {
-	e.POST("/", echo.WrapHandler(NewHandler(srv.ucanServer)))
+	e.POST("/", NewHandler(srv.ucanServer).ToEcho())
 }
 
-func NewHandler(server server.ServerView) http.Handler {
-	handler := func(w http.ResponseWriter, r *http.Request) error {
+func NewHandler(server server.ServerView) handler.Func {
+	return func(ctx handler.Context) error {
+		r := ctx.Request()
 		res, err := server.Request(r.Context(), ucanhttp.NewHTTPRequest(r.Body, r.Header))
 		if err != nil {
-			return telemetry.NewHTTPError(fmt.Errorf("handling UCAN request: %w", err), http.StatusInternalServerError)
+			return fmt.Errorf("handling UCAN request: %w", err)
 		}
 
 		for key, vals := range res.Headers() {
 			for _, v := range vals {
-				w.Header().Add(key, v)
+				ctx.Response().Header().Add(key, v)
 			}
 		}
 
-		if res.Status() != 0 {
-			w.WriteHeader(res.Status())
-		}
-
-		_, err = io.Copy(w, res.Body())
-		if err != nil {
-			return fmt.Errorf("sending UCAN response: %w", err)
-		}
-
-		return nil
+		// content type is empty as it will have been set by ucanto transport codec
+		return ctx.Stream(res.Status(), "", res.Body())
 	}
-
-	return telemetry.NewErrorReportingHandler(handler)
 }
