@@ -2,8 +2,12 @@ package publisher
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/ipfs/go-datastore"
@@ -24,10 +28,13 @@ import (
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/core/result/failure"
 	"github.com/storacha/go-ucanto/core/result/ok"
+	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
+	"github.com/storacha/go-ucanto/principal/signer"
 	"github.com/storacha/go-ucanto/server"
 	"github.com/storacha/go-ucanto/ucan"
 	"github.com/storacha/piri/pkg/internal/digestutil"
+	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/service/publisher/advertisement"
 	"github.com/stretchr/testify/require"
 )
@@ -213,4 +220,50 @@ func mockIndexingService(t *testing.T, id principal.Signer, handler server.Handl
 			),
 		),
 	)(t)
+}
+
+func TestValidateClaimCacheDelegation(t *testing.T) {
+	var serviceID principal.Signer
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != principalresolver.WellKnownDIDPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		doc := principalresolver.Document{
+			Context: principalresolver.FlexibleContext{"https://w3id.org/did/v1", "https://w3id.org/security/v1"},
+			ID:      serviceID.DID().String(),
+			VerificationMethod: []principalresolver.VerificationMethod{
+				{
+					ID:                 serviceID.DID().String() + "#key1",
+					Type:               "Ed25519VerificationKey2018",
+					Controller:         serviceID.DID().String(),
+					PublicKeyMultibase: strings.TrimPrefix(testutil.Service.DID().String(), "did:key:"),
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(doc)
+	}))
+	defer server.Close()
+
+	didWeb, err := did.Parse("did:web:" + testutil.Must(url.Parse(server.URL))(t).Host)
+	require.NoError(t, err)
+
+	serviceID, err = signer.Wrap(testutil.Service, didWeb)
+	require.NoError(t, err)
+
+	dlg, err := delegation.Delegate(
+		serviceID,
+		testutil.Alice,
+		[]ucan.Capability[ucan.NoCaveats]{
+			ucan.NewCapability(claim.CacheAbility, serviceID.DID().String(), ucan.NoCaveats{}),
+		},
+	)
+	require.NoError(t, err)
+
+	proofs := []delegation.Proof{delegation.FromDelegation(dlg)}
+
+	err = validateClaimCacheDelegation(t.Context(), testutil.Alice, serviceID, proofs, principalresolver.InsecureResolution())
+	require.NoError(t, err)
 }
