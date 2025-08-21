@@ -3,33 +3,30 @@ package aggregator
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/datamodel"
-	"github.com/ipld/go-ipld-prime/schema"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/database"
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 	types2 "github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 var log = logging.Logger("pdp/aggregator")
 
-const workspaceKey = "workspace/"
-const aggregatePrefix = "aggregates/"
+const WorkspaceKey = "workspace/"
+const AggregatePrefix = "aggregates/"
 
 const (
 	LinkQueueName  = "link"
@@ -67,19 +64,26 @@ func (la *LocalAggregator) AggregatePiece(ctx context.Context, pieceLink piece.P
 	return la.pieceQueue.Enqueue(ctx, PieceAggregateTask, pieceLink)
 }
 
+func NewLocalAggregator(pieceQueue *jobqueue.JobQueue[piece.PieceLink], linkQueue *jobqueue.JobQueue[datamodel.Link]) *LocalAggregator {
+	return &LocalAggregator{
+		pieceQueue: pieceQueue,
+		linkQueue:  linkQueue,
+	}
+}
+
 // NewLocal constructs an aggregator to run directly on a machine from a local datastore
 func NewLocal(
 	ds datastore.Datastore,
 	dbPath string,
 	client types2.ProofSetAPI,
 	proofSet uint64,
-	issuer ucan.Signer,
+	issuer principal.Signer,
 	receiptStore receiptstore.ReceiptStore,
 ) (*LocalAggregator, error) {
 	aggregateStore := ipldstore.IPLDStore[datamodel.Link, aggregate.Aggregate](
-		store.SimpleStoreFromDatastore(namespace.Wrap(ds, datastore.NewKey(aggregatePrefix))),
+		store.SimpleStoreFromDatastore(namespace.Wrap(ds, datastore.NewKey(AggregatePrefix))),
 		aggregate.AggregateType(), types.Converters...)
-	inProgressWorkspace := NewInProgressWorkspace(store.SimpleStoreFromDatastore(namespace.Wrap(ds, datastore.NewKey(workspaceKey))))
+	inProgressWorkspace := NewInProgressWorkspace(store.SimpleStoreFromDatastore(namespace.Wrap(ds, datastore.NewKey(WorkspaceKey))))
 
 	db, err := sqlitedb.New(dbPath,
 		database.WithJournalMode("WAL"),
@@ -89,39 +93,19 @@ func NewLocal(
 	if err != nil {
 		return nil, fmt.Errorf("creating jobqueue database: %w", err)
 	}
-	linkQueue, err := jobqueue.New(
-		LinkQueueName,
-		db,
-		&serializer.IPLDCBOR[datamodel.Link]{
-			Typ:  &schema.TypeLink{},
-			Opts: types.Converters,
-		},
-		jobqueue.WithLogger(logging.Logger("jobqueue").With("queue", LinkQueueName)),
-		jobqueue.WithMaxRetries(50),
-		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
-	)
+	linkQueue, err := NewLinkQueue(db)
 	if err != nil {
-		return nil, fmt.Errorf("creating link job-queue: %w", err)
+		return nil, err
 	}
 
-	pieceQueue, err := jobqueue.New(
-		PieceQueueName,
-		db,
-		&serializer.IPLDCBOR[piece.PieceLink]{
-			Typ:  aggregate.PieceLinkType(),
-			Opts: types.Converters,
-		},
-		jobqueue.WithLogger(logging.Logger("jobqueue").With("queue", PieceQueueName)),
-		jobqueue.WithMaxRetries(50),
-		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
-	)
+	pieceQueue, err := NewPieceQueue(db)
 	if err != nil {
-		return nil, fmt.Errorf("creating piece_link job-queue: %w", err)
+		return nil, err
 	}
 
 	// construct queues -- somewhat frstratingly these have to be constructed backward for now
 	pieceAccepter := NewPieceAccepter(issuer, aggregateStore, receiptStore)
-	aggregationSubmitter := NewAggregateSubmitteer(proofSet, aggregateStore, client, linkQueue)
+	aggregationSubmitter := NewAggregateSubmitter(&ConfiguredProofSetProvider{ID: proofSet}, aggregateStore, client, linkQueue)
 	pieceAggregator := NewPieceAggregator(inProgressWorkspace, aggregateStore, linkQueue)
 
 	if err := linkQueue.Register(PieceAcceptTask, func(ctx context.Context, msg datamodel.Link) error {

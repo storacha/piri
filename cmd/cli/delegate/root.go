@@ -61,12 +61,12 @@ func init() {
 }
 
 func doGenerate(cmd *cobra.Command, _ []string) error {
-	cfg, err := config.Load[config.IdentityConfig]()
+	cfg, err := config.Load[config.Client]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.KeyFile)
+	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.Identity.KeyFile)
 	if err != nil {
 		return fmt.Errorf("parsing private key: %w", err)
 	}

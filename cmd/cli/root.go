@@ -21,8 +21,8 @@ import (
 	"github.com/storacha/piri/pkg/telemetry"
 )
 
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+func ExecuteContext(ctx context.Context) {
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -49,10 +49,10 @@ var (
 )
 
 func init() {
-	cobra.OnInitialize(initConfig, initTelemetry)
+	cobra.OnInitialize(initLogging, initConfig, initTelemetry)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "warn", "logging level")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "logging level")
 
 	rootCmd.PersistentFlags().String("data-dir", filepath.Join(lo.Must(os.UserHomeDir()), ".storacha"), "Storage service data directory")
 	cobra.CheckErr(viper.BindPFlag("repo.data_dir", rootCmd.PersistentFlags().Lookup("data-dir")))
@@ -84,12 +84,6 @@ func initConfig() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.SetEnvPrefix("PIRI")
 
-	if logLevel != "" {
-		ll, err := logging.LevelFromString(logLevel)
-		cobra.CheckErr(err)
-		logging.SetAllLoggers(ll)
-	}
-
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 		cobra.CheckErr(viper.ReadInConfig())
@@ -110,4 +104,35 @@ func initTelemetry() {
 	if err := telemetry.Initialize(ctx, telCfg); err != nil {
 		log.Warnf("failed to initialize telemetry: %s", err)
 	}
+}
+
+func initLogging() {
+	if logLevel != "" {
+		ll, err := logging.LevelFromString(logLevel)
+		cobra.CheckErr(err)
+		logging.SetAllLoggers(ll)
+	} else {
+		// else set all loggers to error level, then the ones we care most about to info.
+		logging.SetAllLoggers(logging.LevelError)
+		logging.SetLogLevel("pdp/service", "info")
+		logging.SetLogLevel("pdp/client", "info")
+		logging.SetLogLevel("telemetry", "info")
+		logging.SetLogLevel("publisher", "warn")
+		logging.SetLogLevel("cli/wallet", "info")
+		logging.SetLogLevel("announce", "warn")
+		logging.SetLogLevel("proof", "warn")
+		logging.SetLogLevel("pdp/aggregator", "warn")
+		logging.SetLogLevel("pdp/scheduler", "info")
+		logging.SetLogLevel("metrics", "warn")
+		logging.SetLogLevel("pdp/tasks", "info")
+		logging.SetLogLevel("pdp/api", "info")
+		logging.SetLogLevel("replicator", "info")
+		logging.SetLogLevel("storage/ucan", "info")
+		logging.SetLogLevel("pdp/server", "info")
+		logging.SetLogLevel("cmd/serve", "info")
+		logging.SetLogLevel("database", "warn")
+		logging.SetLogLevel("server", "info")
+		logging.SetLogLevel("storage", "info")
+	}
+
 }

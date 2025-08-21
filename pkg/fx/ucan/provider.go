@@ -8,6 +8,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 	"go.uber.org/fx"
 
+	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/fx/ucan/handlers"
 	"github.com/storacha/piri/pkg/service/storage"
 )
@@ -20,9 +21,7 @@ var Module = fx.Module("ucan/server",
 	fx.Provide(
 		NewHandler,
 		fx.Annotate(
-			func(h *Handler) *Handler {
-				return h
-			},
+			AsRouteRegistrar,
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 		ProvideServerView,
@@ -49,6 +48,11 @@ func NewHandler(p Params) (*Handler, error) {
 // RegisterRoutes registers the UCAN routes with Echo
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
 	e.POST("/", echo.WrapHandler(storage.NewHandler(h.ucanServer)))
+}
+
+// AsRouteRegistrar provides the Handler as a RouteRegistrar
+func AsRouteRegistrar(h *Handler) echofx.RouteRegistrar {
+	return h
 }
 
 // ProvideServerView provides the UCAN ServerView for testing

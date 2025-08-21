@@ -12,7 +12,15 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) GetProofSetStatus(ctx context.Context, txHash common.Hash) (*types.ProofSetStatus, error) {
+func (p *PDPService) GetProofSetStatus(ctx context.Context, txHash common.Hash) (res *types.ProofSetStatus, retErr error) {
+	log.Infow("getting proof set status", "tx", txHash.String())
+	defer func() {
+		if retErr != nil {
+			log.Errorw("failed to get proof set status", "tx", txHash.String(), "err", retErr)
+		} else {
+			log.Infow("got proof set status", "tx", txHash.String(), "response", res)
+		}
+	}()
 	var proofSetCreate models.PDPProofsetCreate
 	if err := p.db.WithContext(ctx).
 		Preload("MessageWait").

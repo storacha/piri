@@ -13,7 +13,7 @@ import (
 )
 
 // echoHandleCreateProofSet -> POST /pdp/proof-sets
-func (p *PDP) handleCreateProofSet(c echo.Context) error {
+func (p *PDPHandler) handleCreateProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
 	operation := "CreateProofSet"
 

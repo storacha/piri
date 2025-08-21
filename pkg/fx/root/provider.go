@@ -9,6 +9,17 @@ import (
 	"github.com/storacha/piri/pkg/server"
 )
 
+// Module provides the root handler with route registrar tag
+var Module = fx.Module("root-handler",
+	fx.Provide(
+		fx.Annotate(
+			NewRootHandler,
+			fx.As(new(echofx.RouteRegistrar)),
+			fx.ResultTags(`group:"route_registrar"`),
+		),
+	),
+)
+
 var _ echofx.RouteRegistrar = (*Handler)(nil)
 
 // Handler provides the root route handler
@@ -25,13 +36,3 @@ func NewRootHandler(id principal.Signer) *Handler {
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
 	e.GET("/", echo.WrapHandler(server.NewHandler(h.id)))
 }
-
-// Module provides the root handler with route registrar tag
-var Module = fx.Module("root-handler",
-	fx.Provide(
-		fx.Annotate(
-			NewRootHandler,
-			fx.ResultTags(`group:"route_registrar"`),
-		),
-	),
-)

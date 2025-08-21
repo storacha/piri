@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/ipld/go-ipld-prime/datamodel"
-	"github.com/storacha/go-libstoracha/capabilities/types"
+	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/fns"
-	types2 "github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -49,7 +49,7 @@ func (i *inProgressWorkSpace) PutBuffer(ctx context.Context, buffer fns.Buffer) 
 
 func NewInProgressWorkspace(store store.Store) InProgressWorkspace {
 	return &inProgressWorkSpace{
-		ipldstore.IPLDStore[bufferKey, fns.Buffer](store, fns.BufferType(), types.Converters...),
+		ipldstore.IPLDStore[bufferKey, fns.Buffer](store, fns.BufferType(), captypes.Converters...),
 	}
 }
 
@@ -114,22 +114,26 @@ func (pa *PieceAggregator) AggregatePieces(ctx context.Context, pieces []piece.P
 }
 
 type AggregateSubmitter struct {
-	proofSet uint64
-	store    AggregateStore
-	client   types2.ProofSetAPI
-	queue    LinkQueue
+	psp    ProofSetIDProvider
+	store  AggregateStore
+	client types.ProofSetAPI
+	queue  LinkQueue
 }
 
-func NewAggregateSubmitteer(proofSet uint64, store AggregateStore, client types2.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
+func NewAggregateSubmitter(psp ProofSetIDProvider, store AggregateStore, client types.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
 	return &AggregateSubmitter{
-		proofSet: proofSet,
-		store:    store,
-		client:   client,
-		queue:    queuePieceAccept,
+		psp:    psp,
+		store:  store,
+		client: client,
+		queue:  queuePieceAccept,
 	}
 }
 
 func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLinks []datamodel.Link) error {
+	proofSetID, err := as.psp.ProofSetID(ctx)
+	if err != nil {
+		return fmt.Errorf("getting proof set ID from proof set provider: %w", err)
+	}
 	log.Infow("Submit aggregates", "count", len(aggregateLinks))
 	aggregates := make([]aggregate.Aggregate, 0, len(aggregateLinks))
 	for _, aggregateLink := range aggregateLinks {
@@ -139,7 +143,7 @@ func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLin
 		}
 		aggregates = append(aggregates, aggregate)
 	}
-	if err := fns.SubmitAggregates(ctx, as.client, as.proofSet, aggregates); err != nil {
+	if err := fns.SubmitAggregates(ctx, as.client, proofSetID, aggregates); err != nil {
 		return fmt.Errorf("submitting aggregates to Curio: %w", err)
 	}
 	for _, aggregateLink := range aggregateLinks {
@@ -154,12 +158,12 @@ func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLin
 // Step 3: generate receipts for piece accept
 
 type PieceAccepter struct {
-	issuer         ucan.Signer
+	issuer         principal.Signer
 	aggregateStore AggregateStore
 	receiptStore   receiptstore.ReceiptStore
 }
 
-func NewPieceAccepter(issuer ucan.Signer, aggregateStore AggregateStore, receiptStore receiptstore.ReceiptStore) *PieceAccepter {
+func NewPieceAccepter(issuer principal.Signer, aggregateStore AggregateStore, receiptStore receiptstore.ReceiptStore) *PieceAccepter {
 	return &PieceAccepter{
 		issuer:         issuer,
 		aggregateStore: aggregateStore,
@@ -197,4 +201,12 @@ func (a *BufferingAggregator) AggregatePiece(buffer fns.Buffer, newPiece piece.P
 
 func (a *BufferingAggregator) AggregatePieces(buffer fns.Buffer, pieces []piece.PieceLink) (fns.Buffer, []aggregate.Aggregate, error) {
 	return fns.AggregatePieces(buffer, pieces)
+}
+
+type ConfiguredProofSetProvider struct {
+	ID uint64
+}
+
+func (c *ConfiguredProofSetProvider) ProofSetID(ctx context.Context) (uint64, error) {
+	return c.ID, nil
 }
