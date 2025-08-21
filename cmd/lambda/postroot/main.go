@@ -6,6 +6,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 
 	logging "github.com/ipfs/go-log/v2"
+
 	"github.com/storacha/piri/cmd/lambda"
 	"github.com/storacha/piri/internal/telemetry"
 	"github.com/storacha/piri/pkg/aws"
@@ -13,7 +14,7 @@ import (
 	"github.com/storacha/piri/pkg/service/storage"
 )
 
-var log = logging.Logger("postroot")
+var log = logging.Logger("lambda/postroot")
 
 func main() {
 	lambda.StartHTTPHandler(makeHandler)

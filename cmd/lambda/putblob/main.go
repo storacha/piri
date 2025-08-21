@@ -4,13 +4,14 @@ import (
 	"net/http"
 
 	logging "github.com/ipfs/go-log/v2"
+
 	"github.com/storacha/piri/cmd/lambda"
 	"github.com/storacha/piri/internal/telemetry"
 	"github.com/storacha/piri/pkg/aws"
 	"github.com/storacha/piri/pkg/service/blobs"
 )
 
-var log = logging.Logger("putblob")
+var log = logging.Logger("lambda/putblob")
 
 func main() {
 	lambda.StartHTTPHandler(makeHandler)

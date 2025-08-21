@@ -1,6 +1,8 @@
 package echo
 
 import (
+	"errors"
+
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
 )
@@ -12,7 +14,8 @@ func ErrorHandler(log logging.EventLogger) echo.MiddlewareFunc {
 			err := next(c)
 			if err != nil {
 				// do not log HTTP errors, since they have been "handled" already
-				if _, ok := err.(*echo.HTTPError); !ok {
+				var HTTPError *echo.HTTPError
+				if !errors.As(err, &HTTPError) {
 					log.Error(err)
 				}
 			}
