@@ -23,10 +23,7 @@ func NewServer(service Service, options ...server.Option) (*Server, error) {
 }
 
 func (srv *Server) RegisterRoutes(e *echo.Echo) {
-	handler := NewHandler(srv.ucanServer)
-	e.POST("/", func(c echo.Context) error {
-		return handler(c)
-	})
+	e.POST("/", NewHandler(srv.ucanServer).ToEcho())
 }
 
 func NewHandler(server server.ServerView) handler.Func {
