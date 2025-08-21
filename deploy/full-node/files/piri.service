@@ -1,0 +1,18 @@
+[Unit]
+Description=Piri Full Server
+After=network.target
+
+[Service]
+Type=simple
+User=piri
+Group=piri
+
+WorkingDirectory=/etc/piri
+
+ExecStart=/usr/local/bin/piri serve full --config=/etc/piri/config.toml
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
