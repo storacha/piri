@@ -140,6 +140,13 @@ func init() {
 	)
 	cobra.CheckErr(viper.BindPFlag("pdp.contract_address", FullCmd.Flags().Lookup("contract-address")))
 
+	FullCmd.Flags().String(
+		"delegator-url",
+		"",
+		"URL of the delegator service for registration",
+	)
+	cobra.CheckErr(viper.BindPFlag("ucan.delegator_url", FullCmd.Flags().Lookup("delegator-url")))
+
 }
 
 func fullServer(cmd *cobra.Command, _ []string) error {

@@ -6,7 +6,7 @@ import (
 )
 
 type IdentityConfig struct {
-	KeyFile string `mapstructure:"key_file" validate:"required" flag:"key-file"`
+	KeyFile string `mapstructure:"key_file" validate:"required" flag:"key-file" toml:"key_file"`
 }
 
 func (i IdentityConfig) Validate() error {

@@ -21,9 +21,9 @@ func (c PDPServerConfig) Validate() error {
 }
 
 type PDPServiceConfig struct {
-	OwnerAddress    string `mapstructure:"owner_address" validate:"required" flag:"owner-address"`
-	ContractAddress string `mapstructure:"contract_address" validate:"required" flag:"contract-address"`
-	LotusEndpoint   string `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint"`
+	OwnerAddress    string `mapstructure:"owner_address" validate:"required" flag:"owner-address" toml:"owner_address"`
+	ContractAddress string `mapstructure:"contract_address" validate:"required" flag:"contract-address" toml:"contract_address"`
+	LotusEndpoint   string `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
 }
 
 func (c PDPServiceConfig) Validate() error {

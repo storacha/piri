@@ -7,11 +7,11 @@ import (
 )
 
 type FullServerConfig struct {
-	Identity    IdentityConfig    `mapstructure:"identity"`
-	Repo        RepoConfig        `mapstructure:"repo"`
-	Server      ServerConfig      `mapstructure:"server"`
-	PDPService  PDPServiceConfig  `mapstructure:"pdp"`
-	UCANService UCANServiceConfig `mapstructure:"ucan"`
+	Identity    IdentityConfig    `mapstructure:"identity" toml:"identity"`
+	Repo        RepoConfig        `mapstructure:"repo" toml:"repo"`
+	Server      ServerConfig      `mapstructure:"server" toml:"server"`
+	PDPService  PDPServiceConfig  `mapstructure:"pdp" toml:"pdp"`
+	UCANService UCANServiceConfig `mapstructure:"ucan" toml:"ucan"`
 }
 
 func (f FullServerConfig) Validate() error {
