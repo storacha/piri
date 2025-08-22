@@ -46,7 +46,7 @@ func init() {
 	InitCmd.Flags().String("delegator-url", "http://localhost:8080", "URL of the delegator service")
 
 	InitCmd.Flags().String("lotus-endpoint", "", "API endpoint of your lotus node")
-	// TODO consider making this a path to the pirvate key file, then handle importing
+	// TODO consider making this a path to the private key file, then handle importing
 	InitCmd.Flags().String("owner-address", "", "Ethereum address of the owner")
 	InitCmd.Flags().String("operator-email", "", "Email address of the operator")
 	InitCmd.Flags().String("public-url", "", "Public URL of the operator's service")
@@ -57,56 +57,84 @@ func init() {
 	cobra.CheckErr(InitCmd.MarkFlagRequired("public-url"))
 }
 
-func doInit(cmd *cobra.Command, _ []string) error {
-	ctx := context.Background()
+// initFlags holds all the parsed command flags
+type initFlags struct {
+	publicURL     *url.URL
+	ownerAddress  string
+	lotusEndpoint string
+	operatorEmail string
+	delegatorURL  string
+}
 
+// parseAndValidateFlags parses command flags and validates them
+func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 	publicURL, err := cmd.Flags().GetString("public-url")
 	if err != nil {
-		return fmt.Errorf("getting public-url flag: %w", err)
+		return nil, fmt.Errorf("getting public-url flag: %w", err)
 	}
 	parsedURL, err := url.Parse(publicURL)
 	if err != nil {
-		return fmt.Errorf("parsing public-url: %w", err)
+		return nil, fmt.Errorf("parsing public-url: %w", err)
 	}
-	// TODO assert the URL has a schema
+	if parsedURL.Scheme == "" {
+		return nil, fmt.Errorf("public-url must include a scheme (http:// or https://)")
+	}
 
 	ownerAddress, err := cmd.Flags().GetString("owner-address")
 	if err != nil {
-		return fmt.Errorf("getting owner-address flag: %w", err)
+		return nil, fmt.Errorf("getting owner-address flag: %w", err)
 	}
 	if !common.IsHexAddress(ownerAddress) {
-		return fmt.Errorf("owner-address is not a valid address")
+		return nil, fmt.Errorf("owner-address is not a valid Ethereum address")
 	}
 
 	lotusEndpoint, err := cmd.Flags().GetString("lotus-endpoint")
 	if err != nil {
-		return fmt.Errorf("getting delegator-url flag: %w", err)
+		return nil, fmt.Errorf("getting lotus-endpoint flag: %w", err)
 	}
 
+	operatorEmail, err := cmd.Flags().GetString("operator-email")
+	if err != nil {
+		return nil, fmt.Errorf("getting operator-email flag: %w", err)
+	}
+
+	delegatorURL, err := cmd.Flags().GetString("delegator-url")
+	if err != nil {
+		return nil, fmt.Errorf("getting delegator-url flag: %w", err)
+	}
+
+	return &initFlags{
+		publicURL:     parsedURL,
+		ownerAddress:  ownerAddress,
+		lotusEndpoint: lotusEndpoint,
+		operatorEmail: operatorEmail,
+		delegatorURL:  delegatorURL,
+	}, nil
+}
+
+// createNode creates and starts a new Piri node
+func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPService, *appcfg.AppConfig, error) {
 	cfg := appcfg.AppConfig{
 		Identity: lo.Must(config.IdentityConfig{KeyFile: viper.GetString("identity.key_file")}.ToAppConfig()),
 		Server: appcfg.ServerConfig{
 			Host:      "localhost",
 			Port:      3000,
-			PublicURL: *parsedURL,
+			PublicURL: *flags.publicURL,
 		},
 		Storage: lo.Must(config.RepoConfig{
 			DataDir: viper.GetString("repo.data_dir"),
 			TempDir: viper.GetString("repo.temp_dir"),
 		}.ToAppConfig()),
 		PDPService: lo.Must(config.PDPServiceConfig{
-			OwnerAddress:    ownerAddress,
+			OwnerAddress:    flags.ownerAddress,
 			ContractAddress: presets.PDPRecordKeeperAddress,
-			LotusEndpoint:   lotusEndpoint,
+			LotusEndpoint:   flags.lotusEndpoint,
 		}.ToAppConfig()),
 	}
 
 	var pdpSvc *service.PDPService
 	fxApp := fx.New(
-		// if a panic occurs during operation, recover from it and exit (somewhat) gracefully.
 		fx.RecoverFromPanics(),
-		// provide fx with our logger for its events logged at debug level.
-		// any fx errors will still be logged at the error level.
 		fx.WithLogger(func() fxevent.Logger {
 			el := &fxevent.ZapLogger{Logger: log.Desugar()}
 			el.UseLogLevel(zapcore.DebugLevel)
@@ -114,76 +142,70 @@ func doInit(cmd *cobra.Command, _ []string) error {
 		}),
 		app.CommonModules(cfg),
 		app.PDPModule,
-		// need this api, might be better in common
 		root.Module,
-
-		// pull out the pdp service we need to make a proof set
 		fx.Populate(&pdpSvc),
 	)
 
-	// ensure the application was initialized correctly
 	if err := fxApp.Err(); err != nil {
-		return fmt.Errorf("initalizing piri: %w", err)
+		return nil, nil, nil, fmt.Errorf("initializing piri node: %w", err)
 	}
 
-	// start the application, triggering lifecycle hooks to start various services and systems
 	if err := fxApp.Start(ctx); err != nil {
-		return fmt.Errorf("starting piri: %w", err)
+		return nil, nil, nil, fmt.Errorf("starting piri node: %w", err)
 	}
 
+	return fxApp, pdpSvc, &cfg, nil
+}
+
+// setupProofSet creates or finds an existing proof set
+func setupProofSet(ctx context.Context, cmd *cobra.Command, pdpSvc *service.PDPService, contractAddress common.Address) (uint64, error) {
 	proofSets, err := pdpSvc.ListProofSets(ctx)
 	if err != nil {
-		return fmt.Errorf("listing proof sets: %w", err)
+		return 0, fmt.Errorf("listing proof sets: %w", err)
 	}
-	// TODO consider relaxing this, in the event creating a proofset works, but registration fails
+
 	if len(proofSets) > 1 {
-		return fmt.Errorf("multipule proof sets exist, cannot registet: %v", proofSets)
+		return 0, fmt.Errorf("multiple proof sets exist, cannot register: %v", proofSets)
 	}
-	proofSetID := uint64(0)
+
 	if len(proofSets) == 1 {
-		proofSetID = proofSets[0].ID
-	} else {
-		// now we are pretty sure there isn't a proof set, let's make one
-		tx, err := pdpSvc.CreateProofSet(ctx, cfg.PDPService.ContractAddress)
+		cmd.Printf("✅ Using existing proof set ID: %d\n", proofSets[0].ID)
+		return proofSets[0].ID, nil
+	}
+
+	// Create new proof set
+	cmd.Println("📝 Creating new proof set...")
+	tx, err := pdpSvc.CreateProofSet(ctx, contractAddress)
+	if err != nil {
+		return 0, fmt.Errorf("creating proof set: %w", err)
+	}
+
+	cmd.Println("⏳ Waiting for proof set creation to be confirmed on-chain...")
+	for {
+		time.Sleep(5 * time.Second)
+		status, err := pdpSvc.GetProofSetStatus(ctx, tx)
 		if err != nil {
-			return fmt.Errorf("creating proof set: %w", err)
+			return 0, fmt.Errorf("getting proof set status: %w", err)
 		}
-
-		// wait for it to be created
-		done := false
-		for !done {
-			time.Sleep(5 * time.Second)
-			status, err := pdpSvc.GetProofSetStatus(ctx, tx)
-			if err != nil {
-				return fmt.Errorf("getting proof set status: %w", err)
-			}
-			cmd.Println("Proof Set Status: " + status.TxStatus)
-			if status.ID > 0 {
-				done = true
-				proofSetID = status.ID
-			}
+		cmd.Printf("   Transaction status: %s\n", status.TxStatus)
+		if status.ID > 0 {
+			cmd.Printf("✅ Proof set created with ID: %d\n", status.ID)
+			return status.ID, nil
 		}
 	}
-	delegatorURL, err := cmd.Flags().GetString("delegator-url")
+}
+
+// registerWithDelegator handles registration with the delegator service
+func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.AppConfig, flags *initFlags, proofSetID uint64) (string, error) {
+	c, err := delgclient.New(flags.delegatorURL)
 	if err != nil {
-		return fmt.Errorf("getting delegator-url flag: %w", err)
+		return "", fmt.Errorf("creating delegator client: %w", err)
 	}
 
-	c, err := delgclient.New(delegatorURL)
-	if err != nil {
-		return fmt.Errorf("creating delegator client: %w", err)
-	}
-
-	operatorEmail, err := cmd.Flags().GetString("operator-email")
-	if err != nil {
-		return fmt.Errorf("getting operator-email flag: %w", err)
-	}
-
-	// generate a proof for upload service
-
+	// Generate delegation proof for upload service
 	d, err := delegate.MakeDelegation(
-		cfg.Identity.Signer,      // issuer is this node operator
-		presets.UploadServiceDID, // audience is the upload service
+		cfg.Identity.Signer,
+		presets.UploadServiceDID,
 		[]string{
 			blob.AllocateAbility,
 			blob.AcceptAbility,
@@ -193,43 +215,52 @@ func doInit(cmd *cobra.Command, _ []string) error {
 		delegation.WithNoExpiration(),
 	)
 	if err != nil {
-		return fmt.Errorf("creating delegation: %w", err)
+		return "", fmt.Errorf("creating delegation: %w", err)
 	}
 
 	nodeProof, err := delegate.FormatDelegation(d.Archive())
 	if err != nil {
-		return fmt.Errorf("formatting delegation as multibase-base64-encoded CIDv1: %w", err)
+		return "", fmt.Errorf("formatting delegation: %w", err)
 	}
+
 	req := &delgclient.RegisterRequest{
 		DID:           cfg.Identity.Signer.DID().String(),
-		OwnerAddress:  ownerAddress,
+		OwnerAddress:  flags.ownerAddress,
 		ProofSetID:    proofSetID,
-		OperatorEmail: operatorEmail,
-		PublicURL:     parsedURL.String(),
+		OperatorEmail: flags.operatorEmail,
+		PublicURL:     flags.publicURL.String(),
 		Proof:         nodeProof,
 	}
 
 	registered, err := c.IsRegistered(ctx, &delgclient.IsRegisteredRequest{DID: cfg.Identity.Signer.DID().String()})
 	if err != nil {
-		return fmt.Errorf("isRegistered: %w", err)
+		return "", fmt.Errorf("checking registration status: %w", err)
 	}
+
 	if !registered {
 		err = c.Register(ctx, req)
 		if err != nil {
-			return fmt.Errorf("registering with delegator: %w", err)
+			return "", fmt.Errorf("registering with delegator: %w", err)
 		}
-		cmd.Println("Successfully registered with delegator service")
+		cmd.Println("✅ Successfully registered with delegator service")
+	} else {
+		cmd.Println("✅ Node already registered with delegator service")
 	}
 
+	// Request proof from delegator
+	cmd.Println("📥 Requesting proof from delegator service...")
 	delegatorProof, err := c.RequestProof(ctx, cfg.Identity.Signer.DID().String())
 	if err != nil {
-		return fmt.Errorf("getting delegator proof set: %w", err)
+		return "", fmt.Errorf("requesting delegator proof: %w", err)
 	}
+	cmd.Println("✅ Received delegator proof")
 
-	cmd.Println(delegatorProof.Proof)
+	return delegatorProof.Proof, nil
+}
 
-	// we have created our proofset and registered with the delegator, time to make a config for the user
-	userConfig := config.FullServerConfig{
+// generateConfig generates the final configuration for the user
+func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, proofSetID uint64, delegatorProof string) (config.FullServerConfig, error) {
+	return config.FullServerConfig{
 		Identity: config.IdentityConfig{KeyFile: viper.GetString("identity.key_file")},
 		Repo: config.RepoConfig{
 			DataDir: cfg.Storage.DataDir,
@@ -238,27 +269,80 @@ func doInit(cmd *cobra.Command, _ []string) error {
 		Server: config.ServerConfig{
 			Port:      cfg.Server.Port,
 			Host:      cfg.Server.Host,
-			PublicURL: parsedURL.String(),
+			PublicURL: flags.publicURL.String(),
 		},
 		PDPService: config.PDPServiceConfig{
-			OwnerAddress:    ownerAddress,
+			OwnerAddress:    flags.ownerAddress,
 			ContractAddress: presets.PDPRecordKeeperAddress,
-			LotusEndpoint:   lotusEndpoint,
+			LotusEndpoint:   flags.lotusEndpoint,
 		},
 		UCANService: config.UCANServiceConfig{
 			Services: config.ServicesConfig{
 				Indexer: config.IndexingServiceConfig{
-					Proof: delegatorProof.Proof,
+					Proof: delegatorProof,
 				},
 			},
 			ProofSetID: proofSetID,
 		},
+	}, nil
+}
+
+func doInit(cmd *cobra.Command, _ []string) error {
+	logging.SetAllLoggers(logging.LevelError)
+	ctx := context.Background()
+
+	cmd.Println("🚀 Initializing your Piri node in the Storacha network...")
+	cmd.Println()
+
+	// Step 1: Parse and validate flags
+	cmd.Println("[1/5] Validating configuration...")
+	flags, err := parseAndValidateFlags(cmd)
+	if err != nil {
+		return err
 	}
+	cmd.Println("✅ Configuration validated")
+	cmd.Println()
+
+	// Step 2: Create and start node
+	cmd.Println("[2/5] Creating Piri node...")
+	fxApp, pdpSvc, cfg, err := createNode(ctx, flags)
+	if err != nil {
+		return err
+	}
+	defer fxApp.Stop(ctx)
+	cmd.Printf("✅ Node created with DID: %s\n", cfg.Identity.Signer.DID().String())
+	cmd.Println()
+
+	// Step 3: Create or find proof set
+	cmd.Println("[3/5] Setting up proof set...")
+	proofSetID, err := setupProofSet(ctx, cmd, pdpSvc, cfg.PDPService.ContractAddress)
+	if err != nil {
+		return err
+	}
+	cmd.Println()
+
+	// Step 4: Register with delegator service
+	cmd.Println("[4/5] Registering with delegator service...")
+	delegatorProof, err := registerWithDelegator(ctx, cmd, cfg, flags, proofSetID)
+	if err != nil {
+		return err
+	}
+	cmd.Println()
+
+	// Step 5: Generate configuration
+	cmd.Println("[5/5] Generating configuration file...")
+	userConfig, err := generateConfig(cfg, flags, proofSetID, delegatorProof)
+	if err != nil {
+		return err
+	}
+
 	cfgData, err := toml.Marshal(userConfig)
 	if err != nil {
-		return fmt.Errorf("failed to marshal user config: %w", err)
+		return fmt.Errorf("marshaling configuration: %w", err)
 	}
-	cmd.Println(string(cfgData))
-	// we can kill the server safely now, maybe could do this earlier even.
-	return fxApp.Stop(ctx)
+
+	cmd.Println("\n🎉 Initialization complete! Your configuration:")
+	cmd.Println("\n" + string(cfgData))
+
+	return nil
 }
