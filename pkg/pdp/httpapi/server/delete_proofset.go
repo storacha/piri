@@ -12,7 +12,7 @@ import (
 // echoHandleDeleteProofSet -> DELETE /pdp/proof-sets/:proofSetID
 func (p *PDPHandler) handleDeleteProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
-	
+
 	// Extract parameters from the URL
 	proofSetIDStr := c.Param("proofSetID")
 	if proofSetIDStr == "" {
@@ -24,11 +24,14 @@ func (p *PDPHandler) handleDeleteProofSet(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "invalid proofSetID")
 	}
 
+	// TODO: Add authorization check - only proof set owner should be able to delete
+	// This will be implemented when JWT authentication is added (see issue #96)
+
 	// Call the service to delete the proof set
 	txHash, err := p.Service.DeleteProofSet(ctx, proofSetID)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "failed to delete proof set")
 	}
-	
+
 	return c.JSON(http.StatusOK, httpapi.DeleteProofSetResponse{TxHash: txHash.String()})
 }
