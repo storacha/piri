@@ -84,6 +84,7 @@ type ProofSetAPI interface {
 	GetProofSet(ctx context.Context, proofSetID uint64) (*ProofSet, error)
 	AddRoots(ctx context.Context, proofSetID uint64, roots []RootAdd) (common.Hash, error)
 	RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (common.Hash, error)
+	DeleteProofSet(ctx context.Context, proofSetID uint64) (common.Hash, error)
 }
 
 type PieceAPI interface {
