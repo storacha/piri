@@ -63,6 +63,13 @@ func (p *PDPService) DeleteProofSet(ctx context.Context, proofSetID uint64) (res
 			TxStatus:     "pending",
 		}
 		tx.WithContext(ctx).Create(&m)
+
+		// Insert into pdp_proofset_deletes
+		proofsetDelete := models.PDPProofsetDelete{
+			DeleteMessageHash: txHash.String(),
+			Service:           p.name,
+		}
+		tx.WithContext(ctx).Create(&proofsetDelete)
 		return nil
 	}); err != nil {
 		return common.Hash{}, fmt.Errorf("scheduling delete proof set %d: %w", proofSetID, err)

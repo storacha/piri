@@ -146,6 +146,10 @@ func SetupPDPService(
 		return nil, fmt.Errorf("creating watcher root add: %w", err)
 	}
 
+	if err := tasks.NewWatcherDeleteProofSet(db, ethClient, contractClient, chainScheduler); err != nil {
+		return nil, fmt.Errorf("creating watcher delete proof set: %w", err)
+	}
+
 	pdpStorePieceTask := tasks.NewStorePieceTask(db, bs)
 	t = append(t, pdpStorePieceTask)
 

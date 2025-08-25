@@ -239,6 +239,23 @@ func (PDPProofsetCreate) TableName() string {
 	return "pdp_proofset_creates"
 }
 
+// pdp_proofset_deletes
+type PDPProofsetDelete struct {
+	DeleteMessageHash string           `gorm:"primaryKey"` // references message_waits_eth(signed_tx_hash)
+	MessageWait       *MessageWaitsEth `gorm:"foreignKey:DeleteMessageHash;references:SignedTxHash;constraint:OnDelete:CASCADE"`
+
+	Ok              *bool  // NULL / TRUE / FALSE
+	ProofsetDeleted bool   `gorm:"default:false;not null"`
+	Service         string `gorm:"not null"` // references pdp_services(service_label)
+	//ServiceModel    *PDPService `gorm:"foreignKey:Service;references:ServiceLabel;constraint:OnDelete:CASCADE"`
+
+	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP;not null"`
+}
+
+func (PDPProofsetDelete) TableName() string {
+	return "pdp_proofset_deletes"
+}
+
 // pdp_proofset_roots (composite PK)
 type PDPProofsetRoot struct {
 	ProofsetID int64        `gorm:"primaryKey"`                                                      // references pdp_proof_sets(id)
