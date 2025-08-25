@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -22,6 +23,19 @@ func (p *PDPService) DeleteProofSet(ctx context.Context, proofSetID uint64) (res
 			log.Infow("deleted proof set", "proofSetID", proofSetID, "response", res)
 		}
 	}()
+
+	// Check if proof set exists and belongs to this service
+	var proofSet models.PDPProofSet
+	if err := p.db.WithContext(ctx).First(&proofSet, proofSetID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return common.Hash{}, fmt.Errorf("proof set %d not found", proofSetID)
+		}
+		return common.Hash{}, fmt.Errorf("failed to retrieve proof set: %w", err)
+	}
+
+	if proofSet.Service != p.name {
+		return common.Hash{}, fmt.Errorf("not authorized to delete proof set %d", proofSetID)
+	}
 
 	// Get the ABI and pack the transaction data
 	abiData, err := contract.PDPVerifierMetaData()
