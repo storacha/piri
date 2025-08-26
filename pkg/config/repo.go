@@ -9,8 +9,8 @@ import (
 )
 
 type RepoConfig struct {
-	DataDir string `mapstructure:"data_dir" validate:"required" flag:"data-dir"`
-	TempDir string `mapstructure:"temp_dir" validate:"required" flag:"temp-dir"`
+	DataDir string `mapstructure:"data_dir" validate:"required" flag:"data-dir" toml:"data_dir"`
+	TempDir string `mapstructure:"temp_dir" validate:"required" flag:"temp-dir" toml:"temp_dir"`
 }
 
 func (r RepoConfig) Validate() error {

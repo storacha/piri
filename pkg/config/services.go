@@ -15,11 +15,11 @@ import (
 )
 
 type ServicesConfig struct {
-	ServicePrincipalMapping map[string]string `mapstructure:"principal_mapping" flag:"service-principal-mapping"`
+	ServicePrincipalMapping map[string]string `mapstructure:"principal_mapping" flag:"service-principal-mapping" toml:"principal_mapping,omitempty"`
 
-	Indexer   IndexingServiceConfig  `mapstructure:"indexer" validate:"required"`
-	Upload    UploadServiceConfig    `mapstructure:"upload" validate:"required"`
-	Publisher PublisherServiceConfig `mapstructure:"publisher" validate:"required"`
+	Indexer   IndexingServiceConfig  `mapstructure:"indexer" validate:"required" toml:"indexer,omitempty"`
+	Upload    UploadServiceConfig    `mapstructure:"upload" validate:"required" toml:"upload,omitempty"`
+	Publisher PublisherServiceConfig `mapstructure:"publisher" validate:"required" toml:"publisher,omitempty"`
 }
 
 func (s ServicesConfig) Validate() error {
@@ -56,9 +56,9 @@ func (s ServicesConfig) ToAppConfig(publicURL url.URL) (app.ExternalServicesConf
 }
 
 type IndexingServiceConfig struct {
-	DID   string `mapstructure:"did" validate:"required" flag:"indexing-service-did"`
-	URL   string `mapstructure:"url" validate:"required,url" flag:"indexing-service-url"`
-	Proof string `mapstructure:"proof" flag:"indexing-service-proof"`
+	DID   string `mapstructure:"did" validate:"required" flag:"indexing-service-did" toml:"did,omitempty"`
+	URL   string `mapstructure:"url" validate:"required,url" flag:"indexing-service-url" toml:"url,omitempty"`
+	Proof string `mapstructure:"proof" flag:"indexing-service-proof" toml:"proof,omitempty"`
 }
 
 func (s *IndexingServiceConfig) Validate() error {
@@ -102,8 +102,8 @@ func (s *IndexingServiceConfig) ToAppConfig() (app.IndexingServiceConfig, error)
 }
 
 type UploadServiceConfig struct {
-	DID string `mapstructure:"did" validate:"required" flag:"upload-service-did"`
-	URL string `mapstructure:"url" validate:"required,url" flag:"upload-service-url"`
+	DID string `mapstructure:"did" validate:"required" flag:"upload-service-did" toml:"did,omitempty"`
+	URL string `mapstructure:"url" validate:"required,url" flag:"upload-service-url" toml:"url,omitempty"`
 }
 
 func (s *UploadServiceConfig) Validate() error {
@@ -130,7 +130,7 @@ func (s *UploadServiceConfig) ToAppConfig() (app.UploadServiceConfig, error) {
 }
 
 type PublisherServiceConfig struct {
-	AnnounceURLs []string `mapstructure:"ipni_announce_urls" validate:"required,min=1,dive,url" flag:"ipni-announce-urls"`
+	AnnounceURLs []string `mapstructure:"ipni_announce_urls" validate:"required,min=1,dive,url" flag:"ipni-announce-urls" toml:"ipni_announce_urls,omitempty"`
 }
 
 func (s *PublisherServiceConfig) Validate() error {
