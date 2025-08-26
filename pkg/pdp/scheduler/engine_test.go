@@ -119,7 +119,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 
 	// Create the Task table
-	err = db.AutoMigrate(&models.Task{}, &models.TaskImpl{}, &models.TaskFollow{}, &models.TaskHistory{})
+	err = db.AutoMigrate(&models.Task{}, &models.TaskHistory{})
 	require.NoError(t, err)
 
 	return db
