@@ -19,8 +19,8 @@ func (u UCANServerConfig) Validate() error {
 }
 
 type UCANServiceConfig struct {
-	Services   ServicesConfig `mapstructure:"services"`
-	ProofSetID uint64         `mapstructure:"proof_set" flag:"proof-set"`
+	Services   ServicesConfig `mapstructure:"services" toml:"services"`
+	ProofSetID uint64         `mapstructure:"proof_set" flag:"proof-set" toml:"proof_set"`
 }
 
 func (s UCANServiceConfig) Validate() error {
