@@ -59,7 +59,7 @@ var (
 
 // SetupMetrics sets up OpenTelemetry metrics and the Prometheus exporter.
 // If setup fails, the process logs and exits.
-func SetupMetrics(ctx context.Context) *prometheus.Exporter {
+func SetupMetrics() *prometheus.Exporter {
 	exporter, err := prometheus.New()
 	if err != nil {
 		log.Fatal(err)

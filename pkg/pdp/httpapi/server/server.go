@@ -11,6 +11,7 @@ import (
 	echomiddleware "github.com/labstack/echo/v4/middleware"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 var logger = logging.Logger("pdp/server")
@@ -20,6 +21,9 @@ type Server struct {
 }
 
 func NewServer(p *PDP) *Server {
+	// initialize metrics instrumentation
+	telemetry.SetupMetrics()
+
 	e := echo.New()
 	// don't print echo stuff when we start, our logs cover this.
 	e.HideBanner = true
@@ -27,6 +31,8 @@ func NewServer(p *PDP) *Server {
 
 	// handle panics
 	e.Use(echomiddleware.Recover())
+	// record metrics
+	e.Use(middleware.HTTPMetricsMiddleware())
 	// log requests with our logging system
 	e.Use(middleware.LogMiddleware(logger))
 

@@ -5,6 +5,7 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/storacha/piri/pkg/pdp/service"
 )
@@ -43,6 +44,9 @@ func RegisterEchoRoutes(e *echo.Echo, p *PDP) {
 
 	// retrival
 	e.GET(path.Join(PiecePrefix, ":cid"), p.handleDownloadByPieceCid)
+
+	// register metrics route
+	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 }
 
 type PDP struct {
