@@ -72,7 +72,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 
 	// HTTP metrics
 	HTTPRequestDuration, err = meter.Float64Histogram(
-		"http.server.duration.seconds",
+		"http.server.duration",
 		metric.WithDescription("Duration of HTTP requests in seconds, by endpoint, method, and status"),
 	)
 	if err != nil {
@@ -80,7 +80,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	HTTPRequestsTotal, err = meter.Int64Counter(
-		"http.server.requests.count",
+		"http.server.requests",
 		metric.WithDescription("Total number of HTTP requests, by endpoint, method, and status"),
 	)
 	if err != nil {
@@ -88,7 +88,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	HTTPRequestSize, err = meter.Float64Histogram(
-		"http.server.request.size.bytes",
+		"http.server.request.size",
 		metric.WithDescription("Size of HTTP request bodies in bytes"),
 	)
 	if err != nil {
@@ -96,7 +96,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	HTTPResponseSize, err = meter.Float64Histogram(
-		"http.server.response.size.bytes",
+		"http.server.response.size",
 		metric.WithDescription("Size of HTTP response bodies in bytes"),
 	)
 	if err != nil {
@@ -105,7 +105,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 
 	// Task metrics
 	TaskExecutionDuration, err = meter.Float64Histogram(
-		"task.execution.duration.seconds",
+		"task.execution.duration",
 		metric.WithDescription("Task execution time in seconds by task_name and status"),
 	)
 	if err != nil {
@@ -113,7 +113,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	TasksTotal, err = meter.Int64Counter(
-		"task.execution.count",
+		"task.execution",
 		metric.WithDescription("Total number of tasks executed by task_name and status"),
 	)
 	if err != nil {
@@ -121,7 +121,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	TaskQueueDepth, err = meter.Int64UpDownCounter(
-		"task.queue.depth.count",
+		"task.queue.depth",
 		metric.WithDescription("Current task queue depth by queue_name"),
 	)
 	if err != nil {
@@ -129,7 +129,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	TaskRetriesTotal, err = meter.Int64Counter(
-		"task.retries.count",
+		"task.retries",
 		metric.WithDescription("Total number of task retries attempted"),
 	)
 	if err != nil {
@@ -138,7 +138,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 
 	// PDP metrics
 	ProofsSubmitted, err = meter.Int64Counter(
-		"pdp.proofs.submitted.count",
+		"pdp.proofs.submitted",
 		metric.WithDescription("Total successful proof submissions"),
 	)
 	if err != nil {
@@ -146,7 +146,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	ProofsFailed, err = meter.Int64Counter(
-		"pdp.proofs.failed.count",
+		"pdp.proofs.failed",
 		metric.WithDescription("Total failed proof submissions by reason"),
 	)
 	if err != nil {
@@ -161,7 +161,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	NextProofDeadline, err = meter.Float64Gauge(
-		"pdp.proofs.deadline.seconds",
+		"pdp.proofs.deadline",
 		metric.WithDescription("Time until next proof deadline in seconds"),
 	)
 	if err != nil {
@@ -169,7 +169,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	ChallengeWindowDuration, err = meter.Float64Gauge(
-		"pdp.challenge.window.duration.seconds",
+		"pdp.challenge.window.duration",
 		metric.WithDescription("Challenge window duration in seconds"),
 	)
 	if err != nil {
@@ -177,7 +177,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	RootsTotal, err = meter.Int64Gauge(
-		"pdp.roots.count",
+		"pdp.roots",
 		metric.WithDescription("Total number of roots across all proof sets"),
 	)
 	if err != nil {
@@ -185,7 +185,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	PDPDataSize, err = meter.Int64Gauge(
-		"pdp.data.size.bytes",
+		"pdp.data.size",
 		metric.WithDescription("Total data size being proven in bytes"),
 	)
 	if err != nil {
@@ -194,7 +194,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 
 	// Storage metrics
 	StorageUsed, err = meter.Int64Gauge(
-		"storage.used.bytes",
+		"storage.used",
 		metric.WithDescription("Total storage used by type (blob, stash) in bytes"),
 	)
 	if err != nil {
@@ -202,7 +202,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	PiecesStored, err = meter.Int64Gauge(
-		"storage.pieces.count",
+		"storage.pieces",
 		metric.WithDescription("Total number of pieces stored"),
 	)
 	if err != nil {
@@ -210,7 +210,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	StashFilesCount, err = meter.Int64Gauge(
-		"storage.stash.files.count",
+		"storage.stash.files",
 		metric.WithDescription("Total number of stash files stored"),
 	)
 	if err != nil {
@@ -218,7 +218,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	StorageOperationsTotal, err = meter.Int64Counter(
-		"storage.operations.count",
+		"storage.operations",
 		metric.WithDescription("Total storage operations by type and status"),
 	)
 	if err != nil {
@@ -226,7 +226,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	StorageOperationDuration, err = meter.Float64Histogram(
-		"storage.operation.duration.seconds",
+		"storage.operation.duration",
 		metric.WithDescription("Latency of storage operations in seconds"),
 	)
 	if err != nil {
@@ -235,7 +235,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 
 	// Aggregation metrics
 	AggregatesCreated, err = meter.Int64Counter(
-		"aggregation.created.count",
+		"aggregation.created",
 		metric.WithDescription("Total number of aggregates created"),
 	)
 	if err != nil {
@@ -243,7 +243,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	AggregateSize, err = meter.Int64Histogram(
-		"aggregation.size.bytes",
+		"aggregation.size",
 		metric.WithDescription("Size distribution of aggregates in bytes"),
 	)
 	if err != nil {
@@ -251,7 +251,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	AggregationDuration, err = meter.Float64Histogram(
-		"aggregation.duration.seconds",
+		"aggregation.duration",
 		metric.WithDescription("Time taken to create aggregates in seconds"),
 	)
 	if err != nil {
@@ -259,7 +259,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	AggregationPiecesQueued, err = meter.Int64UpDownCounter(
-		"aggregation.pieces.queued.count",
+		"aggregation.pieces.queued",
 		metric.WithDescription("Number of pieces waiting for aggregation"),
 	)
 	if err != nil {
@@ -268,7 +268,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 
 	// Ethereum metrics
 	EthTransactionsTotal, err = meter.Int64Counter(
-		"eth.transactions.count",
+		"eth.transactions",
 		metric.WithDescription("Total Ethereum transactions by type and status"),
 	)
 	if err != nil {
@@ -276,7 +276,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	EthTransactionGasUsed, err = meter.Float64Histogram(
-		"eth.transaction.gas.used",
+		"eth.transaction.gas",
 		metric.WithDescription("Gas used per Ethereum transaction"),
 	)
 	if err != nil {
@@ -284,7 +284,7 @@ func SetupMetrics(ctx context.Context) *prometheus.Exporter {
 	}
 
 	EthTransactionConfirmationTime, err = meter.Float64Histogram(
-		"eth.transaction.confirmation.time.seconds",
+		"eth.transaction.confirmation.time",
 		metric.WithDescription("Time taken for Ethereum transactions to confirm"),
 	)
 	if err != nil {
