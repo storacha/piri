@@ -1,15 +1,15 @@
 # Getting Started with Piri
 
-This comprehensive guide walks you through setting up a Piri node from scratch. Follow each section in order to ensure a successful deployment.
+This guide shows you how to set up a Piri node from the beginning. Follow each step in order for the best results.
 
 ## Overview
 
-Setting up Piri involves:
-1. Preparing your system and network
-2. Installing Piri
-3. Generating cryptographic keys and wallet
-4. Initializing your node with the Storacha network
-5. Running the unified Piri server
+To set up Piri, you need to:
+1. Prepare your system and network
+2. Install Piri
+3. Create your keys and wallet
+4. Set up your node with the Storacha network
+5. Run the Piri server
 
 ## Complete Setup Guide
 
@@ -20,30 +20,30 @@ Set up your system, network, and Filecoin node
 Download and install the Piri binary
 
 ### Step 3: [Generate Keys](./setup/key-generation.md)
-Create your cryptographic identity and wallet
+Create your identity key and wallet
 
 ### Step 4: [Configure TLS](./setup/tls-termination.md)
-Set up HTTPS for your domain
+Set up secure connections (HTTPS) for your domain
 
 ### Step 5: [Setup Piri Node](./guides/piri-server.md)
-Initialize and run your Piri node
+Set up and run your Piri node
 
 ### Step 6: [Validate](./setup/validation.md)
-Test your complete deployment
+Test that everything works
 
 ## Maintenance
 
 ### [Upgrading Piri](./setup/upgrading.md)
-Keep your Piri installation up to date with the latest releases
+Keep your Piri up to date with new versions
 
 ## Additional Resources
 
 ### [Configuration Reference](./setup/configuration.md)
-Complete guide to Piri configuration options
+Learn about Piri configuration options
 
 ### [Telemetry and Analytics](./telemetry.md)
-Learn about the metrics Piri collects and how to opt out
+Learn what data Piri collects and how to turn it off
 
 ---
 
-By the end of this guide, you'll have a fully operational Piri deployment ready to serve the Storacha network.
+After following this guide, you will have Piri running and ready to work with the Storacha network.
