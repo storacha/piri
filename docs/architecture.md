@@ -4,26 +4,27 @@ This document explains the architecture of the Piri storage system and how its c
 
 ## System Components
 
-### 1. PDP (Proof of Data Possession) Server
+### Single-Process Architecture
 
-The PDP server is responsible for:
+Piri now runs as a unified single process (`piri serve full`) that combines both UCAN and PDP functionality:
+
+#### UCAN Module
+The UCAN module within Piri is responsible for:
+- **Client Interface**: Accepts data uploads from Storacha network clients
+- **Authentication**: Handles delegated authorization via UCAN tokens
+- **Aggregation**: Aggregates data uploads into appropriately sized pieces for storage operations
+- **Delegation Management**: Manages authorization delegations from the Storacha network
+
+#### PDP Module  
+The PDP module within Piri is responsible for:
 - **Data Storage**: Stores actual data pieces submitted by clients
 - **Proof Generation**: Generates cryptographic proofs that demonstrate possession of stored data
 - **Contract Interaction**: Interacts with on-chain smart contracts to submit proofs
 - **Piece Management**: Manages the lifecycle of stored pieces
 
-**Implementations:**
-- **Piri PDP Server**: This project's implementation
-- **Curio**: Filecoin's implementation (formerly Lotus-Miner)
-
-### 2. UCAN (User Controlled Authorization Network) Server
-
-The UCAN server is responsible for:
-- **Client Interface**: Accepts data uploads from Storacha network clients
-- **Authentication**: Handles delegated authorization via UCAN tokens
-- **Aggregation**: Aggregates data uploads into appropriately sized pieces for PDP operations
-- **Data Routing**: Routes pieces to the configured PDP backend
-- **Delegation Management**: Manages authorization delegations from the Storacha network
+**Alternative PDP Implementations:**
+- **Piri (Integrated)**: Default integrated PDP module
+- **Curio**: External Filecoin implementation (formerly Lotus-Miner) - can be used as external PDP backend
 
 ### 3. Key Relationships
 
@@ -33,9 +34,28 @@ The UCAN server is responsible for:
 └────────┬─────────┘
          │ HTTPS + UCAN Auth
          ▼
+┌─────────────────────────────────┐
+│        Piri Full Node           │
+│  ┌─────────────┬─────────────┐  │
+│  │ UCAN Module │ PDP Module  │  │
+│  └─────────────┴──────┬──────┘  │
+└───────────────────────┼─────────┘
+                        │
+                        ▼
+              ┌──────────────────┐
+              │ Filecoin Network │
+              │  (PDP Contract)  │
+              └──────────────────┘
+
+Alternative with External PDP:
+┌──────────────────┐
+│ Storacha Network │
+└────────┬─────────┘
+         │ HTTPS + UCAN Auth
+         ▼
 ┌─────────────────┐      ┌──────────────────┐
-│  UCAN Server    │─────▶│   PDP Server     │
-│   (Piri)        │ API  │ (Piri or Curio)  │
+│  Piri Full Node │─────▶│ External PDP     │
+│  (UCAN Only)    │ API  │    (Curio)       │
 └─────────────────┘      └─────────┬────────┘
                                    │
                                    ▼
@@ -53,28 +73,30 @@ The UCAN server is responsible for:
 sequenceDiagram
     participant Client
     participant UploadService as Upload Service
-    participant UCANServer as UCAN Server
-    participant PDPServer as PDP Server
+    participant Piri as Piri Full Node
     participant IndexingService as Indexing Service
     participant Filecoin as Filecoin Network
 
     Client->>UploadService: Upload data
-    UploadService->>UCANServer: Request blob/allocate
-    UCANServer->>PDPServer: Request to allocate blob
-    PDPServer-->>UCANServer: Return URL with UUID
-    UCANServer-->>UploadService: Provide URL
+    UploadService->>Piri: Request blob/allocate
+    Note over Piri: UCAN module processes request
+    Note over Piri: PDP module allocates storage
+    Piri-->>UploadService: Return URL with UUID
     UploadService-->>Client: Provide URL
     
-    Client->>PDPServer: PUT data to URL
+    Client->>Piri: PUT data to URL
+    Note over Piri: PDP module stores data
     
     Client->>UploadService: Send blob/accept
-    UploadService->>UCANServer: Forward blob/accept
-    UCANServer->>PDPServer: Tell to accept blob
-    UCANServer->>IndexingService: Write LocationCommitment
+    UploadService->>Piri: Forward blob/accept
+    Note over Piri: UCAN module validates
+    Note over Piri: PDP module accepts blob
+    Piri->>IndexingService: Write LocationCommitment
     
     loop Every proving period
-        PDPServer->>Filecoin: Submit proof
-        Note over PDPServer,Filecoin: New blobs may be added via this process
+        Note over Piri: PDP module generates proof
+        Piri->>Filecoin: Submit proof
+        Note over Piri,Filecoin: New blobs may be added via this process
     end
 ```
 
@@ -84,12 +106,18 @@ TODO: Document the retrieval architecture with Mermaid diagram
 
 ## Configuration Relationships
 
-### Shared service.pem File
+### Configuration Management
+
+Piri uses a unified configuration system:
+
+1. **Initial Setup**: `piri init` command generates a complete TOML configuration file
+2. **Runtime**: `piri serve full` uses the generated config file or accepts configuration via flags/environment variables
+
+### service.pem Identity File
 
 The `service.pem` file contains the cryptographic identity for your storage provider:
-- **Used by UCAN Server**: For authentication and signing operations
-- **Used by Piri PDP Server**: For identity and contract interactions
-- **Used with Curio**: Public key portion must be registered as a service
+- **Used by Piri**: For authentication, signing operations, and contract interactions
+- **Used with External Curio**: Public key portion must be registered as a service
 
 ```
 ┌─────────────┐
@@ -97,59 +125,61 @@ The `service.pem` file contains the cryptographic identity for your storage prov
 │  (Ed25519)  │
 └──────┬──────┘
        │
-       ├─────────────┐
-       │             │
-       ▼             ▼
-┌─────────────┐ ┌─────────────┐
-│ UCAN Server │ │ PDP Server  │
-└─────────────┘ └─────────────┘
+       ▼
+┌─────────────────────┐
+│   Piri Full Node    │
+│  ┌───────────────┐  │
+│  │ Both Modules  │  │
+│  └───────────────┘  │
+└─────────────────────┘
 ```
 
 ### Domain Requirements
 
-- **PDP Server Domain/Subdomain**: Required by UCAN server to communicate with PDP backend.
-- **UCAN Server Domain/Subdomain**: Required for client connections and Storacha Network registration.
+- **Single Public Domain**: Required for client connections and Storacha Network registration (e.g., `piri.example.com`)
+- **Internal PDP URL** (Optional): Only needed if using an external PDP backend like Curio
 
 ## Deployment Patterns
 
-### 1. Full Piri Stack
+### 1. Integrated Piri Full Node (Recommended)
 
-Single operator runs both services:
+Single process handles all functionality:
 
 ```
-Internet ──HTTPS──▶ Nginx ──HTTP──▶ UCAN Server ──HTTPS──▶ PDP Server
-                     │                                           │
-                     └───────────────── Same Host ───────────────┘
+Internet ──HTTPS──▶ Nginx ──HTTP──▶ Piri Full Node
+                                    (UCAN + PDP)
 ```
 
-**Use Case:** New storage providers starting fresh
+**Use Case:** Most deployments, both new and existing storage providers
 
-### 2. Piri UCAN + Curio PDP
+### 2. Piri + External Curio PDP
 
 Hybrid deployment using existing Filecoin infrastructure:
 
 ```
-Internet ──HTTPS──▶ UCAN Server ──HTTPS──▶ Curio Instance
-                    (Piri)                  (Existing SP)
+Internet ──HTTPS──▶ Piri Full Node ──HTTPS──▶ Curio Instance
+                    (UCAN only)                (External PDP)
 ```
 
-**Use Case:** Existing Filecoin storage providers
+**Use Case:** Storage providers with existing Curio infrastructure
 
 ## Security Architecture
 
 ### Authentication Flow
 
 ```
-Storacha ──UCAN Token──▶ UCAN Server
+Storacha ──UCAN Token──▶ Piri Full Node
                            │
                            ▼
+                    UCAN Module:
                     Validate Token
                            │
                            ▼
                     Check Delegation
                            │
                            ▼
-                    Sign PDP Request ──▶ PDP Server
+                    PDP Module:
+                    Process Request
 ```
 
 ## Network Architecture
@@ -166,7 +196,12 @@ Storacha ──UCAN Token──▶ UCAN Server
 │   / Nginx    │
 └──────┬───────┘
        │ :3000 (HTTP)
-┌──────▼───────┐         ┌─────────────┐
-│ UCAN Server  │────────▶│ PDP Server  │
-└──────────────┘ :3001   └─────────────┘
+┌──────▼───────┐
+│ Piri Full    │
+│    Node      │
+└──────────────┘
 ```
+
+**Single Port Operation:**
+- Port 3000: Piri Full Node (handles both UCAN and PDP operations)
+- Port 443: Public HTTPS endpoint via reverse proxy

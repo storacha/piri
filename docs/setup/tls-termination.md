@@ -1,6 +1,6 @@
 # TLS Termination
 
-Piri servers (both PDP and UCAN) do not handle TLS termination directly. For production deployments, you must use a reverse proxy to handle HTTPS connections and route traffic from your domains to the appropriate Piri servers.
+The Piri node does not handle TLS termination directly. For production deployments, you must use a reverse proxy to handle HTTPS connections and route traffic from your domain to the Piri server.
 
 ## Prerequisites
 
@@ -11,13 +11,12 @@ Before configuring TLS, ensure you have:
 
 ## Overview
 
-This section configures how your domains (from the [Network Requirements](./prerequisites.md#network-requirements)) connect to your Piri servers:
+This section configures how your domain (from the [Network Requirements](./prerequisites.md#network-requirements)) connects to your Piri server:
 
 ```
 Internet → Your Domain → Nginx (HTTPS) → Piri Server (HTTP)
          ↓                   ↓                ↓
-   piri.example.com      Port 443        Port 3000 (UCAN)
-   up.piri.example.com   Port 443        Port 3001 (PDP)
+   piri.example.com      Port 443        Port 3000
 ```
 
 ## Why TLS Termination is Required
@@ -29,21 +28,19 @@ Internet → Your Domain → Nginx (HTTPS) → Piri Server (HTTP)
 
 ## DNS Configuration
 
-Before proceeding, ensure your domains point to your server:
+Before proceeding, ensure your domain points to your server:
 
-1. Configure DNS A records for both domains to point to your server's IP address:
+1. Configure a DNS A record for your domain to point to your server's IP address:
    - `piri.example.com` → Your server IP
-   - `up.piri.example.com` → Your server IP
 
 2. Verify DNS propagation:
    ```bash
    dig piri.example.com
-   dig up.piri.example.com
    ```
 
 ## Setting up Nginx
 
-Nginx acts as a reverse proxy, accepting HTTPS connections on your domains and forwarding them to the appropriate Piri servers running locally.
+Nginx acts as a reverse proxy, accepting HTTPS connections on your domain and forwarding them to the Piri server running locally.
 
 ### Prerequisites
 
@@ -55,21 +52,20 @@ sudo apt install -y nginx certbot python3-certbot-nginx
 
 ### Configuration Steps
 
-**Step 1: Create Configuration Files**
+**Step 1: Create Configuration File**
 
-Create separate configuration files for each domain:
-- `/etc/nginx/sites-available/piri.example.com` (for UCAN server)
-- `/etc/nginx/sites-available/up.piri.example.com` (for PDP server)
+Create a configuration file for your domain:
+- `/etc/nginx/sites-available/piri.example.com`
 
-**Step 2: Configure UCAN Server (piri.example.com → Port 3000)**
+**Step 2: Configure Piri Server (piri.example.com → Port 3000)**
 
 Create `/etc/nginx/sites-available/piri.example.com`:
 
 ```nginx
 server {
-    server_name piri.example.com;  # Replace with your actual UCAN domain
+    server_name piri.example.com;  # Replace with your actual domain
     
-    # For UCAN server handling client uploads
+    # Piri server handles client uploads and storage operations
     client_max_body_size 0;           # Allow unlimited file uploads
     client_body_timeout 300s;         # Timeout for slow uploads
     client_header_timeout 300s;       # Timeout for slow connections
@@ -91,46 +87,13 @@ server {
 }
 ```
 
-**Step 3: Configure PDP Server (up.piri.example.com → Port 3001)**
+**Step 3: Enable the Site**
 
-Create `/etc/nginx/sites-available/up.piri.example.com`:
-
-```nginx
-server {
-    server_name up.piri.example.com;  # Replace with your actual PDP domain
-    
-    # PDP server also handles large uploads
-    client_max_body_size 0;           # Allow unlimited file uploads
-    client_body_timeout 300s;         # Timeout for slow uploads
-    client_header_timeout 300s;       # Timeout for slow connections
-    send_timeout 300s;                # Timeout for sending responses
-    
-    location / {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        
-        proxy_request_buffering off; # Stream uploads directly to backend
-    }
-}
-```
-
-**Step 4: Enable the Sites**
-
-Enable both nginx configurations:
+Enable the nginx configuration:
 
 ```bash
-# Enable UCAN server configuration
+# Enable Piri server configuration
 sudo ln -s /etc/nginx/sites-available/piri.example.com /etc/nginx/sites-enabled/
-
-# Enable PDP server configuration  
-sudo ln -s /etc/nginx/sites-available/up.piri.example.com /etc/nginx/sites-enabled/
 
 # Test configuration
 sudo nginx -t
@@ -139,44 +102,36 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-**Step 5: Obtain SSL Certificates**
+**Step 4: Obtain SSL Certificate**
 
-Obtain SSL certificates for both domains:
+Obtain an SSL certificate for your domain:
 
 ```bash
-# For UCAN server domain (replace with your actual domain)
+# Replace with your actual domain
 sudo certbot --nginx -d piri.example.com
-
-# For PDP server domain (replace with your actual domain)
-sudo certbot --nginx -d up.piri.example.com
 ```
 
 ## Port Configuration
 
 **Default ports:**
-- **UCAN Server**: 3000 (configurable via `--port`)
-- **PDP Server**: 3001 (configurable via `--port`)
+- **Piri Server**: 3000 (configurable via `--port` or config file)
 - **HTTPS**: 443 (standard)
 - **HTTP**: 80 (redirect to HTTPS)
 
 ## Testing Your Configuration
 
-After setting up TLS termination, verify HTTPS connectivity for both domains:
+After setting up TLS termination, verify HTTPS connectivity for your domain:
 
 ```bash
-# Test UCAN server domain
+# Test your domain
 curl -I https://piri.example.com
-
-# Test PDP server domain  
-curl -I https://up.piri.example.com
 ```
 
-Both should return HTTP status 502 (Bad Gateway) until the Piri servers are started.
+This should return HTTP status 502 (Bad Gateway) until the Piri server is started.
 
 ---
 
 ## Next Steps
 
-After configuring TLS termination, proceed to set up:
-- [PDP Server](../guides/pdp-server.md)
-- [UCAN Server](../guides/ucan-server.md)
+After configuring TLS termination, proceed to:
+- [Setup Piri Node](../guides/piri-server.md)

@@ -1,12 +1,11 @@
 # Validate Your Piri Setup
 
-You are now running both a UCAN and PDP server with Piri!
+You are now running a unified Piri node with both UCAN and PDP functionality!
 
 ## Prerequisites
 
 Before validating, ensure you have:
-- ✅ [Setup PDP Server](../guides/pdp-server.md)
-- ✅ [Setup UCAN Server](../guides/ucan-server.md)
+- ✅ [Setup Piri Node](../guides/piri-server.md)
 
 ## Validation Steps
 
@@ -22,10 +21,10 @@ Visit https://staging.delegator.storacha.network/test-storage to test your setup
    - Format must start with `did:key:` followed by your identifier
    - Example: `did:key:z6MksyRCPWoXvMj8sUzuHiQ4pFkSawkKRz2eh1TALNEG6s3e`
 
-2. **Enter your UCAN Server URL**:
-   - This is the full URL where your storage node can be reached
+2. **Enter your Piri Node URL**:
+   - This is the full URL where your Piri node can be reached
    - It should respond with your DID
-   - Example: `https://your-storage-node.example.com`
+   - Example: `https://piri.example.com`
 
 3. **Click Continue** to proceed to the next step
 
