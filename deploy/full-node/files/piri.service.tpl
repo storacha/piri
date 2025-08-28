@@ -9,6 +9,9 @@ Group=piri
 
 WorkingDirectory=/etc/piri
 
+# Extended timeout for init command which can take up to 5 minutes
+TimeoutStartSec=360
+
 ExecStartPre=/bin/bash -c '/usr/local/bin/piri init \
   --registrar-url="${registrar_url}" \
   --data-dir=/data/piri \
@@ -18,7 +21,7 @@ ExecStartPre=/bin/bash -c '/usr/local/bin/piri init \
   --lotus-endpoint="${lotus_endpoint}" \
   --operator-email="${operator_email}" \
   --public-url="${public_url}" \
-  > /etc/piri/config.toml 2>/var/log/piri-init.log'
+  > /etc/piri/config.toml'
 
 ExecStart=/usr/local/bin/piri serve full --config=/etc/piri/config.toml
 
