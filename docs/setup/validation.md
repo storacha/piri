@@ -1,6 +1,6 @@
 # Validate Your Piri Setup
 
-You are now running a Piri node that does both UCAN and PDP work!
+You are now running a Piri node!
 
 ## Prerequisites
 

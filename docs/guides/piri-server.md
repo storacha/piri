@@ -19,7 +19,6 @@ The `piri init` command does all the setup needed to join the Storacha network:
 - Imports your wallet
 - Creates a proof set (if you don't have one)
 - Signs you up with the Storacha network
-- Gets the permissions you need
 - Creates a configuration file
 
 ### Step 1: Prepare Your Wallet File
@@ -56,6 +55,9 @@ piri init \
 - `--public-url`: The public HTTPS address for your Piri node (use the domain from the [TLS setup](../setup/tls-termination.md), like `https://piri.example.com`)
 
 **Expected Output:**
+
+💡Note: Step 3 `Setting up proof set` can take up to 5 minuets to complete.
+
 ```bash
 🚀 Initializing your Piri node in the Storacha network...
 
@@ -109,15 +111,6 @@ Piri Public Endpoint: https://piri.example.com
 
 The configuration file made by `piri init` has all the settings to run your node. To learn more about each setting, see the [Configuration Reference](../setup/configuration.md).
 
-## Monitoring and Logs
-
-Piri writes detailed logs about what it's doing. Check the logs to make sure:
-- Connection to Lotus node works
-- Proof set operations work
-- UCAN authentication works
-- Data uploads are being handled
-- Proofs are being created and sent
-
 ## Troubleshooting
 
 If you have problems, the Storacha team can help you in the [Storacha Discord server](https://discord.gg/pqa6Dn6RnP).
@@ -144,5 +137,3 @@ If the server won't start:
 
 After setting up your Piri node:
 - [Test Your Setup](../setup/validation.md)
-- Watch the logs to see proofs being made
-- Check your transactions on the blockchain

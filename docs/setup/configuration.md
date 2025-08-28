@@ -24,85 +24,50 @@ The configuration file uses TOML format with these parts:
 
 ```toml
 [identity]
-key_file = "service.pem"  # Path to PEM file with your node's identity key
+	key_file = "/path/to/service.pem"
 
 [repo]
-data_dir = "/var/lib/piri/data"  # Folder for permanent Piri data
-temp_dir = "/var/tmp/piri"       # Folder for temporary data
+	data_dir = "/var/lib/piri/data"
+	temp_dir = "/var/tmp/piri"
 
 [server]
-host = "0.0.0.0"                        # Network address to listen on
-port = 3000                             # Port number to listen on
-public_url = "https://piri.example.com" # Public web address for your node
+	host = "0.0.0.0"
+	port = 3000
+	public_url = "https://piri.example.com"
 
 [pdp]
-owner_address = "0x7469B47e006D0660aB92AE560b27A1075EEcF97F"  # Your Ethereum address with funds
-contract_address = "0x6170dE2b09b404776197485F3dc6c968Ef948505"  # Address of the PDP smart contract
-lotus_endpoint = "wss://lotus.example.com/rpc/v1"              # WebSocket address of your Lotus node
+	owner_address = "0x..."
+	contract_address = "0x..."
+	lotus_endpoint = "wss://lotus.example.com/rpc/v1"
 
 [ucan]
-proof_set = 123  # Proof set ID created during setup
-
-[ucan.services.indexer]
-proof = "mAYIEA..."  # Permission proof for indexing service (got during setup)
-did = "did:web:staging.indexer.warm.storacha.network"           # Indexing service ID
-url = "https://staging.indexer.warm.storacha.network/claims"   # Indexing service address
-
-[ucan.services.upload]
-did = "did:web:staging.upload.warm.storacha.network"    # Upload service ID
-url = "https://staging.upload.warm.storacha.network"    # Upload service address
-
-[ucan.services.publisher]
-ipni_announce_urls = [
-  "https://cid.contact/announce",
-  "https://dev.cid.contact/announce"
-]  # IPNI announcement addresses
-
-[ucan.services.principal_mapping]
-# Links service IDs to their main IDs
-"did:web:staging.upload.warm.storacha.network" = "did:key:z6MkrZ1r5XBFZjBU34qyD8fueMbMRkKw17BZaq2ivKFjnz2z"
+	proof_set = 123
+	[ucan.services]
+		[ucan.services.indexer]
+			proof = "mAYIEA..."
 ```
 
 ### Configuration Sections
 
 #### `[identity]`
-Has the path to your node's identity key file (Ed25519 key pair in PEM format).
+- `key_file`: Has the path to your node's identity key file (Ed25519 key pair in PEM format).
 
 #### `[repo]`
-Says where Piri keeps its data:
-- `data_dir`: Data that stays after restart
-- `temp_dir`: Data that can be deleted
+- `data_dir`: Directory piri maintains state and persists permentant data.
+- `temp_dir`: Directory piri maintains ephemeral data.
 
 #### `[server]`
-Web server settings:
-- `host`: Network address to listen on
-- `port`: Port number to listen on
-- `public_url`: The public web address where people can reach your node
+- `host`: Network address piri listens on
+- `port`: Port number piri listens on
+- `public_url`: The public web address where people can reach your piri node
 
 #### `[pdp]`
-Proof of Data Possession settings:
-- `owner_address`: Your Ethereum address with money for blockchain transactions
-- `contract_address`: Address of the PDP smart contract
-- `lotus_endpoint`: WebSocket address of your Lotus node
+- `owner_address`: Your Ethereum-style address blockchain transactions will be sent from
+- `contract_address`: Ethereum-style address of the [PDP Service smart contract](https://github.com/FilOzone/pdp/?tab=readme-ov-file#v110)
+- `lotus_endpoint`: WebSocket (`ws://`) or WebSocket Secure (`wss://`) URL of your Lotus node
 
 #### `[ucan]`
-UCAN and Storacha network settings:
-- `proof_set`: ID of the proof set created during setup
+- `proof_set`: ID piri will submit proofs to
 
 #### `[ucan.services.indexer]`
-Indexing service settings:
-- `proof`: Permission proof from the delegator service
-- `did`: Service identifier
-- `url`: Service web address
-
-#### `[ucan.services.upload]`
-Upload service settings:
-- `did`: Service identifier
-- `url`: Service web address
-
-#### `[ucan.services.publisher]`
-Publisher settings:
-- `ipni_announce_urls`: List of IPNI announcement addresses
-
-#### `[ucan.services.principal_mapping]`
-Links service DIDs to their main DIDs for authentication
+- `proof`: UCAN delegation proof permitting Piri to communicate with the Storacha Network

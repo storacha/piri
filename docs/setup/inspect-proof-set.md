@@ -11,4 +11,4 @@ This tool allows you to:
 - View proof set status and verification history
 - Monitor your storage node's activity on the network
 
-Your proof set ID will be displayed in your Piri logs after successful storage operations.
+Your proof set ID can be found in your piri configuration file

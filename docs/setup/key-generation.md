@@ -39,6 +39,3 @@ Example output: `did:key:z6MkhaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX`
 
 After generating your keys:
 - [Configure TLS Termination](./tls-termination.md)
-- Then proceed to set up:
-  - [PDP Server](../guides/pdp-server.md)
-  - [UCAN Server](../guides/ucan-server.md)
