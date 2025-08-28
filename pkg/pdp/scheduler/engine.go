@@ -143,6 +143,9 @@ func (e *TaskEngine) pollerTryAllWork() bool {
 			continue
 		}
 
+		// Observe queue depth for this task type
+		observeQueueDepth(h.TaskEngine.ctx, h.TaskTypeDetails.Name, int64(len(tasks)))
+
 		var taskIDs []TaskID
 		// Filter tasks based on retry logic.
 		// Since the Task model no longer has a retries field, we assume a default value (e.g., 0)

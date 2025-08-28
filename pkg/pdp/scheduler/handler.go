@@ -139,6 +139,9 @@ func (h *taskTypeHandler) considerWork(taskIDs []TaskID, db *gorm.DB) bool {
 			if doErr != nil {
 				tlog.Errorw("Task execution failed", "error", doErr, "done", done, "duration", time.Since(doStart))
 			}
+
+			// record task count
+			recordTask(h.TaskEngine.ctx, taskID, doStart, doErr == nil)
 		}(id)
 	}
 
@@ -173,6 +176,11 @@ retryHandleDoneTask:
 			return fmt.Errorf("failed to handle task: no task found for taskID: %d: %w", id, res.Error)
 		}
 
+		// record task retry if this is a retry
+		if retryCount > 0 {
+			recordTaskRetry(h.TaskEngine.ctx, task.Name)
+		}
+
 		taskErrMsg := ""
 		if done {
 			// if the task is done, we can delete it
@@ -186,6 +194,7 @@ retryHandleDoneTask:
 			} else {
 				tlog.Info("Task completed execution")
 			}
+
 		} else {
 			// if the task is not done, see if it can be retried, and capture its error message
 			if doErr != nil {
