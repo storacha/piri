@@ -15,7 +15,6 @@ import (
 const meterName = "github.com/storacha/piri"
 
 var (
-	//meter metric.meter
 
 	// HTTP metrics
 	HTTPRequestDuration metric.Float64Histogram
@@ -56,6 +55,158 @@ var (
 	EthTransactionGasUsed          metric.Float64Histogram
 	EthTransactionConfirmationTime metric.Float64Histogram
 )
+
+func RecordHTTPRequest(ctx context.Context, method, path, urlPath string, statusCode int, duration time.Duration, reqSize, respSize int64) {
+	opts := metric.WithAttributes(
+		attribute.String("http.method", method),
+		attribute.String("http.path", path),
+		attribute.String("url.path", urlPath),
+		attribute.Int("http.status_code", statusCode),
+	)
+
+	HTTPRequestDuration.Record(ctx, duration.Seconds())
+	HTTPRequestsTotal.Add(ctx, 1, opts)
+	if reqSize > 0 {
+		HTTPRequestSize.Record(ctx, float64(reqSize))
+	}
+	if respSize > 0 {
+		HTTPResponseSize.Record(ctx, float64(respSize))
+	}
+}
+
+// Task Metric Helpers
+
+func RecordTaskExecution(ctx context.Context, taskName, status string, duration time.Duration) {
+	opts := metric.WithAttributes(
+		attribute.String("task.name", taskName),
+		attribute.String("task.status", status),
+	)
+
+	TaskExecutionDuration.Record(ctx, duration.Seconds(), opts)
+	TasksTotal.Add(ctx, 1, opts)
+}
+
+func ObserveTaskQueueDepth(ctx context.Context, queueName string, depth int64) {
+	opts := metric.WithAttributes(
+		attribute.String("task.queue", queueName),
+	)
+
+	TaskQueueDepth.Add(ctx, depth, opts)
+}
+
+func IncTaskRetries(ctx context.Context, taskName string) {
+	opts := metric.WithAttributes(
+		attribute.String("task.name", taskName),
+	)
+
+	TaskRetriesTotal.Add(ctx, 1, opts)
+}
+
+// PDP Metric Helpers
+
+func IncProofSubmitted(ctx context.Context) {
+	ProofsSubmitted.Add(ctx, 1)
+}
+
+func IncProofFailed(ctx context.Context, reason string) {
+	opts := metric.WithAttributes(
+		attribute.String("pdp.reason", reason),
+	)
+
+	ProofsFailed.Add(ctx, 1, opts)
+}
+
+func AdjustProofSetCount(ctx context.Context, count int64) {
+	ProofSetCount.Add(ctx, count)
+}
+
+func SetNextProofDeadline(ctx context.Context, seconds float64) {
+	NextProofDeadline.Record(ctx, seconds)
+}
+
+func SetChallengeWindowDuration(ctx context.Context, seconds float64) {
+	ChallengeWindowDuration.Record(ctx, seconds)
+}
+
+func SetRootsTotal(ctx context.Context, count int64) {
+	RootsTotal.Record(ctx, count)
+}
+
+func SetPDPDataSize(ctx context.Context, size int64) {
+	PDPDataSize.Record(ctx, size)
+}
+
+// Storage metric helpers
+
+func RecordStorageOp(ctx context.Context, opType, status string, duration time.Duration) {
+	opts := metric.WithAttributes(
+		attribute.String("storage.operation", opType),
+		attribute.String("storage.status", status),
+	)
+
+	StorageOperationDuration.Record(ctx, duration.Seconds(), opts)
+	StorageOperationsTotal.Add(ctx, 1, opts)
+}
+
+func RecordStorageUsage(ctx context.Context, storageType string, usage int64) {
+	opts := metric.WithAttributes(
+		attribute.String("storage.type", storageType),
+	)
+	StorageUsed.Record(ctx, usage, opts)
+}
+
+func RecordPiecesStored(ctx context.Context, storageType string, count int64) {
+	opts := metric.WithAttributes(
+		attribute.String("storage.type", storageType),
+	)
+
+	PiecesStored.Record(ctx, count, opts)
+}
+
+func RecordStashFiles(ctx context.Context, count int64, storageType string) {
+	opts := metric.WithAttributes(
+		attribute.String("storage.type", storageType),
+	)
+
+	StashFilesCount.Record(ctx, count, opts)
+}
+
+// Aggregation metric helpers
+
+func IncAggregatesCreated(ctx context.Context) {
+	AggregatesCreated.Add(ctx, 1)
+}
+
+func RecordAggregateSize(ctx context.Context, sizeBytes int64) {
+	AggregateSize.Record(ctx, sizeBytes)
+}
+
+func RecordAggregationDuration(ctx context.Context, duration time.Duration) {
+	AggregationDuration.Record(ctx, duration.Seconds())
+}
+
+func AdjustAggregationPiecesQueued(ctx context.Context, delta int64) {
+	AggregationPiecesQueued.Add(ctx, delta)
+}
+
+// Ethereum helpers
+
+func RecordEthTransaction(ctx context.Context, txType, status string) {
+	opts := metric.WithAttributes(
+		attribute.String("transaction.type", txType),
+		attribute.String("transaction.status", status),
+	)
+
+	EthTransactionsTotal.Add(ctx, 1, opts)
+}
+
+func RecordEthGas(ctx context.Context, gasUsed float64) {
+	EthTransactionGasUsed.Record(ctx, gasUsed)
+}
+
+func RecordEthConfirmationTime(ctx context.Context, duration time.Duration) {
+	EthTransactionConfirmationTime.Record(ctx, duration.Seconds())
+}
 
 // SetupMetrics sets up OpenTelemetry metrics and the Prometheus exporter.
 // If setup fails, the process logs and exits.
