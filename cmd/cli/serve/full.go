@@ -17,6 +17,7 @@ import (
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/fx/app"
 	"github.com/storacha/piri/pkg/presets"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 var (
@@ -205,6 +206,14 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 		cmd.Println("Piri Running on: " + appCfg.Server.Host + ":" + strconv.Itoa(int(appCfg.Server.Port)))
 		cmd.Println("Piri Public Endpoint: " + appCfg.Server.PublicURL.String())
 	}()
+
+	// publish server metrics after a successful start
+	telemetry.RecordServerInfo(ctx, "full",
+		telemetry.StringAttr("did", appCfg.Identity.Signer.DID().String()),
+		telemetry.StringAttr("owner_address", appCfg.PDPService.OwnerAddress.String()),
+		telemetry.StringAttr("public_url", appCfg.Server.PublicURL.String()),
+		telemetry.Int64Attr("proof_set", int64(appCfg.UCANService.ProofSetID)),
+	)
 
 	// block: wait for the application to receive a shutdown signal
 	<-ctx.Done()
