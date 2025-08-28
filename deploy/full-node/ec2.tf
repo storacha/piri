@@ -13,10 +13,6 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-resource "random_id" "instance_id" {
-  byte_length = 4
-}
-
 resource "aws_instance" "piri" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
@@ -35,6 +31,7 @@ resource "aws_instance" "piri" {
     install_method       = var.install_method
     install_source       = var.install_source
     domain_name          = local.domain_name
+    operator_email       = var.operator_email
     service_pem_content  = var.service_pem_content
     wallet_hex_content   = var.wallet_hex_content
     nginx_conf_content   = local.nginx_conf_content
@@ -44,7 +41,7 @@ resource "aws_instance" "piri" {
   })
 
   tags = {
-    Name        = "piri-${random_id.instance_id.hex}"
+    Name        = "piri-${var.environment}"
     Environment = var.environment
   }
 
@@ -57,7 +54,7 @@ resource "aws_ebs_volume" "piri_data" {
   type              = "gp3"
 
   tags = {
-    Name        = "piri-data-${random_id.instance_id.hex}"
+    Name        = "piri-data-${var.environment}"
     Environment = var.environment
   }
   

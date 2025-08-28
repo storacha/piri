@@ -132,7 +132,7 @@ systemctl restart nginx
 
 # Obtain SSL certificate
 echo "=== Obtaining SSL certificate ==="
-certbot --nginx -d ${domain_name} --non-interactive --agree-tos --email forrest@storacha.network --redirect
+certbot --nginx -d ${domain_name} --non-interactive --agree-tos --email ${operator_email} --redirect
 
 # Enable and start piri service
 echo "=== Starting Piri service ==="
