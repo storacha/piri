@@ -21,16 +21,7 @@ The `piri init` command does all the setup needed to join the Storacha network:
 - Signs you up with the Storacha network
 - Creates a configuration file
 
-### Step 1: Prepare Your Wallet File
-
-Export your Filecoin wallet address to a hex file:
-
-```bash
-# Export wallet from Lotus to hex format
-lotus wallet export YOUR_DELEGATED_ADDRESS > wallet.hex
-```
-
-### Step 2: Run Initialization
+### Run Initialization
 
 Run the `piri init` command with all needed settings. The configuration file goes to stdout and progress messages go to stderr, so you can save the output to a file:
 
@@ -48,8 +39,8 @@ piri init \
 **Settings:**
 - `--data-dir`: Folder for permanent Piri data
 - `--temp-dir`: Folder for temporary data
-- `--key-file`: Path to your [identity PEM file](../setup/key-generation.md)
-- `--wallet-file`: Path to the wallet hex file from Step 1
+- `--key-file`: Path to your [identity PEM file](../setup/key-generation.md#generating-a-pem-file--did)
+- `--wallet-file`: Path to your [wallet hex file](../setup/key-generation.md#preparing-your-wallet-file)
 - `--lotus-endpoint`: WebSocket address of your Lotus node
 - `--operator-email`: Your email so the Storacha team can contact you
 - `--public-url`: The public HTTPS address for your Piri node (use the domain from the [TLS setup](../setup/tls-termination.md), like `https://piri.example.com`)
