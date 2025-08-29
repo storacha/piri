@@ -13,11 +13,18 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version of piri",
 	Long:  `Print the version of piri including the git revision.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("version: %s\n", build.Version)
-		fmt.Printf("commit: %s\n", build.Commit)
-		fmt.Printf("built at: %s\n", build.Date)
-		fmt.Printf("built by: %s\n", build.BuiltBy)
+		fmt.Println(buildVersion(""))
 	},
+}
+
+func buildVersion(indent string) string {
+	return fmt.Sprintf(
+		"%sversion: %s\n%scommit: %s\n%sbuilt at: %s\n%sbuilt by: %s",
+		indent, build.Version,
+		indent, build.Commit,
+		indent, build.Date,
+		indent, build.BuiltBy,
+	)
 }
 
 func init() {
