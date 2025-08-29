@@ -54,6 +54,7 @@ resource "aws_instance" "piri" {
     systemd_service_content     = local.systemd_service_content
     install_from_release_script = local.install_from_release_script
     install_from_branch_script  = local.install_from_branch_script
+    use_letsencrypt_staging     = var.use_letsencrypt_staging
   })
 
   tags = merge(
@@ -65,11 +66,22 @@ resource "aws_instance" "piri" {
     }
   )
 
+  lifecycle {
+    # Force replacement when user_data changes (includes install_source changes)
+    create_before_destroy = true
+  }
+  
+  # Force replacement when user_data changes
+  user_data_replace_on_change = true
+
   depends_on = [var.internet_gateway_id]
 }
 
+# Volume without protection (default)
 resource "aws_ebs_volume" "piri_data" {
-  availability_zone = aws_instance.piri.availability_zone
+  count = var.protect_volume ? 0 : 1
+
+  availability_zone = var.availability_zone
   size              = var.ebs_volume_size
   type              = "gp3"
 
@@ -81,12 +93,42 @@ resource "aws_ebs_volume" "piri_data" {
       Instance    = var.name
     }
   )
+
+  lifecycle {
+    ignore_changes = [size]  # Allow manual resizing outside of Terraform
+  }
+}
+
+# Volume with protection
+resource "aws_ebs_volume" "piri_data_protected" {
+  count = var.protect_volume ? 1 : 0
+
+  availability_zone = var.availability_zone
+  size              = var.ebs_volume_size
+  type              = "gp3"
+
+  tags = merge(
+    var.tags,
+    {
+      Name        = "piri-data-${var.environment}-${var.name}"
+      Environment = var.environment
+      Instance    = var.name
+    }
+  )
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [size]  # Allow manual resizing outside of Terraform
+  }
 }
 
 resource "aws_volume_attachment" "piri_data" {
   device_name = "/dev/sdf"
-  volume_id   = aws_ebs_volume.piri_data.id
+  volume_id   = var.protect_volume ? aws_ebs_volume.piri_data_protected[0].id : aws_ebs_volume.piri_data[0].id
   instance_id = aws_instance.piri.id
+
+  # Force detach on instance replacement to allow reattachment
+  force_detach = true
 }
 
 resource "aws_route53_record" "piri" {

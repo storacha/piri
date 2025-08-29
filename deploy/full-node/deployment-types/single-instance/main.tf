@@ -40,6 +40,8 @@ module "piri_instance" {
   security_group_id         = module.base_infrastructure.security_group_id
   iam_instance_profile_name = module.base_infrastructure.iam_instance_profile_name
   internet_gateway_id       = module.base_infrastructure.internet_gateway_id
+  availability_zone         = module.base_infrastructure.availability_zone
+  protect_volume            = var.environment == "production" || var.environment == "prod"
   domain_name               = "${var.environment}.${var.app}.${var.root_domain}"
   route53_zone_id           = data.aws_route53_zone.primary.zone_id
   
@@ -48,10 +50,11 @@ module "piri_instance" {
   registrar_url        = var.registrar_url
   pdp_lotus_endpoint   = var.pdp_lotus_endpoint
   pdp_contract_address = var.pdp_contract_address
-  use_secrets_manager  = var.use_secrets_manager
-  service_pem_content  = var.service_pem_content
-  wallet_hex_content   = var.wallet_hex_content
-  operator_email       = var.operator_email
+  use_secrets_manager     = var.use_secrets_manager
+  service_pem_content     = var.service_pem_content
+  wallet_hex_content      = var.wallet_hex_content
+  operator_email          = var.operator_email
+  use_letsencrypt_staging = var.environment != "production" && var.environment != "prod"
 
   tags = {
     Owner = var.owner

@@ -20,5 +20,5 @@ output "domain_name" {
 
 output "ebs_volume_id" {
   description = "ID of the EBS data volume"
-  value       = aws_ebs_volume.piri_data.id
+  value       = var.protect_volume ? aws_ebs_volume.piri_data_protected[0].id : aws_ebs_volume.piri_data[0].id
 }

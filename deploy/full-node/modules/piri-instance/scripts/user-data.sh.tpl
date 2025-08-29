@@ -132,7 +132,13 @@ systemctl restart nginx
 
 # Obtain SSL certificate
 echo "=== Obtaining SSL certificate ==="
+%{ if use_letsencrypt_staging ~}
+echo "Using Let's Encrypt STAGING environment (certificates will be untrusted)"
+certbot --nginx -d ${domain_name} --non-interactive --agree-tos --email ${operator_email} --redirect --staging
+%{ else ~}
+echo "Using Let's Encrypt PRODUCTION environment"
 certbot --nginx -d ${domain_name} --non-interactive --agree-tos --email ${operator_email} --redirect
+%{ endif ~}
 
 # Enable and start piri service
 echo "=== Starting Piri service ==="

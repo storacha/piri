@@ -21,6 +21,17 @@ variable "ebs_volume_size" {
   default     = 200
 }
 
+variable "availability_zone" {
+  description = "The availability zone for the EBS volume (should match subnet's AZ)"
+  type        = string
+}
+
+variable "protect_volume" {
+  description = "Enable volume destruction protection (prevent_destroy lifecycle rule)"
+  type        = bool
+  default     = false
+}
+
 variable "key_name" {
   description = "Name of the SSH key pair"
   type        = string
@@ -111,6 +122,12 @@ variable "wallet_hex_content" {
 variable "operator_email" {
   description = "Email address of the piri operator"
   type        = string
+}
+
+variable "use_letsencrypt_staging" {
+  description = "Use Let's Encrypt staging environment (for testing, no rate limits)"
+  type        = bool
+  default     = true
 }
 
 variable "tags" {

@@ -22,3 +22,8 @@ output "internet_gateway_id" {
   description = "ID of the internet gateway"
   value       = aws_internet_gateway.main.id
 }
+
+output "availability_zone" {
+  description = "Availability zone of the public subnet"
+  value       = aws_subnet.public.availability_zone
+}

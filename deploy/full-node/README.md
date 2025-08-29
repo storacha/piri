@@ -1,6 +1,6 @@
 # Piri Full Node Tofu Deployment
 
-This directory contains Terraform/OpenTofu infrastructure-as-code for deploying Piri full nodes on AWS. Piri is a Proof Data Processor (PDP) node that participates in the Filecoin storage network by validating and processing storage proofs.
+This directory contains Terraform/OpenTofu infrastructure-as-code for deploying Piri full nodes on AWS. 
 
 ## 🎯 Purpose
 
@@ -106,6 +106,12 @@ aws secretsmanager create-secret \
   --region us-west-2
 ```
 
+⚠️ **Important Note About PEM Keys**: 
+- AWS Secrets Manager stores the PEM key with escaped newlines (`\n`) instead of actual line breaks
+- The deployment automatically handles this by using `printf '%b\n'` to convert `\n` back to actual newlines
+- Your PEM file can be stored as-is in AWS Secrets Manager - no manual formatting needed
+- The user-data script handles both formats: proper newlines and escaped `\n` from AWS Secrets Manager
+
 Then in your `tofu.tfvars`:
 ```hcl
 use_secrets_manager = true
@@ -113,6 +119,17 @@ use_secrets_manager = true
 
 ### Development
 For development only, you can provide secrets inline in `tofu.tfvars` (never commit these!).
+
+When providing PEM keys directly in `tofu.tfvars`:
+```hcl
+# The PEM content should include the actual newlines
+service_pem_content = <<-EOT
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg...
+...rest of key...
+-----END PRIVATE KEY-----
+EOT
+```
 
 ## 🌐 Domain Structure
 
@@ -155,33 +172,77 @@ sudo tail -f /var/log/nginx/error.log
 sudo cat /var/log/cloud-init-output.log
 ```
 
+## 🔐 SSL Certificates
+
+### Let's Encrypt Configuration
+- **Production environments** (`environment = "production" or "prod"`): Use Let's Encrypt production certificates (trusted by browsers)
+- **Non-production environments** (staging, dev, etc.): Use Let's Encrypt staging certificates (untrusted, no rate limits)
+
+### Rate Limits
+Let's Encrypt production environment has strict rate limits:
+- **5 certificates per week** for the same domain
+- Hitting this limit blocks certificate issuance for 168 hours
+- Staging environment has no practical rate limits (perfect for testing)
+
+### Staging Certificate Trust Issues
+⚠️ **Important**: Staging certificates are signed by an untrusted CA. This causes:
+- Browser security warnings when accessing the service (expected behavior)
+- TLS verification errors for services connecting to Piri nodes
+- Errors like: `x509: certificate signed by unknown authority`
+
+To configure external services (like the delegator) to trust staging certificates:
+```bash
+# Install Let's Encrypt staging CA certificates on the client machine
+wget https://letsencrypt.org/certs/staging/letsencrypt-stg-root-x1.pem
+wget https://letsencrypt.org/certs/staging/letsencrypt-stg-root-x2.pem
+
+# Install them in the system trust store (Ubuntu/Debian)
+sudo cp letsencrypt-stg-root-x1.pem /usr/local/share/ca-certificates/letsencrypt-stg-root-x1.crt
+sudo cp letsencrypt-stg-root-x2.pem /usr/local/share/ca-certificates/letsencrypt-stg-root-x2.crt
+sudo update-ca-certificates
+
+# Restart any services that need to trust the certificates
+sudo systemctl restart your-service
+```
+
 ## 🔄 Common Operations
 
 ### Update Piri Version
-⚠️ **WARNING: This process will DESTROY your data volume!**
+✅ **SAFE: Data is preserved during updates**
 
-1. **Backup your data first** (if needed):
-   ```bash
-   ssh -i ~/.ssh/your-key.pem ubuntu@<instance-ip>
-   sudo tar -czf /tmp/piri-backup.tar.gz /data/piri
-   # Copy backup locally
-   scp -i ~/.ssh/your-key.pem ubuntu@<instance-ip>:/tmp/piri-backup.tar.gz .
-   ```
-2. Update `install_source` in your `tofu.tfvars`
-3. Run `tofu apply -var-file=tofu.tfvars`
-4. The instance AND data volume will be recreated (data will be lost)
+The module automatically replaces instances when `install_source` changes (via `user_data_replace_on_change = true`). Your data volume will persist and be reattached to the new instance.
 
-**Note**: Due to how the EBS volume is configured, it depends on the instance's availability zone. When the instance is replaced, the volume is also destroyed and recreated. This is a limitation of the current module design.
+**To update Piri:**
+1. Update `install_source` in your `tofu.tfvars` (version tag or branch name)
+2. Run `tofu apply -var-file=tofu.tfvars`
+3. The instance will be automatically replaced with the new version
+4. Your data volume remains intact and is reattached
+
+**To force instance replacement** (if needed):
+```bash
+tofu apply -replace=module.piri_instance.aws_instance.piri -var-file=tofu.tfvars
+```
+
+**Note**: Volume protection is environment-based:
+- **Production** (`environment = "production" or "prod"`): Volumes are protected from destruction
+- **Other environments** (staging, dev, etc.): Volumes can be destroyed with `tofu destroy`
 
 ### Scale Storage
-⚠️ **WARNING: This will DESTROY your data volume!**
+✅ **SAFE: Manual resizing is supported**
 
-The current module design will replace the entire EBS volume when resizing, causing data loss.
+The module now ignores volume size changes to allow manual resizing without data loss.
 
-**DO NOT use this method. Instead:**
-1. Use AWS Console or CLI to modify the volume size in-place
-2. SSH to instance and extend the filesystem manually
-3. Or backup data first, then recreate with new size
+**To resize your volume:**
+1. Use AWS Console or CLI to modify the volume size in-place:
+   ```bash
+   aws ec2 modify-volume --volume-id <volume-id> --size <new-size>
+   ```
+2. SSH to instance and extend the filesystem:
+   ```bash
+   ssh -i ~/.ssh/your-key.pem ubuntu@<instance-ip>
+   sudo resize2fs /dev/nvme1n1
+   ```
+3. Update `ebs_volume_size` in your `tofu.tfvars` to match the new size (for documentation purposes)
 
 ### Add More Nodes (Multi-Instance)
 ✅ **Safe Operation**
@@ -197,13 +258,63 @@ The current module design will replace the entire EBS volume when resizing, caus
 - **Issues**: Report bugs in the [Piri repository](https://github.com/storacha/piri)
 - **Lotus Gateway Access**: Contact the Storacha team for access to their Lotus gateway
 
+## 🔧 Troubleshooting
+
+### Certificate Rate Limit Errors
+**Error**: `too many certificates (5) already issued for this exact set of identifiers in the last 168h0m0s`
+
+**Cause**: You've hit Let's Encrypt's production rate limit (5 certificates per week per domain).
+
+**Solution**: 
+- Non-production environments automatically use staging certificates to avoid this
+- Wait for the rate limit to reset (168 hours)
+- Or use a different domain temporarily
+
+### TLS Verification Errors
+**Error**: `x509: certificate signed by unknown authority`
+
+**Cause**: Services are trying to connect to Piri nodes that use staging certificates (non-production).
+
+**Solution**: Configure the connecting service to trust Let's Encrypt staging CA certificates (see SSL Certificates section above).
+
+### Instance Not Updating After Changing install_source
+**Problem**: Changed `install_source` but Piri is still running the old version.
+
+**Cause**: The instance wasn't replaced (check the instance launch time in AWS console).
+
+**Solution**: Force instance replacement:
+```bash
+tofu apply -replace=module.piri_instance.aws_instance.piri -var-file=tofu.tfvars
+```
+
+### Volume Not Persisting Data
+**Problem**: Data is lost after instance replacement.
+
+**Possible Causes**:
+- The volume was accidentally destroyed
+- The volume didn't mount correctly
+
+**Debug Steps**:
+```bash
+# SSH to the instance
+ssh -i ~/.ssh/your-key.pem ubuntu@<instance-ip>
+
+# Check if volume is mounted
+df -h | grep /data
+
+# Check mount logs
+sudo journalctl -u cloud-init | grep -i mount
+```
+
 ## ⚠️ Important Notes
 
 1. **Secrets Security**: Never commit secrets to version control
 2. **Region Consistency**: Ensure secrets are in the same region as your deployment
 3. **SSH Keys**: The default `warm-storage-staging` key is in the Storacha 1Password vault
 4. **Domain Management**: The default `pdp.storacha.network` zone is managed by Storacha
-5. **Instance Replacement**: Changing certain parameters (like user-data) will replace the instance
+5. **Instance Replacement**: Changing certain parameters (like user-data) will replace the instance, but volumes are preserved
+6. **Volume Protection**: Production volumes are protected from `tofu destroy`; other environments allow destruction
+7. **Environment-Based Behavior**: Set `environment = "production"` or `"prod"` for maximum data protection
 
 ## 📚 Additional Resources
 
