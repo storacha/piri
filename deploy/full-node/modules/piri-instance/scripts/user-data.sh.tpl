@@ -80,13 +80,13 @@ ln -s /snap/bin/certbot /usr/bin/certbot
 
 # Deploy sensitive files
 echo "=== Deploying sensitive files ==="
-cat > /etc/piri/service.pem <<'EOF'
-${service_pem_content}
-EOF
 
-cat > /etc/piri/wallet.hex <<'EOF'
-${wallet_hex_content}
-EOF
+# Handle service.pem - convert \n to actual newlines if needed
+# This handles both formats: proper newlines and escaped \n from AWS Secrets Manager
+printf '%b\n' '${service_pem_content}' > /etc/piri/service.pem
+
+# Handle wallet.hex - no conversion needed as it's just hex
+echo '${wallet_hex_content}' > /etc/piri/wallet.hex
 
 # Set permissions on sensitive files
 chmod 600 /etc/piri/service.pem

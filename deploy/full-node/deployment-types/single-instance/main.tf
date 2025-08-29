@@ -1,0 +1,61 @@
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region              = var.region
+  allowed_account_ids = var.allowed_account_ids
+}
+
+module "base_infrastructure" {
+  source = "../../modules/base-infrastructure"
+
+  environment = var.environment
+  tags = {
+    Owner = var.owner
+    Team  = var.team
+    Org   = var.org
+  }
+}
+
+data "aws_route53_zone" "primary" {
+  name = var.root_domain
+}
+
+module "piri_instance" {
+  source = "../../modules/piri-instance"
+
+  name                      = "primary"
+  environment               = var.environment
+  instance_type             = var.instance_type
+  ebs_volume_size           = var.ebs_volume_size
+  key_name                  = var.key_name
+  subnet_id                 = module.base_infrastructure.public_subnet_id
+  security_group_id         = module.base_infrastructure.security_group_id
+  iam_instance_profile_name = module.base_infrastructure.iam_instance_profile_name
+  internet_gateway_id       = module.base_infrastructure.internet_gateway_id
+  domain_name               = "${var.environment}.${var.app}.${var.root_domain}"
+  route53_zone_id           = data.aws_route53_zone.primary.zone_id
+  
+  install_method       = var.install_method
+  install_source       = var.install_source
+  registrar_url        = var.registrar_url
+  pdp_lotus_endpoint   = var.pdp_lotus_endpoint
+  pdp_contract_address = var.pdp_contract_address
+  use_secrets_manager  = var.use_secrets_manager
+  service_pem_content  = var.service_pem_content
+  wallet_hex_content   = var.wallet_hex_content
+  operator_email       = var.operator_email
+
+  tags = {
+    Owner = var.owner
+    Team  = var.team
+    Org   = var.org
+  }
+}
