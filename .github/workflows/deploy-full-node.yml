@@ -1,0 +1,97 @@
+name: Deploy Full Node
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Trigger on changes to Piri code
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
+      # Trigger on changes to deployment config
+      - "deploy/full-node/**"
+      - ".github/workflows/deploy-full-node.yml"
+  workflow_dispatch: # Allow manual triggers
+
+permissions:
+  id-token: write # Required for AWS OIDC
+  contents: read  # Required for checkout
+
+jobs:
+  update-staging-node:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: ${{ vars.AWS_REGION || 'us-west-2' }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/terraform-ci
+      
+      - uses: opentofu/setup-opentofu@v1
+      
+      - name: Tofu Init
+        working-directory: deploy/full-node/deployment-types/single-instance
+        run: tofu init
+      
+      - name: Create tfvars file
+        working-directory: deploy/full-node/deployment-types/single-instance
+        run: |
+          cat > github-ci.tfvars <<EOF
+          # Core configuration
+          environment = "staging"
+          region = "${{ vars.AWS_REGION || 'us-west-2' }}"
+          allowed_account_ids = ["${{ secrets.AWS_ACCOUNT_ID }}"]
+          
+          # Deployment configuration - always use latest main branch
+          install_method = "branch"
+          install_source = "main"
+          
+          # Infrastructure settings
+          key_name = "${{ vars.SSH_KEY_NAME }}"
+          instance_type = "${{ vars.INSTANCE_TYPE || 'm6a.xlarge' }}"
+          ebs_volume_size = ${{ vars.EBS_VOLUME_SIZE || 200 }}
+          
+          # Piri configuration
+          operator_email = "${{ vars.OPERATOR_EMAIL }}"
+          pdp_lotus_endpoint = "${{ secrets.PDP_LOTUS_ENDPOINT }}"
+          pdp_contract_address = "${{ vars.PDP_CONTRACT_ADDRESS }}"
+          registrar_url = "${{ vars.REGISTRAR_URL || 'https://staging.registrar.storacha.network' }}"
+          
+          # Use AWS Secrets Manager for sensitive data
+          use_secrets_manager = true
+          
+          # Optional: Override domain settings if needed
+          # root_domain = "${{ vars.ROOT_DOMAIN || 'pdp.storacha.network' }}"
+          # app = "${{ vars.APP_NAME || 'piri' }}"
+          EOF
+      
+      - name: Tofu Plan
+        working-directory: deploy/full-node/deployment-types/single-instance
+        run: |
+          echo "Planning infrastructure changes..."
+          tofu plan -var-file=github-ci.tfvars -out=tfplan
+      
+      - name: Tofu Apply
+        working-directory: deploy/full-node/deployment-types/single-instance
+        run: |
+          echo "Applying infrastructure changes..."
+          echo "This will replace the staging instance with the latest code from main branch"
+          tofu apply tfplan
+      
+      - name: Output Instance Info
+        if: always()
+        working-directory: deploy/full-node/deployment-types/single-instance
+        run: |
+          echo "=== Deployment Complete ==="
+          echo "Instance Public IP:"
+          tofu output -raw public_ip 2>/dev/null || echo "Not available"
+          echo ""
+          echo "SSH Command:"
+          tofu output -raw ssh_command 2>/dev/null || echo "Not available"
+          echo ""
+          echo "Service URL:"
+          tofu output -raw service_url 2>/dev/null || echo "Not available"
