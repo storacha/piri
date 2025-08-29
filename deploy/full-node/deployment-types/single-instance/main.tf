@@ -1,4 +1,14 @@
 terraform {
+  # Backend configuration for remote state storage
+  # Uncomment and configure for CI/CD deployments
+  # backend "s3" {
+  #   bucket = "your-terraform-state-bucket"
+  #   key    = "piri/full-node/staging/terraform.tfstate"
+  #   region = "us-west-2"
+  #   # Optional: Enable state locking with DynamoDB
+  #   # dynamodb_table = "terraform-state-lock"
+  # }
+  
   required_version = ">= 1.0"
   required_providers {
     aws = {
