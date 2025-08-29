@@ -5,15 +5,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/store"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 type TODOMapBlobstore struct {
-	data map[string][]byte
+	data          map[string][]byte
+	storeTypeName string
 }
 
 func (mb *TODOMapBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error) {
@@ -33,15 +36,24 @@ func (mb *TODOMapBlobstore) Get(ctx context.Context, digest multihash.Multihash,
 }
 
 func (mb *TODOMapBlobstore) Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error {
+	start := time.Now()
+	status := "success"
+	defer func() {
+		telemetry.RecordStorageExecution(ctx, "put", status, time.Since(start))
+	}()
+
 	b, err := io.ReadAll(body)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("reading body: %w", err)
 	}
 
 	if len(b) > int(size) {
+		status = "failed"
 		return ErrTooLarge
 	}
 	if len(b) < int(size) {
+		status = "failed"
 		return ErrTooSmall
 	}
 
@@ -59,5 +71,8 @@ var _ Blobstore = (*TODOMapBlobstore)(nil)
 
 func NewTODOMapBlobstore() *TODOMapBlobstore {
 	data := map[string][]byte{}
-	return &TODOMapBlobstore{data}
+	return &TODOMapBlobstore{
+		data:          data,
+		storeTypeName: "map_blob",
+	}
 }

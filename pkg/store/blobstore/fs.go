@@ -12,11 +12,13 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/store"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 type FileObject struct {
@@ -69,8 +71,9 @@ func encodePath(digest multihash.Multihash) string {
 }
 
 type FsBlobstore struct {
-	rootdir string
-	tmpdir  string
+	rootdir       string
+	tmpdir        string
+	storeTypeName string
 }
 
 // FileSystem returns a filesystem interface for reading blobs.
@@ -79,6 +82,13 @@ func (b *FsBlobstore) FileSystem() http.FileSystem {
 }
 
 func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error) {
+	// record storage execution time
+	start := time.Now()
+	status := "success"
+	defer func() {
+		telemetry.RecordStorageExecution(ctx, "get", status, time.Since(start))
+	}()
+
 	o := &options{}
 	for _, opt := range opts {
 		opt(o)
@@ -88,14 +98,18 @@ func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 	f, err := os.Open(n)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
+			status = "not_found"
 			return nil, store.ErrNotFound
 		}
+
+		status = "failed"
 		return nil, fmt.Errorf("opening file: %w", err)
 	}
 	defer f.Close()
 
 	inf, err := f.Stat()
 	if err != nil {
+		status = "failed"
 		return nil, fmt.Errorf("stat file: %w", err)
 	}
 
@@ -103,22 +117,33 @@ func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 }
 
 func (b *FsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error {
+	// record storage execution time
+	start := time.Now()
+	status := "success"
+	defer func() {
+		telemetry.RecordStorageExecution(ctx, "put", status, time.Since(start))
+	}()
+
 	info, err := multihash.Decode(digest)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("decoding digest: %w", err)
 	}
 	if info.Code != multihash.SHA2_256 {
+		status = "failed"
 		return fmt.Errorf("unsupported digest: 0x%x", info.Code)
 	}
 
 	tmpname := path.Join(b.tmpdir, encodePath(digest))
 	err = os.MkdirAll(path.Dir(tmpname), 0755)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("creating intermediate directories: %w", err)
 	}
 
 	f, err := os.Create(tmpname)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("creating file: %w", err)
 	}
 
@@ -138,23 +163,28 @@ func (b *FsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size 
 
 	written, err := io.Copy(f, tee)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("writing file: %w", err)
 	}
 
 	if written > int64(size) {
+		status = "failed"
 		return ErrTooLarge
 	}
 	if written < int64(size) {
+		status = "failed"
 		return ErrTooSmall
 	}
 
 	if !bytes.Equal(hash.Sum(nil), info.Digest) {
+		status = "failed"
 		return ErrDataInconsistent
 	}
 
 	name := path.Join(b.rootdir, encodePath(digest))
 	err = os.MkdirAll(path.Dir(name), 0755)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("creating intermediate directories: %w", err)
 	}
 
@@ -163,9 +193,16 @@ func (b *FsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size 
 
 	err = move(tmpname, name)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("moving file: %w", err)
 	}
 	moved = true
+
+	// record count of pieces stored
+	telemetry.RecordPiecesStored(ctx, b.storeTypeName, 1)
+
+	// record usage (bytes written)
+	telemetry.RecordStorageUsage(ctx, b.storeTypeName, written)
 
 	return nil
 }
@@ -231,7 +268,7 @@ func NewFsBlobstore(rootdir string, tmpdir string) (*FsBlobstore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tmp directory not writable: %w", err)
 	}
-	return &FsBlobstore{rootdir, tmpdir}, nil
+	return &FsBlobstore{rootdir, tmpdir, "blob"}, nil
 }
 
 type fsDir struct {

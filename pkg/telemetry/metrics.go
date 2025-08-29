@@ -138,7 +138,7 @@ func SetPDPDataSize(ctx context.Context, size int64) {
 
 // Storage metric helpers
 
-func RecordStorageOp(ctx context.Context, opType, status string, duration time.Duration) {
+func RecordStorageExecution(ctx context.Context, opType, status string, duration time.Duration) {
 	opts := metric.WithAttributes(
 		attribute.String("storage.operation", opType),
 		attribute.String("storage.status", status),

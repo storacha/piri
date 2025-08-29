@@ -14,6 +14,7 @@ import (
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/store"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 type MapObject struct {
@@ -37,10 +38,17 @@ func (o MapObject) Body() io.Reader {
 }
 
 type MapBlobstore struct {
-	data map[string][]byte
+	data          map[string][]byte
+	storeTypeName string
 }
 
 func (mb *MapBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error) {
+	start := time.Now()
+	status := "success"
+	defer func() {
+		telemetry.RecordStorageExecution(ctx, "get", status, time.Since(start))
+	}()
+
 	o := &options{}
 	for _, opt := range opts {
 		opt(o)
@@ -49,6 +57,7 @@ func (mb *MapBlobstore) Get(ctx context.Context, digest multihash.Multihash, opt
 	k := digestutil.Format(digest)
 	b, ok := mb.data[k]
 	if !ok {
+		status = "not_found"
 		return nil, store.ErrNotFound
 	}
 
@@ -57,8 +66,15 @@ func (mb *MapBlobstore) Get(ctx context.Context, digest multihash.Multihash, opt
 }
 
 func (mb *MapBlobstore) Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error {
+	start := time.Now()
+	status := "success"
+	defer func() {
+		telemetry.RecordStorageExecution(ctx, "put", status, time.Since(start))
+	}()
+
 	info, err := multihash.Decode(digest)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("decoding digest: %w", err)
 	}
 	if info.Code != multihash.SHA2_256 {
@@ -67,13 +83,16 @@ func (mb *MapBlobstore) Put(ctx context.Context, digest multihash.Multihash, siz
 
 	b, err := io.ReadAll(body)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("reading body: %w", err)
 	}
 
 	if len(b) > int(size) {
+		status = "failed"
 		return ErrTooLarge
 	}
 	if len(b) < int(size) {
+		status = "failed"
 		return ErrTooSmall
 	}
 
@@ -81,11 +100,18 @@ func (mb *MapBlobstore) Put(ctx context.Context, digest multihash.Multihash, siz
 	hash.Write(b)
 
 	if !bytes.Equal(hash.Sum(nil), info.Digest) {
+		status = "failed"
 		return ErrDataInconsistent
 	}
 
 	k := digestutil.Format(digest)
 	mb.data[k] = b
+
+	// record count of pieces stored
+	telemetry.RecordPiecesStored(ctx, mb.storeTypeName, 1)
+
+	// record usage (bytes written)
+	telemetry.RecordStorageUsage(ctx, mb.storeTypeName, int64(len(b)))
 
 	return nil
 }
@@ -99,7 +125,10 @@ var _ Blobstore = (*MapBlobstore)(nil)
 // NewMapBlobstore creates a [Blobstore] backed by an in-memory map.
 func NewMapBlobstore() *MapBlobstore {
 	data := map[string][]byte{}
-	return &MapBlobstore{data}
+	return &MapBlobstore{
+		data:          data,
+		storeTypeName: "map",
+	}
 }
 
 type mapDir struct {

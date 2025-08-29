@@ -9,25 +9,36 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/ipfs/go-datastore"
 	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/store"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 type DsObject = MapObject
 
 type DsBlobstore struct {
-	data datastore.Datastore
+	data          datastore.Datastore
+	storeTypeName string
 }
 
 // Get implements Blobstore.
 func (d *DsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error) {
+	// record storage execution time
+	start := time.Now()
+	status := "success"
+	defer func() {
+		telemetry.RecordStorageExecution(ctx, "get", status, time.Since(start))
+	}()
+
 	o := &options{}
 	for _, opt := range opts {
 		if err := opt(o); err != nil {
+			status = "failed"
 			return nil, err
 		}
 	}
@@ -36,8 +47,11 @@ func (d *DsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 	b, err := d.data.Get(ctx, datastore.NewKey(k))
 	if err != nil {
 		if errors.Is(err, datastore.ErrNotFound) {
+			status = "not_found"
 			return nil, store.ErrNotFound
 		}
+
+		status = "failed"
 		return nil, err
 	}
 
@@ -46,8 +60,15 @@ func (d *DsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 }
 
 func (d *DsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error {
+	start := time.Now()
+	status := "success"
+	defer func() {
+		telemetry.RecordStorageExecution(ctx, "put", status, time.Since(start))
+	}()
+
 	info, err := multihash.Decode(digest)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("decoding digest: %w", err)
 	}
 	if info.Code != multihash.SHA2_256 {
@@ -56,13 +77,16 @@ func (d *DsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size 
 
 	b, err := io.ReadAll(body)
 	if err != nil {
+		status = "failed"
 		return fmt.Errorf("reading body: %w", err)
 	}
 
 	if len(b) > int(size) {
+		status = "failed"
 		return ErrTooLarge
 	}
 	if len(b) < int(size) {
+		status = "failed"
 		return ErrTooSmall
 	}
 
@@ -70,6 +94,7 @@ func (d *DsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size 
 	hash.Write(b)
 
 	if !bytes.Equal(hash.Sum(nil), info.Digest) {
+		status = "failed"
 		return ErrDataInconsistent
 	}
 
@@ -78,6 +103,12 @@ func (d *DsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size 
 	if err != nil {
 		return fmt.Errorf("putting blob: %w", err)
 	}
+
+	// record count of pieces stored
+	telemetry.RecordPiecesStored(ctx, d.storeTypeName, 1)
+
+	// record usage (bytes written)
+	telemetry.RecordStorageUsage(ctx, d.storeTypeName, int64(len(b)))
 
 	return nil
 }
@@ -88,7 +119,10 @@ func (d *DsBlobstore) FileSystem() http.FileSystem {
 
 // NewDsBlobstore creates an [Blobstore] backed by an IPFS datastore.
 func NewDsBlobstore(ds datastore.Datastore) *DsBlobstore {
-	return &DsBlobstore{ds}
+	return &DsBlobstore{
+		data:          ds,
+		storeTypeName: "blob",
+	}
 }
 
 var _ Blobstore = (*DsBlobstore)(nil)
