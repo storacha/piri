@@ -92,7 +92,7 @@ piri serve full --config=config.toml
 ▐▛▀▘ █ █    █  ▗█▘
 ▐▌   █      █  ▀▘
 
-🔥 v0.0.12
+🔥 v0.0.13
 🆔 did:key:z6MkhaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Piri Running on: localhost:3000
 Piri Public Endpoint: https://piri.example.com
