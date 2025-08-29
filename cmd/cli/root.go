@@ -43,13 +43,15 @@ var (
 	cfgFile  string
 	logLevel string
 	rootCmd  = &cobra.Command{
-		Use:   "piri",
-		Short: piriShortDescription,
-		Long:  piriLongDescription,
+		Use:     "piri",
+		Short:   piriShortDescription,
+		Long:    piriLongDescription,
+		Version: buildVersion("  "),
 	}
 )
 
 func init() {
+	initHelp()
 	cobra.OnInitialize(initLogging, initConfig, initTelemetry)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
@@ -79,6 +81,25 @@ func init() {
 	rootCmd.AddCommand(initalize.InitCmd)
 	rootCmd.AddCommand(client.Cmd)
 
+}
+
+func initHelp() {
+	rootCmd.SetHelpTemplate(`{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces}}{{end}}
+
+Version: 
+{{.Version}}
+
+Usage:
+  {{.UseLine}}
+
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.
+`)
 }
 
 func initConfig() {
