@@ -4,11 +4,11 @@ After successfully testing your Piri setup, you can inspect your proof sets to m
 
 ## PDPscan Proof Set Inspector
 
-Visit https://pdpscan.vercel.app/calibration/proofsets to view and inspect your proof sets.
+Visit https://pdp.vxb.ai/calibration to view and inspect your proof sets.
 
 This tool allows you to:
 - Find your proof set by ID
 - View proof set status and verification history
 - Monitor your storage node's activity on the network
 
-Your proof set ID will be displayed in your Piri logs after successful storage operations.
+Your proof set ID can be found in your piri configuration file

@@ -33,12 +33,20 @@ Example output: `did:key:z6MkhaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX`
 - **Set appropriate file permissions**: `chmod 600 service.pem`
 - **Backup securely**: Loss of this file means loss of your provider identity
 
+## Preparing Your Wallet File
+
+Export your Filecoin wallet address to a hex file:
+
+```bash
+# Export wallet from Lotus to hex format
+lotus wallet export YOUR_DELEGATED_ADDRESS > wallet.hex
+```
+
+This wallet file will be used during the initialization process to import your wallet into Piri.
+
 ---
 
 ## Next Steps
 
 After generating your keys:
 - [Configure TLS Termination](./tls-termination.md)
-- Then proceed to set up:
-  - [PDP Server](../guides/pdp-server.md)
-  - [UCAN Server](../guides/ucan-server.md)

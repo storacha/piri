@@ -6,17 +6,18 @@ This guide covers how to upgrade an existing Piri installation to a newer versio
 
 Before upgrading, ensure you have:
 - ✅ A running Piri installation
-- ✅ Access to both UCAN and PDP server processes
-- ✅ Noted your current server configurations
+- ✅ Your configuration file (config.toml)
+- ✅ Access to the Piri server process
 
 ## Upgrade Process
 
-### Step 1: Stop Running Servers
+### Step 1: Stop Running Server
 
-First, gracefully stop both Piri servers:
+First, gracefully stop the Piri server:
 
-1. **Stop the UCAN server**
-2. **Stop the PDP server**
+```bash
+# Stop the Piri full server (use Ctrl+C or your process manager)
+```
 
 ### Step 2: Install New Version
 
@@ -30,35 +31,31 @@ Confirm the new version is installed:
 piri version
 ```
 
-### Step 4: Restart Servers
+### Step 4: Restart Server
 
-Restart your servers with the same configuration as before:
+Restart your Piri server using your existing configuration file:
 
-1. **Start the PDP server** (see [PDP server guide](../guides/pdp-server.md) for details)
-   ```bash
-   piri serve pdp --lotus-url=wss://YOUR_LOTUS_ENDPOINT/rpc/v1 --eth-address=YOUR_ETH_ADDRESS
-   ```
+```bash
+piri serve full --config=config.toml
+```
 
-2. **Start the UCAN server** (see [UCAN server guide](../guides/ucan-server.md) for details)
-   ```bash
-   piri serve ucan --key-file=service.pem --pdp-server-url=https://up.piri.example.com
-   ```
+**Note:** Do not run `piri init` when upgrading - your existing configuration and proof set should be preserved.
 
-### Step 5: Validate Services
+### Step 5: Validate Service
 
-After restarting, verify both servers are running correctly:
+After restarting, verify the server is running correctly:
 - Check server logs for any errors
 - Follow the [validation guide](./validation.md) to test functionality
 
 ## Important Notes
 
-- Always stop servers before upgrading to prevent data corruption
+- Always stop the server before upgrading to prevent data corruption
 - Check the [release notes](https://github.com/storacha/piri/releases/latest) for any breaking changes
 
 ## Troubleshooting
 
 If you encounter issues after upgrading:
 1. Check server logs for error messages
-2. Verify your configuration files are intact
+2. Verify your configuration file is intact
 3. Ensure your Lotus node is still synced and accessible
-4. Contact the Storacha team if problems persist
+4. Contact the Storacha team in the [Storacha Discord server](https://discord.gg/pqa6Dn6RnP) if problems persist

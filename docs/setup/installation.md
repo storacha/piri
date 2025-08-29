@@ -28,8 +28,8 @@ sudo mv piri /usr/local/bin/piri
 ## Verify Installation
 
 ```bash
-# View available commands
-piri --help
+# The output version should match the version installed via the above command
+piri version
 ```
 
 ---
