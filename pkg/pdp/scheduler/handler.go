@@ -11,6 +11,7 @@ import (
 
 	"github.com/storacha/piri/pkg/database"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 // taskTypeHandler ties a task implementation with engine-specific metadata.
@@ -135,13 +136,17 @@ func (h *taskTypeHandler) considerWork(taskIDs []TaskID, db *gorm.DB) bool {
 			}()
 
 			tlog.Info("Task starting execution")
+			status := "success"
 			done, doErr = h.Do(taskID)
 			if doErr != nil {
+				status = "failed"
 				tlog.Errorw("Task execution failed", "error", doErr, "done", done, "duration", time.Since(doStart))
 			}
 
 			// record task count
-			recordTask(h.TaskEngine.ctx, taskID, doStart, doErr == nil)
+			// TODO get taskname from DB
+			taskName := ""
+			telemetry.RecordTaskExecution(h.TaskEngine.ctx, taskName, status, time.Since(doStart))
 		}(id)
 	}
 
@@ -158,10 +163,13 @@ func (h *taskTypeHandler) handleDoneTask(id TaskID, startTime time.Time, done bo
 	)
 
 	var (
-		endTime         = time.Now()
-		retryWait       = 100 * time.Millisecond
-		maxRetries uint = 10
-		retryCount uint = 0
+		endTime                     = time.Now()
+		retryWait                   = 100 * time.Millisecond
+		maxRetries             uint = 10
+		retryCount             uint = 0
+		scheduledRetry              = false
+		scheduledTaskName           = ""
+		scheduledRetryAttempts      = 0
 	)
 
 retryHandleDoneTask:
@@ -174,11 +182,6 @@ retryHandleDoneTask:
 			return fmt.Errorf("failed to handle task: failed to query taskID: %d: %w", id, res.Error)
 		} else if res.RowsAffected == 0 {
 			return fmt.Errorf("failed to handle task: no task found for taskID: %d: %w", id, res.Error)
-		}
-
-		// record task retry if this is a retry
-		if retryCount > 0 {
-			recordTaskRetry(h.TaskEngine.ctx, task.Name)
 		}
 
 		taskErrMsg := ""
@@ -220,6 +223,10 @@ retryHandleDoneTask:
 					}).Error; err != nil {
 					return fmt.Errorf("failed to updated failed task %d: %w", id, err)
 				}
+
+				scheduledRetry = true
+				scheduledTaskName = task.Name
+				scheduledRetryAttempts = int(task.Retries + 1)
 			}
 		}
 
@@ -237,6 +244,16 @@ retryHandleDoneTask:
 			return fmt.Errorf("failed to write task (%d) history: %w", id, res.Error)
 		}
 
+		status := "success"
+		if scheduledRetry {
+			status = "retry"
+		}
+
+		if doErr != nil && done {
+			status = "success_with_error"
+		}
+		telemetry.RecordTaskExecution(h.TaskEngine.ctx, task.Name, status, endTime.Sub(startTime))
+
 		return nil
 	})
 	if err != nil {
@@ -250,6 +267,13 @@ retryHandleDoneTask:
 			goto retryHandleDoneTask
 		}
 		return err
+	}
+
+	// record task retries
+	if scheduledRetry {
+		for i := 0; i < scheduledRetryAttempts; i++ {
+			telemetry.IncTaskRetries(h.TaskEngine.ctx, scheduledTaskName)
+		}
 	}
 
 	return nil

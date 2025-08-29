@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 var log = logging.Logger("pdp/scheduler")
@@ -144,7 +145,7 @@ func (e *TaskEngine) pollerTryAllWork() bool {
 		}
 
 		// Observe queue depth for this task type
-		observeQueueDepth(h.TaskEngine.ctx, h.TaskTypeDetails.Name, int64(len(tasks)))
+		telemetry.ObserveTaskQueueDepth(h.TaskEngine.ctx, h.TaskTypeDetails.Name, int64(len(tasks)))
 
 		var taskIDs []TaskID
 		// Filter tasks based on retry logic.

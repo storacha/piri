@@ -56,10 +56,10 @@ var (
 	EthTransactionConfirmationTime metric.Float64Histogram
 )
 
-func RecordHTTPRequest(ctx context.Context, method, path, urlPath string, statusCode int, duration time.Duration, reqSize, respSize int64) {
+func RecordHTTPRequest(ctx context.Context, method, route, urlPath string, statusCode int, duration time.Duration, reqSize, respSize int64) {
 	opts := metric.WithAttributes(
 		attribute.String("http.method", method),
-		attribute.String("http.path", path),
+		attribute.String("http.route", route),
 		attribute.String("url.path", urlPath),
 		attribute.Int("http.status_code", statusCode),
 	)

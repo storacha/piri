@@ -1,5 +1,6 @@
 package scheduler
 
+/**
 import (
 	"context"
 	"time"
@@ -43,3 +44,4 @@ func observeQueueDepth(ctx context.Context, queueName string, depth int64) {
 
 	telemetry.TaskQueueDepth.Add(context.Background(), depth, opts)
 }
+**/
