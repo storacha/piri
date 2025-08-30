@@ -1,0 +1,215 @@
+# Complete Tofu Variables Template for Multi-Instance Piri Deployment
+# ===========================================================================
+# This template includes ALL available variables with detailed explanations.
+# Required variables are marked with [REQUIRED]
+# Optional variables show their default values and can be left commented out
+
+# ===========================================================================
+# NOTES AND BEST PRACTICES
+# ===========================================================================
+#
+# 1. SECRETS MANAGEMENT:
+#    - For production, always use AWS Secrets Manager (use_secrets_manager = true)
+#    - Store secrets with path: {environment}/piri/{instance_name}/service-key
+#    - Never commit actual secrets to version control
+#
+# 2. INSTANCE SIZING:
+#    - It is recommended to use the m6a instance class for the following reasons:
+#        - They support sha extensions, which improves the performance of the filecoin CommP hash function
+#        - Different instance classes require different logic for volume mounting.
+#          For m6a instances, EBS volumes appear as NVMe devices, this tofu only supports mounting such devices.
+#          See deploy/full-node/modules/piri-instance/scripts/user-data.sh.tpl for mounting logic.
+#
+# 3. DOMAIN NAMING:
+#    - Full domain: {environment}.{subdomain}.{root_domain}
+#    - Example: staging.node1.pdp.storacha.network
+#
+# 4. STORAGE SIZING:
+#    - EBS volumes can be expanded later but not shrunk
+#    - Start conservative and expand as needed
+#
+# 5. VERSION MANAGEMENT:
+#    - Production: Use specific version tags (e.g., "v0.0.12")
+#    - Staging: Can use "main" branch for latest stable
+#    - Development: Use feature branches for testing
+#
+# 6. SSL CERTIFICATES:
+#    - Certificates are automatically obtained via Let's Encrypt
+#    - Ensure the domain points to the instance before deployment
+#    - The operator_email is used for certificate notifications
+#
+# 7. MONITORING:
+#    - Check CloudInit logs in: /var/log/clout-init-output.log
+#    - Service logs: sudo journalctl -u piri -f
+#    - Nginx logs: /var/log/nginx/access.log and error.log
+#
+
+# ===========================================================================
+# AWS CONFIGURATION
+# ===========================================================================
+
+# AWS account ID(s) allowed to run this tofu
+# Default: "505595374361" - uncomment to override
+# allowed_account_ids = ["YOUR_AWS_ACCOUNT_ID"]
+
+# AWS region where resources will be deployed
+# Default: "us-west-2" - uncomment to override
+# Note: Secrets used by this deployment are in us-west-2, if you chose a different region
+#       secrets must be copied to that region, or secret replication must be enabled.
+#       Else you may forgo the secret manager, see use_secrets_manager, and supply your own inline (insecurely)
+# region = "us-west-2"
+
+# ===========================================================================
+# DEPLOYMENT CONFIGURATION
+# ===========================================================================
+
+# Environment name (e.g., dev, staging, prod)
+# Used in resource naming and secret paths
+# Default: "staging" - uncomment to override
+# environment = "staging"
+
+# Root domain for all instances
+# The full domain will be: {environment}.{subdomain}.{root_domain}
+# Default: "pdp.storacha.network" - uncomment to override
+# Note: "pdp.storacha.network" is a hosted zone in AWS, since storacha.network is managed by cloudflare, changing
+#          this value is non-trival. It is strongly recommended to leve this as the default.
+# root_domain = "pdp.storacha.network"
+
+# SSH key pair name for EC2 instance access
+# Must exist in the specified AWS region
+# Default: "warm-storage-staging" - uncomment to override
+# Note: This SSH key may be found in the storacha 1password vault.
+# key_name = "warm-storage-staging"
+
+# ===========================================================================
+# ORGANIZATION TAGS
+# ===========================================================================
+# These tags are applied to all resources for billing/organization
+
+# Resource owner identifier
+# Default: "storacha" - uncomment to override
+# owner = "storacha"
+
+# Team managing the resources
+# Default: "Storacha Engineer" - uncomment to override
+# team = "Storacha Engineer"
+
+# Organization name
+# Default: "Storacha" - uncomment to override
+# org = "Storacha"
+
+# ===========================================================================
+# PDP (PROOF DATA PROCESSOR) CONFIGURATION
+# ===========================================================================
+
+# [REQUIRED] Lotus WebSocket endpoint for blockchain interaction
+# No default - you must provide this
+# Note: The storacha team runs a lotus gateway, reach-out in discord if you would like access.
+pdp_lotus_endpoint = "wss://YOUR_LOTUS_ENDPOINT/rpc/v1"
+
+# PDP smart contract address
+# Default: "0x6170dE2b09b404776197485F3dc6c968Ef948505" - uncomment to override
+# Note: This address is defined here: https://github.com/FilOzone/pdp/?tab=readme-ov-file#v110 it is strongly recommended
+#       to use this default.
+# pdp_contract_address = "0x6170dE2b09b404776197485F3dc6c968Ef948505"
+
+# Registrar service URL for node registration
+# Default: "https://staging.registrar.storacha.network" - uncomment to override
+# registrar_url = "https://staging.registrar.storacha.network"
+
+# ===========================================================================
+# SECRETS MANAGEMENT
+# ===========================================================================
+
+# Enable AWS Secrets Manager for sensitive data
+# When true, secrets are fetched from
+# - for node identity: {environment}/piri/{instance_name}/service-key
+# - for node wallet: {environment}/piri/{instance_name}/wallet-key
+# When false, you must provide service_pem_content and wallet_hex_content for each instance
+# Default: true - uncomment to enable
+# use_secrets_manager = true
+
+# ===========================================================================
+# DEFAULT INSTANCE CONFIGURATION
+# ===========================================================================
+# These defaults apply to all instances unless overridden per-instance
+
+# Default EC2 instance type
+# Default: "m6a.xlarge" - uncomment to override
+# Note: we use this instance type for its AMD EPYC processors which support sha extensions, this improves the
+#       performance of the CommP hashing function.
+# default_instance_type = "m6a.xlarge"
+
+# Default EBS volume size in GB
+# Default: 100 - uncomment to override
+# default_ebs_volume_size = 100
+
+# Default installation method: "version" (for releases) or "branch" (build from source)
+# Default: "version" - uncomment to override
+# default_install_method = "version"
+
+# Default installation source (version tag like "v0.0.12" or branch name like "main")
+# Default: "v0.0.12" - uncomment to override
+# default_install_source = "v0.0.12"
+
+# ===========================================================================
+# INSTANCE DEFINITIONS
+# ===========================================================================
+# Define each Piri instance with its specific configuration
+# Required fields per instance:
+#   - subdomain: DNS subdomain for this instance
+#   - operator_email: Contact email for this node operator
+#
+# Optional fields per instance (will use defaults if not specified):
+#   - instance_type: Override EC2 instance type
+#   - ebs_volume_size: Override storage size in GB
+#   - install_method: Override installation method ("version" or "branch")
+#   - install_source: Override version/branch to install
+#   - service_pem_content: Service private key (only if use_secrets_manager = false)
+#   - wallet_hex_content: Wallet private key (only if use_secrets_manager = false)
+
+instances = {
+  # Example: Basic node using all defaults
+  node1 = {
+    subdomain      = "node1"  # Creates: staging.node1.pdp.storacha.network
+    operator_email = "operator1@example.com"
+    # Uses all defaults for instance type, storage, and installation
+  }
+
+  # Example: Production node with specific version
+  node2 = {
+    subdomain       = "node2" # Creates: staging.node2.pdp.storacha.network
+    operator_email  = "operator2@example.com"
+    #install_method  = "version"      # Install from release, overrides default_install_source for this instance
+    #install_source  = "v0.0.12"      # Specific version, overrides default_install_method for this insance
+  }
+
+  # Example: Development node running from branch
+  node3 = {
+    subdomain       = "node3" # Creates: staging.node3.pdp.storacha.network
+    operator_email  = "operator3@example.com"
+    #instance_type   = "m6a.2xlarge"  # Larger instance
+    #ebs_volume_size = 500            # More storage
+  }
+}
+
+# ===========================================================================
+# INSTANCE DEFINITIONS WITH INLINE SECRETS (use_secrets_manager = false)
+# ===========================================================================
+# If NOT using AWS Secrets Manager, provide secrets inline:
+
+# instances = {
+#   node1 = {
+#     subdomain      = "node1"
+#     operator_email = "operator1@example.com"
+#     
+#     # When use_secrets_manager = false, these are REQUIRED:
+#     service_pem_content = <<EOF
+# -----BEGIN PRIVATE KEY-----
+# YOUR_SERVICE_PRIVATE_KEY_HERE
+# -----END PRIVATE KEY-----
+# EOF
+#     
+#     wallet_hex_content = "YOUR_WALLET_PRIVATE_KEY_HEX_HERE"
+#   }
+# }
