@@ -24,7 +24,7 @@ import (
 )
 
 // TODO allow this to be tuned based on network and user preferences for risk.
-// original value from curio is 6, but a lower value is nice when testing againts calibration network
+// original value from curio is 6, but a lower value is nice when testing against calibration network
 
 // MinConfidence defines how many blocks must be applied before we accept the message as applied.
 // Synonymous with finality

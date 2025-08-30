@@ -89,7 +89,7 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 		log.Info("blob already received")
 		return &AllocateResponse{
 			Size: size,
-			// NB: blob already receieved, therefor no address is needed for upload.
+			// NB: blob already received, therefor no address is needed for upload.
 			Address: nil,
 		}, nil
 	}

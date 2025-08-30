@@ -422,7 +422,7 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 			)
 
 			// Condition: If existing allocation, store an existing allocation
-			// coverage when an allocation has been made but not transfered.
+			// coverage when an allocation has been made but not transferred.
 			if tc.hasExistingAllocation {
 				require.NoError(t, svc.Blobs().Allocations().Put(ctx, allocation.Allocation{
 					Space: expectedSpace,
