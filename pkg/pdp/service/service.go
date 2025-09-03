@@ -129,9 +129,6 @@ func SetupPDPService(
 	}
 	t = append(t, pdpNextTask)
 
-	pdpNotifyTask := tasks.NewPDPNotifyTask(db)
-	t = append(t, pdpNotifyTask)
-
 	pdpProveTask, err := tasks.NewProveTask(chainScheduler, db, ethClient, contractClient, chainClient, sender, bs)
 	if err != nil {
 		return nil, fmt.Errorf("creating prove period task: %w", err)
@@ -152,7 +149,6 @@ func SetupPDPService(
 
 	pdpStorePieceTask := tasks.NewStorePieceTask(db, bs)
 	t = append(t, pdpStorePieceTask)
-
 	engine, err := scheduler.NewEngine(db, t)
 	if err != nil {
 		return nil, fmt.Errorf("creating engine: %w", err)
@@ -176,7 +172,6 @@ func SetupPDPService(
 		go chainScheduler.Run(ctx)
 
 		// start task(s)
-		pdpStorePieceTask.Start(ctx)
 		ethWatcher.Start()
 		return nil
 	})

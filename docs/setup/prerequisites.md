@@ -6,7 +6,6 @@ This document outlines the common prerequisites for running Piri services. Speci
 
 ### Operating System
 - **Linux-based OS** (Ubuntu 20.04+ recommended)
-- **macOS** (for development)
 
 ### Hardware
 - **CPU**: 4+ cores
@@ -26,19 +25,13 @@ sudo apt update && sudo apt install -y make git jq curl wget nginx certbot pytho
 
 ## Network Requirements
 
-### Domain Names
-You'll need **two fully qualified domain names (FQDN)**:
-- `piri.example.com` - for Piri UCAN server
-- `up.piri.example.com` - for Piri PDP Server
-
+### Domain
+You'll need **a domain**, e.g. `piri.example.com` 
 ### Firewall Configuration
-Open the following ports:
+Ensure the following ports are open for ingress and egress:
 
-```bash
-# HTTP/HTTPS (required)
-ufw allow 80/tcp 
-ufw allow 443/tcp
-```
+- `80` 
+- `443`
 
 ## Filecoin Prerequisites
 
@@ -53,7 +46,7 @@ A [Lotus node](https://github.com/filecoin-project/lotus) is required for intera
 
 ### Funded Delegated Wallet
 
-A Lotus Delegated Address is required by Piri for interacting with the PDP Smart Contract. This guide assumes you have already setup a lotus node as described in the [pre-requisites document](./prerequisites.md). Please refer to the official [Filecoin Docs](https://docs.filecoin.io/smart-contracts/filecoin-evm-runtime/address-types#delegated-addresses) for more details on delegated addresses.
+A Lotus Delegated Address is required by Piri for interacting with the PDP Smart Contract. This guide assumes you have already setup a lotus node as described 'Filecoin Prerequisite' above. Please refer to the official [Filecoin Docs](https://docs.filecoin.io/smart-contracts/filecoin-evm-runtime/address-types#delegated-addresses) for more details on delegated addresses.
 
 **Step 1: Generate a Delegated Address**
 
