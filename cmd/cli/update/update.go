@@ -258,10 +258,10 @@ func downloadAndVerifyBinary(ctx context.Context, cmd *cobra.Command, url string
 		progressbar.OptionSetDescription("Downloading update"),
 		progressbar.OptionSetTheme(progressbar.Theme{
 			Saucer:        "[green]=[reset]",
-			SaucerHead:    "[green]>[reset]",
+			SaucerHead:    "[green]🐣>[reset]",
 			SaucerPadding: " ",
-			BarStart:      "[",
-			BarEnd:        "]",
+			BarStart:      "🥚",
+			BarEnd:        "🐔",
 		}),
 		progressbar.OptionOnCompletion(func() {
 			_, _ = fmt.Fprint(cmd.OutOrStdout(), "\n")
