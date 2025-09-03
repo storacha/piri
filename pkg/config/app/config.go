@@ -16,4 +16,10 @@ type AppConfig struct {
 
 	// Configuration specific for PDP operations
 	PDPService PDPServiceConfig
+
+	//
+	// Configs below are not exposed to users, they are hard coded with defaults
+	// their purpose is to allow configurable configuration injection in tests
+	// They may be exposed to users later
+	Replicator ReplicatorConfig
 }

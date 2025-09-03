@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	blob2 "github.com/storacha/go-libstoracha/capabilities/space/blob"
 	"github.com/storacha/go-libstoracha/capabilities/types"
+	ucancap "github.com/storacha/go-libstoracha/capabilities/ucan"
 	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/car"
@@ -34,6 +36,7 @@ import (
 	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
 	"github.com/storacha/go-ucanto/ucan"
+	appconfig "github.com/storacha/piri/pkg/config/app"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -371,6 +374,8 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 		hasExistingAllocation bool
 		hasExistingData       bool
 		expectedTransferSize  uint64
+		simulateRetry         bool
+		simulateFailure       bool
 	}{
 		{
 			name:                  "NoExistingAllocationNoData",
@@ -387,13 +392,26 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			hasExistingAllocation: true,
 			hasExistingData:       true,
 		},
+		{
+			name:                  "TransferRetryAfterUploadServiceFailure",
+			hasExistingAllocation: false,
+			hasExistingData:       false,
+			simulateRetry:         true, // Will fail upload service first, then succeed
+		},
+		{
+			name:                  "TransferTotalFailure",
+			hasExistingAllocation: false,
+			hasExistingData:       false,
+			simulateRetry:         false, // Will fail upload service first, then succeed
+			simulateFailure:       true,
+		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
-			// we expect each test to run in 10 seconds or less.
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			// we expect each test to run in 60 seconds or less.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 
 			// Common setup: random DID, random data, etc.
 			expectedSpace := testutil.RandomDID(t)
@@ -423,17 +441,25 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			testApp := fxtest.New(t,
 				app.CommonModules(appConfig),
 				app.UCANModule,
+				// replace the RequestPresigner with our fake one.
 				fx.Decorate(func() presigner.RequestPresigner {
 					return fakeBlobPresigner
+				}),
+				// replace the default replicator config with one that causes failures to happen faster
+				fx.Replace(appconfig.ReplicatorConfig{
+					MaxRetries: 2,
+					MaxWorkers: 1,
+					MaxTimeout: time.Second,
 				}),
 				fx.Populate(&svc, &srv),
 			)
 
 			testApp.RequireStart()
 
-			fakeServer, transferOkChan := startTestHTTPServer(
+			fakeServer, transferOkChan, sourceGetCount, sinkPutCount := startTestHTTPServer(
 				ctx, t, expectedDigest, expectedData, svc,
 				serverAddr, sourcePath, sinkPath, uploadServicePath,
+				tc.simulateRetry, tc.simulateFailure,
 			)
 
 			t.Cleanup(func() {
@@ -485,15 +511,19 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 				t, bri, lcd, expectedSpace, expectedDigest, expectedSize,
 			)
 			res, err := client.Execute(t.Context(), []invocation.Invocation{rbi}, conn)
+
+			// Handle normal execution
 			require.NoError(t, err)
 
 			// The final assertion on the returned allocation size.
 			// With an existing allocation or existing data, the new allocated
-			// size is 0, otherwise it’s expectedSize.
+			// size is 0, otherwise it's expectedSize.
 			var wantSize uint64
 			if !tc.hasExistingAllocation && !tc.hasExistingData {
+				// Normal case and first attempt of retry: new allocation gets the full size
 				wantSize = expectedSize
 			}
+
 			// read the receipt for the blob allocate, asserting its size is expected value.
 			alloc := mustReadAllocationReceipt(t, rbi, res)
 			require.EqualValues(t, wantSize, alloc.Size)
@@ -502,24 +532,73 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			require.NotNil(t, alloc.Site)
 			require.Equal(t, ".out.ok", alloc.Site.UcanAwait.Selector)
 
-			// "Wait" for the transfer invocation to produce a receipt
-			// simulating the upload-service getting a receipt from this storage node.
-			transferOkMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
-			// expect one invocation and one receipt
-			require.Len(t, transferOkMsg.Invocations(), 1)
-			require.Len(t, transferOkMsg.Receipts(), 1)
+			if tc.simulateRetry {
+				// In retry scenario, first attempt fails at upload service
+				// The transfer happens but upload service rejects it
+				// So we won't get a message on the first attempt
 
-			// Full read + assertion on the transfer invocation and its ucan chain
-			mustAssertTransferInvocation(
-				t,
-				transferOkMsg,
-				expectedDigest,
-				wantSize,
-				expectedSpace,
-				expectedLocationCaveats,
-				expectedAllocateCaveats,
-				expectedReplicaCaveats,
-			)
+				// Give the system time to process the failure and retry
+				time.Sleep(500 * time.Millisecond)
+
+				// Now manually trigger a retry by executing again
+				t.Log("Triggering retry after upload service failure...")
+				res2, err2 := client.Execute(t.Context(), []invocation.Invocation{rbi}, conn)
+				require.NoError(t, err2, "retry should succeed")
+
+				// Verify the retry allocation shows size 0 (blob already exists)
+				alloc2 := mustReadAllocationReceipt(t, rbi, res2)
+				require.EqualValues(t, 0, alloc2.Size, "Retry allocation should be 0 since blob exists")
+
+				// This time we should get a transfer message since upload service will succeed
+				ucanConcludeMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
+				require.Len(t, ucanConcludeMsg.Invocations(), 1)
+				require.Len(t, ucanConcludeMsg.Receipts(), 1)
+
+				// Full assertion on the retry transfer
+				mustAssertTransferInvocation(
+					t,
+					ucanConcludeMsg,
+					expectedDigest,
+					0, // wantSize is 0 because blob already exists from first attempt
+					expectedSpace,
+					expectedLocationCaveats,
+					expectedAllocateCaveats,
+					expectedReplicaCaveats,
+					tc.simulateFailure,
+				)
+
+				// Verify blob was only transferred once
+				sourceCount := atomic.LoadInt32(sourceGetCount)
+				sinkCount := atomic.LoadInt32(sinkPutCount)
+
+				// The blob should only be transferred once (on first attempt)
+				// Second attempt should NOT transfer again
+				require.EqualValues(t, 1, sourceCount,
+					"Source should only be hit once despite retry (idempotency test)")
+				require.EqualValues(t, 1, sinkCount,
+					"Sink should only be hit once despite retry (idempotency test)")
+
+				t.Logf("Retry did NOT re-transfer blob as intended (source hits: %d, sink hits: %d)",
+					sourceCount, sinkCount)
+			} else {
+				// Normal case - wait for transfer message
+				ucanConcludeMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
+				require.Len(t, ucanConcludeMsg.Invocations(), 1)
+				require.Len(t, ucanConcludeMsg.Receipts(), 1)
+
+				// Full read + assertion on the transfer invocation and its ucan chain
+				mustAssertTransferInvocation(
+					t,
+					ucanConcludeMsg,
+					expectedDigest,
+					wantSize,
+					expectedSpace,
+					expectedLocationCaveats,
+					expectedAllocateCaveats,
+					expectedReplicaCaveats,
+					tc.simulateFailure,
+				)
+			}
 		})
 	}
 }
@@ -676,37 +755,47 @@ func mustWaitForTransferMsg(
 	case <-ctx.Done():
 		t.Fatal("test did not produce transfer receipt in time: ", ctx.Err())
 		return nil
-	case transferOkMsg := <-ch:
-		require.NotNil(t, transferOkMsg)
-		return transferOkMsg
+	case ucanConcludeMsg := <-ch:
+		require.NotNil(t, ucanConcludeMsg)
+		return ucanConcludeMsg
 	}
 }
 
 // Reads the final “transfer invocation” and asserts its fields, and chain of invocations
 func mustAssertTransferInvocation(
 	t *testing.T,
-	transferOkMsg message.AgentMessage,
+	ucanConcludeMsg message.AgentMessage,
 	expectedDigest multihash.Multihash,
 	expectedSize uint64,
 	expectedSpace did.DID,
 	expectedLocationCav assert.LocationCaveats,
 	expectedAllocateCav replica.AllocateCaveats,
 	expectedReplicaCav blob2.ReplicateCaveats,
+	simulateFailure bool,
 ) {
 	// sanity check
-	require.NotNil(t, transferOkMsg)
+	require.NotNil(t, ucanConcludeMsg)
 
-	// create a reader for the transfer invocation chain.
-	transferInvocationCid := testutil.Must(
-		cid.Parse(transferOkMsg.Invocations()[0].String()),
+	concludeInvocationCid := testutil.Must(
+		cid.Parse(ucanConcludeMsg.Invocations()[0].String()),
 	)(t)
 	reader := testutil.Must(
-		blockstore.NewBlockReader(blockstore.WithBlocksIterator(transferOkMsg.Blocks())),
+		blockstore.NewBlockReader(blockstore.WithBlocksIterator(ucanConcludeMsg.Blocks())),
 	)(t)
+
+	concludeCav := mustGetInvocationCaveats[ucancap.ConcludeCaveats](
+		t, reader, cidlink.Link{Cid: concludeInvocationCid},
+		ucancap.ConcludeCaveatsReader.Read,
+	)
+	someotherreader, err := receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](replica.TransferOkType(), fdm.FailureType(), types.Converters...)
+	require.NoError(t, err)
+
+	rcpt, err := someotherreader.Read(concludeCav.Receipt, ucanConcludeMsg.Blocks())
+	require.NoError(t, err)
 
 	// get the transfer caveats and assert they match expected values
 	transferCav := mustGetInvocationCaveats[replica.TransferCaveats](
-		t, reader, cidlink.Link{Cid: transferInvocationCid},
+		t, reader, rcpt.Ran().Link(),
 		replica.TransferCaveatsReader.Read,
 	)
 	require.EqualValues(t, expectedSize, transferCav.Blob.Size)
@@ -733,29 +822,46 @@ func mustAssertTransferInvocation(
 
 	// read the transfer receipt
 	transferReceiptCid := testutil.Must(
-		cid.Parse(transferOkMsg.Receipts()[0].String()),
+		cid.Parse(rcpt.Root().Link().String()),
 	)(t)
-	transferReceiptReader := testutil.Must(
-		receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](
-			replica.TransferOkType(), fdm.FailureType(), types.Converters...,
-		),
-	)(t)
-	transferReceipt := testutil.Must(
-		transferReceiptReader.Read(cidlink.Link{Cid: transferReceiptCid}, reader.Iterator()),
-	)(t)
-	transferOk := testutil.Must(
-		result.Unwrap(result.MapError(transferReceipt.Out(), failure.FromFailureModel)),
-	)(t)
+	if !simulateFailure {
+		transferReceiptReader := testutil.Must(
+			receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](
+				replica.TransferOkType(), fdm.FailureType(), types.Converters...,
+			),
+		)(t)
+		transferReceipt := testutil.Must(
+			transferReceiptReader.Read(cidlink.Link{Cid: transferReceiptCid}, reader.Iterator()),
+		)(t)
+		transferOk := testutil.Must(
+			result.Unwrap(result.MapError(transferReceipt.Out(), failure.FromFailureModel)),
+		)(t)
 
-	// PDP isn't enabled in this test setup, so no PDP proof expected.
-	require.Nil(t, transferOk.PDP)
+		// PDP isn't enabled in this test setup, so no PDP proof expected.
+		require.Nil(t, transferOk.PDP)
 
-	// read the receipt of the transfer invocation asserting the location caveats of Site contain expected values.
-	locationCavRct := mustGetInvocationCaveats[assert.LocationCaveats](t, reader, transferOk.Site, assert.LocationCaveatsReader.Read)
-	require.Equal(t, expectedSpace, locationCavRct.Space)
-	require.Equal(t, expectedDigest, locationCavRct.Content.Hash())
-	require.Len(t, locationCavRct.Location, 1)
-	require.Equal(t, fmt.Sprintf("/blob/z%s", expectedDigest.B58String()), locationCavRct.Location[0].Path)
+		// read the receipt of the transfer invocation asserting the location caveats of Site contain expected values.
+		locationCavRct := mustGetInvocationCaveats[assert.LocationCaveats](t, reader, transferOk.Site, assert.LocationCaveatsReader.Read)
+		require.Equal(t, expectedSpace, locationCavRct.Space)
+		require.Equal(t, expectedDigest, locationCavRct.Content.Hash())
+		require.Len(t, locationCavRct.Location, 1)
+		require.Equal(t, fmt.Sprintf("/blob/z%s", expectedDigest.B58String()), locationCavRct.Location[0].Path)
+	} else {
+		transferErrorReceiptReader := testutil.Must(
+			receipt.NewReceiptReaderFromTypes[replica.TransferError, fdm.FailureModel](
+				replica.TransferErrorType(), fdm.FailureType(), types.Converters...,
+			),
+		)(t)
+		transferReceipt := testutil.Must(
+			transferErrorReceiptReader.Read(cidlink.Link{Cid: transferReceiptCid}, reader.Iterator()),
+		)(t)
+		// expect an error
+		// TODO(forrest): we probably want a stronger assertion here, but I am way out of my element with how to parse all this.
+		// *whines* about lack of familiarity that is cbor-gen
+		_, err := result.Unwrap(result.MapError(transferReceipt.Out(), failure.FromFailureModel))
+		require.Error(t, err)
+
+	}
 }
 
 func mustGetInvocationCaveats[T ipld.Builder](t *testing.T, reader blockstore.BlockReader, inv ucan.Link, invReader func(any) (T, failure.Failure)) T {
@@ -772,21 +878,46 @@ func startTestHTTPServer(
 	serveData []byte,
 	svc storage.Service,
 	addr, sourcePath, sinkPath, uploadServicePath string,
-) (*http.Server, <-chan message.AgentMessage) {
-	agentCh := make(chan message.AgentMessage, 1)
+	simulateRetry bool,
+	simulateFailure bool,
+) (*http.Server, <-chan message.AgentMessage, *int32, *int32) {
+	agentCh := make(chan message.AgentMessage, 2) // Increase buffer for retry case
 	mux := http.NewServeMux()
+
+	// Track transfer counts for testing idempotency of Transfer method
+	var sourceGetCount int32
+	var sinkPutCount int32
+	var uploadServiceAttempts int32
 
 	// Endpoint to serve data.
 	mux.HandleFunc(fmt.Sprintf("/%s", sourcePath), func(w http.ResponseWriter, r *http.Request) {
+		if simulateFailure {
+			t.Logf("Upload service failing permenantly")
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("permanent upload service failure"))
+			return
+		}
+		atomic.AddInt32(&sourceGetCount, 1)
 		_, _ = w.Write(serveData)
 	})
 	// Endpoint to store data on the replica.
 	mux.HandleFunc(fmt.Sprintf("/%s", sinkPath), func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&sinkPutCount, 1)
 		require.NoError(t, svc.Blobs().Store().Put(ctx, digest, uint64(len(serveData)), bytes.NewReader(serveData)))
 		_, _ = w.Write(serveData)
 	})
 	// Endpoint to simulate the upload service.
 	mux.HandleFunc(fmt.Sprintf("/%s", uploadServicePath), func(w http.ResponseWriter, r *http.Request) {
+		attempt := atomic.AddInt32(&uploadServiceAttempts, 1)
+
+		// If simulating retry, fail the first attempt
+		if simulateRetry && attempt == 1 {
+			t.Logf("Upload service failing on attempt %d (simulating retry scenario)", attempt)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("temporary upload service failure"))
+			return
+		}
+
 		roots, blocks, err := car.Decode(r.Body)
 		require.NoError(t, err)
 		bstore, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(blocks))
@@ -794,6 +925,10 @@ func startTestHTTPServer(
 		agentMessage, err := message.NewMessage(roots, bstore)
 		require.NoError(t, err)
 		agentCh <- agentMessage
+
+		if simulateRetry {
+			t.Logf("Upload service succeeded on attempt %d", attempt)
+		}
 	})
 
 	server := &http.Server{
@@ -812,7 +947,7 @@ func startTestHTTPServer(
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
-	return server, agentCh
+	return server, agentCh, &sourceGetCount, &sinkPutCount
 }
 
 // FakePresigned is a stub for upload URL presigning.

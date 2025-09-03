@@ -18,6 +18,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	blob2 "github.com/storacha/go-libstoracha/capabilities/space/blob"
 	"github.com/storacha/go-libstoracha/capabilities/types"
+	ucancap "github.com/storacha/go-libstoracha/capabilities/ucan"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/car"
 	"github.com/storacha/go-ucanto/core/dag/blockstore"
@@ -469,15 +470,15 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 
 			// "Wait" for the transfer invocation to produce a receipt
 			// simulating the upload-service getting a receipt from this storage node.
-			transferOkMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
+			ucanConcludeMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
 			// expect one invocation and one receipt
-			require.Len(t, transferOkMsg.Invocations(), 1)
-			require.Len(t, transferOkMsg.Receipts(), 1)
+			require.Len(t, ucanConcludeMsg.Invocations(), 1)
+			require.Len(t, ucanConcludeMsg.Receipts(), 1)
 
 			// Full read + assertion on the transfer invocation and its ucan chain
 			mustAssertTransferInvocation(
 				t,
-				transferOkMsg,
+				ucanConcludeMsg,
 				expectedDigest,
 				wantSize,
 				expectedSpace,
@@ -485,6 +486,7 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 				expectedAllocateCaveats,
 				expectedReplicaCaveats,
 			)
+
 		})
 	}
 }
@@ -659,16 +661,15 @@ func mustWaitForTransferMsg(
 	case <-ctx.Done():
 		t.Fatal("test did not produce transfer receipt in time: ", ctx.Err())
 		return nil
-	case transferOkMsg := <-ch:
-		require.NotNil(t, transferOkMsg)
-		return transferOkMsg
+	case ucanConcludeMsg := <-ch:
+		require.NotNil(t, ucanConcludeMsg)
+		return ucanConcludeMsg
 	}
 }
 
-// Reads the final “transfer invocation” and asserts its fields, and chain of invocations
-func mustAssertTransferInvocation(
+func MustAssertTransferInvocationUcanConcludeReceipt(
 	t *testing.T,
-	transferOkMsg message.AgentMessage,
+	ucanConcludeMsg message.AgentMessage,
 	expectedDigest multihash.Multihash,
 	expectedSize uint64,
 	expectedSpace did.DID,
@@ -677,19 +678,28 @@ func mustAssertTransferInvocation(
 	expectedReplicaCav blob2.ReplicateCaveats,
 ) {
 	// sanity check
-	require.NotNil(t, transferOkMsg)
+	require.NotNil(t, ucanConcludeMsg)
 
-	// create a reader for the transfer invocation chain.
-	transferInvocationCid := testutil.Must(
-		cid.Parse(transferOkMsg.Invocations()[0].String()),
+	concludeInvocationCid := testutil.Must(
+		cid.Parse(ucanConcludeMsg.Invocations()[0].String()),
 	)(t)
 	reader := testutil.Must(
-		blockstore.NewBlockReader(blockstore.WithBlocksIterator(transferOkMsg.Blocks())),
+		blockstore.NewBlockReader(blockstore.WithBlocksIterator(ucanConcludeMsg.Blocks())),
 	)(t)
+
+	concludeCav := mustGetInvocationCaveats[ucancap.ConcludeCaveats](
+		t, reader, cidlink.Link{Cid: concludeInvocationCid},
+		ucancap.ConcludeCaveatsReader.Read,
+	)
+	someotherreader, err := receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](replica.TransferOkType(), fdm.FailureType(), types.Converters...)
+	require.NoError(t, err)
+
+	rcpt, err := someotherreader.Read(concludeCav.Receipt, ucanConcludeMsg.Blocks())
+	require.NoError(t, err)
 
 	// get the transfer caveats and assert they match expected values
 	transferCav := mustGetInvocationCaveats[replica.TransferCaveats](
-		t, reader, cidlink.Link{Cid: transferInvocationCid},
+		t, reader, rcpt.Ran().Link(),
 		replica.TransferCaveatsReader.Read,
 	)
 	require.EqualValues(t, expectedSize, transferCav.Blob.Size)
@@ -716,7 +726,93 @@ func mustAssertTransferInvocation(
 
 	// read the transfer receipt
 	transferReceiptCid := testutil.Must(
-		cid.Parse(transferOkMsg.Receipts()[0].String()),
+		cid.Parse(rcpt.Root().Link().String()),
+	)(t)
+	transferReceiptReader := testutil.Must(
+		receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](
+			replica.TransferOkType(), fdm.FailureType(), types.Converters...,
+		),
+	)(t)
+	transferReceipt := testutil.Must(
+		transferReceiptReader.Read(cidlink.Link{Cid: transferReceiptCid}, reader.Iterator()),
+	)(t)
+	transferOk := testutil.Must(
+		result.Unwrap(result.MapError(transferReceipt.Out(), failure.FromFailureModel)),
+	)(t)
+
+	// PDP isn't enabled in this test setup, so no PDP proof expected.
+	require.Nil(t, transferOk.PDP)
+
+	// read the receipt of the transfer invocation asserting the location caveats of Site contain expected values.
+	locationCavRct := mustGetInvocationCaveats[assert.LocationCaveats](t, reader, transferOk.Site, assert.LocationCaveatsReader.Read)
+	require.Equal(t, expectedSpace, locationCavRct.Space)
+	require.Equal(t, expectedDigest, locationCavRct.Content.Hash())
+	require.Len(t, locationCavRct.Location, 1)
+	require.Equal(t, fmt.Sprintf("/blob/z%s", expectedDigest.B58String()), locationCavRct.Location[0].Path)
+
+}
+
+// Reads the final “transfer invocation” and asserts its fields, and chain of invocations
+func mustAssertTransferInvocation(
+	t *testing.T,
+	ucanConcludeMsg message.AgentMessage,
+	expectedDigest multihash.Multihash,
+	expectedSize uint64,
+	expectedSpace did.DID,
+	expectedLocationCav assert.LocationCaveats,
+	expectedAllocateCav replica.AllocateCaveats,
+	expectedReplicaCav blob2.ReplicateCaveats,
+) {
+	// sanity check
+	require.NotNil(t, ucanConcludeMsg)
+
+	concludeInvocationCid := testutil.Must(
+		cid.Parse(ucanConcludeMsg.Invocations()[0].String()),
+	)(t)
+	reader := testutil.Must(
+		blockstore.NewBlockReader(blockstore.WithBlocksIterator(ucanConcludeMsg.Blocks())),
+	)(t)
+
+	concludeCav := mustGetInvocationCaveats[ucancap.ConcludeCaveats](
+		t, reader, cidlink.Link{Cid: concludeInvocationCid},
+		ucancap.ConcludeCaveatsReader.Read,
+	)
+	someotherreader, err := receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](replica.TransferOkType(), fdm.FailureType(), types.Converters...)
+	require.NoError(t, err)
+
+	rcpt, err := someotherreader.Read(concludeCav.Receipt, ucanConcludeMsg.Blocks())
+	require.NoError(t, err)
+
+	// get the transfer caveats and assert they match expected values
+	transferCav := mustGetInvocationCaveats[replica.TransferCaveats](
+		t, reader, rcpt.Ran().Link(),
+		replica.TransferCaveatsReader.Read,
+	)
+	require.EqualValues(t, expectedSize, transferCav.Blob.Size)
+	require.Equal(t, expectedDigest, transferCav.Blob.Digest)
+	require.Equal(t, expectedSpace, transferCav.Space)
+
+	// extract the location claim from the transfer invocation
+	locationCav := mustGetInvocationCaveats[assert.LocationCaveats](
+		t, reader, transferCav.Site, assert.LocationCaveatsReader.Read,
+	)
+	require.Equal(t, expectedLocationCav, locationCav)
+
+	// verify cause -> points back to replica allocate
+	replicaAllocateCav := mustGetInvocationCaveats[replica.AllocateCaveats](
+		t, reader, transferCav.Cause, replica.AllocateCaveatsReader.Read,
+	)
+	require.Equal(t, expectedAllocateCav, replicaAllocateCav)
+
+	// verify replica allocate cause is blob replicate
+	blobReplicateCav := mustGetInvocationCaveats[blob2.ReplicateCaveats](
+		t, reader, replicaAllocateCav.Cause, blob2.ReplicateCaveatsReader.Read,
+	)
+	require.Equal(t, expectedReplicaCav, blobReplicateCav)
+
+	// read the transfer receipt
+	transferReceiptCid := testutil.Must(
+		cid.Parse(rcpt.Root().Link().String()),
 	)(t)
 	transferReceiptReader := testutil.Must(
 		receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](
