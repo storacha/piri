@@ -159,6 +159,7 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			ContractAddress: presets.PDPRecordKeeperAddress,
 			LotusEndpoint:   flags.lotusEndpoint,
 		}.ToAppConfig()),
+		Replicator: appcfg.DefaultReplicatorConfig(),
 	}
 
 	var (

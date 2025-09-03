@@ -53,6 +53,7 @@ func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 			},
 			ProofSetID: 0,
 		},
+		Replicator: app.DefaultReplicatorConfig(),
 	}
 
 	// Apply all options

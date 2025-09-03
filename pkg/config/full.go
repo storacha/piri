@@ -24,6 +24,9 @@ func (f FullServerConfig) ToAppConfig() (app.AppConfig, error) {
 		out app.AppConfig
 	)
 
+	//
+	// user provided configuration
+	//
 	out.Identity, err = f.Identity.ToAppConfig()
 	if err != nil {
 		return app.AppConfig{}, fmt.Errorf("converting identity to app config: %s", err)
@@ -48,5 +51,11 @@ func (f FullServerConfig) ToAppConfig() (app.AppConfig, error) {
 	if err != nil {
 		return app.AppConfig{}, fmt.Errorf("converting local pdp to app config: %s", err)
 	}
+
+	//
+	// non-user configuration
+	//
+	out.Replicator = app.DefaultReplicatorConfig()
+
 	return out, nil
 }

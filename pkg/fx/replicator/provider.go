@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"runtime"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-ucanto/principal"
@@ -39,7 +38,8 @@ var Module = fx.Module("replicator",
 
 type QueueParams struct {
 	fx.In
-	DB *sql.DB `name:"replicator_db"`
+	DB     *sql.DB `name:"replicator_db"`
+	Config app.ReplicatorConfig
 }
 
 func ProvideReplicationQueue(lc fx.Lifecycle, params QueueParams) (*jobqueue.JobQueue[*replicahandler.TransferRequest], error) {
@@ -48,9 +48,9 @@ func ProvideReplicationQueue(lc fx.Lifecycle, params QueueParams) (*jobqueue.Job
 		params.DB,
 		&serializer.JSON[*replicahandler.TransferRequest]{},
 		jobqueue.WithLogger(log.With("queue", "replication")),
-		// TODO make these values configurable by users, with sane defaults
-		jobqueue.WithMaxRetries(10),
-		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
+		jobqueue.WithMaxRetries(params.Config.MaxRetries),
+		jobqueue.WithMaxWorkers(params.Config.MaxWorkers),
+		jobqueue.WithMaxTimeout(params.Config.MaxTimeout),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating replication queue: %w", err)
