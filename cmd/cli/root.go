@@ -17,6 +17,7 @@ import (
 	"github.com/storacha/piri/cmd/cli/identity"
 	"github.com/storacha/piri/cmd/cli/initalize"
 	"github.com/storacha/piri/cmd/cli/serve"
+	"github.com/storacha/piri/cmd/cli/update"
 	"github.com/storacha/piri/cmd/cli/wallet"
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/telemetry"
@@ -78,6 +79,7 @@ func init() {
 	rootCmd.AddCommand(delegate.Cmd)
 	rootCmd.AddCommand(initalize.InitCmd)
 	rootCmd.AddCommand(client.Cmd)
+	rootCmd.AddCommand(update.Cmd)
 
 }
 
