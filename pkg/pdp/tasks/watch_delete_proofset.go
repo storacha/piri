@@ -219,7 +219,7 @@ func cleanupProofSet(ctx context.Context, db *gorm.DB, proofSetId uint64) error 
 	// Start a transaction for cleanup
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Delete associated roots
-		if err := tx.Where("proof_set_id = ?", proofSetId).Delete(&models.PDPProofsetRoot{}).Error; err != nil {
+		if err := tx.Where("proofset_id = ?", proofSetId).Delete(&models.PDPProofsetRoot{}).Error; err != nil {
 			return fmt.Errorf("failed to delete proof set roots: %w", err)
 		}
 

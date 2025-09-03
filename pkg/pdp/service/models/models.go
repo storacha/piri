@@ -385,6 +385,7 @@ func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
 			&PDPProofSet{},
 			&PDPProveTask{},
 			&PDPProofsetCreate{},
+			&PDPProofsetDelete{},
 			&PDPProofsetRoot{},
 			&PDPProofsetRootAdd{},
 			&PDPPieceMHToCommp{},
