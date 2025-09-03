@@ -84,6 +84,10 @@ type (
 	RemoveRootResponse struct {
 		TxHash string `json:"txHash"`
 	}
+
+	DeleteProofSetResponse struct {
+		TxHash string `json:"txHash"`
+	}
 )
 type (
 	AddPieceRequest struct {

@@ -336,6 +336,22 @@ func (c *Client) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint6
 	return common.HexToHash(payload.TxHash), nil
 }
 
+func (c *Client) DeleteProofSet(ctx context.Context, proofSetID uint64) (common.Hash, error) {
+	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, strconv.FormatUint(proofSetID, 10)).String()
+	res, err := c.sendRequest(ctx, http.MethodDelete, route, nil)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to delete proof set: %w", err)
+	}
+	if !c.isPiriServer() {
+		return common.Hash{}, nil
+	}
+	var payload httpapi.DeleteProofSetResponse
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return common.Hash{}, fmt.Errorf("failed to decode delete proof set: %w", err)
+	}
+	return common.HexToHash(payload.TxHash), nil
+}
+
 func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAllocation) (*types.AllocatedPiece, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, piecePath).String()
 	req := httpapi.AddPieceRequest{
