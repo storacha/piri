@@ -30,6 +30,13 @@ import (
 	"github.com/storacha/piri/pkg/build"
 )
 
+const releaseURL = "https://api.github.com/repos/storacha/piri/releases/latest"
+
+var SupportedLinuxArch = map[string]bool{
+	"amd64": true,
+	"arm64": true,
+}
+
 var (
 	Cmd = &cobra.Command{
 		Use:   "update",
@@ -134,9 +141,7 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to download update: %w", err)
 	}
-	defer func() {
-		_ = newBinary.Close()
-	}()
+	defer newBinary.Close()
 
 	// Apply the update (no checksum verification here since we already verified the archive)
 	cmd.Println("Applying update...")
@@ -158,7 +163,6 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 }
 
 func getLatestRelease(ctx context.Context) (*GitHubRelease, error) {
-	const releaseURL = "https://api.github.com/repos/storacha/piri/releases/latest"
 
 	req, err := http.NewRequestWithContext(ctx, "GET", releaseURL, nil)
 	if err != nil {
@@ -173,9 +177,7 @@ func getLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
@@ -211,18 +213,8 @@ func findAssetURL(release *GitHubRelease) (string, error) {
 
 		// For Linux, match architecture-specific tar.gz files
 		if goos == "linux" {
-			archMatch := ""
-			switch arch {
-			case "amd64":
-				archMatch = "amd64"
-			case "arm64":
-				archMatch = "arm64"
-			case "386":
-				archMatch = "386"
-			}
-
-			if archMatch != "" && strings.Contains(name, "linux") &&
-				strings.Contains(name, archMatch) && strings.HasSuffix(name, ".tar.gz") {
+			if SupportedLinuxArch[arch] && strings.Contains(name, "linux") &&
+				strings.Contains(name, arch) && strings.HasSuffix(name, ".tar.gz") {
 				return asset.BrowserDownloadURL, nil
 			}
 		}
@@ -308,9 +300,7 @@ func downloadAndVerifyBinary(ctx context.Context, cmd *cobra.Command, url string
 
 // extractBinaryFromTarGz extracts the piri binary from a tar.gz archive
 func extractBinaryFromTarGz(cmd *cobra.Command, r io.ReadCloser) (io.ReadCloser, error) {
-	defer func() {
-		_ = r.Close()
-	}()
+	defer r.Close()
 
 	// Read the entire response into memory (binaries are typically small)
 	data, err := io.ReadAll(r)
@@ -323,9 +313,7 @@ func extractBinaryFromTarGz(cmd *cobra.Command, r io.ReadCloser) (io.ReadCloser,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer func() {
-		_ = gr.Close()
-	}()
+	defer gr.Close()
 
 	// Create tar reader
 	tr := tar.NewReader(gr)
@@ -362,9 +350,7 @@ func extractBinaryFromTarGz(cmd *cobra.Command, r io.ReadCloser) (io.ReadCloser,
 
 // extractBinaryFromZip extracts the piri binary from a zip archive
 func extractBinaryFromZip(cmd *cobra.Command, r io.ReadCloser) (io.ReadCloser, error) {
-	defer func() {
-		_ = r.Close()
-	}()
+	defer r.Close()
 
 	// Read the entire response into memory
 	data, err := io.ReadAll(r)
@@ -432,9 +418,7 @@ func getAssetChecksum(ctx context.Context, cmd *cobra.Command, release *GitHubRe
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to download checksums: status %d", resp.StatusCode)
