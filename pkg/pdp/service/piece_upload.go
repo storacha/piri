@@ -24,6 +24,14 @@ import (
 )
 
 func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpload) (retErr error) {
+	// Track active uploads
+	count := p.activeUploads.Add(1)
+	log.Infow("upload started", "upload_id", pieceUpload.ID, "active_uploads", count)
+	defer func() {
+		count := p.activeUploads.Add(-1)
+		log.Infow("upload finished", "upload_id", pieceUpload.ID, "active_uploads", count)
+	}()
+	
 	start := time.Now()
 	log.Infow("uploading piece", "request", pieceUpload)
 	defer func() {
