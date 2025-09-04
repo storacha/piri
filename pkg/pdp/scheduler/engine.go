@@ -9,6 +9,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,11 +23,12 @@ var log = logging.Logger("pdp/scheduler")
 
 // TaskEngine is the central scheduler.
 type TaskEngine struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	db        *gorm.DB
-	sessionID string
-	handlers  []*taskTypeHandler
+	ctx         context.Context
+	cancel      context.CancelFunc
+	db          *gorm.DB
+	sessionID   string
+	handlers    []*taskTypeHandler
+	activeTasks *atomic.Int32
 }
 
 // Option is a functional option for configuring a TaskEngine.
@@ -52,8 +54,9 @@ func WithSessionID(sessionID string) Option {
 //   - opts: Optional configuration (e.g., WithSessionID)
 func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine, error) {
 	e := &TaskEngine{
-		sessionID: mustGenerateSessionID(),
-		db:        db,
+		sessionID:   mustGenerateSessionID(),
+		db:          db,
+		activeTasks: new(atomic.Int32),
 	}
 
 	for _, opt := range opts {
@@ -139,6 +142,19 @@ func (e *TaskEngine) Stop(ctx context.Context) error {
 		return fmt.Errorf("failed to release tasks during shutdown: %w", err)
 	}
 	log.Infow("Stopped task engine", "session_id", e.sessionID)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if taskCount := e.activeTasks.Load(); taskCount >= 1 {
+			log.Infof("task engine waiting for %d tasks to complete", taskCount)
+			time.Sleep(250 * time.Millisecond)
+		} else {
+			break
+		}
+	}
 	return nil
 }
 

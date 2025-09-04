@@ -1,6 +1,8 @@
 package pdp
 
 import (
+	"context"
+	
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -87,8 +89,8 @@ type Params struct {
 	ChainScheduler *chainsched.Scheduler
 }
 
-func ProvidePDPService(params Params) (*service.PDPService, error) {
-	return service.New(
+func ProvidePDPService(lc fx.Lifecycle, params Params) (*service.PDPService, error) {
+	svc, err := service.New(
 		params.DB,
 		params.Config.OwnerAddress,
 		params.Store,
@@ -97,6 +99,17 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.Engine,
 		params.ChainScheduler,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return svc.Stop(ctx)
+		},
+	})
+
+	return svc, nil
 }
 
 func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (*aggregator.ConfiguredProofSetProvider, error) {

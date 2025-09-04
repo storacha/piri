@@ -4,6 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/fx/admin"
 	"github.com/storacha/piri/pkg/fx/database"
 	"github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/fx/identity"
@@ -24,6 +25,7 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 
 		identity.Module, // Provides principal.Signer
 		echo.Module,     // Provides Echo server with route registration
+		admin.Module,    // Provides admin endpoints including shutdown
 		database.Module, // Provides SQLite database for job queues
 	}
 

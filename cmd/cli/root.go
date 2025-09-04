@@ -18,6 +18,7 @@ import (
 	"github.com/storacha/piri/cmd/cli/identity"
 	"github.com/storacha/piri/cmd/cli/initalize"
 	"github.com/storacha/piri/cmd/cli/serve"
+	"github.com/storacha/piri/cmd/cli/shutdown"
 	"github.com/storacha/piri/cmd/cli/wallet"
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/telemetry"
@@ -71,6 +72,7 @@ func init() {
 
 	// register all commands and their subcommands
 	rootCmd.AddCommand(serve.Cmd)
+	rootCmd.AddCommand(shutdown.Cmd)
 	rootCmd.AddCommand(wallet.Cmd)
 	rootCmd.AddCommand(identity.Cmd)
 	rootCmd.AddCommand(delegate.Cmd)
@@ -133,6 +135,8 @@ func initLogging() {
 		logging.SetLogLevel("database", "warn")
 		logging.SetLogLevel("server", "info")
 		logging.SetLogLevel("storage", "info")
+		logging.SetLogLevel("fx/admin", "info")
+		logging.SetLogLevel("fx/echo", "info")
 	}
 
 }

@@ -5,15 +5,21 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
+
+	logging "github.com/ipfs/go-log/v2"
 
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/worker"
 )
 
+var log = logging.Logger("jobqueue")
+
 type Service[T any] interface {
 	Start(ctx context.Context)
+	Stop(ctx context.Context) error
 	Register(name string, fn func(context.Context, T) error) error
 	Enqueue(ctx context.Context, name string, msg T) error
 }
@@ -66,6 +72,14 @@ func WithMaxTimeout(maxTimeout time.Duration) Option {
 type JobQueue[T any] struct {
 	worker *worker.Worker[T]
 	queue  *queue.Queue
+	name   string
+
+	// shutdown management
+	mu          sync.RWMutex
+	stopping    bool
+	startCtx    context.Context
+	startCancel context.CancelFunc
+	startWg     sync.WaitGroup
 }
 
 func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...Option) (*JobQueue[T], error) {
@@ -107,11 +121,28 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 	return &JobQueue[T]{
 		queue:  q,
 		worker: w,
+		name:   name,
 	}, nil
 }
 
 func (j *JobQueue[T]) Start(ctx context.Context) {
-	j.worker.Start(ctx)
+	j.mu.Lock()
+	if j.startCtx != nil {
+		// Already started
+		log.Warnf("JobQueue[%s] already started, ignoring Start call", j.name)
+		j.mu.Unlock()
+		return
+	}
+	j.startCtx, j.startCancel = context.WithCancel(ctx)
+	j.startWg.Add(1)
+	j.mu.Unlock()
+
+	log.Infof("JobQueue[%s] starting", j.name)
+	go func() {
+		defer j.startWg.Done()
+		j.worker.Start(j.startCtx)
+		log.Infof("JobQueue[%s] worker stopped", j.name)
+	}()
 }
 
 func (j *JobQueue[T]) Register(name string, fn func(context.Context, T) error) error {
@@ -119,5 +150,47 @@ func (j *JobQueue[T]) Register(name string, fn func(context.Context, T) error) e
 }
 
 func (j *JobQueue[T]) Enqueue(ctx context.Context, name string, msg T) error {
+	j.mu.RLock()
+	if j.stopping {
+		j.mu.RUnlock()
+		log.Debugf("JobQueue[%s] rejecting enqueue of %s - queue is stopping", j.name, name)
+		return errors.New("job queue is stopping")
+	}
+	j.mu.RUnlock()
 	return j.worker.Enqueue(ctx, name, msg)
+}
+
+func (j *JobQueue[T]) Stop(ctx context.Context) error {
+	j.mu.Lock()
+	if j.stopping {
+		j.mu.Unlock()
+		log.Warnf("JobQueue[%s] already stopping, ignoring Stop call", j.name)
+		return errors.New("job queue is already stopping")
+	}
+	j.stopping = true
+	log.Infof("JobQueue[%s] stopping - no new tasks will be accepted", j.name)
+
+	// Cancel the start context to signal worker to stop
+	if j.startCancel != nil {
+		j.startCancel()
+	}
+	j.mu.Unlock()
+
+	log.Infof("JobQueue[%s] waiting for active tasks to complete", j.name)
+	
+	// Wait for the worker to finish processing all running tasks
+	done := make(chan struct{})
+	go func() {
+		j.startWg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		log.Errorf("JobQueue[%s] stop timeout - some tasks may not have completed gracefully", j.name)
+		return fmt.Errorf("stop timeout: %w", ctx.Err())
+	case <-done:
+		log.Infof("JobQueue[%s] stopped successfully - all tasks completed", j.name)
+		return nil
+	}
 }

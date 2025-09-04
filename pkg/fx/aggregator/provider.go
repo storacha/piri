@@ -80,8 +80,8 @@ func ProvideLinkQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQue
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			cancel()
-			return nil
+			cancel() // Cancel the Start context first
+			return linkQueue.Stop(ctx) // Then wait for graceful shutdown
 		},
 	})
 	return linkQueue, nil
@@ -99,8 +99,8 @@ func ProvidePieceQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQu
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			cancel()
-			return nil
+			cancel() // Cancel the Start context first
+			return pieceQueue.Stop(ctx) // Then wait for graceful shutdown
 		},
 	})
 	return pieceQueue, nil

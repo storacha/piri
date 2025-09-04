@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"runtime"
 
 	"github.com/ipfs/go-datastore"
 	"github.com/ipni/go-libipni/maurl"
@@ -18,10 +19,13 @@ import (
 
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp"
+	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
+	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
 	"github.com/storacha/piri/pkg/service/replicator"
+	replicahandler "github.com/storacha/piri/pkg/service/storage/handlers/replica"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
@@ -252,13 +256,43 @@ func New(opts ...Option) (*StorageService, error) {
 		}
 	}
 
-	repl, err := replicator.New(id, pdpImpl, blobs, claims, receiptStore, uploadServiceConnection, c.replicatorDB)
+	// Create replication queue
+	replicationQueue, err := jobqueue.New[*replicahandler.TransferRequest](
+		"replication",
+		c.replicatorDB,
+		&serializer.JSON[*replicahandler.TransferRequest]{},
+		jobqueue.WithLogger(log.With("queue", "replication")),
+		jobqueue.WithMaxRetries(10),
+		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating replication queue: %w", err)
+	}
+
+	repl, err := replicator.New(id, pdpImpl, blobs, claims, receiptStore, uploadServiceConnection, replicationQueue)
 	if err != nil {
 		return nil, fmt.Errorf("creating replicator service: %w", err)
 	}
 
-	startFuncs = append(startFuncs, repl.Start)
-	closeFuncs = append(closeFuncs, repl.Stop)
+	// Register transfer task
+	if err := repl.RegisterTransferTask(replicationQueue); err != nil {
+		return nil, fmt.Errorf("registering replicator transfer task: %w", err)
+	}
+
+	// Queue lifecycle management
+	var queueCtx context.Context
+	var queueCancel context.CancelFunc
+	startFuncs = append(startFuncs, func(ctx context.Context) error {
+		queueCtx, queueCancel = context.WithCancel(context.Background())
+		go replicationQueue.Start(queueCtx)
+		return nil
+	})
+	closeFuncs = append(closeFuncs, func(ctx context.Context) error {
+		if queueCancel != nil {
+			queueCancel()
+		}
+		return replicationQueue.Stop(ctx)
+	})
 
 	return &StorageService{
 		id:            c.id,
