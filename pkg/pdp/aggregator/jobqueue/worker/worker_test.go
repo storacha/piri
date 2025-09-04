@@ -25,9 +25,9 @@ import (
 func TestRunner_Register(t *testing.T) {
 	t.Run("can register a new job", func(t *testing.T) {
 		r := worker.New[[]byte](nil, nil)
-		r.Register("test", func(ctx context.Context, m []byte) error {
+		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
 			return nil
-		})
+		}))
 	})
 
 	t.Run("errors if the same job is registered twice", func(t *testing.T) {
@@ -41,20 +41,154 @@ func TestRunner_Register(t *testing.T) {
 	})
 }
 
+func TestOnFailure(t *testing.T) {
+	t.Run("calls OnFailure after max retries", func(t *testing.T) {
+		q := internaltesting.NewQ(t, queue.NewOpts{
+			MaxReceive: 3, // Max 3 attempts
+			Timeout:    10 * time.Millisecond,
+		})
+		r := worker.New[[]byte](
+			q,
+			&PassThroughSerializer[[]byte]{},
+			worker.WithLimit(10),
+		)
+
+		var onFailureCalled bool
+		var capturedMsg []byte
+		var capturedErr error
+
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		defer cancel()
+
+		// Register a job that always fails
+		err := r.Register("failing-job",
+			func(ctx context.Context, m []byte) error {
+				return fmt.Errorf("job failed")
+			},
+			worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
+				onFailureCalled = true
+				capturedMsg = msg
+				capturedErr = err
+				return err
+			}),
+		)
+		require.NoError(t, err)
+
+		// Enqueue the job
+		err = r.Enqueue(ctx, "failing-job", []byte("test-message"))
+		require.NoError(t, err)
+
+		// Start the worker
+		r.Start(ctx)
+
+		// Verify OnFailure was called
+		require.True(t, onFailureCalled, "OnFailure should have been called")
+		require.Equal(t, []byte("test-message"), capturedMsg)
+		require.Error(t, capturedErr)
+		require.Contains(t, capturedErr.Error(), "job failed")
+	})
+
+	t.Run("does not call OnFailure on success", func(t *testing.T) {
+		q := internaltesting.NewQ(t, queue.NewOpts{
+			MaxReceive: 3,
+			Timeout:    10 * time.Millisecond,
+		})
+		r := worker.New[[]byte](
+			q,
+			&PassThroughSerializer[[]byte]{},
+			worker.WithLimit(10),
+		)
+
+		var onFailureCalled bool
+
+		ctx, cancel := context.WithCancel(t.Context())
+
+		// Register a job that succeeds
+		err := r.Register("success-job",
+			func(ctx context.Context, m []byte) error {
+				cancel()
+				return nil
+			},
+			worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
+				onFailureCalled = true
+				return nil
+			}),
+		)
+		require.NoError(t, err)
+
+		// Enqueue the job
+		err = r.Enqueue(ctx, "success-job", []byte("test"))
+		require.NoError(t, err)
+
+		// Start the worker
+		r.Start(ctx)
+
+		// Verify OnFailure was NOT called
+		require.False(t, onFailureCalled, "OnFailure should not be called on success")
+	})
+
+	t.Run("does not call OnFailure before max retries", func(t *testing.T) {
+		q := internaltesting.NewQ(t, queue.NewOpts{
+			MaxReceive: 3, // Max 3 attempts
+			Timeout:    10 * time.Millisecond,
+		})
+		r := worker.New[[]byte](
+			q,
+			&PassThroughSerializer[[]byte]{},
+			worker.WithLimit(10),
+		)
+
+		var onFailureCalled bool
+		var attempts int
+
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		defer cancel()
+
+		// Register a job that fails twice then succeeds
+		err := r.Register("eventual-success",
+			func(ctx context.Context, m []byte) error {
+				attempts++
+				if attempts < 3 {
+					return fmt.Errorf("attempt %d failed", attempts)
+				}
+				cancel()
+				return nil
+			},
+			worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
+				onFailureCalled = true
+				return nil
+			}),
+		)
+		require.NoError(t, err)
+
+		// Enqueue the job
+		err = r.Enqueue(ctx, "eventual-success", []byte("test"))
+		require.NoError(t, err)
+
+		// Start the worker
+		r.Start(ctx)
+
+		// Verify OnFailure was NOT called
+		require.False(t, onFailureCalled, "OnFailure should not be called if job eventually succeeds")
+		require.Equal(t, 3, attempts, "Should have attempted 3 times")
+	})
+}
+
 func TestRunner_Start(t *testing.T) {
 	t.Run("can run a named job", func(t *testing.T) {
 		_, r := newRunner(t)
 
 		var ran bool
 		ctx, cancel := context.WithCancel(t.Context())
-		r.Register("test", func(ctx context.Context, m []byte) error {
+		err := r.Register("test", func(ctx context.Context, m []byte) error {
 			ran = true
 			require.Equal(t, "yo", string(m))
 			cancel()
 			return nil
 		})
+		require.NoError(t, err)
 
-		err := r.Enqueue(ctx, "test", []byte("yo"))
+		err = r.Enqueue(ctx, "test", []byte("yo"))
 		require.NoError(t, err)
 
 		r.Start(ctx)
@@ -66,15 +200,15 @@ func TestRunner_Start(t *testing.T) {
 
 		var ranTest, ranDifferentTest bool
 		ctx, cancel := context.WithCancel(t.Context())
-		r.Register("test", func(ctx context.Context, m []byte) error {
+		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
 			ranTest = true
 			return nil
-		})
-		r.Register("different-test", func(ctx context.Context, m []byte) error {
+		}))
+		require.NoError(t, r.Register("different-test", func(ctx context.Context, m []byte) error {
 			ranDifferentTest = true
 			cancel()
 			return nil
-		})
+		}))
 
 		err := r.Enqueue(ctx, "different-test", []byte("yo"))
 		require.NoError(t, err)
@@ -108,10 +242,10 @@ func TestRunner_Start(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(t.Context())
 
-		r.Register("test", func(ctx context.Context, m []byte) error {
+		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
 			cancel()
 			panic("test panic")
-		})
+		}))
 
 		err := r.Enqueue(ctx, "test", []byte("yo"))
 		require.NoError(t, err)
@@ -124,13 +258,13 @@ func TestRunner_Start(t *testing.T) {
 
 		var runCount int
 		ctx, cancel := context.WithCancel(t.Context())
-		r.Register("test", func(ctx context.Context, m []byte) error {
+		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
 			runCount++
 			// This is more than the default timeout, so it should extend
 			time.Sleep(150 * time.Millisecond)
 			cancel()
 			return nil
-		})
+		}))
 
 		err := r.Enqueue(ctx, "test", []byte("yo"))
 		require.NoError(t, err)
@@ -148,12 +282,12 @@ func TestCreateTx(t *testing.T) {
 
 		var ran bool
 		ctx, cancel := context.WithCancel(t.Context())
-		r.Register("test", func(ctx context.Context, m []byte) error {
+		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
 			ran = true
 			require.Equal(t, "yo", string(m))
 			cancel()
 			return nil
-		})
+		}))
 
 		err := internalsql.InTx(db, func(tx *sql.Tx) error {
 			return r.EnqueueTx(ctx, tx, "test", []byte("yo"))
