@@ -257,18 +257,36 @@ func (h *taskTypeHandler) runPeriodicTask() {
 		return
 	}
 
-	ticker := time.NewTicker(scheduler.Interval)
-	defer ticker.Stop()
+	// Use the mock clock if available, otherwise fall back to real time
+	if h.TaskEngine.clock != nil {
+		// For mock clock, we'll use a simple loop with clock.After
+		for {
+			select {
+			case <-h.TaskEngine.ctx.Done():
+				return
+			case <-h.TaskEngine.clock.After(scheduler.Interval):
+				err := scheduler.Runner(h.AddTask)
+				if err != nil {
+					log.Warnf("Periodic scheduler for task %s returned error: %v",
+						h.TaskTypeDetails.Name, err)
+				}
+			}
+		}
+	} else {
+		// Fall back to real time ticker
+		ticker := time.NewTicker(scheduler.Interval)
+		defer ticker.Stop()
 
-	for {
-		select {
-		case <-h.TaskEngine.ctx.Done():
-			return
-		case <-ticker.C:
-			err := scheduler.Runner(h.AddTask)
-			if err != nil {
-				log.Warnf("Periodic scheduler for task %s returned error: %v",
-					h.TaskTypeDetails.Name, err)
+		for {
+			select {
+			case <-h.TaskEngine.ctx.Done():
+				return
+			case <-ticker.C:
+				err := scheduler.Runner(h.AddTask)
+				if err != nil {
+					log.Warnf("Periodic scheduler for task %s returned error: %v",
+						h.TaskTypeDetails.Name, err)
+				}
 			}
 		}
 	}

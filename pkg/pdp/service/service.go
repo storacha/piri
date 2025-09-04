@@ -107,6 +107,20 @@ func SetupPDPService(
 	ethClient EthClient,
 	contractClient contract.PDP,
 ) (*PDPService, error) {
+	return SetupPDPServiceWithClock(db, address, wallet, bs, ss, chainClient, ethClient, contractClient, nil)
+}
+
+func SetupPDPServiceWithClock(
+	db *gorm.DB,
+	address common.Address,
+	wallet wallet.Wallet,
+	bs blobstore.Blobstore,
+	ss stashstore.Stash,
+	chainClient ChainClient,
+	ethClient EthClient,
+	contractClient contract.PDP,
+	clock scheduler.Clock,
+) (*PDPService, error) {
 	var (
 		startFns []func(context.Context) error
 		stopFns  []func(context.Context) error
@@ -143,7 +157,12 @@ func SetupPDPService(
 		return nil, fmt.Errorf("creating watcher root add: %w", err)
 	}
 
-	engine, err := scheduler.NewEngine(db, t)
+	var engine *scheduler.TaskEngine
+	if clock != nil {
+		engine, err = scheduler.NewEngine(db, t, scheduler.WithClock(clock))
+	} else {
+		engine, err = scheduler.NewEngine(db, t)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("creating engine: %w", err)
 	}
