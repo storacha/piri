@@ -20,7 +20,7 @@ var log = logging.Logger("jobqueue")
 type Service[T any] interface {
 	Start(ctx context.Context)
 	Stop(ctx context.Context) error
-	Register(name string, fn func(context.Context, T) error) error
+	Register(name string, fn func(context.Context, T) error, opts ...worker.JobOption[T]) error
 	Enqueue(ctx context.Context, name string, msg T) error
 }
 
@@ -145,8 +145,8 @@ func (j *JobQueue[T]) Start(ctx context.Context) {
 	}()
 }
 
-func (j *JobQueue[T]) Register(name string, fn func(context.Context, T) error) error {
-	return j.worker.Register(name, fn)
+func (j *JobQueue[T]) Register(name string, fn func(context.Context, T) error, opts ...worker.JobOption[T]) error {
+	return j.worker.Register(name, fn, opts...)
 }
 
 func (j *JobQueue[T]) Enqueue(ctx context.Context, name string, msg T) error {
@@ -193,4 +193,10 @@ func (j *JobQueue[T]) Stop(ctx context.Context) error {
 		log.Infof("JobQueue[%s] stopped successfully - all tasks completed", j.name)
 		return nil
 	}
+}
+
+// WithOnFailure re-exports the worker.WithOnFailure function for convenience
+// This allows consumers to use jobqueue.WithOnFailure without importing the worker package directly
+func WithOnFailure[T any](onFailure worker.OnFailureFn[T]) worker.JobOption[T] {
+	return worker.WithOnFailure[T](onFailure)
 }

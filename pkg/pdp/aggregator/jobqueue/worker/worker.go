@@ -30,9 +30,21 @@ import (
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 )
 
+// JobFn is the job function to run.
+type JobFn[T any] = func(ctx context.Context, msg T) error
+
+// OnFailureFn is the function that runs if the job never completes successfully after all retries.
+type OnFailureFn[T any] = func(ctx context.Context, msg T, err error) error
+
+// jobRegistration holds a job function and its optional OnFailure callback
+type jobRegistration[T any] struct {
+	fn        JobFn[T]
+	onFailure OnFailureFn[T] // Called only when max retries exhausted
+}
+
 type Worker[T any] struct {
 	queue         *queue.Queue
-	jobs          map[string]func(ctx context.Context, msg T) error
+	jobs          map[string]*jobRegistration[T]
 	pollInterval  time.Duration
 	extend        time.Duration
 	jobCount      int
@@ -65,7 +77,7 @@ func New[T any](q *queue.Queue, ser serializer.Serializer[T], options ...Option)
 
 	// Construct the Worker using the final config
 	jq := &Worker[T]{
-		jobs: make(map[string]func(ctx context.Context, msg T) error),
+		jobs: make(map[string]*jobRegistration[T]),
 
 		queue:      q,
 		serializer: ser,
@@ -109,11 +121,30 @@ func (r *Worker[T]) Start(ctx context.Context) {
 	}
 }
 
-func (r *Worker[T]) Register(name string, fn func(ctx context.Context, msg T) error) error {
+// JobOption configures a job registration
+type JobOption[T any] func(*jobRegistration[T])
+
+// WithOnFailure sets a callback to be invoked only when the job fails after max retries
+func WithOnFailure[T any](onFailure OnFailureFn[T]) JobOption[T] {
+	return func(jr *jobRegistration[T]) {
+		jr.onFailure = onFailure
+	}
+}
+
+func (r *Worker[T]) Register(name string, fn JobFn[T], opts ...JobOption[T]) error {
 	if _, ok := r.jobs[name]; ok {
 		return fmt.Errorf(`job "%v" already registered`, name)
 	}
-	r.jobs[name] = fn
+
+	reg := &jobRegistration[T]{
+		fn: fn,
+	}
+
+	for _, opt := range opts {
+		opt(reg)
+	}
+
+	r.jobs[name] = reg
 	return nil
 }
 
@@ -181,7 +212,7 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 	}
 
 	r.log.Debugw("Dequeue -> %s: %v", jm.Name, jobInput)
-	job, ok := r.jobs[jm.Name]
+	jobReg, ok := r.jobs[jm.Name]
 	if !ok {
 		panic(fmt.Sprintf(`job "%v" not registered`, jm.Name))
 	}
@@ -229,7 +260,7 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 
 		r.log.Infow("Running job", "name", jm.Name, "attempt", m.Received)
 		before := time.Now()
-		if err := job(jobCtx, jobInput); err != nil {
+		if err := jobReg.fn(jobCtx, jobInput); err != nil {
 			if m.Received == r.queue.MaxReceive() {
 				r.log.Errorw("Failed to run job, max retries reached, will not retry",
 					"name", jm.Name,
@@ -238,6 +269,14 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 					"max_attempts", r.queue.MaxReceive(),
 					"error", err,
 				)
+				// Invoke OnFailure callback if configured
+				if jobReg.onFailure != nil {
+					r.log.Infow("Invoking OnFailure callback", "name", jm.Name)
+					if err := jobReg.onFailure(jobCtx, jobInput, err); err != nil {
+						// this is a VERY critical error
+						r.log.Errorw("Error invoking OnFailure callback", "name", jm.Name, "error", err)
+					}
+				}
 			} else {
 				r.log.Warnw("Error running job, retrying",
 					"name", jm.Name,
