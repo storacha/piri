@@ -9,7 +9,6 @@ import (
 )
 
 func TestCreateProofSet(t *testing.T) {
-	t.Skipf("Skipping for now until we implement a mockable clock in the scheduler.")
 	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -33,7 +32,6 @@ func TestCreateProofSet(t *testing.T) {
 }
 
 func TestUploadPiece(t *testing.T) {
-	t.Skipf("Skipping for now until testhaness is more complete.")
 	logging.SetAllLoggers(logging.LevelInfo)
 	ctx := t.Context()
 	ctrl := gomock.NewController(t)

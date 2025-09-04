@@ -20,6 +20,28 @@ import (
 
 var log = logging.Logger("pdp/scheduler")
 
+// Clock provides a mockable interface for time operations
+type Clock interface {
+	Now() time.Time
+	Since(t time.Time) time.Duration
+	After(d time.Duration) <-chan time.Time
+}
+
+// realClock implements Clock using the real time package
+type realClock struct{}
+
+func (r *realClock) Now() time.Time {
+	return time.Now()
+}
+
+func (r *realClock) Since(t time.Time) time.Duration {
+	return time.Since(t)
+}
+
+func (r *realClock) After(d time.Duration) <-chan time.Time {
+	return time.After(d)
+}
+
 // TaskEngine is the central scheduler.
 type TaskEngine struct {
 	ctx       context.Context
@@ -27,6 +49,7 @@ type TaskEngine struct {
 	db        *gorm.DB
 	sessionID string
 	handlers  []*taskTypeHandler
+	clock     Clock
 }
 
 // Option is a functional option for configuring a TaskEngine.
@@ -41,6 +64,15 @@ func WithSessionID(sessionID string) Option {
 	}
 }
 
+// WithClock sets a custom clock for the TaskEngine.
+// If not provided, a real clock will be used.
+func WithClock(clock Clock) Option {
+	return func(e *TaskEngine) error {
+		e.clock = clock
+		return nil
+	}
+}
+
 // NewEngine creates a new TaskEngine with the provided task implementations.
 // The engine manages task scheduling with session-based ownership, ensuring
 // clean boundaries between different engine instances and automatic cleanup
@@ -49,11 +81,12 @@ func WithSessionID(sessionID string) Option {
 // Parameters:
 //   - db: The database connection for task persistence
 //   - impls: Task implementations that define the work to be scheduled
-//   - opts: Optional configuration (e.g., WithSessionID)
+//   - opts: Optional configuration (e.g., WithSessionID, WithClock)
 func NewEngine(db *gorm.DB, impls []TaskInterface, opts ...Option) (*TaskEngine, error) {
 	e := &TaskEngine{
 		sessionID: mustGenerateSessionID(),
 		db:        db,
+		clock:     &realClock{},
 	}
 
 	for _, opt := range opts {
@@ -152,7 +185,7 @@ func (e *TaskEngine) poller() {
 
 	for {
 		select {
-		case <-time.After(nextWait):
+		case <-e.clock.After(nextWait):
 		case <-e.ctx.Done():
 			return
 		}
@@ -182,7 +215,7 @@ func (e *TaskEngine) pollerTryAllWork() bool {
 		var taskIDs []TaskID
 		for _, t := range tasks {
 			if h.TaskTypeDetails.RetryWait == nil ||
-				time.Since(t.UpdateTime) > h.TaskTypeDetails.RetryWait(0) {
+				e.clock.Since(t.UpdateTime) > h.TaskTypeDetails.RetryWait(0) {
 				taskIDs = append(taskIDs, TaskID(t.ID))
 			}
 		}

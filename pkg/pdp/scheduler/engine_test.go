@@ -125,6 +125,68 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// TestTaskEngineWithMockClock tests that the engine works correctly with a mock clock
+func TestTaskEngineWithMockClock(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Create a mock clock starting at a fixed time
+	baseTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	mockClock := NewMockClock(baseTime)
+
+	// Create a mock task with a retry wait function
+	mockTask := &MockTask{
+		typeDetails: TaskTypeDetails{
+			Name: "test_task",
+			RetryWait: func(retries int) time.Duration {
+				return 100 * time.Millisecond
+			},
+		},
+		executedTasks:  make(map[TaskID]int),
+		shouldComplete: true,
+		readyForTasks:  make(chan struct{}),
+	}
+
+	// Create the engine with the mock clock
+	engine, err := NewEngine(db, []TaskInterface{mockTask}, WithClock(mockClock))
+	require.NoError(t, err)
+
+	err = engine.Start(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := engine.Stop(context.Background()); err != nil {
+			t.Logf("failed to stop engine: %v", err)
+		}
+	})
+
+	// Wait for addTaskFunc to be set
+	mockTask.WaitForReady()
+
+	// Create a task that was posted 50ms ago (should be ready for retry)
+	task := models.Task{
+		Name:       "test_task",
+		PostedTime: mockClock.Now().Add(-50 * time.Millisecond),
+		UpdateTime: mockClock.Now().Add(-50 * time.Millisecond),
+	}
+	require.NoError(t, db.Create(&task).Error)
+
+	// Advance enough to both wake the poller (100ms initial wait) and exceed retry wait (>100ms)
+	mockClock.Advance(150 * time.Millisecond)
+
+	// Wait for the task to be processed
+	assert.Eventually(t, func() bool {
+		var count int64
+		if err := db.Model(&models.TaskHistory{}).Count(&count).Error; err != nil {
+			return false
+		}
+		return count > 0
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// Verify the task was executed
+	historyCount := int64(0)
+	require.NoError(t, db.Model(&models.TaskHistory{}).Count(&historyCount).Error)
+	assert.Equal(t, int64(1), historyCount)
+}
+
 // TestTaskEngineBasicExecution tests that the engine correctly executes tasks
 func TestTaskEngineBasicExecution(t *testing.T) {
 	db := setupTestDB(t)

@@ -22,6 +22,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/database/gormdb"
+	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/contract/mocks"
@@ -52,6 +53,7 @@ type Harness struct {
 	Schedule   *mocks.MockPDPProvingSchedule
 	DB         *gorm.DB
 	ClientAddr common.Address
+	clock      scheduler.Clock
 
 	messageNonce uint64
 }
@@ -171,30 +173,23 @@ func (h *Harness) UploadPiece(ctx context.Context, svc *service.PDPService, piec
 	require.NoError(h.T, err)
 
 	// after a piece is uploaded, the prepareUpload table will be populated with its details.
-	var postUpload []models.PDPPieceUpload
-	require.Eventually(h.T, func() bool {
-		result := h.DB.Model(&models.PDPPieceUpload{}).
-			Where("id = ?", expectedID).
-			Find(&postUpload)
-		if result.Error != nil {
-			return false
-		}
-		if len(postUpload) == 0 {
-			return false
-		}
-		return true
-	},
-		time.Minute,
-		50*time.Millisecond)
+	// Find the piece CID recorded by the service
+	pieceCid, found, err := svc.FindPiece(ctx, types.Piece{
+		Name: prepareRequest.Piece.Name,
+		Hash: prepareRequest.Piece.Hash,
+		Size: prepareRequest.Piece.Size,
+	})
+	require.NoError(h.T, err)
+	require.True(h.T, found)
 
 	var parkedPiece []models.ParkedPiece
-	res = h.DB.Where(&models.ParkedPiece{PieceCID: *postUpload[0].PieceCID}).
+	res = h.DB.Where(&models.ParkedPiece{PieceCID: pieceCid.String()}).
 		Find(&parkedPiece)
 	require.NoError(h.T, res.Error)
 	require.Len(h.T, parkedPiece, 1)
 	require.EqualValues(h.T, len(piece), parkedPiece[0].PieceRawSize)
 	require.True(h.T, parkedPiece[0].LongTerm)
-	require.False(h.T, parkedPiece[0].Complete)
+	require.True(h.T, parkedPiece[0].Complete)
 
 	var parkedPieceRef []models.ParkedPieceRef
 	res = h.DB.Where(&models.ParkedPieceRef{PieceID: parkedPiece[0].ID}).
@@ -203,17 +198,14 @@ func (h *Harness) UploadPiece(ctx context.Context, svc *service.PDPService, piec
 	require.Len(h.T, parkedPieceRef, 1)
 	require.True(h.T, parkedPieceRef[0].LongTerm)
 
-	// ensure the prepareUpload is removed from the table, eventually
-	// TODO this can be sped up my mocking the clock used by the engine for running
-	// scheduled tasks, currently they run every 10 seconds.
-	require.Eventually(h.T, func() bool {
-		var rmUpload []models.PDPPieceUpload
-		res = h.DB.Where(&models.PDPPieceUpload{ID: expectedID}).Find(&rmUpload)
-		return len(rmUpload) == 0
-	}, time.Minute, 50*time.Millisecond)
+	// ensure the prepareUpload is removed from the table
+	var rmUpload []models.PDPPieceUpload
+	res = h.DB.Where(&models.PDPPieceUpload{ID: expectedID}).Find(&rmUpload)
+	require.NoError(h.T, res.Error)
+	require.Len(h.T, rmUpload, 0)
 
 	var parkedPieceReady []models.ParkedPiece
-	res = h.DB.Where(&models.ParkedPiece{PieceCID: *postUpload[0].PieceCID}).
+	res = h.DB.Where(&models.ParkedPiece{PieceCID: pieceCid.String()}).
 		Find(&parkedPieceReady)
 	require.NoError(h.T, res.Error)
 	require.Len(h.T, parkedPieceReady, 1)
@@ -221,13 +213,6 @@ func (h *Harness) UploadPiece(ctx context.Context, svc *service.PDPService, piec
 	require.True(h.T, parkedPieceReady[0].LongTerm)
 	require.True(h.T, parkedPieceReady[0].Complete)
 
-	pieceCid, found, err := svc.FindPiece(ctx, types.Piece{
-		Name: prepareRequest.Piece.Name,
-		Hash: prepareRequest.Piece.Hash,
-		Size: prepareRequest.Piece.Size,
-	})
-	require.NoError(h.T, err)
-	require.True(h.T, found)
 	// TODO make an actual assertion on the CID equal to the expected
 	require.NotEqual(h.T, cid.Undef, pieceCid)
 	h.T.Logf("found piece CID: %s", pieceCid)
@@ -320,8 +305,26 @@ func SetupTestDeps(t testing.TB, ctx context.Context, ctrl *gomock.Controller) (
 	require.NoError(t, err)
 	t.Logf("Client address: %s", clientAddress.Hex())
 
+	// Create a mock clock for consistent testing
+	baseTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	mockClock := scheduler.NewMockClock(baseTime)
+
+	// Advance the mock clock in the background so scheduler pollers and periodic tasks make progress
+	go func() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				mockClock.Advance(100 * time.Millisecond)
+			}
+		}
+	}()
+
 	// The PDP service, backed by mocks and a fake chain
-	svc, err := service.SetupPDPService(
+	svc, err := service.SetupPDPServiceWithClock(
 		db,
 		clientAddress,
 		wlt,
@@ -330,6 +333,7 @@ func SetupTestDeps(t testing.TB, ctx context.Context, ctrl *gomock.Controller) (
 		fakeChain,
 		mockEth,
 		mockContract,
+		mockClock,
 	)
 	require.NoError(t, err)
 
@@ -342,6 +346,7 @@ func SetupTestDeps(t testing.TB, ctx context.Context, ctrl *gomock.Controller) (
 		Schedule:   mockScheduler,
 		DB:         db,
 		ClientAddr: clientAddress,
+		clock:      mockClock,
 	}, svc
 
 }
@@ -370,5 +375,14 @@ func NewSuccessfulReceipt(height int64) *ethtypes.Receipt {
 		BlockNumber: big.NewInt(height),
 		Status:      ethtypes.ReceiptStatusSuccessful,
 		Logs:        make([]*ethtypes.Log, 0),
+	}
+}
+
+// AdvanceClock advances the mock clock by the given duration to trigger scheduled tasks
+func (h *Harness) AdvanceClock(d time.Duration) {
+	if h.clock != nil {
+		if mockClock, ok := h.clock.(*scheduler.MockClock); ok {
+			mockClock.Advance(d)
+		}
 	}
 }
