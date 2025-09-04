@@ -2,8 +2,6 @@ package replicator
 
 import (
 	"context"
-	"database/sql"
-	"runtime"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-ucanto/client"
@@ -11,7 +9,6 @@ import (
 
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
 	replicahandler "github.com/storacha/piri/pkg/service/storage/handlers/replica"
@@ -26,7 +23,7 @@ type Replicator interface {
 
 type Service struct {
 	queue   *jobqueue.JobQueue[*replicahandler.TransferRequest]
-	queueDB *sql.DB
+	adapter *adapter
 }
 
 type adapter struct {
@@ -52,46 +49,27 @@ func New(
 	c claims.Claims,
 	rstore receiptstore.ReceiptStore,
 	uploadConn client.Connection,
-	db *sql.DB,
+	queue *jobqueue.JobQueue[*replicahandler.TransferRequest],
 ) (*Service, error) {
-
-	replicationQueue, err := jobqueue.New[*replicahandler.TransferRequest](
-		"replication",
-		db,
-		&serializer.JSON[*replicahandler.TransferRequest]{},
-		jobqueue.WithLogger(log.With("queue", "replication")),
-		jobqueue.WithMaxRetries(10),
-		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if err := replicationQueue.Register("transfer-task", func(ctx context.Context, request *replicahandler.TransferRequest) error {
-		return replicahandler.Transfer(ctx,
-			&adapter{
-				id:         id,
-				pdp:        p,
-				blobs:      b,
-				claims:     c,
-				receipts:   rstore,
-				uploadConn: uploadConn,
-			},
-			request)
-	}); err != nil {
-		return nil, err
-	}
-	return &Service{queue: replicationQueue, queueDB: db}, nil
+	return &Service{
+		queue:   queue,
+		adapter: &adapter{
+			id:         id,
+			pdp:        p,
+			blobs:      b,
+			claims:     c,
+			receipts:   rstore,
+			uploadConn: uploadConn,
+		},
+	}, nil
 }
 
 func (r *Service) Replicate(ctx context.Context, task *replicahandler.TransferRequest) error {
 	return r.queue.Enqueue(ctx, "transfer-task", task)
 }
 
-func (r *Service) Start(ctx context.Context) error {
-	go r.queue.Start(ctx)
-	return nil
-}
-
-func (r *Service) Stop(_ context.Context) error {
-	return r.queueDB.Close()
+func (r *Service) RegisterTransferTask(queue *jobqueue.JobQueue[*replicahandler.TransferRequest]) error {
+	return queue.Register("transfer-task", func(ctx context.Context, request *replicahandler.TransferRequest) error {
+		return replicahandler.Transfer(ctx, r.adapter, request)
+	})
 }
