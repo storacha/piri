@@ -61,12 +61,16 @@ func New(
 	}, nil
 }
 
+const TransferTaskName = "transfer-task"
+
 func (r *Service) Replicate(ctx context.Context, task *replicahandler.TransferRequest) error {
-	return r.queue.Enqueue(ctx, "transfer-task", task)
+	return r.queue.Enqueue(ctx, TransferTaskName, task)
 }
 
 func (r *Service) RegisterTransferTask(queue *jobqueue.JobQueue[*replicahandler.TransferRequest]) error {
-	return queue.Register("transfer-task", func(ctx context.Context, request *replicahandler.TransferRequest) error {
+	return queue.Register(TransferTaskName, func(ctx context.Context, request *replicahandler.TransferRequest) error {
 		return replicahandler.Transfer(ctx, r.adapter, request)
-	})
+	}, jobqueue.WithOnFailure(func(ctx context.Context, msg *replicahandler.TransferRequest, err error) error {
+		return replicahandler.SendFailureReceipt(ctx, r.adapter, msg, err)
+	}))
 }

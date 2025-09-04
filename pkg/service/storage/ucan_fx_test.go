@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -371,6 +372,7 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 		hasExistingAllocation bool
 		hasExistingData       bool
 		expectedTransferSize  uint64
+		simulateRetry         bool // New field to indicate if we should test retry scenario
 	}{
 		{
 			name:                  "NoExistingAllocationNoData",
@@ -386,6 +388,12 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			name:                  "ExistingAllocationAndData",
 			hasExistingAllocation: true,
 			hasExistingData:       true,
+		},
+		{
+			name:                  "TransferRetryAfterUploadServiceFailure",
+			hasExistingAllocation: false,
+			hasExistingData:       false,
+			simulateRetry:         true, // Will fail upload service first, then succeed
 		},
 	}
 
@@ -431,9 +439,10 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 
 			testApp.RequireStart()
 
-			fakeServer, transferOkChan := startTestHTTPServer(
+			fakeServer, transferOkChan, sourceGetCount, sinkPutCount := startTestHTTPServer(
 				ctx, t, expectedDigest, expectedData, svc,
 				serverAddr, sourcePath, sinkPath, uploadServicePath,
+				tc.simulateRetry,
 			)
 
 			t.Cleanup(func() {
@@ -485,15 +494,19 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 				t, bri, lcd, expectedSpace, expectedDigest, expectedSize,
 			)
 			res, err := client.Execute(t.Context(), []invocation.Invocation{rbi}, conn)
+
+			// Handle normal execution
 			require.NoError(t, err)
 
 			// The final assertion on the returned allocation size.
 			// With an existing allocation or existing data, the new allocated
-			// size is 0, otherwise it’s expectedSize.
+			// size is 0, otherwise it's expectedSize.
 			var wantSize uint64
 			if !tc.hasExistingAllocation && !tc.hasExistingData {
+				// Normal case and first attempt of retry: new allocation gets the full size
 				wantSize = expectedSize
 			}
+
 			// read the receipt for the blob allocate, asserting its size is expected value.
 			alloc := mustReadAllocationReceipt(t, rbi, res)
 			require.EqualValues(t, wantSize, alloc.Size)
@@ -502,24 +515,71 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			require.NotNil(t, alloc.Site)
 			require.Equal(t, ".out.ok", alloc.Site.UcanAwait.Selector)
 
-			// "Wait" for the transfer invocation to produce a receipt
-			// simulating the upload-service getting a receipt from this storage node.
-			transferOkMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
-			// expect one invocation and one receipt
-			require.Len(t, transferOkMsg.Invocations(), 1)
-			require.Len(t, transferOkMsg.Receipts(), 1)
+			if tc.simulateRetry {
+				// In retry scenario, first attempt fails at upload service
+				// The transfer happens but upload service rejects it
+				// So we won't get a message on the first attempt
 
-			// Full read + assertion on the transfer invocation and its ucan chain
-			mustAssertTransferInvocation(
-				t,
-				transferOkMsg,
-				expectedDigest,
-				wantSize,
-				expectedSpace,
-				expectedLocationCaveats,
-				expectedAllocateCaveats,
-				expectedReplicaCaveats,
-			)
+				// Give the system time to process the failure and retry
+				time.Sleep(500 * time.Millisecond)
+
+				// Now manually trigger a retry by executing again
+				t.Log("Triggering retry after upload service failure...")
+				res2, err2 := client.Execute(t.Context(), []invocation.Invocation{rbi}, conn)
+				require.NoError(t, err2, "retry should succeed")
+
+				// Verify the retry allocation shows size 0 (blob already exists)
+				alloc2 := mustReadAllocationReceipt(t, rbi, res2)
+				require.EqualValues(t, 0, alloc2.Size, "Retry allocation should be 0 since blob exists")
+
+				// This time we should get a transfer message since upload service will succeed
+				transferOkMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
+				require.Len(t, transferOkMsg.Invocations(), 1)
+				require.Len(t, transferOkMsg.Receipts(), 1)
+
+				// Full assertion on the retry transfer
+				mustAssertTransferInvocation(
+					t,
+					transferOkMsg,
+					expectedDigest,
+					0, // wantSize is 0 because blob already exists from first attempt
+					expectedSpace,
+					expectedLocationCaveats,
+					expectedAllocateCaveats,
+					expectedReplicaCaveats,
+				)
+
+				// Verify blob was only transferred once
+				sourceCount := atomic.LoadInt32(sourceGetCount)
+				sinkCount := atomic.LoadInt32(sinkPutCount)
+
+				// The blob should only be transferred once (on first attempt)
+				// Second attempt should NOT transfer again
+				require.EqualValues(t, 1, sourceCount,
+					"Source should only be hit once despite retry (idempotency test)")
+				require.EqualValues(t, 1, sinkCount,
+					"Sink should only be hit once despite retry (idempotency test)")
+
+				t.Logf("Retry did NOT re-transfer blob as intended (source hits: %d, sink hits: %d)",
+					sourceCount, sinkCount)
+			} else {
+				// Normal case - wait for transfer message
+				transferOkMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
+				require.Len(t, transferOkMsg.Invocations(), 1)
+				require.Len(t, transferOkMsg.Receipts(), 1)
+
+				// Full read + assertion on the transfer invocation and its ucan chain
+				mustAssertTransferInvocation(
+					t,
+					transferOkMsg,
+					expectedDigest,
+					wantSize,
+					expectedSpace,
+					expectedLocationCaveats,
+					expectedAllocateCaveats,
+					expectedReplicaCaveats,
+				)
+			}
 		})
 	}
 }
@@ -772,21 +832,39 @@ func startTestHTTPServer(
 	serveData []byte,
 	svc storage.Service,
 	addr, sourcePath, sinkPath, uploadServicePath string,
-) (*http.Server, <-chan message.AgentMessage) {
-	agentCh := make(chan message.AgentMessage, 1)
+	simulateRetry bool, // New parameter to enable retry simulation
+) (*http.Server, <-chan message.AgentMessage, *int32, *int32) {
+	agentCh := make(chan message.AgentMessage, 2) // Increase buffer for retry case
 	mux := http.NewServeMux()
+
+	// Track transfer counts for testing idempotency of Transfer method
+	var sourceGetCount int32
+	var sinkPutCount int32
+	var uploadServiceAttempts int32
 
 	// Endpoint to serve data.
 	mux.HandleFunc(fmt.Sprintf("/%s", sourcePath), func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&sourceGetCount, 1)
 		_, _ = w.Write(serveData)
 	})
 	// Endpoint to store data on the replica.
 	mux.HandleFunc(fmt.Sprintf("/%s", sinkPath), func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&sinkPutCount, 1)
 		require.NoError(t, svc.Blobs().Store().Put(ctx, digest, uint64(len(serveData)), bytes.NewReader(serveData)))
 		_, _ = w.Write(serveData)
 	})
 	// Endpoint to simulate the upload service.
 	mux.HandleFunc(fmt.Sprintf("/%s", uploadServicePath), func(w http.ResponseWriter, r *http.Request) {
+		attempt := atomic.AddInt32(&uploadServiceAttempts, 1)
+
+		// If simulating retry, fail the first attempt
+		if simulateRetry && attempt == 1 {
+			t.Logf("Upload service failing on attempt %d (simulating retry scenario)", attempt)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("temporary upload service failure"))
+			return
+		}
+
 		roots, blocks, err := car.Decode(r.Body)
 		require.NoError(t, err)
 		bstore, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(blocks))
@@ -794,6 +872,10 @@ func startTestHTTPServer(
 		agentMessage, err := message.NewMessage(roots, bstore)
 		require.NoError(t, err)
 		agentCh <- agentMessage
+
+		if simulateRetry {
+			t.Logf("Upload service succeeded on attempt %d", attempt)
+		}
 	})
 
 	server := &http.Server{
@@ -812,7 +894,7 @@ func startTestHTTPServer(
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
-	return server, agentCh
+	return server, agentCh, &sourceGetCount, &sinkPutCount
 }
 
 // FakePresigned is a stub for upload URL presigning.
