@@ -116,6 +116,8 @@ func (h *taskTypeHandler) considerWork(taskIDs []TaskID, db *gorm.DB) bool {
 		// Successfully claimed this task, so let’s run it in a goroutine:
 		acceptedAny = true
 		go func(taskID TaskID) {
+			h.TaskEngine.activeTasks.Add(1)
+			defer h.TaskEngine.activeTasks.Add(-1)
 			tlog := log.With("name", h.TaskTypeDetails.Name, "task_id", taskID, "session_id", h.TaskEngine.sessionID)
 			var (
 				done    bool
@@ -265,7 +267,9 @@ func (h *taskTypeHandler) runPeriodicTask() {
 		case <-h.TaskEngine.ctx.Done():
 			return
 		case <-ticker.C:
+			h.TaskEngine.activeTasks.Add(1)
 			err := scheduler.Runner(h.AddTask)
+			h.TaskEngine.activeTasks.Add(-1)
 			if err != nil {
 				log.Warnf("Periodic scheduler for task %s returned error: %v",
 					h.TaskTypeDetails.Name, err)
