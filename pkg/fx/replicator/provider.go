@@ -28,7 +28,8 @@ var Module = fx.Module("replicator",
 		ProvideReplicationQueue,
 		fx.Annotate(
 			New,
-			fx.As(new(replicator.Replicator)),
+			fx.As(fx.Self()),  // provide as concrete type for RegisterReplicationJobs
+			fx.As(new(replicator.Replicator)),  // also provide as interface
 		),
 	),
 	fx.Invoke(
