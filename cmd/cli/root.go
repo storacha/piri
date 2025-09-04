@@ -135,6 +135,8 @@ func initLogging() {
 		logging.SetLogLevel("database", "warn")
 		logging.SetLogLevel("server", "info")
 		logging.SetLogLevel("storage", "info")
+		logging.SetLogLevel("fx/admin", "info")
+		logging.SetLogLevel("fx/echo", "info")
 	}
 
 }

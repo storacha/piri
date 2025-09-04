@@ -61,12 +61,14 @@ func (h *Handler) handleShutdown(c echo.Context) error {
 	h.shutting = true
 	log.Info("received shutdown request via admin endpoint")
 
-	// Trigger graceful shutdown asynchronously
-	go func() {
-		if err := h.shutdowner.Shutdown(); err != nil {
-			log.Errorf("failed to shutdown gracefully: %v", err)
-		}
-	}()
+	// Trigger graceful shutdown synchronously
+	// With fx.Run(), fx.Shutdowner works properly
+	if err := h.shutdowner.Shutdown(); err != nil {
+		log.Errorf("failed to shutdown gracefully: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "failed to initiate shutdown",
+		})
+	}
 
 	return c.JSON(http.StatusAccepted, map[string]string{
 		"message": "shutdown initiated",

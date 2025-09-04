@@ -2,10 +2,8 @@ package serve
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -144,8 +142,6 @@ func init() {
 }
 
 func fullServer(cmd *cobra.Command, _ []string) error {
-	ctx := cmd.Context()
-
 	userCfg, err := config.Load[config.FullServerConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -187,54 +183,32 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 		//    - create proof set, add root, upload piece, etc.
 		//  - address wallet
 		app.PDPModule,
+
+		// Invoke function to print startup messages after successful start
+		fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					// sleep a bit allowing for initial logs to write before printing hello
+					cliutil.PrintHero(cmd.OutOrStdout(), appCfg.Identity.Signer.DID())
+					cmd.Println("Piri Running on: " + appCfg.Server.Host + ":" + strconv.Itoa(int(appCfg.Server.Port)))
+					cmd.Println("Piri Public Endpoint: " + appCfg.Server.PublicURL.String())
+
+					// publish server metrics after a successful start
+					telemetry.RecordServerInfo(ctx, "full",
+						telemetry.StringAttr("did", appCfg.Identity.Signer.DID().String()),
+						telemetry.StringAttr("owner_address", appCfg.PDPService.OwnerAddress.String()),
+						telemetry.StringAttr("public_url", appCfg.Server.PublicURL.String()),
+						telemetry.Int64Attr("proof_set", int64(appCfg.UCANService.ProofSetID)),
+					)
+					return nil
+				},
+			})
+		}),
 	)
 
-	// ensure the application was initialized correctly
-	if err := fxApp.Err(); err != nil {
-		return fmt.Errorf("initalizing piri: %w", err)
-	}
+	// Run the application - this blocks until shutdown is triggered
+	fxApp.Run()
 
-	// start the application, triggering lifecycle hooks to start various services and systems
-	if err := fxApp.Start(ctx); err != nil {
-		return fmt.Errorf("starting piri: %w", err)
-	}
-
-	go func() {
-		// sleep a bit allowing for initial logs to write before printing hello
-		time.Sleep(time.Second)
-		cliutil.PrintHero(cmd.OutOrStdout(), appCfg.Identity.Signer.DID())
-		cmd.Println("Piri Running on: " + appCfg.Server.Host + ":" + strconv.Itoa(int(appCfg.Server.Port)))
-		cmd.Println("Piri Public Endpoint: " + appCfg.Server.PublicURL.String())
-	}()
-
-	// publish server metrics after a successful start
-	telemetry.RecordServerInfo(ctx, "full",
-		telemetry.StringAttr("did", appCfg.Identity.Signer.DID().String()),
-		telemetry.StringAttr("owner_address", appCfg.PDPService.OwnerAddress.String()),
-		telemetry.StringAttr("public_url", appCfg.Server.PublicURL.String()),
-		telemetry.Int64Attr("proof_set", int64(appCfg.UCANService.ProofSetID)),
-	)
-
-	// block: wait for the application to receive a shutdown signal
-	<-ctx.Done()
-	log.Info("received shutdown signal, beginning graceful shutdown")
-
-	shutdownTimeout := 5 * time.Second
-	// Stop the application, with a `shutdownTimeout grace period.
-	stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-
-	log.Info("stopping piri...")
-	if err := fxApp.Stop(stopCtx); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			log.Errorf("graceful shutdown timed out after %s", shutdownTimeout.String())
-		}
-		return fmt.Errorf("stopping piri: %w", err)
-	}
 	log.Info("piri stopped successfully")
-
-	// flush any logs before exiting.
-	_ = log.Sync()
 	return nil
-
 }
