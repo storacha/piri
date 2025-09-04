@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,18 +35,15 @@ const piriShortDescription = `
 Piri is the software run by all storage providers on the Storacha network
 `
 
-const piriLongDescription = `
-Piri - Provable Information Retention Interface
-Piri can run entirely on its own with no software other than Filecoin Lotus, or it can integrate into Filecoin storage provider operation running Curio.
-`
-
 var (
 	cfgFile  string
 	logLevel string
 	rootCmd  = &cobra.Command{
 		Use:   "piri",
 		Short: piriShortDescription,
-		Long:  piriLongDescription,
+		Long: fmt.Sprintf(`Piri - Provable Information Retention Interface (Version: %s)
+Piri can run entirely on its own with no software other than Filecoin Lotus, or it can integrate into Filecoin storage provider operation running Curio.`, build.Version),
+		Version: build.Version,
 	}
 )
 
