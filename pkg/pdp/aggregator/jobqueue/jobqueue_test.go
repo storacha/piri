@@ -45,11 +45,11 @@ func TestJobQueue_Stop_GracefulShutdown(t *testing.T) {
 		jq := newTestJobQueue(t, nil, jobqueue.WithMaxWorkers(1))
 
 		var taskCompleted atomic.Bool
-		taskStarted := false
+		var taskStarted atomic.Bool
 
 		// Register a task that takes some time
 		err := jq.Register("task", func(ctx context.Context, msg TestMessage) error {
-			taskStarted = true
+			taskStarted.Store(true)
 			// Simulate work that takes time
 			time.Sleep(500 * time.Millisecond)
 			taskCompleted.Store(true)
@@ -67,7 +67,7 @@ func TestJobQueue_Stop_GracefulShutdown(t *testing.T) {
 
 		// Wait for task to start
 		require.Eventually(t, func() bool {
-			return taskStarted
+			return taskStarted.Load()
 		}, 15*time.Second, 250*time.Millisecond, "timed out waiting for task to start")
 
 		// Stop the queue (should wait for task to complete)
@@ -434,6 +434,7 @@ func TestJobQueue_WithOnFailure(t *testing.T) {
 			onFailureCalled atomic.Bool
 			capturedErr     error
 			capturedMsg     TestMessage
+			mu              sync.Mutex
 		)
 
 		// Register a task that always fails, with OnFailure callback
@@ -444,8 +445,10 @@ func TestJobQueue_WithOnFailure(t *testing.T) {
 			},
 			jobqueue.WithOnFailure(func(ctx context.Context, msg TestMessage, err error) error {
 				onFailureCalled.Store(true)
+				mu.Lock()
 				capturedErr = err
 				capturedMsg = msg
+				mu.Unlock()
 				return nil
 			}),
 		)
@@ -467,10 +470,12 @@ func TestJobQueue_WithOnFailure(t *testing.T) {
 		}, 15*time.Second, 250*time.Millisecond, "OnFailure callback should have been triggered")
 
 		// Verify the callback received the correct error and message
+		mu.Lock()
 		require.Error(t, capturedErr)
 		require.Contains(t, capturedErr.Error(), "intentional failure")
 		require.Equal(t, testMsg.ID, capturedMsg.ID)
 		require.Equal(t, testMsg.Payload, capturedMsg.Payload)
+		mu.Unlock()
 
 		// Verify the task was attempted the correct number of times
 		// With MaxRetries=2, it appears to be total attempts, not additional retries
