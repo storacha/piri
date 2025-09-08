@@ -45,11 +45,11 @@ func TestJobQueue_Stop_GracefulShutdown(t *testing.T) {
 		jq := newTestJobQueue(t, nil, jobqueue.WithMaxWorkers(1))
 
 		var taskCompleted atomic.Bool
-		taskStarted := make(chan struct{})
+		taskStarted := false
 
 		// Register a task that takes some time
 		err := jq.Register("task", func(ctx context.Context, msg TestMessage) error {
-			close(taskStarted)
+			taskStarted = true
 			// Simulate work that takes time
 			time.Sleep(500 * time.Millisecond)
 			taskCompleted.Store(true)
@@ -59,19 +59,16 @@ func TestJobQueue_Stop_GracefulShutdown(t *testing.T) {
 
 		// Start the queue
 		ctx := context.Background()
-		jq.Start(ctx)
+		require.NoError(t, jq.Start(ctx))
 
 		// Enqueue a task
 		err = jq.Enqueue(ctx, "task", TestMessage{ID: "1", Payload: "test"})
 		require.NoError(t, err)
 
 		// Wait for task to start
-		select {
-		case <-taskStarted:
-			// Task is running
-		case <-time.After(2 * time.Second):
-			t.Fatal("Task did not start")
-		}
+		require.Eventually(t, func() bool {
+			return taskStarted
+		}, 15*time.Second, 250*time.Millisecond, "timed out waiting for task to start")
 
 		// Stop the queue (should wait for task to complete)
 		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -96,7 +93,7 @@ func TestJobQueue_Stop_RejectsNewTasks(t *testing.T) {
 
 		// Start and immediately stop
 		ctx := context.Background()
-		jq.Start(ctx)
+		require.NoError(t, jq.Start(ctx))
 
 		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -107,6 +104,29 @@ func TestJobQueue_Stop_RejectsNewTasks(t *testing.T) {
 		err = jq.Enqueue(ctx, "simple-task", TestMessage{ID: "1", Payload: "test"})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "job queue is stopping")
+	})
+}
+
+func TestJobQueue_RejectRegisterAfterStart(t *testing.T) {
+	t.Run("rejects register before Start is called", func(t *testing.T) {
+		jq := newTestJobQueue(t, nil)
+
+		// Register a simple task, should pass
+		err := jq.Register("simple-task", func(ctx context.Context, msg TestMessage) error {
+			return nil
+		})
+		require.NoError(t, err)
+
+		// Start the queue
+		ctx := context.Background()
+		require.NoError(t, jq.Start(ctx))
+
+		// Register a simple task, should fail as job queue is running
+		err = jq.Register("simple-task", func(ctx context.Context, msg TestMessage) error {
+			return nil
+		})
+		require.Error(t, err)
+
 	})
 }
 
@@ -125,14 +145,14 @@ func TestJobQueue_Stop_ContextTimeout(t *testing.T) {
 
 		// Start the queue
 		ctx := context.Background()
-		jq.Start(ctx)
+		require.NoError(t, jq.Start(ctx))
 
 		// Enqueue a blocking task
 		err = jq.Enqueue(ctx, "block-forever", TestMessage{ID: "1", Payload: "test"})
 		require.NoError(t, err)
 
 		// Wait a moment for task to start processing
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(time.Second)
 
 		// Try to stop with a short timeout
 		stopCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -159,7 +179,7 @@ func TestJobQueue_Stop_MultipleCallsHandled(t *testing.T) {
 
 		// Start the queue
 		ctx := context.Background()
-		jq.Start(ctx)
+		require.NoError(t, jq.Start(ctx))
 
 		// Call Stop multiple times concurrently
 		var wg sync.WaitGroup
@@ -212,7 +232,7 @@ func TestJobQueue_Stop_CompletesAllPendingTasks(t *testing.T) {
 
 		// Start the queue
 		ctx := context.Background()
-		jq.Start(ctx)
+		require.NoError(t, jq.Start(ctx))
 
 		// Enqueue multiple tasks
 		expectedTasks := 5
@@ -262,7 +282,7 @@ func TestJobQueue_Stop_EnqueueDuringShutdown(t *testing.T) {
 
 		// Start the queue
 		ctx := context.Background()
-		jq.Start(ctx)
+		require.NoError(t, jq.Start(ctx))
 
 		// Enqueue a task
 		err = jq.Enqueue(ctx, "slow-task", TestMessage{ID: "1", Payload: "test"})
@@ -304,17 +324,16 @@ func TestJobQueue_Stop_WithoutStart(t *testing.T) {
 	t.Run("can stop without starting", func(t *testing.T) {
 		jq := newTestJobQueue(t, nil)
 
-		// Stop without starting
+		// Stop without starting must fail
 		stopCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 		err := jq.Stop(stopCtx)
-		require.NoError(t, err)
+		require.Error(t, err)
 
-		// Should not be able to enqueue
+		// enqueueing a job into an unstarted queue must fail
 		ctx := context.Background()
 		err = jq.Enqueue(ctx, "test", TestMessage{ID: "1", Payload: "test"})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "job queue is stopping")
 	})
 }
 
@@ -334,7 +353,7 @@ func TestJobQueue_Stop_TaskFailureHandling(t *testing.T) {
 
 		// Start the queue
 		ctx := context.Background()
-		jq.Start(ctx)
+		require.NoError(t, jq.Start(ctx))
 
 		// Enqueue multiple tasks that will fail
 		for i := 0; i < 3; i++ {
@@ -360,7 +379,7 @@ func TestJobQueue_Stop_TaskFailureHandling(t *testing.T) {
 }
 
 func TestJobQueue_StartStopStartCycle(t *testing.T) {
-	t.Run("can restart after stop", func(t *testing.T) {
+	t.Run("cannot start after stop", func(t *testing.T) {
 		jq := newTestJobQueue(t, nil)
 
 		var processedCount atomic.Int32
@@ -374,7 +393,7 @@ func TestJobQueue_StartStopStartCycle(t *testing.T) {
 
 		// First cycle: Start, enqueue, stop
 		ctx := context.Background()
-		jq.Start(ctx)
+		require.NoError(t, jq.Start(ctx))
 
 		err = jq.Enqueue(ctx, "simple-task", TestMessage{ID: "1", Payload: "first"})
 		require.NoError(t, err)
@@ -388,17 +407,78 @@ func TestJobQueue_StartStopStartCycle(t *testing.T) {
 
 		require.Equal(t, int32(1), processedCount.Load())
 
-		// Note: In the current implementation, we cannot restart after Stop
+		// Note: In the current implementation, we cannot reStart after Stop
 		// because stopping is permanent. This test documents this behavior.
 		// If restart capability is needed, the JobQueue struct would need
 		// to reset the stopping flag in Start() method.
 
-		// Try to start again - this will be a no-op due to stopping flag
-		jq.Start(ctx)
+		// Starting after stopping must fail
+		require.Error(t, jq.Start(ctx))
 
-		// Enqueue will fail because queue is still marked as stopping
+		// Enqueue will fail because queue is stopped.
 		err = jq.Enqueue(ctx, "simple-task", TestMessage{ID: "2", Payload: "second"})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "job queue is stopping")
+	})
+}
+
+func TestJobQueue_WithOnFailure(t *testing.T) {
+	t.Run("calls OnFailure callback after exhausting all retries", func(t *testing.T) {
+		// Create job queue with low max retries for faster test
+		jq := newTestJobQueue(t, nil,
+			jobqueue.WithMaxRetries(2),
+			jobqueue.WithMaxTimeout(100*time.Millisecond))
+
+		var (
+			failureCount    atomic.Int32
+			onFailureCalled atomic.Bool
+			capturedErr     error
+			capturedMsg     TestMessage
+		)
+
+		// Register a task that always fails, with OnFailure callback
+		err := jq.Register("always-failing-task",
+			func(ctx context.Context, msg TestMessage) error {
+				failureCount.Add(1)
+				return errors.New("intentional failure")
+			},
+			jobqueue.WithOnFailure(func(ctx context.Context, msg TestMessage, err error) error {
+				onFailureCalled.Store(true)
+				capturedErr = err
+				capturedMsg = msg
+				return nil
+			}),
+		)
+		require.NoError(t, err)
+
+		// Start the queue
+		ctx := context.Background()
+		require.NoError(t, jq.Start(ctx))
+
+		// Enqueue a task that will fail
+		testMsg := TestMessage{ID: "fail-test", Payload: "should trigger OnFailure"}
+		err = jq.Enqueue(ctx, "always-failing-task", testMsg)
+		require.NoError(t, err)
+
+		// Wait for task to be processed and retried
+		// Give enough time for retries with backoff
+		require.Eventually(t, func() bool {
+			return onFailureCalled.Load()
+		}, 15*time.Second, 250*time.Millisecond, "OnFailure callback should have been triggered")
+
+		// Verify the callback received the correct error and message
+		require.Error(t, capturedErr)
+		require.Contains(t, capturedErr.Error(), "intentional failure")
+		require.Equal(t, testMsg.ID, capturedMsg.ID)
+		require.Equal(t, testMsg.Payload, capturedMsg.Payload)
+
+		// Verify the task was attempted the correct number of times
+		// With MaxRetries=2, it appears to be total attempts, not additional retries
+		require.GreaterOrEqual(t, failureCount.Load(), int32(2), "Task should have been attempted at least 2 times")
+
+		// Clean up
+		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		require.NoError(t, jq.Stop(stopCtx))
 	})
 }

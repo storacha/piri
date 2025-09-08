@@ -284,8 +284,7 @@ func New(opts ...Option) (*StorageService, error) {
 	var queueCancel context.CancelFunc
 	startFuncs = append(startFuncs, func(ctx context.Context) error {
 		queueCtx, queueCancel = context.WithCancel(context.Background())
-		replicationQueue.Start(queueCtx)
-		return nil
+		return replicationQueue.Start(queueCtx)
 	})
 	closeFuncs = append(closeFuncs, func(ctx context.Context) error {
 		if queueCancel != nil {

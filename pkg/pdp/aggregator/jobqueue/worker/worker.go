@@ -131,6 +131,7 @@ func WithOnFailure[T any](onFailure OnFailureFn[T]) JobOption[T] {
 	}
 }
 
+// Register must be called before `Start`
 func (r *Worker[T]) Register(name string, fn JobFn[T], opts ...JobOption[T]) error {
 	if _, ok := r.jobs[name]; ok {
 		return fmt.Errorf(`job "%v" already registered`, name)

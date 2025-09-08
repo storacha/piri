@@ -18,7 +18,7 @@ import (
 var log = logging.Logger("jobqueue")
 
 type Service[T any] interface {
-	Start(ctx context.Context)
+	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	Register(name string, fn func(context.Context, T) error, opts ...worker.JobOption[T]) error
 	Enqueue(ctx context.Context, name string, msg T) error
@@ -75,7 +75,7 @@ type JobQueue[T any] struct {
 	name   string
 
 	// shutdown management
-	mu          sync.RWMutex
+	mu          sync.Mutex
 	stopping    bool
 	startCtx    context.Context
 	startCancel context.CancelFunc
@@ -125,13 +125,12 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 	}, nil
 }
 
-func (j *JobQueue[T]) Start(ctx context.Context) {
+func (j *JobQueue[T]) Start(ctx context.Context) error {
 	j.mu.Lock()
 	if j.startCtx != nil {
-		// Already started
-		log.Warnf("JobQueue[%s] already started, ignoring Start call", j.name)
+		// Already started, this error is almost surly a developer error
 		j.mu.Unlock()
-		return
+		return fmt.Errorf("JobQueue[%s] already started", j.name)
 	}
 	j.startCtx, j.startCancel = context.WithCancel(ctx)
 	j.startWg.Add(1)
@@ -143,25 +142,40 @@ func (j *JobQueue[T]) Start(ctx context.Context) {
 		j.worker.Start(j.startCtx)
 		log.Infof("JobQueue[%s] worker stopped", j.name)
 	}()
+	return nil
 }
 
 func (j *JobQueue[T]) Register(name string, fn func(context.Context, T) error, opts ...worker.JobOption[T]) error {
+	j.mu.Lock()
+	if j.startCtx != nil {
+		j.mu.Unlock()
+		return fmt.Errorf("JobQueue[%s] already started, cannot register job on running job queue", j.name)
+	}
+	j.mu.Unlock()
 	return j.worker.Register(name, fn, opts...)
 }
 
 func (j *JobQueue[T]) Enqueue(ctx context.Context, name string, msg T) error {
-	j.mu.RLock()
+	j.mu.Lock()
+	if j.startCtx == nil {
+		j.mu.Unlock()
+		return fmt.Errorf("JobQueue[%s] not started, must start before enqueuing a job", j.name)
+	}
 	if j.stopping {
-		j.mu.RUnlock()
+		j.mu.Unlock()
 		log.Debugf("JobQueue[%s] rejecting enqueue of %s - queue is stopping", j.name, name)
 		return errors.New("job queue is stopping")
 	}
-	j.mu.RUnlock()
+	j.mu.Unlock()
 	return j.worker.Enqueue(ctx, name, msg)
 }
 
 func (j *JobQueue[T]) Stop(ctx context.Context) error {
 	j.mu.Lock()
+	if j.startCtx == nil {
+		j.mu.Unlock()
+		return fmt.Errorf("JobQueue[%s] not started, must start before stopping job", j.name)
+	}
 	if j.stopping {
 		j.mu.Unlock()
 		log.Warnf("JobQueue[%s] already stopping, ignoring Stop call", j.name)

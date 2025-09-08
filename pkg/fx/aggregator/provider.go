@@ -76,8 +76,7 @@ func ProvideLinkQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQue
 	queueCtx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			linkQueue.Start(queueCtx)
-			return nil
+			return linkQueue.Start(queueCtx)
 		},
 		OnStop: func(ctx context.Context) error {
 			cancel()
@@ -95,8 +94,7 @@ func ProvidePieceQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQu
 	queueCtx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			pieceQueue.Start(queueCtx)
-			return nil
+			return pieceQueue.Start(queueCtx)
 		},
 		OnStop: func(ctx context.Context) error {
 			cancel()
