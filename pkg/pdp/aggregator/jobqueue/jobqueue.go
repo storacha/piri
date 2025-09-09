@@ -185,9 +185,7 @@ func (j *JobQueue[T]) Stop(ctx context.Context) error {
 	log.Infof("JobQueue[%s] stopping - no new tasks will be accepted", j.name)
 
 	// Cancel the start context to signal worker to stop
-	if j.startCancel != nil {
-		j.startCancel()
-	}
+	j.startCancel()
 	j.mu.Unlock()
 
 	log.Infof("JobQueue[%s] waiting for active tasks to complete", j.name)
@@ -209,8 +207,8 @@ func (j *JobQueue[T]) Stop(ctx context.Context) error {
 	}
 }
 
-// WithOnFailure re-exports the worker.WithOnFailure function for convenience
-// This allows consumers to use jobqueue.WithOnFailure without importing the worker package directly
+// WithOnFailure sets a callback to be invoked only when the job fails after max retries
+// The JobQueue only supports a single OnFailure callback for a job, multiple OnFailure options must not be provided.
 func WithOnFailure[T any](onFailure worker.OnFailureFn[T]) worker.JobOption[T] {
 	return worker.WithOnFailure[T](onFailure)
 }

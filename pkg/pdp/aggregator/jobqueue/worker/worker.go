@@ -125,6 +125,7 @@ func (r *Worker[T]) Start(ctx context.Context) {
 type JobOption[T any] func(*jobRegistration[T])
 
 // WithOnFailure sets a callback to be invoked only when the job fails after max retries
+// The Worker only supports a single OnFailure callback for a job, multiple OnFailure options must not be provided.
 func WithOnFailure[T any](onFailure OnFailureFn[T]) JobOption[T] {
 	return func(jr *jobRegistration[T]) {
 		jr.onFailure = onFailure
