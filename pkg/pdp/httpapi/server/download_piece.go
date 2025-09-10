@@ -1,19 +1,16 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"net/http"
-	"time"
 
-	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
 	"github.com/labstack/echo/v4"
 )
 
 const piecePrefix = "/piece/"
 
+// TODO support range requests
 func (p *PDPHandler) handleDownloadByPieceCid(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -44,49 +41,29 @@ func (p *PDPHandler) handleDownloadByPieceCid(c echo.Context) error {
 
 	}
 
-	bodyReadSeeker, err := makeReadSeeker(obj.Data)
-	if err != nil {
-		return c.String(http.StatusInternalServerError, err.Error())
-	}
-	setHeaders(c.Response(), pieceCid)
-	serveContent(c.Response(), c.Request(), abi.UnpaddedPieceSize(obj.Size), bodyReadSeeker)
-	return nil
-}
+	// tells client this is a piece, aka custom MIME type for Filecoin pieces
+	// TODO unsure if this is needed, but curio does it
+	c.Response().Header().Set("Content-Type", "application/piece")
+	// set Cache-Control settings
+	// public: Can be cached by browsers AND intermediate caches (CDNs, proxies)
+	// max-age=29030400: Cache for ~11 months (336 days)
+	// immutable: This content will NEVER change - browser won't even check for updates
+	c.Response().Header().Set("Cache-Control", "public, max-age=29030400, immutable")
+	// set Entity tag - a unique identifier for this specific version of the content
+	// Since we're using the CIDs, this is perfect for immutable content
+	c.Response().Header().Set("Etag", fmt.Sprintf(`"%s"`, pieceCid.String()))
+	// set Vary which tells caches that if we ever add compression support in the future (e.g. gzip), the cached version
+	// should vary based on what encoding the client accepts
+	c.Response().Header().Set("Vary", "Accept-Encoding")
+	// how big these bytes be
+	c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", obj.Size))
 
-func setHeaders(w http.ResponseWriter, pieceCid cid.Cid) {
-	w.Header().Set("Vary", "Accept-Encoding")
-	etag := `"` + pieceCid.String() + `.gz"` // must be quoted
-	w.Header().Set("Etag", etag)
-	w.Header().Set("Content-Type", "application/piece")
-	w.Header().Set("Cache-Control", "public, max-age=29030400, immutable")
-}
-
-// For data served by the endpoints in the HTTP server that never changes
-// (eg pieces identified by a piece CID) send a cache header with a constant,
-// non-zero last modified time.
-var lastModified = time.UnixMilli(1)
-
-// TODO: since the blobstore interface doesn't return a read seeker, we make one, this won't work long term
-// and requires changes to the interface, or a new one.
-func makeReadSeeker(r io.Reader) (io.ReadSeeker, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return bytes.NewReader(data), nil
-}
-
-func serveContent(res http.ResponseWriter, req *http.Request, size abi.UnpaddedPieceSize, content io.ReadSeeker) {
-	// Note that the last modified time is a constant value because the data
-	// in a piece identified by a cid will never change.
-
-	if req.Method == http.MethodHead {
-		// For an HTTP HEAD request ServeContent doesn't send any data (just headers)
-		http.ServeContent(res, req, "", time.Time{}, nil)
-		return
+	if c.Request().Method == http.MethodHead {
+		// TODO, in the above call to ReadPiece we read the entire piece into memory, which is
+		// inefficient, rather we should get it's size, which requires a blobstore supporting proper readers
+		return c.NoContent(http.StatusOK)
 	}
 
-	// Send the content
-	res.Header().Set("Content-Length", fmt.Sprintf("%d", size))
-	http.ServeContent(res, req, "", lastModified, content)
+	return c.Stream(http.StatusOK, "application/piece", obj.Data)
+
 }
