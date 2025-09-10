@@ -2,7 +2,6 @@ package serve
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -144,8 +143,6 @@ func init() {
 }
 
 func fullServer(cmd *cobra.Command, _ []string) error {
-	ctx := cmd.Context()
-
 	userCfg, err := config.Load[config.FullServerConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -156,9 +153,11 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing config: %w", err)
 	}
 
-	fxApp := fx.New(
+	// build our beloved Piri node
+	piri := fx.New(
 		// if a panic occurs during operation, recover from it and exit (somewhat) gracefully.
 		fx.RecoverFromPanics(),
+
 		// provide fx with our logger for its events logged at debug level.
 		// any fx errors will still be logged at the error level.
 		fx.WithLogger(func() fxevent.Logger {
@@ -166,6 +165,16 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 			el.UseLogLevel(zapcore.DebugLevel)
 			return el
 		}),
+
+		// Set graceful shutdown timeout.
+		// This timeout allows fx to wait up to one minute for all lifecycle shutdown hooks to execute.
+		// Here is how we arrived at this value:
+		//  - Proving a piece typically takes 30 seconds, so a min is plenty there
+		//  - Assuming a symmetric 100Mbps connection, upload/download of 256 MB (max piece size) will likely take 20-30 seconds
+		//    therefore, 1 min should be enough time to let existing connections complete
+		// Still, if any of the above take more than 1min, they will be closed/rejected after 1min, so we might want
+		// to make this a configuration value based on user preference, metrics we collect, and capacity of the machine.
+		fx.StopTimeout(time.Minute),
 
 		// common dependencies of the PDP and UCAN module:
 		//   - identity
@@ -187,54 +196,37 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 		//    - create proof set, add root, upload piece, etc.
 		//  - address wallet
 		app.PDPModule,
+
+		// Post-startup operations: print server info and record telemetry
+		fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					// Print server startup information
+					cliutil.PrintHero(cmd.OutOrStdout(), appCfg.Identity.Signer.DID())
+					cmd.Println("Piri Running on: " + appCfg.Server.Host + ":" + strconv.Itoa(int(appCfg.Server.Port)))
+					cmd.Println("Piri Public Endpoint: " + appCfg.Server.PublicURL.String())
+
+					// Record server telemetry
+					telemetry.RecordServerInfo(ctx, "full",
+						telemetry.StringAttr("did", appCfg.Identity.Signer.DID().String()),
+						telemetry.StringAttr("owner_address", appCfg.PDPService.OwnerAddress.String()),
+						telemetry.StringAttr("public_url", appCfg.Server.PublicURL.String()),
+						telemetry.Int64Attr("proof_set", int64(appCfg.UCANService.ProofSetID)),
+					)
+					return nil
+				},
+			})
+		}),
 	)
 
-	// ensure the application was initialized correctly
-	if err := fxApp.Err(); err != nil {
-		return fmt.Errorf("initalizing piri: %w", err)
+	// valid the app was built successfully, an error here means a missing dep, i.e. a developer error (we never write errors...)
+	if err := piri.Err(); err != nil {
+		return fmt.Errorf("building piri: %w", err)
 	}
 
-	// start the application, triggering lifecycle hooks to start various services and systems
-	if err := fxApp.Start(ctx); err != nil {
-		return fmt.Errorf("starting piri: %w", err)
-	}
+	// run the app, when an interrupt signal is sent to the process, this method ends.
+	// any errors encountered during shutdown will be exposed via logs
+	piri.Run()
 
-	go func() {
-		// sleep a bit allowing for initial logs to write before printing hello
-		time.Sleep(time.Second)
-		cliutil.PrintHero(cmd.OutOrStdout(), appCfg.Identity.Signer.DID())
-		cmd.Println("Piri Running on: " + appCfg.Server.Host + ":" + strconv.Itoa(int(appCfg.Server.Port)))
-		cmd.Println("Piri Public Endpoint: " + appCfg.Server.PublicURL.String())
-	}()
-
-	// publish server metrics after a successful start
-	telemetry.RecordServerInfo(ctx, "full",
-		telemetry.StringAttr("did", appCfg.Identity.Signer.DID().String()),
-		telemetry.StringAttr("owner_address", appCfg.PDPService.OwnerAddress.String()),
-		telemetry.StringAttr("public_url", appCfg.Server.PublicURL.String()),
-		telemetry.Int64Attr("proof_set", int64(appCfg.UCANService.ProofSetID)),
-	)
-
-	// block: wait for the application to receive a shutdown signal
-	<-ctx.Done()
-	log.Info("received shutdown signal, beginning graceful shutdown")
-
-	shutdownTimeout := 5 * time.Second
-	// Stop the application, with a `shutdownTimeout grace period.
-	stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-
-	log.Info("stopping piri...")
-	if err := fxApp.Stop(stopCtx); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			log.Errorf("graceful shutdown timed out after %s", shutdownTimeout.String())
-		}
-		return fmt.Errorf("stopping piri: %w", err)
-	}
-	log.Info("piri stopped successfully")
-
-	// flush any logs before exiting.
-	_ = log.Sync()
 	return nil
-
 }
