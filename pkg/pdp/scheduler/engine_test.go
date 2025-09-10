@@ -1,4 +1,4 @@
-package scheduler
+package scheduler_test
 
 import (
 	"context"
@@ -10,8 +10,12 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+	schedulerfx "github.com/storacha/piri/pkg/fx/scheduler"
+	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/database"
@@ -21,34 +25,34 @@ import (
 
 // MockTask implements TaskInterface for testing
 type MockTask struct {
-	typeDetails    TaskTypeDetails
+	typeDetails    scheduler.TaskTypeDetails
 	mutex          sync.Mutex
-	executedTasks  map[TaskID]int // Maps task IDs to execution count
-	shouldComplete bool           // Whether tasks should complete or remain pending
-	doFunc         func(taskID TaskID) (bool, error)
-	addTaskFunc    AddTaskFunc
+	executedTasks  map[scheduler.TaskID]int // Maps task IDs to execution count
+	shouldComplete bool                     // Whether tasks should complete or remain pending
+	doFunc         func(taskID scheduler.TaskID) (bool, error)
+	addTaskFunc    scheduler.AddTaskFunc
 	readyForTasks  chan struct{} // Signal when addTaskFunc is set
 }
 
-func NewMockTask(name string, maxConcurrent int, shouldComplete bool) *MockTask {
+func NewMockTask(name string, shouldComplete bool) *MockTask {
 	return &MockTask{
-		typeDetails: TaskTypeDetails{
+		typeDetails: scheduler.TaskTypeDetails{
 			Name: name,
 			RetryWait: func(retries int) time.Duration {
 				return time.Millisecond * 50
 			},
 		},
-		executedTasks:  make(map[TaskID]int),
+		executedTasks:  make(map[scheduler.TaskID]int),
 		shouldComplete: shouldComplete,
 		readyForTasks:  make(chan struct{}),
 	}
 }
 
-func (m *MockTask) TypeDetails() TaskTypeDetails {
+func (m *MockTask) TypeDetails() scheduler.TaskTypeDetails {
 	return m.typeDetails
 }
 
-func (m *MockTask) Adder(addTask AddTaskFunc) {
+func (m *MockTask) Adder(addTask scheduler.AddTaskFunc) {
 	m.mutex.Lock()
 	m.addTaskFunc = addTask
 	m.mutex.Unlock()
@@ -61,7 +65,7 @@ func (m *MockTask) WaitForReady() {
 	<-m.readyForTasks
 }
 
-func (m *MockTask) AddTask(extraInfo func(TaskID, *gorm.DB) (bool, error)) {
+func (m *MockTask) AddTask(extraInfo func(scheduler.TaskID, *gorm.DB) (bool, error)) {
 	m.mutex.Lock()
 	addFunc := m.addTaskFunc
 	m.mutex.Unlock()
@@ -71,7 +75,7 @@ func (m *MockTask) AddTask(extraInfo func(TaskID, *gorm.DB) (bool, error)) {
 	}
 }
 
-func (m *MockTask) Do(taskID TaskID) (done bool, err error) {
+func (m *MockTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	if m.doFunc != nil {
 		return m.doFunc(taskID)
 	}
@@ -84,18 +88,18 @@ func (m *MockTask) Do(taskID TaskID) (done bool, err error) {
 	return m.shouldComplete, nil
 }
 
-func (m *MockTask) GetExecutionCount(taskID TaskID) int {
+func (m *MockTask) GetExecutionCount(taskID scheduler.TaskID) int {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	return m.executedTasks[taskID]
 }
 
-func (m *MockTask) GetAllExecutedTasks() map[TaskID]int {
+func (m *MockTask) GetAllExecutedTasks() map[scheduler.TaskID]int {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	// Create a copy to avoid concurrent modification
-	result := make(map[TaskID]int, len(m.executedTasks))
+	result := make(map[scheduler.TaskID]int, len(m.executedTasks))
 	for k, v := range m.executedTasks {
 		result[k] = v
 	}
@@ -130,10 +134,10 @@ func TestTaskEngineBasicExecution(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a mock task
-	mockTask := NewMockTask("test_task", 5, true)
+	mockTask := NewMockTask("test_task", true)
 
 	// Create the engine
-	engine, err := NewEngine(db, []TaskInterface{mockTask})
+	engine, err := scheduler.NewEngine(db, []scheduler.TaskInterface{mockTask})
 	require.NoError(t, err)
 	err = engine.Start(t.Context())
 	require.NoError(t, err)
@@ -149,7 +153,7 @@ func TestTaskEngineBasicExecution(t *testing.T) {
 	// Create some tasks in the database
 	numTasks := 64
 	for i := 0; i < numTasks; i++ {
-		mockTask.AddTask(func(tID TaskID, tx *gorm.DB) (bool, error) {
+		mockTask.AddTask(func(tID scheduler.TaskID, tx *gorm.DB) (bool, error) {
 			// return true to indicate the task completed successfully without an error.
 			return true, nil
 		})
@@ -179,7 +183,7 @@ func TestTaskEngineResume(t *testing.T) {
 	tests := []struct {
 		name   string
 		setup  func(db *gorm.DB, currentSession string) []models.Task
-		verify func(t *testing.T, db *gorm.DB, engine *TaskEngine, mockTask *MockTask, initialTasks []models.Task)
+		verify func(t *testing.T, db *gorm.DB, engine *scheduler.TaskEngine, mockTask *MockTask, initialTasks []models.Task)
 	}{
 		{
 			name: "Tasks with different sessionID are resumed: simulates an ungraceful shutdown & resumption of engine",
@@ -204,7 +208,7 @@ func TestTaskEngineResume(t *testing.T) {
 				}
 				return tasks
 			},
-			verify: func(t *testing.T, db *gorm.DB, engine *TaskEngine, mockTask *MockTask, initialTasks []models.Task) {
+			verify: func(t *testing.T, db *gorm.DB, engine *scheduler.TaskEngine, mockTask *MockTask, initialTasks []models.Task) {
 				// Wait for tasks to be executed
 				assert.Eventually(t, func() bool {
 					return len(mockTask.GetAllExecutedTasks()) == len(initialTasks)
@@ -243,7 +247,7 @@ func TestTaskEngineResume(t *testing.T) {
 				}
 				return tasks
 			},
-			verify: func(t *testing.T, db *gorm.DB, engine *TaskEngine, mockTask *MockTask, initialTasks []models.Task) {
+			verify: func(t *testing.T, db *gorm.DB, engine *scheduler.TaskEngine, mockTask *MockTask, initialTasks []models.Task) {
 				// Wait for tasks to be executed
 				assert.Eventually(t, func() bool {
 					return len(mockTask.GetAllExecutedTasks()) == len(initialTasks)
@@ -292,7 +296,7 @@ func TestTaskEngineResume(t *testing.T) {
 				}
 				return tasks
 			},
-			verify: func(t *testing.T, db *gorm.DB, engine *TaskEngine, mockTask *MockTask, initialTasks []models.Task) {
+			verify: func(t *testing.T, db *gorm.DB, engine *scheduler.TaskEngine, mockTask *MockTask, initialTasks []models.Task) {
 				// Should execute 2 tasks (old session + nil session)
 				// The current session task should not be executed
 				assert.Eventually(t, func() bool {
@@ -313,10 +317,10 @@ func TestTaskEngineResume(t *testing.T) {
 			db := setupTestDB(t)
 
 			// Create mock task that completes successfully
-			mockTask := NewMockTask("test_task", 5, true)
+			mockTask := NewMockTask("test_task", true)
 
 			// Create the engine
-			engine, err := NewEngine(db, []TaskInterface{mockTask})
+			engine, err := scheduler.NewEngine(db, []scheduler.TaskInterface{mockTask})
 			require.NoError(t, err)
 
 			// Create tasks using the engine's actual session ID
@@ -401,13 +405,13 @@ func TestTaskEngineRetryFailedTasks(t *testing.T) {
 			db := setupTestDB(t)
 
 			// Track execution attempts for each task
-			executionAttempts := make(map[TaskID]int)
+			executionAttempts := make(map[scheduler.TaskID]int)
 			var mu sync.Mutex
 
 			// Create a mock task with custom failure behavior
-			mockTask := NewMockTask("test_task", 5, false)
+			mockTask := NewMockTask("test_task", false)
 			mockTask.typeDetails.MaxFailures = tt.maxFailures
-			mockTask.doFunc = func(taskID TaskID) (bool, error) {
+			mockTask.doFunc = func(taskID scheduler.TaskID) (bool, error) {
 				mu.Lock()
 				attempts := executionAttempts[taskID]
 				executionAttempts[taskID] = attempts + 1
@@ -422,7 +426,7 @@ func TestTaskEngineRetryFailedTasks(t *testing.T) {
 			}
 
 			// Create the engine
-			engine, err := NewEngine(db, []TaskInterface{mockTask})
+			engine, err := scheduler.NewEngine(db, []scheduler.TaskInterface{mockTask})
 			require.NoError(t, err)
 			err = engine.Start(t.Context())
 			require.NoError(t, err)
@@ -436,7 +440,7 @@ func TestTaskEngineRetryFailedTasks(t *testing.T) {
 			mockTask.WaitForReady()
 
 			// Create a task
-			mockTask.AddTask(func(tID TaskID, tx *gorm.DB) (bool, error) {
+			mockTask.AddTask(func(tID scheduler.TaskID, tx *gorm.DB) (bool, error) {
 				return true, nil
 			})
 
@@ -468,4 +472,315 @@ func TestTaskEngineRetryFailedTasks(t *testing.T) {
 			tt.verifyHistory(t, histories)
 		})
 	}
+}
+
+// Setup and start the task engine. engine go vroom.
+func setupAndStartEngine(t *testing.T, task scheduler.TaskInterface) *fxtest.App {
+	var engine *scheduler.TaskEngine
+	app := fxtest.New(t,
+		fx.Provide(
+			schedulerfx.ProvideEngine,
+			fx.Annotate(
+				func() *gorm.DB {
+					return setupTestDB(t)
+				},
+				fx.ResultTags(`name:"engine_db"`),
+			),
+			fx.Annotate(
+				func() scheduler.TaskInterface {
+					return task
+				},
+				fx.ResultTags(`group:"scheduler_tasks"`),
+			),
+		),
+		// we populate the engine, to force a dependency on it, causing it to initialize
+		fx.Populate(&engine),
+	)
+
+	app.RequireStart()
+
+	return app
+
+}
+
+// TestTaskEngineGracefulShutdown verifies that the engine waits for active tasks
+// to complete before shutting down gracefully
+func TestTaskEngineGracefulShutdown(t *testing.T) {
+	// Channel to control task execution
+	taskComplete := make(chan struct{})
+	taskStarted := make(chan struct{})
+
+	// Create a mock task that we can control
+	mockTask := NewMockTask("test_task", false)
+	mockTask.doFunc = func(taskID scheduler.TaskID) (bool, error) {
+		// Signal that task has started
+		close(taskStarted)
+		// Wait for signal to complete
+		<-taskComplete
+		return true, nil
+	}
+
+	app := setupAndStartEngine(t, mockTask)
+
+	mockTask.WaitForReady()
+
+	// Add a task that will start executing
+	mockTask.AddTask(func(tID scheduler.TaskID, tx *gorm.DB) (bool, error) {
+		return true, nil
+	})
+
+	// Wait for task to start executing
+	require.Eventually(t, func() bool {
+		<-taskStarted
+		return true
+	}, time.Second, 100*time.Millisecond, "Task should be started")
+
+	shutdownComplete := make(chan error, 1)
+	go func() {
+		shutdownComplete <- app.Stop(t.Context())
+	}()
+
+	// Give the engine a moment to start shutdown process
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that engine is waiting for the task (activeTasks > 0)
+	// We can't directly access activeTasks, but we can observe behavior
+	// The shutdown should not complete yet
+	select {
+	case err := <-shutdownComplete:
+		t.Fatalf("Shutdown completed too early, should wait for task: %v", err)
+	case <-time.After(500 * time.Millisecond):
+		// yay, shutdown is waiting
+	}
+
+	// Now complete the task
+	close(taskComplete)
+
+	select {
+	case err := <-shutdownComplete:
+		require.NoError(t, err, "Shutdown should complete successfully after task finishes")
+	case <-time.After(3 * time.Second):
+		t.Fatal("Shutdown did not complete after task finished")
+	}
+}
+
+// TestTaskEngineShutdownTimeout verifies that the engine respects the shutdown timeout
+// when tasks don't complete in time
+func TestTaskEngineShutdownTimeout(t *testing.T) {
+	// Channel to control task execution (never closed, so task never completes)
+	taskStarted := make(chan struct{})
+	taskNeverCompletes := make(chan struct{})
+
+	// Create a mock task that never completes
+	mockTask := NewMockTask("test_task", false)
+	mockTask.doFunc = func(taskID scheduler.TaskID) (bool, error) {
+		// Signal that task has started
+		close(taskStarted)
+		// Wait forever (this channel is never closed)
+		<-taskNeverCompletes
+		return true, nil
+	}
+
+	stopTimeout := time.Second
+	app := setupAndStartEngine(t, mockTask)
+
+	mockTask.WaitForReady()
+
+	// Add a task that will start executing and never complete
+	mockTask.AddTask(func(tID scheduler.TaskID, tx *gorm.DB) (bool, error) {
+		return true, nil
+	})
+
+	// Wait for task to start executing
+	require.Eventually(t, func() bool {
+		<-taskStarted
+		return true
+	}, time.Second, 100*time.Millisecond, "Task should be started")
+
+	ctx, cancel := context.WithTimeout(t.Context(), stopTimeout)
+	defer cancel()
+
+	err := app.Stop(ctx)
+
+	// Verify that we got a timeout error
+	assert.Error(t, err, "Shutdown should fail with timeout")
+	assert.Contains(t, err.Error(), "context deadline exceeded", "Should get context deadline exceeded error from fx.StopTimeout")
+}
+
+// TestTaskEngineGracefulShutdownMultipleTasks verifies that the engine waits for ALL active tasks
+// to complete before shutting down gracefully, not just a single task
+func TestTaskEngineGracefulShutdownMultipleTasks(t *testing.T) {
+	const numTasks = 5
+
+	// Create channels to control each task independently
+	taskCompletions := make([]chan struct{}, numTasks)
+	taskStarted := make([]chan struct{}, numTasks)
+	for i := range taskCompletions {
+		taskCompletions[i] = make(chan struct{})
+		taskStarted[i] = make(chan struct{})
+	}
+
+	// Track which task is being executed
+	taskExecutions := make(map[scheduler.TaskID]int)
+	var taskExecutionsMu sync.Mutex
+
+	// Create a mock task that tracks multiple concurrent executions
+	mockTask := NewMockTask("test_task", false) // MaxConcurrency of 10 to allow all tasks to run
+	mockTask.doFunc = func(taskID scheduler.TaskID) (bool, error) {
+		// Determine which task index this is
+		taskExecutionsMu.Lock()
+		taskIndex := len(taskExecutions)
+		taskExecutions[taskID] = taskIndex
+		taskExecutionsMu.Unlock()
+
+		if taskIndex >= numTasks {
+			// Extra task, complete immediately
+			return true, nil
+		}
+
+		// Signal that this specific task has started
+		close(taskStarted[taskIndex])
+
+		// Wait for signal to complete this specific task
+		<-taskCompletions[taskIndex]
+		return true, nil
+	}
+
+	app := setupAndStartEngine(t, mockTask)
+
+	mockTask.WaitForReady()
+
+	// Add multiple tasks that will start executing
+	for i := 0; i < numTasks; i++ {
+		mockTask.AddTask(func(tID scheduler.TaskID, tx *gorm.DB) (bool, error) {
+			return true, nil
+		})
+	}
+
+	// Wait for all tasks to start executing
+	for i := 0; i < numTasks; i++ {
+		select {
+		case <-taskStarted[i]:
+			// Task i is now running
+		case <-time.After(5 * time.Second):
+			t.Fatalf("Task %d did not start within timeout", i)
+		}
+	}
+
+	shutdownComplete := make(chan error, 1)
+	go func() {
+		shutdownComplete <- app.Stop(context.Background())
+	}()
+
+	// Give the engine a moment to start shutdown process
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that shutdown is waiting (should not complete yet)
+	select {
+	case err := <-shutdownComplete:
+		t.Fatalf("Shutdown completed too early with %d tasks still running: %v", numTasks, err)
+	case <-time.After(500 * time.Millisecond):
+		//  shutdown is waiting for all tasks
+	}
+
+	// Complete tasks one by one, except the last one
+	for i := 0; i < numTasks-1; i++ {
+		close(taskCompletions[i])
+
+		// After completing each task (except the last), shutdown should still be waiting
+		time.Sleep(100 * time.Millisecond)
+		select {
+		case err := <-shutdownComplete:
+			t.Fatalf("Shutdown completed too early after completing %d/%d tasks: %v", i+1, numTasks, err)
+		case <-time.After(200 * time.Millisecond):
+			// Good, still waiting for remaining tasks
+		}
+	}
+
+	// Now complete the last task
+	close(taskCompletions[numTasks-1])
+
+	// Shutdown should now complete since all tasks are done
+	select {
+	case err := <-shutdownComplete:
+		require.NoError(t, err, "Shutdown should complete successfully after all tasks finish")
+	case <-time.After(3 * time.Second):
+		t.Fatal("Shutdown did not complete after all tasks finished")
+	}
+
+	// Verify all tasks were executed
+	taskExecutionsMu.Lock()
+	assert.Equal(t, numTasks, len(taskExecutions), "All tasks should have been executed")
+	taskExecutionsMu.Unlock()
+}
+
+// TestTaskEngineShutdownTimeoutMultipleTasks verifies that the engine respects the shutdown timeout
+// even when multiple tasks don't complete in time
+func TestTaskEngineShutdownTimeoutMultipleTasks(t *testing.T) {
+	const numTasks = 3
+
+	// Create channels for task control (never closed, so tasks never complete)
+	taskStarted := make([]chan struct{}, numTasks)
+	taskNeverCompletes := make([]chan struct{}, numTasks)
+	for i := range taskStarted {
+		taskStarted[i] = make(chan struct{})
+		taskNeverCompletes[i] = make(chan struct{})
+	}
+
+	taskCount := 0
+	var taskCountMu sync.Mutex
+
+	// Create a mock task that never completes
+	mockTask := NewMockTask("test_task", false)
+	mockTask.doFunc = func(taskID scheduler.TaskID) (bool, error) {
+		taskCountMu.Lock()
+		index := taskCount
+		taskCount++
+		taskCountMu.Unlock()
+
+		if index >= numTasks {
+			// Extra task, complete immediately
+			return true, nil
+		}
+
+		// Signal that this task has started
+		close(taskStarted[index])
+		// Wait forever (this channel is never closed)
+		<-taskNeverCompletes[index]
+		return true, nil
+	}
+
+	app := setupAndStartEngine(t, mockTask)
+
+	mockTask.WaitForReady()
+
+	// Add multiple tasks that will never complete
+	for i := 0; i < numTasks; i++ {
+		mockTask.AddTask(func(tID scheduler.TaskID, tx *gorm.DB) (bool, error) {
+			return true, nil
+		})
+	}
+
+	// Wait for all tasks to start executing
+	for i := 0; i < numTasks; i++ {
+		select {
+		case <-taskStarted[i]:
+			// Task is now running and will never complete
+		case <-time.After(5 * time.Second):
+			t.Fatalf("Task %d did not start within timeout", i)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	err := app.Stop(ctx)
+
+	// Verify that we got a timeout error from
+	assert.Error(t, err, "Shutdown should fail with timeout")
+	assert.Contains(t, err.Error(), "context deadline exceeded", "Should get context deadline exceeded error")
+
+	// Verify the expected number of tasks were running
+	taskCountMu.Lock()
+	assert.Equal(t, numTasks, taskCount, "All tasks should have started")
+	taskCountMu.Unlock()
 }
