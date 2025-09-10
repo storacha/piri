@@ -59,9 +59,13 @@ func ProvideReplicationQueue(lc fx.Lifecycle, params QueueParams) (*jobqueue.Job
 	queueCtx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
+			log.Info("starting replication queue")
+			defer log.Info("started replication queue")
 			return replicationQueue.Start(queueCtx)
 		},
 		OnStop: func(ctx context.Context) error {
+			log.Info("stopping replication queue")
+			defer log.Info("stopped replication queue")
 			cancel()                          // Cancel the Start context first
 			return replicationQueue.Stop(ctx) // Then wait for graceful shutdown
 		},
