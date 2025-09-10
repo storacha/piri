@@ -77,6 +77,21 @@ func StartEchoServer(cfg app.AppConfig, e *echo.Echo, lc fx.Lifecycle) (*EchoSer
 		},
 		OnStop: func(ctx context.Context) error {
 			log.Info("Shutting down Echo server")
+			defer log.Info("Echo server stopped")
+			// Per go docs on this method:
+			// Shutdown gracefully shuts down the server without interrupting any
+			// active connections. Shutdown works by first closing all open
+			// listeners, then closing all idle connections, and then waiting
+			// indefinitely for connections to return to idle and then shut down.
+			// If the provided context expires before the shutdown is complete,
+			// Shutdown returns the context's error, otherwise it returns any
+			// error returned from closing the [Server]'s underlying Listener(s).
+			//
+			// When Shutdown is called, [Serve], [ListenAndServe], and
+			// [ListenAndServeTLS] immediately return [ErrServerClosed].
+			//
+			// The timeout of the context passed to this method is configured
+			// by setting fx.StopTimeout([duration]),
 			return e.Shutdown(ctx)
 		},
 	})
