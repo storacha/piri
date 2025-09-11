@@ -4,7 +4,7 @@ DATE=$(shell date -u -Iseconds)
 GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION) -X github.com/storacha/piri/pkg/build.Commit=$(COMMIT) -X github.com/storacha/piri/pkg/build.Date=$(DATE) -X github.com/storacha/piri/pkg/build.BuiltBy=make"
 TAGS?=
 
-.PHONY: all build piri install test clean calibnet mockgen tools check-docs-links
+.PHONY: all build piri install test clean calibnet mockgen tools check-docs-links generate-contracts verify-contracts contracts-update
 
 all: build
 
@@ -45,6 +45,32 @@ tools:
 		echo "⚠ abigen installed but not in PATH. Add $$(go env GOPATH)/bin to your PATH:"; \
 		echo "  export PATH=\$$PATH:$$(go env GOPATH)/bin"; \
 	fi
+
+# Contract generation targets
+generate-contracts:
+	@echo "Generating contract bindings..."
+	@./scripts/generate-contracts.sh
+
+verify-contracts: generate-contracts
+	@echo "Verifying contract bindings are up-to-date..."
+	@if ! git diff --exit-code pkg/pdp/service/contract/internal/ pkg/pdp/service/contract/VERSION; then \
+		echo "❌ Generated contract files are out of date. Run 'make generate-contracts' and commit the changes."; \
+		echo "Changed files:"; \
+		git diff --name-only pkg/pdp/service/contract/internal/ pkg/pdp/service/contract/VERSION; \
+		exit 1; \
+	else \
+		echo "✅ Contract bindings are up-to-date."; \
+	fi
+
+contracts-update:
+	@echo "Updating contract submodule to latest version..."
+	@git submodule update --remote contracts/pdp
+	@echo "Regenerating contract bindings..."
+	@$(MAKE) generate-contracts
+	@echo "Contract submodule updated and bindings regenerated."
+	@echo "Review changes and commit if satisfied:"
+	@echo "  git add contracts/pdp pkg/pdp/service/contract/"
+	@echo "  git commit -m 'Update PDP contracts to latest version'"
 
 # special target that sets the calibnet tag and invokes build
 calibnet: TAGS=-tags calibnet
