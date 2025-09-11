@@ -41,9 +41,6 @@ func (p *PDPHandler) handleDownloadByPieceCid(c echo.Context) error {
 
 	}
 
-	// tells client this is a piece, aka custom MIME type for Filecoin pieces
-	// TODO unsure if this is needed, but curio does it
-	c.Response().Header().Set("Content-Type", "application/piece")
 	// set Cache-Control settings
 	// public: Can be cached by browsers AND intermediate caches (CDNs, proxies)
 	// max-age=29030400: Cache for ~11 months (336 days)

@@ -126,7 +126,8 @@ func (e *TaskEngine) SessionID() string {
 // making them available for other engine instances to pick up.
 // The context parameter can be used to set a timeout for the shutdown operation.
 func (e *TaskEngine) Stop(ctx context.Context) error {
-	log.Debugw("Stopping task engine", "session_id", e.sessionID)
+	log.Infow("Stopping task engine", "session_id", e.sessionID)
+	defer log.Infow("Stopped task engine", "session_id", e.sessionID)
 	// Stop accepting new work
 	e.cancel()
 
@@ -140,7 +141,6 @@ func (e *TaskEngine) Stop(ctx context.Context) error {
 		}).Error; err != nil {
 		return fmt.Errorf("failed to release tasks during shutdown: %w", err)
 	}
-	log.Infow("Stopped task engine", "session_id", e.sessionID)
 	for {
 		select {
 		case <-ctx.Done():

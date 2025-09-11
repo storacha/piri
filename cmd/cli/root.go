@@ -123,7 +123,7 @@ func initLogging() {
 		logging.SetLogLevel("cli/wallet", "info")
 		logging.SetLogLevel("announce", "warn")
 		logging.SetLogLevel("proof", "warn")
-		logging.SetLogLevel("pdp/aggregator", "warn")
+		logging.SetLogLevel("pdp/aggregator", "info")
 		logging.SetLogLevel("pdp/scheduler", "info")
 		logging.SetLogLevel("metrics", "warn")
 		logging.SetLogLevel("pdp/tasks", "info")
