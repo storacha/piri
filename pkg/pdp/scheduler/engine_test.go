@@ -478,6 +478,7 @@ func TestTaskEngineRetryFailedTasks(t *testing.T) {
 func setupAndStartEngine(t *testing.T, task scheduler.TaskInterface) *fxtest.App {
 	var engine *scheduler.TaskEngine
 	app := fxtest.New(t,
+		fx.NopLogger,
 		fx.Provide(
 			schedulerfx.ProvideEngine,
 			fx.Annotate(
