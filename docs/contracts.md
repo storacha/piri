@@ -32,8 +32,8 @@ scripts/
 The `VERSION` file tracks the exact state of contract generation:
 
 ```bash
-PDP_CONTRACT_VERSION=08751740fe60ec0d45c7c021c26665670f44ed97  # Submodule commit SHA
-PDP_CONTRACT_COMMIT=08751740fe60ec0d45c7c021c26665670f44ed97   # Same as above
+PDP_CONTRACT_VERSION=52a3b541e450923268f5999e22a7b7608f0aabfa  # Submodule commit SHA
+PDP_CONTRACT_COMMIT=52a3b541e450923268f5999e22a7b7608f0aabfa   # Same as above
 GENERATED_AT=2025-09-06T12:02:59Z                              # Generation timestamp
 FORGE_METHOD=native                                            # Build method used
 ```
