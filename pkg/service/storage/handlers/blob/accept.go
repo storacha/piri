@@ -99,6 +99,7 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 		pdpAcceptInv = pieceAccept
 	}
 
+	byteRange := assert.Range{Offset: 0, Length: &req.Blob.Size}
 	claim, err := assert.Location.Delegate(
 		s.ID(),
 		req.Space,
@@ -107,6 +108,7 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 			Space:    req.Space,
 			Content:  types.FromHash(req.Blob.Digest),
 			Location: []url.URL{loc},
+			Range:    &byteRange,
 		},
 		delegation.WithNoExpiration(),
 	)
