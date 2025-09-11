@@ -52,6 +52,7 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 	e.PUT(path.Join(PDPRoutePath, piecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload)
 	e.GET(path.Join(PDPRoutePath, piecePrefix), p.handleFindPiece)
 
-	// retrival
+	// retrieval, supporting head requests too
 	e.GET(path.Join(PiecePrefix, ":cid"), p.handleDownloadByPieceCid)
+	e.HEAD(path.Join(PiecePrefix, ":cid"), p.handleDownloadByPieceCid)
 }

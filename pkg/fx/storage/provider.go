@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"context"
-
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/principal"
 	"go.uber.org/fx"
@@ -55,7 +53,7 @@ type storageServiceWrapper struct {
 }
 
 // NewStorageService creates a new storage service
-func NewStorageService(params StorageServiceParams, lc fx.Lifecycle) (storage.Service, error) {
+func NewStorageService(params StorageServiceParams) (storage.Service, error) {
 	svc := &storageServiceWrapper{
 		id:           params.ID,
 		blobs:        params.Blobs,
@@ -65,18 +63,6 @@ func NewStorageService(params StorageServiceParams, lc fx.Lifecycle) (storage.Se
 		replicator:   params.Replicator,
 		uploadConn:   params.Config.UCANService.Services.Upload.Connection,
 	}
-
-	// Register lifecycle hooks
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			// The startup logic is now handled by individual service lifecycle hooks
-			return nil
-		},
-		OnStop: func(ctx context.Context) error {
-			// The cleanup logic is now handled by individual service lifecycle hooks
-			return nil
-		},
-	})
 
 	return svc, nil
 }
