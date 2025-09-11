@@ -34,6 +34,39 @@ Follow these guides in order to set up Piri:
 - **New to Piri?** Start with the [Getting Started Guide](./docs/getting-started.md)
 - **Want to understand the system?** Read the [Architecture Overview](./docs/architecture.md)
 
+## Development
+
+### Prerequisites for Development
+
+To develop Piri, you'll need:
+
+- Go 1.19 or later
+- Foundry (for contract compilation)
+
+### Setup Development Tools
+
+Install required development tools:
+
+```bash
+# Install abigen and other Go tools
+make tools
+
+# If abigen is not in your PATH, add Go's bin directory:
+export PATH=$PATH:$(go env GOPATH)/bin
+```
+
+### Contract Development
+
+Piri uses smart contracts for PDP (Provable Data Possession). The contracts are managed via git submodules:
+
+```bash
+# Initialize contract submodules
+git submodule update --init
+
+# Generate contract bindings (after installing tools)
+make generate-contracts
+```
+
 ## Contributing
 
 All welcome! Storacha is open-source. Please feel empowered to open a PR or an issue.
