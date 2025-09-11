@@ -1,0 +1,3 @@
+[submodule "contracts/pdp"]
+	path = contracts/pdp
+	url = https://github.com/FilOzone/pdp

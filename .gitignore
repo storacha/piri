@@ -20,3 +20,10 @@ piri
 
 # GoReleaser output
 dist/
+
+# Contract build artifacts
+contracts/pdp/out/
+contracts/pdp/cache/
+contracts/pdp/broadcast/
+*.abi
+*.bin
