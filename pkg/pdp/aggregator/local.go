@@ -49,8 +49,12 @@ type LocalAggregator struct {
 
 // Startup starts up aggregation queues
 func (la *LocalAggregator) Startup(ctx context.Context) error {
-	go la.pieceQueue.Start(ctx)
-	go la.linkQueue.Start(ctx)
+	if err := la.pieceQueue.Start(ctx); err != nil {
+		return err
+	}
+	if err := la.linkQueue.Start(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 
