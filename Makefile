@@ -4,7 +4,7 @@ DATE=$(shell date -u -Iseconds)
 GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION) -X github.com/storacha/piri/pkg/build.Commit=$(COMMIT) -X github.com/storacha/piri/pkg/build.Date=$(DATE) -X github.com/storacha/piri/pkg/build.BuiltBy=make"
 TAGS?=
 
-.PHONY: all build piri install test clean calibnet mockgen check-docs-links
+.PHONY: all build piri install test clean calibnet mockgen tools check-docs-links
 
 all: build
 
@@ -34,6 +34,17 @@ mockgen:
 	mockgen -destination=./internal/mocks/pdp_proving_schedule.go -package=mocks github.com/storacha/piri/pkg/pdp/service/contract PDPProvingSchedule
 	mockgen -destination=./internal/mocks/pdp_verifier.go -package=mocks github.com/storacha/piri/pkg/pdp/service/contract PDPVerifier
 
+# Install development tools
+tools:
+	@echo "Installing development tools..."
+	go install github.com/ethereum/go-ethereum/cmd/abigen@latest
+	@echo "Tools installed to $$(go env GOPATH)/bin/"
+	@if command -v abigen >/dev/null 2>&1; then \
+		echo "✓ abigen is available in PATH"; \
+	else \
+		echo "⚠ abigen installed but not in PATH. Add $$(go env GOPATH)/bin to your PATH:"; \
+		echo "  export PATH=\$$PATH:$$(go env GOPATH)/bin"; \
+	fi
 
 # special target that sets the calibnet tag and invokes build
 calibnet: TAGS=-tags calibnet
