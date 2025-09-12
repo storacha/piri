@@ -225,7 +225,7 @@ func (s *Client) PDPInfo(ctx context.Context, pieceLink piece.PieceLink) (pdp.In
 }
 
 func NewClient(cfg Config) (*Client, error) {
-	ch := uhttp.NewHTTPChannel(&cfg.StorageNodeURL)
+	ch := uhttp.NewChannel(&cfg.StorageNodeURL)
 	conn, err := client.NewConnection(cfg.StorageNodeID, ch)
 	if err != nil {
 		return nil, fmt.Errorf("setting up connection: %w", err)

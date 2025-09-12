@@ -53,7 +53,7 @@ func TestFXServer(t *testing.T) {
 	var (
 		// things we are testing
 		svc storage.Service
-		srv ucanserver.ServerView
+		srv ucanserver.ServerView[ucanserver.Service]
 	)
 
 	appConfig := piritestutil.NewTestConfig(t, piritestutil.WithSigner(testutil.Alice))
@@ -430,7 +430,7 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			// Create test app configuration with custom presigner and upload service
 			var (
 				svc storage.Service
-				srv ucanserver.ServerView
+				srv ucanserver.ServerView[ucanserver.Service]
 			)
 
 			appConfig := piritestutil.NewTestConfig(t,
@@ -922,7 +922,7 @@ func startTestHTTPServer(
 		require.NoError(t, err)
 		bstore, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(blocks))
 		require.NoError(t, err)
-		agentMessage, err := message.NewMessage(roots, bstore)
+		agentMessage, err := message.NewMessage(roots[0], bstore)
 		require.NoError(t, err)
 		agentCh <- agentMessage
 

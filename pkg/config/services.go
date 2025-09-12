@@ -74,7 +74,7 @@ func (s *IndexingServiceConfig) ToAppConfig() (app.IndexingServiceConfig, error)
 	if err != nil {
 		return app.IndexingServiceConfig{}, fmt.Errorf("parsing indexing service URL: %w", err)
 	}
-	schannel := ucanhttp.NewHTTPChannel(surl)
+	schannel := ucanhttp.NewChannel(surl)
 	sconn, err := client.NewConnection(sdid, schannel)
 	if err != nil {
 		return app.IndexingServiceConfig{}, fmt.Errorf("creating indexing service connection: %w", err)
@@ -119,7 +119,7 @@ func (s *UploadServiceConfig) ToAppConfig() (app.UploadServiceConfig, error) {
 	if err != nil {
 		return app.UploadServiceConfig{}, fmt.Errorf("parsing indexing service URL: %w", err)
 	}
-	schannel := ucanhttp.NewHTTPChannel(surl)
+	schannel := ucanhttp.NewChannel(surl)
 	sconn, err := client.NewConnection(sdid, schannel)
 	if err != nil {
 		return app.UploadServiceConfig{}, fmt.Errorf("creating indexing service connection: %w", err)

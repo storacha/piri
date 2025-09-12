@@ -199,7 +199,7 @@ func TestPublisherService(t *testing.T) {
 	})
 }
 
-func mockIndexingService(t *testing.T, id principal.Signer, handler server.HandlerFunc[claim.CacheCaveats, ok.Unit, failure.IPLDBuilderFailure]) server.ServerView {
+func mockIndexingService(t *testing.T, id principal.Signer, handler server.HandlerFunc[claim.CacheCaveats, ok.Unit, failure.IPLDBuilderFailure]) server.ServerView[server.Service] {
 	t.Helper()
 	return testutil.Must(
 		server.NewServer(

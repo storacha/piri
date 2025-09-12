@@ -43,7 +43,7 @@ func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 			Services: app.ExternalServicesConfig{
 				PrincipalMapping: map[string]string{},
 				Upload: app.UploadServiceConfig{
-					Connection: testutil.Must(client.NewConnection(presets.UploadServiceDID, ucanhttp.NewHTTPChannel(presets.UploadServiceURL)))(t),
+					Connection: testutil.Must(client.NewConnection(presets.UploadServiceDID, ucanhttp.NewChannel(presets.UploadServiceURL)))(t),
 				},
 				Publisher: app.PublisherServiceConfig{
 					PublicMaddr:   testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
@@ -83,7 +83,7 @@ func WithUploadServiceURL(uploadURL *url.URL) TestConfigOption {
 			}
 			cfg.UCANService.Services.Upload.Connection = testutil.Must(client.NewConnection(
 				did,
-				ucanhttp.NewHTTPChannel(uploadURL),
+				ucanhttp.NewChannel(uploadURL),
 			))(t)
 		}
 	}

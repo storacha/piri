@@ -870,7 +870,7 @@ func startTestHTTPServer(
 		require.NoError(t, err)
 		bstore, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(blocks))
 		require.NoError(t, err)
-		agentMessage, err := message.NewMessage(roots, bstore)
+		agentMessage, err := message.NewMessage(roots[0], bstore)
 		require.NoError(t, err)
 		agentCh <- agentMessage
 	})
