@@ -52,7 +52,7 @@ func WithRange(byteRange Range) GetOption {
 type Object interface {
 	// Size returns the total size of the object in bytes.
 	Size() int64
-	Body() io.Reader
+	Body() io.ReadCloser
 }
 
 type Blobstore interface {
