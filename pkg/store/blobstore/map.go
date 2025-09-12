@@ -25,7 +25,7 @@ func (o MapObject) Size() int64 {
 	return int64(len(o.bytes))
 }
 
-func (o MapObject) Body() io.Reader {
+func (o MapObject) Body() io.ReadCloser {
 	b := o.bytes
 	if o.byteRange.Offset > 0 {
 		b = b[o.byteRange.Offset:]
@@ -33,7 +33,7 @@ func (o MapObject) Body() io.Reader {
 	if o.byteRange.Length != nil {
 		b = b[0:*o.byteRange.Length]
 	}
-	return bytes.NewReader(b)
+	return io.NopCloser(bytes.NewReader(b))
 }
 
 type MapBlobstore struct {

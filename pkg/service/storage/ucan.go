@@ -3,6 +3,7 @@ package storage
 import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-ucanto/server"
+	"github.com/storacha/go-ucanto/server/retrieval"
 
 	"github.com/storacha/piri/pkg/service/storage/ucan"
 )
@@ -19,4 +20,13 @@ func NewUCANServer(storageService Service, options ...server.Option) (server.Ser
 	)
 
 	return server.NewServer(storageService.ID(), options...)
+}
+
+func NewUCANRetrievalServer(storageService Service, options ...retrieval.Option) (server.ServerView[retrieval.Service], error) {
+	options = append(
+		options,
+		ucan.SpaceContentRetrieve(storageService),
+	)
+
+	return retrieval.NewServer(storageService.ID(), options...)
 }

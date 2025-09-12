@@ -8,6 +8,7 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	"github.com/ipld/go-ipld-prime/codec/dagcbor"
 	multihash "github.com/multiformats/go-multihash"
+	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 )
@@ -18,6 +19,15 @@ type DsAllocationStore struct {
 
 func (d *DsAllocationStore) List(ctx context.Context, digest multihash.Multihash) ([]allocation.Allocation, error) {
 	pfx := digestutil.Format(digest) + "/"
+	return d.listByPrefix(ctx, pfx)
+}
+
+func (d *DsAllocationStore) ListBySpace(ctx context.Context, digest multihash.Multihash, space did.DID) ([]allocation.Allocation, error) {
+	pfx := digestutil.Format(digest) + "/" + space.String()
+	return d.listByPrefix(ctx, pfx)
+}
+
+func (d *DsAllocationStore) listByPrefix(ctx context.Context, pfx string) ([]allocation.Allocation, error) {
 	results, err := d.data.Query(ctx, query.Query{Prefix: pfx})
 	if err != nil {
 		return nil, fmt.Errorf("querying datastore: %w", err)
@@ -61,5 +71,5 @@ func NewDsAllocationStore(ds datastore.Datastore) (*DsAllocationStore, error) {
 
 func encodeKey(a allocation.Allocation) datastore.Key {
 	str := digestutil.Format(a.Blob.Digest)
-	return datastore.NewKey(fmt.Sprintf("%s/%s", str, a.Cause.String()))
+	return datastore.NewKey(fmt.Sprintf("%s/%s", str, a.Space.String()))
 }
