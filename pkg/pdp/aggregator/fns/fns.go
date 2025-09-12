@@ -3,6 +3,7 @@ package fns
 import (
 	"cmp"
 	"context"
+
 	// for go:embed
 	_ "embed"
 	"fmt"
@@ -14,9 +15,9 @@ import (
 	"github.com/ipld/go-ipld-prime/schema"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/go-ucanto/core/invocation/ran"
 	"github.com/storacha/go-ucanto/core/ipld"
 	"github.com/storacha/go-ucanto/core/receipt"
+	"github.com/storacha/go-ucanto/core/receipt/ran"
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/ucan"
 	"go.uber.org/zap"

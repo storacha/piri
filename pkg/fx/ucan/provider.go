@@ -17,7 +17,7 @@ import (
 var log = logging.Logger("fx/ucan")
 
 type Handler struct {
-	ucanServer ucanserver.ServerView
+	ucanServer ucanserver.ServerView[ucanserver.Service]
 }
 
 var Module = fx.Module("ucan/server",
@@ -69,6 +69,6 @@ func AsRouteRegistrar(h *Handler) echofx.RouteRegistrar {
 }
 
 // ProvideServerView provides the UCAN ServerView for testing
-func ProvideServerView(h *Handler) ucanserver.ServerView {
+func ProvideServerView(h *Handler) ucanserver.ServerView[ucanserver.Service] {
 	return h.ucanServer
 }

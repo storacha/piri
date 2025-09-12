@@ -213,7 +213,7 @@ func WithPublisherIndexingService(conn client.Connection) Option {
 // for communicating with the indexing service.
 func WithPublisherIndexingServiceConfig(serviceDID ucan.Principal, serviceURL url.URL) Option {
 	return func(c *config) error {
-		channel := http.NewHTTPChannel(&serviceURL)
+		channel := http.NewChannel(&serviceURL)
 		conn, err := client.NewConnection(serviceDID, channel)
 		if err != nil {
 			return err
@@ -227,7 +227,7 @@ func WithPublisherIndexingServiceConfig(serviceDID ucan.Principal, serviceURL ur
 // for communicating with the upload service.
 func WithUploadServiceConfig(serviceDID ucan.Principal, serviceURL url.URL) Option {
 	return func(c *config) error {
-		channel := http.NewHTTPChannel(&serviceURL)
+		channel := http.NewChannel(&serviceURL)
 		conn, err := client.NewConnection(serviceDID, channel)
 		if err != nil {
 			return err

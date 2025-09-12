@@ -9,7 +9,7 @@ import (
 
 var log = logging.Logger("storage")
 
-func NewUCANServer(storageService Service, options ...server.Option) (server.ServerView, error) {
+func NewUCANServer(storageService Service, options ...server.Option) (server.ServerView[server.Service], error) {
 	options = append(
 		options,
 		ucan.BlobAllocate(storageService),

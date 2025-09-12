@@ -58,7 +58,7 @@ func WithIndexingService(conn client.Connection) Option {
 // communicating with the indexing service.
 func WithIndexingServiceConfig(serviceDID ucan.Principal, serviceURL url.URL) Option {
 	return func(opts *options) error {
-		channel := http.NewHTTPChannel(&serviceURL)
+		channel := http.NewChannel(&serviceURL)
 		conn, err := client.NewConnection(serviceDID, channel)
 		if err != nil {
 			return err

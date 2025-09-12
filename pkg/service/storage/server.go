@@ -10,7 +10,7 @@ import (
 )
 
 type Server struct {
-	ucanServer server.ServerView
+	ucanServer server.ServerView[server.Service]
 }
 
 func NewServer(service Service, options ...server.Option) (*Server, error) {
@@ -26,10 +26,10 @@ func (srv *Server) RegisterRoutes(e *echo.Echo) {
 	e.POST("/", NewHandler(srv.ucanServer).ToEcho())
 }
 
-func NewHandler(server server.ServerView) handler.Func {
+func NewHandler(server server.ServerView[server.Service]) handler.Func {
 	return func(ctx handler.Context) error {
 		r := ctx.Request()
-		res, err := server.Request(r.Context(), ucanhttp.NewHTTPRequest(r.Body, r.Header))
+		res, err := server.Request(r.Context(), ucanhttp.NewRequest(r.Body, r.Header))
 		if err != nil {
 			return fmt.Errorf("handling UCAN request: %w", err)
 		}
