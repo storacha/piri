@@ -37,6 +37,7 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 	proofSets.GET("/:proofSetID", p.handleGetProofSet)
 	proofSets.DELETE("/:proofSetID", p.handleDeleteProofSet)
 	proofSets.GET("", p.handleListProofSet)
+	proofSets.GET("/:proofSetID/state", p.handleGetProofSetState)
 
 	// /pdp/proof-sets/:proofSetID/roots
 	roots := proofSets.Group("/:proofSetID/roots")

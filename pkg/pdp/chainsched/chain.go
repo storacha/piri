@@ -80,6 +80,9 @@ func (cs *chainSubscription) close() {
 	}
 }
 
+// TODO we may need a more graceful shutdown here, which stops subing to chain events,
+// but allows any active handlers to complete
+
 // Run subscribes to chain notifications and processes them until the context is cancelled
 func (s *Scheduler) Run(ctx context.Context) {
 	s.markStarted()
