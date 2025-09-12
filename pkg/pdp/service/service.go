@@ -9,6 +9,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
@@ -25,10 +26,13 @@ var log = logging.Logger("pdp/service")
 var _ types.API = (*PDPService)(nil)
 
 type PDPService struct {
-	address   common.Address
-	blobstore blobstore.Blobstore
-	storage   stashstore.Stash
-	sender    ethereum.Sender
+	address         common.Address
+	blobstore       blobstore.Blobstore
+	storage         stashstore.Stash
+	sender          ethereum.Sender
+	chainClient     ChainClient
+	contractClient  contract.PDP
+	contractBackend bind.ContractBackend
 
 	db   *gorm.DB
 	name string
@@ -57,15 +61,21 @@ func New(
 	sender ethereum.Sender,
 	engine *scheduler.TaskEngine,
 	chainScheduler *chainsched.Scheduler,
+	chainClient ChainClient,
+	contractClient contract.PDP,
+	contractBackend EthClient,
 ) (*PDPService, error) {
 	return &PDPService{
-		address:        address,
-		db:             db,
-		name:           "storacha",
-		blobstore:      bs,
-		storage:        stash,
-		sender:         sender,
-		engine:         engine,
-		chainScheduler: chainScheduler,
+		address:         address,
+		db:              db,
+		name:            "storacha",
+		blobstore:       bs,
+		storage:         stash,
+		sender:          sender,
+		engine:          engine,
+		chainScheduler:  chainScheduler,
+		chainClient:     chainClient,
+		contractClient:  contractClient,
+		contractBackend: contractBackend,
 	}, nil
 }
