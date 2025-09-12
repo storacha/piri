@@ -29,7 +29,7 @@ func (o FileObject) Size() int64 {
 	return o.size
 }
 
-func (o FileObject) Body() io.Reader {
+func (o FileObject) Body() io.ReadCloser {
 	r, w := io.Pipe()
 	f, err := os.Open(o.name)
 	if err != nil {
