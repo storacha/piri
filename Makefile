@@ -4,7 +4,7 @@ DATE=$(shell date -u -Iseconds)
 GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION) -X github.com/storacha/piri/pkg/build.Commit=$(COMMIT) -X github.com/storacha/piri/pkg/build.Date=$(DATE) -X github.com/storacha/piri/pkg/build.BuiltBy=make"
 TAGS?=
 
-.PHONY: all build piri install test clean calibnet mockgen check-docs-links
+.PHONY: all build piri install test test-verbose test-debug clean calibnet mockgen check-docs-links
 
 all: build
 
@@ -18,6 +18,23 @@ install:
 
 test:
 	go test ./...
+
+# Enhanced test target with better output formatting
+test-verbose:
+	@echo "🔍 Running tests with verbose output..."
+	@go test -v -race ./... 2>&1 | tee test-output.log || (echo "❌ Tests failed. Check test-output.log for details" && exit 1)
+	@echo "✅ All tests passed!"
+
+# Test target that highlights failures for easier debugging
+test-debug:
+	@echo "🔍 Running tests with failure highlighting..."
+	@if ! go test -v -race ./... 2>&1 | tee test-output.log; then \
+		echo "\n🚨 Test failures detected:"; \
+		grep -E "--- FAIL:|panic:|Error:|error:" test-output.log | head -20 || true; \
+		echo "\nℹ️  Full output saved to test-output.log"; \
+		exit 1; \
+	fi
+	@echo "✅ All tests passed!"
 
 clean:
 	rm -f ./piri

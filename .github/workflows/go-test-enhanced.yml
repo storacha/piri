@@ -1,0 +1,84 @@
+name: Go Test (Enhanced)
+
+on:
+  pull_request:
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 'stable'
+          cache: true
+          
+      - name: Run tests with enhanced output
+        run: |
+          echo "::group::🔍 Running Go tests with race detection"
+          
+          # Create a temporary file to capture test output
+          TEST_OUTPUT=$(mktemp)
+          
+          # Run tests with verbose output and capture results
+          set +e  # Don't exit on test failure
+          go test -v -race -timeout=10m ./... 2>&1 | tee "$TEST_OUTPUT"
+          TEST_EXIT_CODE=$?
+          set -e
+          
+          echo "::endgroup::"
+          
+          if [ $TEST_EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "::error::❌ Tests failed! Analyzing output..."
+            echo ""
+            
+            # Extract and highlight specific failures
+            echo "::group::🚨 Failed Tests Summary"
+            echo "Failed test cases:"
+            grep -E "--- FAIL:" "$TEST_OUTPUT" | sed 's/^/  ❌ /' || echo "  No specific test failures found in expected format"
+            echo ""
+            
+            echo "Panic/Error messages:"
+            grep -E "(panic:|Error:|error:|FAIL)" "$TEST_OUTPUT" | head -20 | sed 's/^/  🔥 /' || echo "  No panic/error messages found"
+            echo "::endgroup::"
+            
+            echo "::group::📋 Test Failure Context (last 50 lines)"
+            tail -50 "$TEST_OUTPUT"
+            echo "::endgroup::"
+            
+            echo "::group::🔍 Full Test Output"
+            cat "$TEST_OUTPUT"
+            echo "::endgroup::"
+            
+            # Clean up
+            rm -f "$TEST_OUTPUT"
+            exit 1
+          else
+            echo "✅ All tests passed!"
+            rm -f "$TEST_OUTPUT"
+          fi
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-${{ github.run_id }}
+          path: |
+            **/*test*.log
+            **/*coverage*
+          retention-days: 7
+          if-no-files-found: ignore
