@@ -77,7 +77,10 @@ func init() {
 	rootCmd.AddCommand(delegate.Cmd)
 	rootCmd.AddCommand(initalize.InitCmd)
 	rootCmd.AddCommand(client.Cmd)
-	rootCmd.AddCommand(update.Cmd)
+	rootCmd.AddCommand(update.UpdateCmd)
+
+	// this command is hidden from the user
+	rootCmd.AddCommand(update.InternalUpdateCmd)
 
 }
 
