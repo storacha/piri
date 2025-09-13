@@ -81,6 +81,26 @@ func init() {
 	UpdateCmd.SetErr(os.Stderr)
 }
 
+// isRunningUnderSystemd checks if the current process is running under systemd
+func isRunningUnderSystemd() bool {
+	// Check if INVOCATION_ID is set - systemd sets this for all services
+	if os.Getenv("INVOCATION_ID") != "" {
+		return true
+	}
+	// Also check for SYSTEMD_EXEC_PID which is set in newer systemd versions
+	if os.Getenv("SYSTEMD_EXEC_PID") != "" {
+		return true
+	}
+	// Check if systemctl is available and we can query our service
+	if _, err := exec.LookPath("systemctl"); err == nil {
+		// Check if piri service exists
+		if err := exec.Command("systemctl", "list-units", "--full", "--all", "--plain", "--no-pager", "piri.service").Run(); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func doUpdateInternal(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
@@ -232,8 +252,20 @@ func doUpdateInternal(cmd *cobra.Command, _ []string) error {
 	// we've downloaded and applied the update. We need to restart the process
 	// for the update to take effect.
 
-	if err := exec.Command("systemctl", "restart", "piri").Run(); err != nil {
-		return fmt.Errorf("failed to restart piri after update: %w", err)
+	// Check if we're running under systemd
+	if isRunningUnderSystemd() {
+		// Use systemctl to restart the service
+		if err := exec.Command("systemctl", "restart", "piri").Run(); err != nil {
+			return fmt.Errorf("failed to restart piri service via systemctl: %w", err)
+		}
+		cmd.Println("Restarted piri service via systemctl")
+	} else {
+		// We're not running under systemd - this shouldn't normally happen
+		// since update-internal is designed to be called by the systemd timer
+		// but we should handle it gracefully
+		cmd.Println("Warning: Not running under systemd, cannot auto-restart")
+		cmd.Println("Please restart piri manually for the update to take effect")
+		// Don't return an error - the update itself was successful
 	}
 
 	return nil
