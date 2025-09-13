@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -176,16 +175,6 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing config: %w", err)
 	}
 
-	// Set graceful shutdown timeout.
-	// This timeout allows fx to wait up to one minute for all lifecycle shutdown hooks to execute.
-	// Here is how we arrived at this value:
-	//  - Proving a piece typically takes 30 seconds, so a min is plenty there
-	//  - Assuming a symmetric 100Mbps connection, upload/download of 256 MB (max piece size) will likely take 20-30 seconds
-	//    therefore, 1 min should be enough time to let existing connections complete
-	// Still, if any of the above take more than 1min, they will be closed/rejected after 1min, so we might want
-	// to make this a configuration value based on user preference, metrics we collect, and capacity of the machine.
-	shutdownTimeout := time.Minute
-
 	// build our beloved Piri node
 	piri := fx.New(
 		// if a panic occurs during operation, recover from it and exit (somewhat) gracefully.
@@ -199,7 +188,7 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 			return el
 		}),
 
-		fx.StopTimeout(shutdownTimeout),
+		fx.StopTimeout(cliutil.PiriServerShutdownTimeout),
 
 		// common dependencies of the PDP and UCAN module:
 		//   - identity
@@ -241,7 +230,7 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 					return nil
 				},
 				OnStop: func(ctx context.Context) error {
-					log.Infof("Shutting down piri...this may take up to %s", shutdownTimeout)
+					log.Infof("Shutting down piri...this may take up to %s", cliutil.PiriServerShutdownTimeout)
 					return nil
 				},
 			})
