@@ -76,6 +76,7 @@ func init() {
 	rootCmd.AddCommand(identity.Cmd)
 	rootCmd.AddCommand(delegate.Cmd)
 	rootCmd.AddCommand(initalize.InitCmd)
+	rootCmd.AddCommand(initalize.InstallCmd)
 	rootCmd.AddCommand(client.Cmd)
 	rootCmd.AddCommand(update.UpdateCmd)
 
@@ -89,9 +90,17 @@ func initConfig() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.SetEnvPrefix("PIRI")
 
+	// if we are provided an explicit config file, use it
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 		cobra.CheckErr(viper.ReadInConfig())
+	} else {
+		// otherwise look for piri-config.toml in current directory
+		viper.SetConfigName("piri-config")
+		viper.SetConfigType("toml")
+		viper.AddConfigPath(".")
+		// Don't error if config file is not found - it's optional
+		_ = viper.ReadInConfig()
 	}
 }
 

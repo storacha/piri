@@ -11,6 +11,7 @@ import (
 
 	"github.com/minio/selfupdate"
 	"github.com/spf13/cobra"
+	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp/httpapi/client"
@@ -100,7 +101,7 @@ func doUpdateInternal(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to resolve executable path: %w", err)
 	}
 	if needsElevatedPrivileges(execPath) {
-		if !isRunningAsRoot() {
+		if !cliutil.IsRunningAsRoot() {
 			return fmt.Errorf("internal update lacks permissions for %s", execPath)
 		}
 	}

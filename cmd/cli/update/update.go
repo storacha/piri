@@ -11,10 +11,9 @@ import (
 
 	"github.com/minio/selfupdate"
 	"github.com/spf13/cobra"
+	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/build"
 )
-
-const releaseURL = "https://api.github.com/repos/storacha/piri/releases/latest"
 
 var SupportedLinuxArch = map[string]bool{
 	"amd64": true,
@@ -72,9 +71,9 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 
 	// Check if we need elevated privileges and handle sudo if necessary
 	if !dryRun && needsElevatedPrivileges(execPath) {
-		if !isRunningAsRoot() {
+		if !cliutil.IsRunningAsRoot() {
 			cmd.Println("Update requires administrator privileges...")
-			return runWithSudo()
+			return cliutil.RunWithSudo()
 		}
 	}
 
