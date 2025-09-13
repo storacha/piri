@@ -10,25 +10,22 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
+	"github.com/storacha/piri/cmd/cliutil"
 )
 
 func getLatestRelease(ctx context.Context) (*GitHubRelease, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", releaseURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", cliutil.ReleaseURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -347,54 +344,4 @@ func needsElevatedPrivileges(binaryPath string) bool {
 	}
 	_ = file.Close()
 	return false
-}
-
-// isRunningAsRoot checks if the current process is running as root
-func isRunningAsRoot() bool {
-	currentUser, err := user.Current()
-	if err != nil {
-		return false
-	}
-	return currentUser.Uid == "0"
-}
-
-// runWithSudo re-executes the current command with sudo
-func runWithSudo() error {
-	// Get the original command arguments
-	args := os.Args
-
-	// Build the sudo command
-	var sudoArgs []string
-
-	// Preserve environment variables that might be needed
-	sudoArgs = append(sudoArgs, "-E")    // Preserve environment
-	sudoArgs = append(sudoArgs, "--")    // End of sudo options
-	sudoArgs = append(sudoArgs, args...) // Original command and arguments
-
-	// Create the sudo command
-	sudoCmd := exec.Command("sudo", sudoArgs...)
-	sudoCmd.Stdin = os.Stdin
-	sudoCmd.Stdout = os.Stdout
-	sudoCmd.Stderr = os.Stderr
-
-	// Run the command and wait for it to complete
-	err := sudoCmd.Run()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			// If sudo was cancelled or failed, return a user-friendly error
-			if exitErr.ExitCode() == 1 {
-				return fmt.Errorf("update cancelled or authentication failed")
-			}
-			// Propagate the exit code
-			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-				os.Exit(status.ExitStatus())
-			}
-		}
-		return fmt.Errorf("failed to run with sudo: %w", err)
-	}
-
-	// If sudo succeeded, exit with success
-	os.Exit(0)
-	return nil
 }

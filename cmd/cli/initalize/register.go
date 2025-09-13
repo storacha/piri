@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strings"
@@ -27,6 +28,7 @@ import (
 
 	delgclient "github.com/storacha/delegator/client"
 	"github.com/storacha/piri/cmd/cli/delegate"
+	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
 	appcfg "github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/app"
@@ -402,7 +404,26 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	}
 
 	cmd.PrintErrln("\n🎉 Initialization complete! Your configuration:")
-	cmd.Print(string(cfgData))
+
+	// Write to both stdout and file using TeeWriter
+	configFile, err := os.Create(cliutil.PiriConfigFileName)
+	if err != nil {
+		// If we can't create the file, just write to stdout
+		cmd.PrintErrf("Warning: Failed to create %s: %v\n", cliutil.PiriConfigFileName, err)
+		cmd.Print(string(cfgData))
+		return nil
+	}
+	defer configFile.Close()
+
+	// Use TeeWriter to write to both stdout and file
+	teeWriter := io.MultiWriter(cmd.OutOrStdout(), configFile)
+	if _, err := teeWriter.Write(cfgData); err != nil {
+		cmd.PrintErrf("Error writing configuration: %v\n", err)
+	}
+
+	cmd.PrintErrf("\nConfiguration saved to: %s\n", cliutil.PiriConfigFileName)
+	cmd.PrintErrln("To install Piri as a system service, run:")
+	cmd.PrintErrf("   sudo piri install --config %s\n", cliutil.PiriConfigFileName)
 
 	return nil
 }
