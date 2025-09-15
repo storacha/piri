@@ -355,7 +355,7 @@ func installSystemdServices(cmd *cobra.Command, state *installState) error {
 	// systemd timeout = fx shutdown timeout + buffer for process cleanup
 	systemdTimeout := cliutil.PiriServerShutdownTimeout + cliutil.PiriSystemdShutdownBuffer
 	piriService := GeneratePiriService(cliutil.PiriBinaryPath, cliutil.PiriServeCommand, state.serviceUser, systemdTimeout)
-	updaterService := GeneratePiriUpdaterService(cliutil.PiriBinaryPath, cliutil.PiriUpdateCommand)
+	updaterService := GeneratePiriUpdaterService(cliutil.PiriBinaryPath, cliutil.PiriUpdateCommand, state.serviceUser)
 	updaterTimer := GeneratePiriUpdaterTimer(cliutil.PiriUpdateBootDuration, cliutil.PiriUpdateUnitActiveDuration, cliutil.PiriUpdateRandomizedDelayDuration)
 
 	services := []struct {

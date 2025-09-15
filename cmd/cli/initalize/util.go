@@ -31,7 +31,7 @@ WantedBy=multi-user.target
 `, serviceUser, serviceUser, cliutil.PiriSystemDir, binaryPath, command, stopTimeout)
 }
 
-func GeneratePiriUpdaterService(binaryPath, command string) string {
+func GeneratePiriUpdaterService(binaryPath, command, serviceUser string) string {
 	return fmt.Sprintf(`[Unit]
 Description=Piri Auto-Update Service
 After=network-online.target
@@ -39,10 +39,13 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+User=%s
+Group=%s
+WorkingDirectory=%s
 ExecStart=%s %s
 StandardOutput=journal
 StandardError=journal
-`, binaryPath, command)
+`, serviceUser, serviceUser, cliutil.PiriSystemDir, binaryPath, command)
 }
 
 func GeneratePiriUpdaterTimer(onBootSec, onUnitActiveSec, randomizedDelaySec time.Duration) string {
