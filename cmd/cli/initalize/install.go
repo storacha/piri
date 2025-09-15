@@ -288,6 +288,18 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 	}
 	cmd.PrintErrf("  Set ownership of %s to %s\n", cliutil.PiriOptDir, state.serviceUser)
 
+	// Create symlink in /usr/local/bin for easier CLI access
+	cmd.PrintErrln("Creating CLI symlink...")
+	usrLocalBinPiri := "/usr/local/bin/piri"
+	if err := os.MkdirAll("/usr/local/bin", 0755); err != nil {
+		return fmt.Errorf("failed to create /usr/local/bin: %w", err)
+	}
+
+	if err := os.Symlink(cliutil.PiriBinaryPath, usrLocalBinPiri); err != nil {
+		return fmt.Errorf("failed to create symlink %s: %w", usrLocalBinPiri, err)
+	}
+	cmd.PrintErrf("  Created symlink %s -> %s\n", usrLocalBinPiri, cliutil.PiriBinaryPath)
+
 	cmd.PrintErrln("Enabling and starting services...")
 	if err := enableAndStartServices(cmd, state.enableAutoUpdate); err != nil {
 		return err

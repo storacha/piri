@@ -135,6 +135,12 @@ func uninstall(services []string) error {
 		}
 	}
 
+	// Remove CLI symlink from /usr/local/bin
+	usrLocalBinPiri := "/usr/local/bin/piri"
+	if err := os.Remove(usrLocalBinPiri); err != nil && !os.IsNotExist(err) {
+		errs = multierror.Append(errs, fmt.Errorf("failed to remove CLI symlink %s: %w", usrLocalBinPiri, err))
+	}
+
 	// Reload systemd to recognize services are gone
 	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 		errs = multierror.Append(errs, fmt.Errorf("failed to reload systemd: %w", err))
