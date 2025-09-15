@@ -267,16 +267,11 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 		return err
 	}
 
-	// Set ownership of the entire /opt/piri tree to the service user
-	if err := setOwnership(cliutil.PiriOptDir, state.serviceUser); err != nil {
-		return fmt.Errorf("failed to set ownership of %s: %w", cliutil.PiriOptDir, err)
-	}
-	cmd.PrintErrf("  Set ownership to %s\n", state.serviceUser)
-
 	cmd.PrintErrln("Installing configuration...")
 	if err := installConfig(cmd, state); err != nil {
 		return err
 	}
+
 	cmd.PrintErrln("Installing systemd services...")
 	if state.enableAutoUpdate {
 		cmd.PrintErrln("  Including auto-update timer (checks every 30 minutes)")
@@ -284,6 +279,14 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 	if err := installSystemdServices(cmd, state); err != nil {
 		return err
 	}
+
+	// Set ownership of the entire /opt/piri tree to the service user
+	// This must be done after all files are created
+	cmd.PrintErrln("Setting ownership...")
+	if err := setOwnership(cliutil.PiriOptDir, state.serviceUser); err != nil {
+		return fmt.Errorf("failed to set ownership of %s: %w", cliutil.PiriOptDir, err)
+	}
+	cmd.PrintErrf("  Set ownership of %s to %s\n", cliutil.PiriOptDir, state.serviceUser)
 
 	cmd.PrintErrln("Enabling and starting services...")
 	if err := enableAndStartServices(cmd, state.enableAutoUpdate); err != nil {
