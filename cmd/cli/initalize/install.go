@@ -1,6 +1,7 @@
 package initalize
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
@@ -22,10 +24,9 @@ var InstallCmd = &cobra.Command{
 	Long: `Install configures Piri to run as a systemd service on Linux systems.
 
 This command performs the following operations:
-  - Installs the piri binary to /usr/local/bin/piri
-  - Creates a dedicated 'piri' system user to run the service
-  - Creates the /etc/piri directory for configuration
-  - Installs the provided configuration file
+  - Installs the piri binary to /opt/bin/piri
+  - Creates the /opt/etc/piri directory for configuration
+  - Installs the provided configuration file to /opt/piri/systemd, and symlinks to /etc/systemd/system/
   - Creates and enables systemd service files
   - Optionally enables automatic updates (--enable-auto-update)
 
@@ -34,9 +35,6 @@ Requirements:
   - Root privileges (run with sudo)
   - Configuration file from 'piri init' command
 
-The --dry-run flag allows previewing the installation on any platform without
-making changes, useful for testing and verification.
-
 Automatic updates check for new releases every 30 minutes and apply them when
 safe to do so (not during proof generation or active transfers).`,
 	Args: cobra.NoArgs,
@@ -44,31 +42,27 @@ safe to do so (not during proof generation or active transfers).`,
 }
 
 func init() {
-	// TODO config is a persistent flag, consider removal
-	InstallCmd.Flags().String("config", "", "Path to configuration file (required)")
 	InstallCmd.Flags().Bool("force", false, "Force overwrite existing files")
-	InstallCmd.Flags().Bool("dry-run", false, "Preview installation without making changes")
 	InstallCmd.Flags().Bool("enable-auto-update", false, "Enable automatic updates (checks every 30 minutes)")
 
-	cobra.CheckErr(InstallCmd.MarkFlagRequired("config"))
 	InstallCmd.SetOut(os.Stdout)
 	InstallCmd.SetErr(os.Stderr)
 }
 
 // detectServiceUser determines which user should run the service
-func detectServiceUser() string {
+func detectServiceUser() (string, error) {
 	// Check if running with sudo
 	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
-		return sudoUser
+		return sudoUser, nil
 	}
 
 	// Fall back to current user
 	if currentUser := os.Getenv("USER"); currentUser != "" {
-		return currentUser
+		return currentUser, nil
 	}
 
 	// Last resort - use "root" if we can't detect
-	return "root"
+	return "", errors.New("could not determine current user")
 }
 
 // setOwnership sets the ownership of a path to the specified user
@@ -102,14 +96,30 @@ type installState struct {
 	configPath       string
 	config           config.FullServerConfig
 	force            bool
-	dryRun           bool
 	enableAutoUpdate bool
 	serviceUser      string // User that will run the service
 }
 
 // runInstall is the main entry point for the install command
 func runInstall(cmd *cobra.Command, _ []string) error {
-	state, err := parseInstallFlags(cmd)
+	// Check platform - install only works on Linux with systemd
+	if runtime.GOOS != "linux" {
+		return fmt.Errorf("install command is only supported on Linux (systemd required). Current platform: %s", runtime.GOOS)
+	}
+
+	// Check root privileges
+	if !cliutil.IsRunningAsRoot() {
+		return fmt.Errorf("install command requires root privileges. Re-run with `sudo`")
+	}
+
+	// Detect the actual user (when running with sudo)
+	// This user is the owner of all piri data installed.
+	serviceUser, err := detectServiceUser()
+	if err != nil {
+		return err
+	}
+
+	state, err := parseInstallFlags(cmd, serviceUser)
 	if err != nil {
 		return err
 	}
@@ -122,25 +132,21 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 }
 
 // parseInstallFlags parses command flags and loads the config
-func parseInstallFlags(cmd *cobra.Command) (*installState, error) {
-	configPath, err := cmd.Flags().GetString("config")
-	if err != nil {
-		return nil, fmt.Errorf("reading --config flag: %w", err)
-	}
-
+func parseInstallFlags(cmd *cobra.Command, serviceUser string) (*installState, error) {
 	force, err := cmd.Flags().GetBool("force")
 	if err != nil {
 		return nil, fmt.Errorf("reading --force flag: %w", err)
 	}
 
-	dryRun, err := cmd.Flags().GetBool("dry-run")
-	if err != nil {
-		return nil, fmt.Errorf("reading --dry-run flag: %w", err)
-	}
-
 	enableAutoUpdate, err := cmd.Flags().GetBool("enable-auto-update")
 	if err != nil {
 		return nil, fmt.Errorf("reading --enable-auto-update flag: %w", err)
+	}
+
+	// NB: config is a persistent flag accessible by all commands
+	configPath, err := cmd.PersistentFlags().GetString("config")
+	if err != nil {
+		return nil, fmt.Errorf("reading --config flag: %w", err)
 	}
 
 	// Load config file
@@ -154,14 +160,10 @@ func parseInstallFlags(cmd *cobra.Command) (*installState, error) {
 		return nil, fmt.Errorf("parsing config file %s: %w", configPath, err)
 	}
 
-	// Detect the actual user (when running with sudo)
-	serviceUser := detectServiceUser()
-
 	return &installState{
 		configPath:       configPath,
 		config:           cfg,
 		force:            force,
-		dryRun:           dryRun,
 		enableAutoUpdate: enableAutoUpdate,
 		serviceUser:      serviceUser,
 	}, nil
@@ -169,24 +171,22 @@ func parseInstallFlags(cmd *cobra.Command) (*installState, error) {
 
 // validateInstallation checks prerequisites before installation
 func validateInstallation(cmd *cobra.Command, state *installState) error {
-	// Check platform - install only works on Linux with systemd (allow dry-run on any platform)
-	if runtime.GOOS != "linux" && !state.dryRun {
-		return fmt.Errorf("install command is only supported on Linux (systemd required). Current platform: %s. Use --dry-run to preview on other platforms", runtime.GOOS)
-	}
-
-	// Check root privileges (skip for dry-run)
-	if !state.dryRun && !cliutil.IsRunningAsRoot() {
-		return fmt.Errorf("install command requires root privileges. Re-run with `sudo`")
-	}
-
 	// Check if services are running (even with --force, we don't override running services)
-	if err := checkServicesNotRunning(cmd, state.dryRun); err != nil {
+	if err := checkServicesNotRunning(cmd, []string{
+		cliutil.PiriServiceName,
+		cliutil.PiriUpdateTimerName,
+	}); err != nil {
 		return err
 	}
 
 	// Check for existing files (unless --force)
 	if !state.force {
-		if err := checkExistingFiles(cmd, state.dryRun); err != nil {
+		if err := checkExistingFiles([]string{
+			cliutil.PiriSystemConfigPath,
+			cliutil.PiriServiceFilePath,
+			cliutil.PiriUpdateServiceFilePath,
+			cliutil.PiriUpdateTimerServiceFilePath,
+		}); err != nil {
 			return err
 		}
 	}
@@ -195,15 +195,9 @@ func validateInstallation(cmd *cobra.Command, state *installState) error {
 }
 
 // checkServicesNotRunning verifies that piri services are not currently running
-func checkServicesNotRunning(cmd *cobra.Command, dryRun bool) error {
-	services := []string{cliutil.PiriServiceName, cliutil.PiriUpdateTimerName}
-
+func checkServicesNotRunning(cmd *cobra.Command, services []string) error {
+	var errs error
 	for _, service := range services {
-		if dryRun {
-			cmd.PrintErrf("Would check if %s is running\n", service)
-			continue
-		}
-
 		// Check if service is active
 		output, err := exec.Command("systemctl", "is-active", service).Output()
 		status := strings.TrimSpace(string(output))
@@ -212,91 +206,72 @@ func checkServicesNotRunning(cmd *cobra.Command, dryRun bool) error {
 		if err == nil && status == "active" {
 			cmd.PrintErrf("Error: Service %s is currently running\n", service)
 			cmd.PrintErrf("Please stop it first: sudo systemctl stop %s\n", service)
-			return fmt.Errorf("service %s is running", service)
+			errs = multierror.Append(errs, fmt.Errorf("service %s is running", service))
 		}
 	}
 
-	return nil
+	return errs
 }
 
 // checkExistingFiles checks if installation files already exist
-func checkExistingFiles(cmd *cobra.Command, dryRun bool) error {
-	filesToCheck := []string{
-		cliutil.PiriSystemConfigPath,
-		cliutil.PiriServiceFilePath,
-		cliutil.PiriUpdateServiceFilePath,
-		cliutil.PiriUpdateTimerServiceFilePath,
-	}
-
+func checkExistingFiles(filesToCheck []string) error {
+	var errs error
 	for _, file := range filesToCheck {
-		if dryRun {
-			cmd.PrintErrf("Would check if %s exists\n", file)
-			continue
-		}
-
+		// return a list of errors for each file that shouldn't exist.
 		if _, err := os.Stat(file); err == nil {
-			return fmt.Errorf("file already exists: %s (use --force to overwrite)", file)
+			errs = multierror.Append(errs, fmt.Errorf("file already exists: %s (use --force to overwrite)", file))
 		}
 	}
 
-	return nil
+	return errs
 }
 
 // doInstall performs the actual installation
 func doInstall(cmd *cobra.Command, state *installState) (err error) {
-	if state.dryRun {
-		cmd.PrintErrln("DRY RUN MODE - No changes will be made")
-		cmd.PrintErrln()
-	}
-
-	// Track if we should clean up on failure (not in dry-run)
+	// Track if we should clean up on failure - i.e. uninstall
 	var installStarted bool
 	defer func() {
-		// If we started installation and encountered an error, cleanup
-		if !state.dryRun && installStarted && err != nil {
+		// If we started installation and encountered an error, cleanup/uninstall
+		if installStarted && err != nil {
 			cmd.PrintErrln("Installation failed, cleaning up...")
-			cleanupInstall()
+			// Determine which services to stop based on installation state
+			servicesToStop := []string{cliutil.PiriServiceName}
+			if state.enableAutoUpdate {
+				servicesToStop = append(servicesToStop, cliutil.PiriUpdateTimerName)
+			}
+			if cleanupErr := uninstall(servicesToStop); cleanupErr != nil {
+				cmd.PrintErrf("Cleanup failed: %v\n", cleanupErr)
+			}
 		}
 	}()
 
 	cmd.PrintErrf("Service will run as user: %s\n", state.serviceUser)
 	cmd.PrintErrln("Creating directory structure...")
-	if !state.dryRun {
-		// Mark that we've started installation and should cleanup on error
-		installStarted = true
+	// Mark that we've started installation and should uninstall on error
+	installStarted = true
 
-		// Create the /opt/piri directory structure
-		if err := os.MkdirAll(cliutil.PiriBinaryDir, 0755); err != nil {
-			return fmt.Errorf("failed to create binary directory %s: %w", cliutil.PiriBinaryDir, err)
-		}
-		if err := os.MkdirAll(cliutil.PiriSystemDir, 0755); err != nil {
-			return fmt.Errorf("failed to create config directory %s: %w", cliutil.PiriSystemDir, err)
-		}
-		if err := os.MkdirAll(cliutil.PiriSystemdDir, 0755); err != nil {
-			return fmt.Errorf("failed to create systemd directory %s: %w", cliutil.PiriSystemdDir, err)
-		}
-		cmd.PrintErrf("  Created directory structure under %s\n", cliutil.PiriOptDir)
-	} else {
-		cmd.PrintErrf("Would create directories:\n")
-		cmd.PrintErrf("  - %s\n", cliutil.PiriBinaryDir)
-		cmd.PrintErrf("  - %s\n", cliutil.PiriSystemDir)
-		cmd.PrintErrf("  - %s\n", cliutil.PiriSystemdDir)
+	// Create the /opt/piri directory structure
+	if err := os.MkdirAll(cliutil.PiriBinaryDir, 0755); err != nil {
+		return fmt.Errorf("failed to create binary directory %s: %w", cliutil.PiriBinaryDir, err)
 	}
+	if err := os.MkdirAll(cliutil.PiriSystemDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory %s: %w", cliutil.PiriSystemDir, err)
+	}
+	if err := os.MkdirAll(cliutil.PiriSystemdDir, 0755); err != nil {
+		return fmt.Errorf("failed to create systemd directory %s: %w", cliutil.PiriSystemdDir, err)
+	}
+	cmd.PrintErrf("  Created directory structure under %s\n", cliutil.PiriOptDir)
 
 	cmd.PrintErrln("Installing Piri binary...")
-	if err := installBinary(cmd, state); err != nil {
+	if err := installBinary(cmd); err != nil {
 		return err
 	}
 
 	// Set ownership of the entire /opt/piri tree to the service user
-	if !state.dryRun {
-		if err := setOwnership(cliutil.PiriOptDir, state.serviceUser); err != nil {
-			return fmt.Errorf("failed to set ownership of %s: %w", cliutil.PiriOptDir, err)
-		}
-		cmd.PrintErrf("  Set ownership to %s\n", state.serviceUser)
-	} else {
-		cmd.PrintErrf("Would set ownership to: %s\n", state.serviceUser)
+	if err := setOwnership(cliutil.PiriOptDir, state.serviceUser); err != nil {
+		return fmt.Errorf("failed to set ownership of %s: %w", cliutil.PiriOptDir, err)
 	}
+	cmd.PrintErrf("  Set ownership to %s\n", state.serviceUser)
 
 	cmd.PrintErrln("Installing configuration...")
 	if err := installConfig(cmd, state); err != nil {
@@ -310,46 +285,25 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 		return err
 	}
 
-	if !state.dryRun {
-		cmd.PrintErrln("Enabling and starting services...")
-		if err := enableAndStartServices(cmd, state.enableAutoUpdate); err != nil {
-			return err
-		}
-	} else {
-		cmd.PrintErrln("Would enable and start services:")
-		cmd.PrintErrf("  - systemctl enable %s\n", cliutil.PiriServiceName)
-		cmd.PrintErrf("  - systemctl start %s\n", cliutil.PiriServiceName)
-		if state.enableAutoUpdate {
-			cmd.PrintErrf("  - systemctl enable %s (auto-update)\n", cliutil.PiriUpdateTimerName)
-			cmd.PrintErrf("  - systemctl start %s (auto-update)\n", cliutil.PiriUpdateTimerName)
-		} else {
-			cmd.PrintErrln("  - Auto-update: DISABLED (use --enable-auto-update to enable)")
-		}
+	cmd.PrintErrln("Enabling and starting services...")
+	if err := enableAndStartServices(cmd, state.enableAutoUpdate); err != nil {
+		return err
 	}
 
-	if state.dryRun {
-		cmd.PrintErrln("\nDRY RUN COMPLETE - No changes were made")
-	} else {
-		cmd.PrintErrln("\nInstallation complete!")
-		cmd.PrintErrln("Check service status with: systemctl status piri")
-		if state.enableAutoUpdate {
-			cmd.PrintErrln("Auto-update status: systemctl status piri-updater.timer")
-		}
+	cmd.PrintErrln("\nInstallation complete!")
+	cmd.PrintErrln("Check service status with: systemctl status piri")
+	if state.enableAutoUpdate {
+		cmd.PrintErrln("Auto-update status: systemctl status piri-updater.timer")
 	}
 
 	return nil
 }
 
 // installBinary installs the piri binary to the system location
-func installBinary(cmd *cobra.Command, state *installState) error {
+func installBinary(cmd *cobra.Command) error {
 	exeBinPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to determine executable path: %w", err)
-	}
-
-	if state.dryRun {
-		cmd.PrintErrf("Would install binary from %s to %s\n", exeBinPath, cliutil.PiriBinaryPath)
-		return nil
 	}
 
 	// Check if we need to copy the binary
@@ -383,14 +337,6 @@ func installConfig(cmd *cobra.Command, state *installState) error {
 		return fmt.Errorf("marshaling configuration: %w", err)
 	}
 
-	if state.dryRun {
-		cmd.PrintErrf("Would write config to: %s\n", cliutil.PiriSystemConfigPath)
-		cmd.PrintErrln("\n--- Configuration File ---")
-		cmd.Print(string(cfgData))
-		cmd.PrintErrln("--- End Configuration ---")
-		return nil
-	}
-
 	if err := os.WriteFile(cliutil.PiriSystemConfigPath, cfgData, 0644); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
@@ -402,19 +348,16 @@ func installConfig(cmd *cobra.Command, state *installState) error {
 // installSystemdServices creates and installs systemd service files
 func installSystemdServices(cmd *cobra.Command, state *installState) error {
 	// Generate service files
-	// systemd timeout = fx shutdown timeout + buffer for process cleanup
-	systemdTimeout := cliutil.PiriServerShutdownTimeout + cliutil.PiriSystemdShutdownBuffer
-	piriService := GeneratePiriService(cliutil.PiriBinaryPath, cliutil.PiriServeCommand, state.serviceUser, systemdTimeout)
-	updaterService := GeneratePiriUpdaterService(cliutil.PiriBinaryPath, cliutil.PiriUpdateCommand, state.serviceUser)
-	updaterTimer := GeneratePiriUpdaterTimer(cliutil.PiriUpdateBootDuration, cliutil.PiriUpdateUnitActiveDuration, cliutil.PiriUpdateRandomizedDelayDuration)
-
 	services := []struct {
 		filename string
 		content  string
 	}{
-		{"piri.service", piriService},
-		{"piri-updater.service", updaterService},
-		{"piri-updater.timer", updaterTimer},
+		// The piri service
+		{"piri.service", GeneratePiriService(state.serviceUser)},
+		// The service which calls `piri update-internal`
+		{"piri-updater.service", GeneratePiriUpdaterService(state.serviceUser)},
+		// The timer which triggers piri-updater
+		{"piri-updater.timer", GeneratePiriUpdaterTimer()},
 	}
 
 	// Write service files to /opt/piri/systemd/
@@ -422,36 +365,24 @@ func installSystemdServices(cmd *cobra.Command, state *installState) error {
 		servicePath := filepath.Join(cliutil.PiriSystemdDir, svc.filename)
 		symlinkPath := filepath.Join(cliutil.SystemDPath, svc.filename)
 
-		if state.dryRun {
-			cmd.PrintErrf("Would write service file: %s\n", servicePath)
-			cmd.PrintErrf("Would create symlink: %s -> %s\n", symlinkPath, servicePath)
-			cmd.PrintErrf("\n--- %s ---\n", svc.filename)
-			cmd.Print(svc.content)
-			cmd.PrintErrf("--- End %s ---\n\n", svc.filename)
-		} else {
-			// Write the service file to /opt/piri/systemd/
-			if err := os.WriteFile(servicePath, []byte(svc.content), 0644); err != nil {
-				return fmt.Errorf("failed to write %s: %w", svc.filename, err)
-			}
-			cmd.PrintErrf("  Wrote %s to %s\n", svc.filename, servicePath)
-
-			// Create symlink in /etc/systemd/system/
-			// Remove existing symlink if it exists (for --force)
-			os.Remove(symlinkPath)
-			if err := os.Symlink(servicePath, symlinkPath); err != nil {
-				return fmt.Errorf("failed to create symlink for %s: %w", svc.filename, err)
-			}
-			cmd.PrintErrf("  Created symlink %s\n", symlinkPath)
+		// Write the service file to /opt/piri/systemd/
+		if err := os.WriteFile(servicePath, []byte(svc.content), 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", svc.filename, err)
 		}
+		cmd.PrintErrf("  Wrote %s to %s\n", svc.filename, servicePath)
+
+		// Create symlink in /etc/systemd/system/ -> /opt/piri/systemd/
+		if err := os.Symlink(servicePath, symlinkPath); err != nil {
+			return fmt.Errorf("failed to create symlink for %s: %w", svc.filename, err)
+		}
+		cmd.PrintErrf("  Created symlink %s\n", symlinkPath)
 	}
 
-	if !state.dryRun {
-		// Reload systemd to pick up new service files
-		if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
-			return fmt.Errorf("failed to reload systemd daemon: %w", err)
-		}
-		cmd.PrintErrln("  Reloaded systemd daemon")
+	// Reload systemd to pick up new service files
+	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+		return fmt.Errorf("failed to reload systemd daemon: %w", err)
 	}
+	cmd.PrintErrln("  Reloaded systemd daemon")
 
 	return nil
 }
@@ -466,9 +397,7 @@ func enableAndStartServices(cmd *cobra.Command, enableAutoUpdate bool) error {
 
 	// Start main service
 	if err := exec.Command("systemctl", "start", cliutil.PiriServiceName).Run(); err != nil {
-		cmd.PrintErrf("Warning: Failed to start %s: %v\n", cliutil.PiriServiceName, err)
-		cmd.PrintErrln("   You can start it manually with: sudo systemctl start piri")
-		// Don't fail installation if service doesn't start
+		return fmt.Errorf("failed to start %s: %w", cliutil.PiriServiceName, err)
 	} else {
 		cmd.PrintErrf("  Started %s\n", cliutil.PiriServiceName)
 	}
@@ -483,9 +412,7 @@ func enableAndStartServices(cmd *cobra.Command, enableAutoUpdate bool) error {
 		cmd.PrintErrf("  Enabled %s\n", cliutil.PiriUpdateTimerName)
 
 		if err := exec.Command("systemctl", "start", cliutil.PiriUpdateTimerName).Run(); err != nil {
-			cmd.PrintErrf("Warning: Failed to start %s: %v\n", cliutil.PiriUpdateTimerName, err)
-			cmd.PrintErrln("   You can start it manually with: sudo systemctl start piri-updater.timer")
-			// Don't fail installation if timer doesn't start
+			return fmt.Errorf("failed to start piri %s: %w", cliutil.PiriUpdateTimerName, err)
 		} else {
 			cmd.PrintErrf("  Started %s\n", cliutil.PiriUpdateTimerName)
 		}
@@ -495,20 +422,4 @@ func enableAndStartServices(cmd *cobra.Command, enableAutoUpdate bool) error {
 	}
 
 	return nil
-}
-
-// cleanupInstall attempts to rollback installation on failure
-func cleanupInstall() {
-	// Best effort cleanup - ignore errors since we're already in error state
-
-	// Remove the entire installation
-	os.RemoveAll(cliutil.PiriOptDir)
-
-	// Clean up symlinks to avoid leaving broken links
-	for _, service := range []string{"piri.service", "piri-updater.service", "piri-updater.timer"} {
-		os.Remove(filepath.Join(cliutil.SystemDPath, service))
-	}
-
-	// Reload systemd to recognize services are gone
-	exec.Command("systemctl", "daemon-reload").Run()
 }
