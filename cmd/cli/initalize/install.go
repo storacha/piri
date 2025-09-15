@@ -144,7 +144,7 @@ func parseInstallFlags(cmd *cobra.Command, serviceUser string) (*installState, e
 	}
 
 	// NB: config is a persistent flag accessible by all commands
-	configPath, err := cmd.PersistentFlags().GetString("config")
+	configPath, err := cmd.Flags().GetString("config")
 	if err != nil {
 		return nil, fmt.Errorf("reading --config flag: %w", err)
 	}
