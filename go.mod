@@ -49,7 +49,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/storacha/delegator v0.0.2-0.20250826191448-ba8d497e162a
 	github.com/storacha/go-libstoracha v0.2.2
-	github.com/storacha/go-ucanto v0.6.0
+	github.com/storacha/go-ucanto v0.6.1
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.37.0

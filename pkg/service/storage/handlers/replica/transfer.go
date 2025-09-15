@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipld/go-ipld-prime/printer"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
@@ -16,24 +18,25 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/capabilities/ucan"
 	"github.com/storacha/go-ucanto/client"
+	"github.com/storacha/go-ucanto/core/dag/blockstore"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/ipld"
-	"github.com/storacha/go-ucanto/core/message"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/receipt/fx"
 	"github.com/storacha/go-ucanto/core/receipt/ran"
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
-	"github.com/storacha/piri/pkg/store"
-
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
 	blobhandler "github.com/storacha/piri/pkg/service/storage/handlers/blob"
+	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
+
+var log = logging.Logger("storage/handlers/replica")
 
 type TransferService interface {
 	// ID is the storage service identity, used to sign UCAN invocations and receipts.
@@ -398,28 +401,31 @@ func sendMessageToUploadService(ctx context.Context, service TransferService, rc
 		}
 	}
 
-	msg, err := message.Build([]invocation.Invocation{concludeInv}, []receipt.AnyReceipt{rcpt})
+	resp, err := client.Execute(ctx, []invocation.Invocation{concludeInv}, service.UploadConnection())
 	if err != nil {
-		return fmt.Errorf("building message for receipt failed: %w", err)
+		return fmt.Errorf("executing conclude invocation: %w", err)
 	}
 
-	uploadServiceRequest, err := service.UploadConnection().Codec().Encode(msg)
-	if err != nil {
-		return fmt.Errorf("failed to encode message for receipt to http request: %w", err)
+	concludeRcptLink, ok := resp.Get(concludeInv.Link())
+	if !ok {
+		return fmt.Errorf("missing receipt for invocation: %s", concludeInv.Link().String())
 	}
 
-	uploadServiceResponse, err := service.UploadConnection().Channel().Request(ctx, uploadServiceRequest)
+	blocks, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(resp.Blocks()))
 	if err != nil {
-		return fmt.Errorf("failed to send request for receipt: %w", err)
+		return fmt.Errorf("constructing blockstore: %w", err)
 	}
 
-	if uploadServiceResponse.Status() >= 300 || uploadServiceResponse.Status() < 200 {
-		topErr := fmt.Errorf("unsuccessful http POST to upload service")
-		resData, err := io.ReadAll(uploadServiceResponse.Body())
-		if err != nil {
-			return fmt.Errorf("%s failed to read response body: %w", topErr, err)
-		}
-		return fmt.Errorf("%s response body: %s", topErr, resData)
+	concludeRcpt, err := receipt.NewAnyReceipt(concludeRcptLink, blocks)
+	if err != nil {
+		return fmt.Errorf("constructing receipt: %w", err)
+	}
+
+	// we're not expecting any meaningful response here so we just check for error
+	_, x := result.Unwrap(concludeRcpt.Out())
+	if x != nil {
+		log.Errorf("conclude invocation failure: %s", printer.Sprint(x))
+		return errors.New("conclude invocation failed")
 	}
 
 	return nil
