@@ -312,6 +312,35 @@ func installBinary(cmd *cobra.Command, dryRun bool) error {
 
 // installConfig installs the configuration file
 func installConfig(cmd *cobra.Command, state *installState) error {
+	// Copy key file to system location
+	originalKeyFile := state.config.Identity.KeyFile
+	if originalKeyFile != "" {
+		if state.dryRun {
+			cmd.PrintErrf("Would copy key file from %s to %s\n", originalKeyFile, cliutil.PiriSystemKeyFile)
+		} else {
+			// Read the original key file
+			keyData, err := os.ReadFile(originalKeyFile)
+			if err != nil {
+				return fmt.Errorf("failed to read key file %s: %w", originalKeyFile, err)
+			}
+
+			// Write key file to system location with secure permissions
+			if err := os.WriteFile(cliutil.PiriSystemKeyFile, keyData, 0600); err != nil {
+				return fmt.Errorf("failed to write key file to %s: %w", cliutil.PiriSystemKeyFile, err)
+			}
+
+			// Set ownership of key file to piri user
+			if err := setPiriOwnership(cliutil.PiriSystemKeyFile); err != nil {
+				return fmt.Errorf("failed to set key file ownership: %w", err)
+			}
+
+			cmd.PrintErrf("  Copied key file to %s\n", cliutil.PiriSystemKeyFile)
+		}
+
+		// Update config to point to the new key file location
+		state.config.Identity.KeyFile = cliutil.PiriSystemKeyFile
+	}
+
 	cfgData, err := toml.Marshal(state.config)
 	if err != nil {
 		return fmt.Errorf("marshaling configuration: %w", err)
@@ -434,6 +463,8 @@ func cleanupInstall() {
 
 	// Remove config file
 	os.Remove(cliutil.PiriSystemConfigPath)
+	// Remove key file
+	os.Remove(cliutil.PiriSystemKeyFile)
 	// Remove config directory (only if empty)
 	os.Remove(cliutil.PiriSystemDir) // Will fail if not empty, which is fine
 
