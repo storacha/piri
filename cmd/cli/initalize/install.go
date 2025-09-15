@@ -41,6 +41,7 @@ safe to do so (not during proof generation or active transfers).`,
 }
 
 func init() {
+	// TODO config is a persistent flag, consider removal
 	InstallCmd.Flags().String("config", "", "Path to configuration file (required)")
 	InstallCmd.Flags().Bool("force", false, "Force overwrite existing files")
 	InstallCmd.Flags().Bool("dry-run", false, "Preview installation without making changes")
@@ -51,6 +52,22 @@ func init() {
 	InstallCmd.SetErr(os.Stderr)
 }
 
+// detectServiceUser determines which user should run the service
+func detectServiceUser() string {
+	// Check if running with sudo
+	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+		return sudoUser
+	}
+
+	// Fall back to current user
+	if currentUser := os.Getenv("USER"); currentUser != "" {
+		return currentUser
+	}
+
+	// Last resort - use "root" if we can't detect
+	return "root"
+}
+
 // installState tracks what needs to be installed/checked
 type installState struct {
 	configPath       string
@@ -58,6 +75,7 @@ type installState struct {
 	force            bool
 	dryRun           bool
 	enableAutoUpdate bool
+	serviceUser      string // User that will run the service
 }
 
 // runInstall is the main entry point for the install command
@@ -107,12 +125,16 @@ func parseInstallFlags(cmd *cobra.Command) (*installState, error) {
 		return nil, fmt.Errorf("parsing config file %s: %w", configPath, err)
 	}
 
+	// Detect the actual user (when running with sudo)
+	serviceUser := detectServiceUser()
+
 	return &installState{
 		configPath:       configPath,
 		config:           cfg,
 		force:            force,
 		dryRun:           dryRun,
 		enableAutoUpdate: enableAutoUpdate,
+		serviceUser:      serviceUser,
 	}, nil
 }
 
@@ -213,22 +235,16 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 		return err
 	}
 
-	cmd.PrintErrln("Creating piri user and directories...")
+	cmd.PrintErrf("Service will run as user: %s\n", state.serviceUser)
+	cmd.PrintErrln("Creating directories...")
 	if !state.dryRun {
-		if err := createPiriUser(); err != nil {
-			return fmt.Errorf("failed to create piri user: %w", err)
-		}
 		// Mark that we've started installation and should cleanup on error
 		installStarted = true
 
 		if err := os.MkdirAll(cliutil.PiriSystemDir, 0755); err != nil {
 			return fmt.Errorf("failed to create system directory %s: %w", cliutil.PiriSystemDir, err)
 		}
-		if err := setPiriOwnership(cliutil.PiriSystemDir); err != nil {
-			return fmt.Errorf("failed to set piri ownership of system directory: %s: %w", cliutil.PiriSystemDir, err)
-		}
 	} else {
-		cmd.PrintErrf("Would create user: %s\n", cliutil.PiriUser)
 		cmd.PrintErrf("Would create directory: %s\n", cliutil.PiriSystemDir)
 	}
 
@@ -312,35 +328,6 @@ func installBinary(cmd *cobra.Command, dryRun bool) error {
 
 // installConfig installs the configuration file
 func installConfig(cmd *cobra.Command, state *installState) error {
-	// Copy key file to system location
-	originalKeyFile := state.config.Identity.KeyFile
-	if originalKeyFile != "" {
-		if state.dryRun {
-			cmd.PrintErrf("Would copy key file from %s to %s\n", originalKeyFile, cliutil.PiriSystemKeyFile)
-		} else {
-			// Read the original key file
-			keyData, err := os.ReadFile(originalKeyFile)
-			if err != nil {
-				return fmt.Errorf("failed to read key file %s: %w", originalKeyFile, err)
-			}
-
-			// Write key file to system location with secure permissions
-			if err := os.WriteFile(cliutil.PiriSystemKeyFile, keyData, 0600); err != nil {
-				return fmt.Errorf("failed to write key file to %s: %w", cliutil.PiriSystemKeyFile, err)
-			}
-
-			// Set ownership of key file to piri user
-			if err := setPiriOwnership(cliutil.PiriSystemKeyFile); err != nil {
-				return fmt.Errorf("failed to set key file ownership: %w", err)
-			}
-
-			cmd.PrintErrf("  Copied key file to %s\n", cliutil.PiriSystemKeyFile)
-		}
-
-		// Update config to point to the new key file location
-		state.config.Identity.KeyFile = cliutil.PiriSystemKeyFile
-	}
-
 	cfgData, err := toml.Marshal(state.config)
 	if err != nil {
 		return fmt.Errorf("marshaling configuration: %w", err)
@@ -358,11 +345,6 @@ func installConfig(cmd *cobra.Command, state *installState) error {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
-	// Set ownership of config file to piri user
-	if err := setPiriOwnership(cliutil.PiriSystemConfigPath); err != nil {
-		return fmt.Errorf("failed to set config ownership: %w", err)
-	}
-
 	cmd.PrintErrf("  Wrote config to %s\n", cliutil.PiriSystemConfigPath)
 	return nil
 }
@@ -372,7 +354,7 @@ func installSystemdServices(cmd *cobra.Command, state *installState) error {
 	// Generate service files
 	// systemd timeout = fx shutdown timeout + buffer for process cleanup
 	systemdTimeout := cliutil.PiriServerShutdownTimeout + cliutil.PiriSystemdShutdownBuffer
-	piriService := GeneratePiriService(cliutil.PiriBinaryPath, cliutil.PiriServeCommand, systemdTimeout)
+	piriService := GeneratePiriService(cliutil.PiriBinaryPath, cliutil.PiriServeCommand, state.serviceUser, systemdTimeout)
 	updaterService := GeneratePiriUpdaterService(cliutil.PiriBinaryPath, cliutil.PiriUpdateCommand)
 	updaterTimer := GeneratePiriUpdaterTimer(cliutil.PiriUpdateBootDuration, cliutil.PiriUpdateUnitActiveDuration, cliutil.PiriUpdateRandomizedDelayDuration)
 
@@ -463,8 +445,6 @@ func cleanupInstall() {
 
 	// Remove config file
 	os.Remove(cliutil.PiriSystemConfigPath)
-	// Remove key file
-	os.Remove(cliutil.PiriSystemKeyFile)
 	// Remove config directory (only if empty)
 	os.Remove(cliutil.PiriSystemDir) // Will fail if not empty, which is fine
 
