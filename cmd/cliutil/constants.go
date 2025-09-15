@@ -30,6 +30,9 @@ const PiriBinaryDir = "/opt/piri/bin"
 // PiriBinaryPath is the default location of the piri binary
 const PiriBinaryPath = "/opt/piri/bin/piri"
 
+// PiriCLISymlinkPath is the location of the piri symlink in PATH for CLI access
+const PiriCLISymlinkPath = "/usr/local/bin/piri"
+
 // PiriServeCommand is the command to start the server (without config flag)
 const PiriServeCommand = "serve full"
 

@@ -290,15 +290,21 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 
 	// Create symlink in /usr/local/bin for easier CLI access
 	cmd.PrintErrln("Creating CLI symlink...")
-	usrLocalBinPiri := "/usr/local/bin/piri"
-	if err := os.MkdirAll("/usr/local/bin", 0755); err != nil {
-		return fmt.Errorf("failed to create /usr/local/bin: %w", err)
+	symlinkDir := filepath.Dir(cliutil.PiriCLISymlinkPath)
+	if err := os.MkdirAll(symlinkDir, 0755); err != nil {
+		return fmt.Errorf("failed to create %s: %w", symlinkDir, err)
 	}
 
-	if err := os.Symlink(cliutil.PiriBinaryPath, usrLocalBinPiri); err != nil {
-		return fmt.Errorf("failed to create symlink %s: %w", usrLocalBinPiri, err)
+	// Remove whatever exists at /usr/local/bin/piri (binary, symlink, etc.)
+	// and replace with our symlink
+	if err := os.Remove(cliutil.PiriCLISymlinkPath); err != nil && !os.IsNotExist(err) {
+		cmd.PrintErrf("  Warning: Could not remove existing %s: %v\n", cliutil.PiriCLISymlinkPath, err)
 	}
-	cmd.PrintErrf("  Created symlink %s -> %s\n", usrLocalBinPiri, cliutil.PiriBinaryPath)
+
+	if err := os.Symlink(cliutil.PiriBinaryPath, cliutil.PiriCLISymlinkPath); err != nil {
+		return fmt.Errorf("failed to create symlink %s: %w", cliutil.PiriCLISymlinkPath, err)
+	}
+	cmd.PrintErrf("  Created symlink %s -> %s\n", cliutil.PiriCLISymlinkPath, cliutil.PiriBinaryPath)
 
 	cmd.PrintErrln("Enabling and starting services...")
 	if err := enableAndStartServices(cmd, state.enableAutoUpdate); err != nil {
