@@ -59,20 +59,11 @@ const PiriUpdateTimerName = "piri-updater.timer"
 // PiriSystemDir is the system configuration directory for piri
 const PiriSystemDir = "/etc/piri"
 
-// PiriUser is the system user that runs the piri service
-const PiriUser = "piri"
-
-// PiriGroup is the system group for the piri service
-const PiriGroup = "piri"
-
 // PiriConfigFileName is the default config file name created by init command
 const PiriConfigFileName = "piri-config.toml"
 
 // PiriSystemConfigPath is the installed config location
 var PiriSystemConfigPath = filepath.Join(PiriSystemDir, PiriConfigFileName)
-
-// PiriSystemKeyFile is the installed key file location
-var PiriSystemKeyFile = filepath.Join(PiriSystemDir, "service.pem")
 
 // ReleaseURL is the GitHub API endpoint for checking latest piri releases
 const ReleaseURL = "https://api.github.com/repos/storacha/piri/releases/latest"

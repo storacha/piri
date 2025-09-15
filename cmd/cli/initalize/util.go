@@ -2,45 +2,12 @@ package initalize
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"os/user"
-	"strconv"
 	"time"
-	
+
 	"github.com/storacha/piri/cmd/cliutil"
 )
 
-func createPiriUser() error {
-	// Check if user exists
-	if _, err := user.Lookup("piri"); err == nil {
-		return nil // User already exists
-	}
-
-	// Create system user and group
-	cmd := exec.Command("useradd",
-		"--system",              // System user
-		"--no-create-home",      // No home directory
-		"--shell", "/bin/false", // No shell access
-		"--comment", "Piri Storage Service",
-		"piri")
-
-	return cmd.Run()
-}
-
-func setPiriOwnership(path string) error {
-	piriUser, err := user.Lookup("piri")
-	if err != nil {
-		return err
-	}
-
-	uid, _ := strconv.Atoi(piriUser.Uid)
-	gid, _ := strconv.Atoi(piriUser.Gid)
-
-	return os.Chown(path, uid, gid)
-}
-
-func GeneratePiriService(binaryPath, command string, stopTimeout time.Duration) string {
+func GeneratePiriService(binaryPath, command, serviceUser string, stopTimeout time.Duration) string {
 	return fmt.Sprintf(`[Unit]
 Description=Piri Storage Node Service
 After=network-online.target
@@ -48,8 +15,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=piri
-Group=piri
+User=%s
+Group=%s
 WorkingDirectory=%s
 ExecStart=%s %s
 TimeoutStopSec=%s
@@ -61,7 +28,7 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-`, cliutil.PiriSystemDir, binaryPath, command, stopTimeout)
+`, serviceUser, serviceUser, cliutil.PiriSystemDir, binaryPath, command, stopTimeout)
 }
 
 func GeneratePiriUpdaterService(binaryPath, command string) string {
