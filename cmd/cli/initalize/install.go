@@ -321,7 +321,7 @@ func installConfig(cmd *cobra.Command, state *installState) error {
 		cmd.PrintErrf("Would write config to: %s\n", cliutil.PiriSystemConfigPath)
 		cmd.PrintErrln("\n--- Configuration File ---")
 		cmd.Print(string(cfgData))
-		cmd.PrintErrln("--- End Configuration ---\n")
+		cmd.PrintErrln("--- End Configuration ---")
 		return nil
 	}
 
