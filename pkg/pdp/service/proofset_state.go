@@ -90,27 +90,6 @@ func (p *PDPService) GetProofSetState(ctx context.Context, id uint64) (res types
 	return result, nil
 }
 
-type contractState struct {
-	// owners of the proof set
-	owners []common.Address
-	// The start of the NEXT OPEN proving period's challenge window
-	nextChallengeWindowStart uint64
-	// the epoch of the next challenge
-	nextChallengeEpoch uint64
-	// Max number of epochs between two consecutive proofs
-	maxProvingPeriod uint64
-	// challengeWindow Number of epochs for the challenge window
-	challengeWindow uint64
-	//index of the most recently added leaf that is challengeable in the current proving period
-	challengeRange uint64
-	// piece ids of the pieces scheduled for removal at the start of the next proving period
-	scheduledRemovals []uint64
-	// estimated cost of submitting a proof
-	proofFee uint64
-	// estimated cost of submitting a proof with buffer applied
-	proofFeeBuffered uint64
-}
-
 func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState, error) {
 
 	// Get the listener address for this proof set from the PDPVerifier contract
@@ -141,6 +120,9 @@ func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState,
 
 	// If gas used is 0 fee is maximized
 	proofFee, err := pdpVerifier.CalculateProofFee(nil, id, big.NewInt(0))
+	if err != nil {
+		return types.ProofSetContractState{}, fmt.Errorf("failed to calculate proof fee: %w", err)
+	}
 	// Add 2x buffer for certainty (as is done in the prove task)
 	proofFeeBuffer := new(big.Int).Mul(proofFee, big.NewInt(3))
 
