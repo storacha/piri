@@ -16,13 +16,17 @@ import (
 var UninstallCmd = &cobra.Command{
 	Use:   "uninstall",
 	Short: "Uninstall Piri system service",
-	Long: `Uninstall removes the Piri systemd service and all associated files.
+	Long: `Uninstall removes the Piri systemd services and symlinks.
 
 This command performs the following operations:
   - Stops all running piri services (piri.service and piri-updater.timer if enabled)
-  - Removes the /opt/piri directory and all contents
+  - Disables systemd services
   - Removes symlinks from /etc/systemd/system/
+  - Removes the CLI symlink from /usr/local/bin/piri
   - Reloads systemd daemon
+
+NOTE: The binaries in /opt/piri are preserved for version management.
+To completely remove piri, manually delete /opt/piri after uninstalling.
 
 Requirements:
   - Linux operating system with systemd
@@ -119,10 +123,8 @@ func uninstall(services []string) error {
 		return errs
 	}
 
-	// Remove the entire installation
-	if err := os.RemoveAll(cliutil.PiriOptDir); err != nil {
-		errs = multierror.Append(errs, fmt.Errorf("failed to remove %s: %w", cliutil.PiriOptDir, err))
-	}
+	// Note: We do NOT remove /opt/piri - binaries are versioned and preserved
+	// Users can manually clean up old versions if desired
 
 	// Clean up service file symlinks
 	for _, serviceFile := range []string{
@@ -136,9 +138,8 @@ func uninstall(services []string) error {
 	}
 
 	// Remove CLI symlink from /usr/local/bin
-	usrLocalBinPiri := "/usr/local/bin/piri"
-	if err := os.Remove(usrLocalBinPiri); err != nil && !os.IsNotExist(err) {
-		errs = multierror.Append(errs, fmt.Errorf("failed to remove CLI symlink %s: %w", usrLocalBinPiri, err))
+	if err := os.Remove(cliutil.PiriCLISymlinkPath); err != nil && !os.IsNotExist(err) {
+		errs = multierror.Append(errs, fmt.Errorf("failed to remove CLI symlink %s: %w", cliutil.PiriCLISymlinkPath, err))
 	}
 
 	// Reload systemd to recognize services are gone
