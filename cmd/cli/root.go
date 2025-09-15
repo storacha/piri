@@ -78,6 +78,7 @@ func init() {
 	rootCmd.AddCommand(delegate.Cmd)
 	rootCmd.AddCommand(initalize.InitCmd)
 	rootCmd.AddCommand(initalize.InstallCmd)
+	rootCmd.AddCommand(initalize.UninstallCmd)
 	rootCmd.AddCommand(client.Cmd)
 	rootCmd.AddCommand(status.Cmd)
 	rootCmd.AddCommand(update.UpdateCmd)
