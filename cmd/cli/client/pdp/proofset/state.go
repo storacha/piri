@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"github.com/storacha/piri/pkg/pdp/types"
 
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp/httpapi/client"
@@ -25,22 +27,61 @@ var (
 func init() {
 	// TODO we can make this an arg instead
 	StateCmd.Flags().Uint64(
-		"proofset-id",
+		"proof-set",
 		0,
 		"The proofset ID",
 	)
+	cobra.CheckErr(viper.BindPFlag("ucan.proof_set", StateCmd.Flags().Lookup("proof-set")))
 	StateCmd.Flags().Bool(
 		"json",
 		false,
 		"Output in JSON format",
 	)
-	cobra.CheckErr(StateCmd.MarkFlagRequired("proofset-id"))
 }
+
+func doState(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+
+	cfg, err := config.Load[config.Client]()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	api, err := client.NewFromConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
+	}
+
+	proofSet, err := api.GetProofSetState(ctx, cfg.UCANService.ProofSetID)
+	if err != nil {
+		return fmt.Errorf("getting proof set status: %w", err)
+	}
+
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return fmt.Errorf("parsing json flag: %w", err)
+	}
+
+	if jsonOutput {
+		jsonProofSet, err := json.MarshalIndent(proofSet, "", "  ")
+		if err != nil {
+			return fmt.Errorf("rendering json: %w", err)
+		}
+		fmt.Print(string(jsonProofSet))
+		return nil
+	}
+
+	printProofSetStateAsTable(cmd, proofSet)
+
+	return nil
+}
+
+const EpochTimeSeconds = 30
 
 func formatEpochTime(currentEpoch, targetEpoch int64) string {
 	// Calculate the time difference in seconds (can be negative for past epochs)
 	epochDiff := targetEpoch - currentEpoch
-	seconds := epochDiff * 30
+	seconds := epochDiff * EpochTimeSeconds
 
 	// Calculate the estimated time
 	estimatedTime := time.Now().Add(time.Duration(seconds) * time.Second)
@@ -50,7 +91,7 @@ func formatEpochTime(currentEpoch, targetEpoch int64) string {
 func formatEpochTimeWithRelative(currentEpoch, targetEpoch int64) string {
 	// Calculate the time difference in seconds (can be negative for past epochs)
 	epochDiff := targetEpoch - currentEpoch
-	seconds := epochDiff * 30
+	seconds := epochDiff * EpochTimeSeconds
 
 	// Calculate the estimated time
 	estimatedTime := time.Now().Add(time.Duration(seconds) * time.Second)
@@ -68,6 +109,7 @@ func formatEpochTimeWithRelative(currentEpoch, targetEpoch int64) string {
 	}
 }
 
+// formatDuration converts seconds into a human-friendly duration string.
 func formatDuration(seconds int64) string {
 	if seconds < 60 {
 		return fmt.Sprintf("%d seconds", seconds)
@@ -102,73 +144,17 @@ func formatEpochDuration(epochs int64) string {
 	if epochs == 0 {
 		return "(0 seconds)"
 	}
-
-	seconds := epochs * 30
-
-	if seconds < 60 {
-		return fmt.Sprintf("(%d seconds)", seconds)
-	}
-
-	minutes := seconds / 60
-	if minutes < 60 {
-		if seconds%60 == 0 {
-			return fmt.Sprintf("(%d minutes)", minutes)
-		}
-		return fmt.Sprintf("(%d min %d sec)", minutes, seconds%60)
-	}
-
-	hours := minutes / 60
-	remainingMinutes := minutes % 60
-	if hours < 24 {
-		if remainingMinutes == 0 {
-			return fmt.Sprintf("(%d hours)", hours)
-		}
-		return fmt.Sprintf("(%d hr %d min)", hours, remainingMinutes)
-	}
-
-	days := hours / 24
-	remainingHours := hours % 24
-	if remainingHours == 0 {
-		return fmt.Sprintf("(%d days)", days)
-	}
-	return fmt.Sprintf("(%d days %d hr)", days, remainingHours)
+	seconds := epochs * EpochTimeSeconds
+	return fmt.Sprintf("(%s)", formatDuration(seconds))
 }
 
 func formatRelativeTime(currentEpoch, targetEpoch int64) string {
 	if targetEpoch <= currentEpoch {
 		return "(past)"
 	}
-
 	epochDiff := targetEpoch - currentEpoch
-	seconds := epochDiff * 30
-
-	if seconds < 60 {
-		return fmt.Sprintf("(~%d seconds)", seconds)
-	}
-
-	minutes := seconds / 60
-	if minutes < 60 {
-		if seconds%60 == 0 {
-			return fmt.Sprintf("(~%d minutes)", minutes)
-		}
-		return fmt.Sprintf("(~%d min %d sec)", minutes, seconds%60)
-	}
-
-	hours := minutes / 60
-	remainingMinutes := minutes % 60
-	if hours < 24 {
-		if remainingMinutes == 0 {
-			return fmt.Sprintf("(~%d hours)", hours)
-		}
-		return fmt.Sprintf("(~%d hr %d min)", hours, remainingMinutes)
-	}
-
-	days := hours / 24
-	remainingHours := hours % 24
-	if remainingHours == 0 {
-		return fmt.Sprintf("(~%d days)", days)
-	}
-	return fmt.Sprintf("(~%d days %d hr)", days, remainingHours)
+	seconds := epochDiff * EpochTimeSeconds
+	return fmt.Sprintf("(~%s)", formatDuration(seconds))
 }
 
 func formatTokenAmount(attoFil *big.Int) string {
@@ -211,49 +197,13 @@ func formatTokenAmount(attoFil *big.Int) string {
 	return "0 FIL"
 }
 
-func doState(cmd *cobra.Command, _ []string) error {
-	ctx := cmd.Context()
-
-	cfg, err := config.Load[config.Client]()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-
-	api, err := client.NewFromConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("creating client: %w", err)
-	}
-
-	proofSetID, err := cmd.Flags().GetUint64("proofset-id")
-	if err != nil {
-		return fmt.Errorf("parsing proofset ID: %w", err)
-	}
-
-	proofSet, err := api.GetProofSetState(ctx, proofSetID)
-	if err != nil {
-		return fmt.Errorf("getting proof set status: %w", err)
-	}
-
-	jsonOutput, err := cmd.Flags().GetBool("json")
-	if err != nil {
-		return fmt.Errorf("parsing json flag: %w", err)
-	}
-
-	if jsonOutput {
-		jsonProofSet, err := json.MarshalIndent(proofSet, "", "  ")
-		if err != nil {
-			return fmt.Errorf("rendering json: %w", err)
-		}
-		fmt.Print(string(jsonProofSet))
-		return nil
-	}
-
+func printProofSetStateAsTable(cmd *cobra.Command, proofSet *types.ProofSetState) {
 	// Table formatted output using cmd for printing
 	cmd.Println("╔═══════════════════════════════════════════════════════════════╗")
 	cmd.Println("║                        PROOF SET STATE                        ║")
 	cmd.Println("╚═══════════════════════════════════════════════════════════════╝")
 	cmd.Println()
-	cmd.Println("Note: Timestamps are estimated based on current epoch alignment with system time (30-second epochs).")
+	cmd.Printf("Note: Timestamps are estimated based on current epoch alignment with system time (%d-second epochs).\n", EpochTimeSeconds)
 	cmd.Println()
 
 	// Immutable configuration (these don't change after creation)
@@ -324,16 +274,13 @@ func doState(cmd *cobra.Command, _ []string) error {
 	// Add a note about potential sync issues
 	if proofSet.IsInFaultState {
 		cmd.Println()
-		cmd.Println("⚠️  WARNING: Node is in fault state. System view may be out of sync with contract.")
+		cmd.Println("   WARNING: Node is in fault state. System view may be out of sync with contract.")
 	}
 
 	// Show when next proving opportunity
 	if !proofSet.IsInFaultState && proofSet.NextChallengeEpoch > proofSet.CurrentEpoch {
 		cmd.Println()
 		epochsUntilChallenge := proofSet.NextChallengeEpoch - proofSet.CurrentEpoch
-		cmd.Printf("🕑 Next proving opportunity in %d epochs %s %s\n", epochsUntilChallenge, formatRelativeTime(proofSet.CurrentEpoch, proofSet.NextChallengeEpoch), formatEpochTime(proofSet.CurrentEpoch, proofSet.NextChallengeEpoch))
+		cmd.Printf("  Next proving opportunity in %d epochs %s %s\n", epochsUntilChallenge, formatRelativeTime(proofSet.CurrentEpoch, proofSet.NextChallengeEpoch), formatEpochTime(proofSet.CurrentEpoch, proofSet.NextChallengeEpoch))
 	}
-
-	return nil
-
 }

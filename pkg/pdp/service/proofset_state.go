@@ -71,17 +71,7 @@ func (p *PDPService) GetProofSetState(ctx context.Context, id uint64) (res types
 		ChallengeWindow:        int64OrZero(ps.ChallengeWindow),
 		CurrentEpoch:           currentEpoch,
 		IsProving:              provingTasks > 0,
-		ContractState: types.ProofSetContractState{
-			Owners:                   cs.owners,
-			NextChallengeWindowStart: cs.nextChallengeWindowStart,
-			NextChallengeEpoch:       cs.nextChallengeEpoch,
-			MaxProvingPeriod:         cs.maxProvingPeriod,
-			ChallengeWindow:          cs.challengeWindow,
-			ChallengeRange:           cs.challengeRange,
-			ScheduledRemovals:        cs.scheduledRemovals,
-			ProofFee:                 cs.proofFee,
-			ProofFeeBuffered:         cs.proofFeeBuffered,
-		},
+		ContractState:          cs,
 	}
 
 	if result.NextChallengeEpoch > 0 && result.ChallengeWindow >= 0 {
@@ -121,32 +111,32 @@ type contractState struct {
 	proofFeeBuffered uint64
 }
 
-func (p *PDPService) getContractState(id *big.Int) (*contractState, error) {
+func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState, error) {
 
 	// Get the listener address for this proof set from the PDPVerifier contract
 	pdpVerifier, err := p.contractClient.NewPDPVerifier(contract.Addresses().PDPVerifier, p.contractBackend)
 	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
 	}
 
 	ownerAddr1, ownerAddre2, err := pdpVerifier.GetProofSetOwner(nil, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve owner address: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve owner address: %w", err)
 	}
 
 	nextChallengeEpoch, err := pdpVerifier.GetNextChallengeEpoch(nil, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve next challenge epoch: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve next challenge epoch: %w", err)
 	}
 
 	challengeRange, err := pdpVerifier.GetChallengeRange(nil, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve challenge range: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve challenge range: %w", err)
 	}
 
 	scheduledRemovals, err := pdpVerifier.GetScheduledRemovals(nil, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve scheduled removals: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve scheduled removals: %w", err)
 	}
 
 	// If gas used is 0 fee is maximized
@@ -156,21 +146,25 @@ func (p *PDPService) getContractState(id *big.Int) (*contractState, error) {
 
 	listenerAddr, err := pdpVerifier.GetProofSetListener(nil, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get listener address for proof set %d: %w", id, err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to get listener address for proof set %d: %w", id, err)
 	}
 
 	// Determine the next challenge window start by consulting the listener
 	provingSchedule, err := p.contractClient.NewIPDPProvingSchedule(listenerAddr, p.contractBackend)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
 	}
 	nextChallengeWindowStart, err := provingSchedule.NextChallengeWindowStart(nil, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get next challenge window start: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
 	maxProvingPeriod, err := provingSchedule.GetMaxProvingPeriod(nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get max proving period: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to get max proving period: %w", err)
+	}
+	chalWindow, err := provingSchedule.ChallengeWindow(nil)
+	if err != nil {
+		return types.ProofSetContractState{}, fmt.Errorf("failed to get challenge window: %w", err)
 	}
 
 	removeIdx := make([]uint64, len(scheduledRemovals))
@@ -178,15 +172,16 @@ func (p *PDPService) getContractState(id *big.Int) (*contractState, error) {
 		removeIdx[i] = idx.Uint64()
 	}
 
-	return &contractState{
-		owners:                   []common.Address{ownerAddr1, ownerAddre2},
-		nextChallengeWindowStart: nextChallengeWindowStart.Uint64(),
-		nextChallengeEpoch:       nextChallengeEpoch.Uint64(),
-		maxProvingPeriod:         maxProvingPeriod,
-		challengeRange:           challengeRange.Uint64(),
-		scheduledRemovals:        removeIdx,
-		proofFee:                 proofFee.Uint64(),
-		proofFeeBuffered:         proofFeeBuffer.Uint64(),
+	return types.ProofSetContractState{
+		Owners:                   []common.Address{ownerAddr1, ownerAddre2},
+		NextChallengeWindowStart: nextChallengeWindowStart.Uint64(),
+		NextChallengeEpoch:       nextChallengeEpoch.Uint64(),
+		MaxProvingPeriod:         maxProvingPeriod,
+		ChallengeWindow:          chalWindow.Uint64(),
+		ChallengeRange:           challengeRange.Uint64(),
+		ScheduledRemovals:        removeIdx,
+		ProofFee:                 proofFee.Uint64(),
+		ProofFeeBuffered:         proofFeeBuffer.Uint64(),
 	}, nil
 
 }

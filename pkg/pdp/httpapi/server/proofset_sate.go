@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -22,7 +23,7 @@ func (p *PDPHandler) handleGetProofSetState(c echo.Context) error {
 
 	id, err := strconv.ParseUint(proofSetIDStr, 10, 64)
 	if err != nil {
-		return c.String(http.StatusBadRequest, "invalid proofSetID")
+		return c.String(http.StatusBadRequest, fmt.Sprintf("invalid proofSetID: %s", err))
 	}
 
 	ps, err := p.Service.GetProofSetState(ctx, id)
