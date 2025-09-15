@@ -21,8 +21,14 @@ const PiriServerShutdownTimeout = time.Minute
 // The total systemd timeout will be PiriServerShutdownTimeout + PiriSystemdShutdownBuffer
 const PiriSystemdShutdownBuffer = 15 * time.Second
 
+// PiriOptDir is the base directory for piri installation
+const PiriOptDir = "/opt/piri"
+
+// PiriBinaryDir is the directory containing the piri binary
+const PiriBinaryDir = "/opt/piri/bin"
+
 // PiriBinaryPath is the default location of the piri binary
-const PiriBinaryPath = "/usr/local/bin/piri"
+const PiriBinaryPath = "/opt/piri/bin/piri"
 
 // PiriServeCommand is the command to start the server (without config flag)
 const PiriServeCommand = "serve full"
@@ -57,7 +63,10 @@ const PiriUpdateServiceName = "piri-updater"
 const PiriUpdateTimerName = "piri-updater.timer"
 
 // PiriSystemDir is the system configuration directory for piri
-const PiriSystemDir = "/etc/piri"
+const PiriSystemDir = "/opt/piri/etc"
+
+// PiriSystemdDir is the directory where piri's systemd service files are stored
+const PiriSystemdDir = "/opt/piri/systemd"
 
 // PiriConfigFileName is the default config file name created by init command
 const PiriConfigFileName = "piri-config.toml"
