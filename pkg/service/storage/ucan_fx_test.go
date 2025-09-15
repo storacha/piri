@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
@@ -29,6 +30,7 @@ import (
 	"github.com/storacha/go-ucanto/core/ipld"
 	"github.com/storacha/go-ucanto/core/message"
 	"github.com/storacha/go-ucanto/core/receipt"
+	"github.com/storacha/go-ucanto/core/receipt/ran"
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/core/result/failure"
 	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
@@ -552,7 +554,8 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 				// This time we should get a transfer message since upload service will succeed
 				ucanConcludeMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
 				require.Len(t, ucanConcludeMsg.Invocations(), 1)
-				require.Len(t, ucanConcludeMsg.Receipts(), 1)
+				// receipt is attached to the invocation, not a reciept in the message
+				require.Len(t, ucanConcludeMsg.Receipts(), 0)
 
 				// Full assertion on the retry transfer
 				mustAssertTransferInvocation(
@@ -584,7 +587,8 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 				// Normal case - wait for transfer message
 				ucanConcludeMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
 				require.Len(t, ucanConcludeMsg.Invocations(), 1)
-				require.Len(t, ucanConcludeMsg.Receipts(), 1)
+				// receipt is attached to the invocation, not a reciept in the message
+				require.Len(t, ucanConcludeMsg.Receipts(), 0)
 
 				// Full read + assertion on the transfer invocation and its ucan chain
 				mustAssertTransferInvocation(
@@ -929,6 +933,20 @@ func startTestHTTPServer(
 		if simulateRetry {
 			t.Logf("Upload service succeeded on attempt %d", attempt)
 		}
+
+		invLinks := agentMessage.Invocations()
+		require.Len(t, invLinks, 1)
+
+		rcpt, err := receipt.Issue(svc.ID(), result.Ok[ok.Unit, ipld.Builder](ok.Unit{}), ran.FromLink(invLinks[0]))
+		require.NoError(t, err)
+
+		respMessage, err := message.Build([]invocation.Invocation{}, []receipt.AnyReceipt{rcpt})
+		require.NoError(t, err)
+
+		resp := car.Encode([]ipld.Link{respMessage.Root().Link()}, respMessage.Blocks())
+		_, err = io.Copy(w, resp)
+		require.NoError(t, err)
+		require.NoError(t, resp.Close())
 	})
 
 	server := &http.Server{

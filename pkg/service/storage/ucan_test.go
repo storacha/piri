@@ -471,9 +471,10 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 			// "Wait" for the transfer invocation to produce a receipt
 			// simulating the upload-service getting a receipt from this storage node.
 			ucanConcludeMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
-			// expect one invocation and one receipt
+			// expect one invocation and 0 receipts
 			require.Len(t, ucanConcludeMsg.Invocations(), 1)
-			require.Len(t, ucanConcludeMsg.Receipts(), 1)
+			// receipt is attached to the invocation, not a reciept in the message
+			require.Len(t, ucanConcludeMsg.Receipts(), 0)
 
 			// Full read + assertion on the transfer invocation and its ucan chain
 			mustAssertTransferInvocation(
