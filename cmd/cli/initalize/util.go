@@ -2,13 +2,13 @@ package initalize
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/storacha/piri/cmd/cliutil"
 )
 
-func GeneratePiriService(binaryPath, command, serviceUser string, stopTimeout time.Duration) string {
-	return fmt.Sprintf(`[Unit]
+func GeneratePiriService(serviceUser string) string {
+	return fmt.Sprintf(
+		`[Unit]
 Description=Piri Storage Node Service
 After=network-online.target
 Wants=network-online.target
@@ -28,10 +28,17 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-`, serviceUser, serviceUser, cliutil.PiriSystemDir, binaryPath, command, stopTimeout)
+`,
+		serviceUser,
+		serviceUser,
+		cliutil.PiriSystemDir,
+		cliutil.PiriBinaryPath,
+		cliutil.PiriServeCommand,
+		cliutil.PiriServerShutdownTimeout+cliutil.PiriServerShutdownTimeout,
+	)
 }
 
-func GeneratePiriUpdaterService(binaryPath, command, serviceUser string) string {
+func GeneratePiriUpdaterService(serviceUser string) string {
 	return fmt.Sprintf(`[Unit]
 Description=Piri Auto-Update Service
 After=network-online.target
@@ -45,10 +52,10 @@ WorkingDirectory=%s
 ExecStart=%s %s
 StandardOutput=journal
 StandardError=journal
-`, serviceUser, serviceUser, cliutil.PiriSystemDir, binaryPath, command)
+`, serviceUser, serviceUser, cliutil.PiriSystemDir, cliutil.PiriBinaryPath, cliutil.PiriUpdateCommand)
 }
 
-func GeneratePiriUpdaterTimer(onBootSec, onUnitActiveSec, randomizedDelaySec time.Duration) string {
+func GeneratePiriUpdaterTimer() string {
 	return fmt.Sprintf(`[Unit]
 Description=Piri Auto-Update Timer
 Requires=piri-updater.service
@@ -61,5 +68,5 @@ Persistent=true
 
 [Install]
 WantedBy=timers.target
-`, onBootSec, onUnitActiveSec, randomizedDelaySec)
+`, cliutil.PiriUpdateBootDuration, cliutil.PiriUpdateUnitActiveDuration, cliutil.PiriUpdateRandomizedDelayDuration)
 }

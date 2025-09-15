@@ -4,15 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
-	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/minio/selfupdate"
 	"github.com/spf13/cobra"
 	"github.com/storacha/piri/cmd/cliutil"
-	"github.com/storacha/piri/pkg/build"
+	"github.com/storacha/piri/pkg/client"
 )
 
 var SupportedLinuxArch = map[string]bool{
@@ -25,17 +21,24 @@ var (
 		Use:   "update",
 		Args:  cobra.NoArgs,
 		Short: "Check for and apply updates to piri",
-		Long:  `Check for new releases and update the piri binary to the latest version.`,
-		RunE:  doUpdate,
+		Long: `Check for new releases and update the piri binary to the latest version.
+
+This command downloads and installs the latest version but does not restart the service.
+To check if an update is safe, use 'piri status upgrade-check' first.`,
+		RunE: doUpdate,
 	}
 
-	dryRun bool
+	checkOnly bool
+	force     bool
+	version   string
 )
 
 func init() {
 	UpdateCmd.SetOut(os.Stdout)
 	UpdateCmd.SetErr(os.Stderr)
-	UpdateCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Check for updates without applying them")
+	UpdateCmd.Flags().BoolVar(&checkOnly, "check", false, "Check for updates without applying them")
+	UpdateCmd.Flags().BoolVar(&force, "force", false, "Skip safety checks and force update")
+	UpdateCmd.Flags().StringVar(&version, "version", "", "Update to specific version (e.g., v1.2.3)")
 }
 
 // GitHubRelease represents a GitHub release
@@ -57,90 +60,61 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 		ctx = context.Background()
 	}
 
-	// Get the path to the current binary
-	execPath, err := os.Executable()
+	// Check for updates
+	updateInfo, err := CheckForUpdate(ctx, cmd)
 	if err != nil {
-		return fmt.Errorf("failed to get executable path: %w", err)
+		return err
 	}
 
-	// Resolve any symlinks to get the real path
-	execPath, err = filepath.EvalSymlinks(execPath)
+	if !updateInfo.NeedsUpdate {
+		cmd.Println("Already running the latest version")
+		return nil
+	}
+
+	if checkOnly {
+		cmd.Printf("Update available: %s -> %s\n", updateInfo.CurrentVersion, updateInfo.LatestVersion)
+		return nil
+	}
+
+	// Get executable path
+	execPath, err := GetExecutablePath()
 	if err != nil {
-		return fmt.Errorf("failed to resolve executable path: %w", err)
+		return err
 	}
 
 	// Check if we need elevated privileges and handle sudo if necessary
-	if !dryRun && needsElevatedPrivileges(execPath) {
+	if needsElevatedPrivileges(execPath) {
 		if !cliutil.IsRunningAsRoot() {
 			cmd.Println("Update requires administrator privileges...")
 			return cliutil.RunWithSudo()
 		}
 	}
 
-	currentVersion := build.Version
-	cmd.Printf("Current version: %s\n", currentVersion)
-
-	// Check for latest release
-	release, err := getLatestRelease(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get latest release: %w", err)
-	}
-
-	latestVersion := strings.TrimPrefix(release.TagName, "v")
-	currentVersionClean := strings.Split(strings.TrimPrefix(currentVersion, "v"), "-")[0]
-
-	cmd.Printf("Latest version: %s\n", latestVersion)
-
-	if currentVersionClean == latestVersion {
-		cmd.Println("Already running the latest version")
-		return nil
-	}
-
-	if dryRun {
-		cmd.Printf("Update available: %s -> %s (dry-run mode, not applying)\n", currentVersionClean, latestVersion)
-		return nil
-	}
-
-	// Find the appropriate asset for this platform
-	assetURL, err := findAssetURL(release)
-	if err != nil {
-		return fmt.Errorf("failed to find appropriate release asset: %w", err)
-	}
-
-	cmd.Printf("Downloading update from %s\n", assetURL)
-
-	// Get the filename from the URL
-	assetFileName := path.Base(assetURL)
-
-	// Download and parse checksums
-	cmd.Println("Fetching checksums...")
-	checksum, err := getAssetChecksum(ctx, cmd, release, assetFileName)
-	if err != nil {
-		return fmt.Errorf("failed to get asset checksum, aborting update: %w", err)
-	}
-
-	// Download and verify the archive, then extract the binary
-	newBinary, err := downloadAndVerifyBinary(ctx, cmd, assetURL, checksum, true)
-	if err != nil {
-		return fmt.Errorf("failed to download update: %w", err)
-	}
-	defer newBinary.Close()
-
-	// Apply the update (no checksum verification here since we already verified the archive)
-	cmd.Println("Applying update...")
-	err = selfupdate.Apply(newBinary, selfupdate.Options{
-		TargetPath:  execPath,
-		OldSavePath: execPath + ".old",
-	})
-	if err != nil {
-		if rerr := selfupdate.RollbackError(err); rerr != nil {
-			return fmt.Errorf("failed to apply update and rollback: %w", rerr)
+	// Check if safe to update (unless --force)
+	if !force {
+		status, err := client.GetNodeStatus(ctx)
+		if err != nil {
+			cmd.PrintErrln("Warning: Cannot determine if safe to update:", err)
+			cmd.PrintErrln("Use --force to update anyway")
+			return fmt.Errorf("cannot determine node status")
 		}
-		return fmt.Errorf("failed to apply update: %w", err)
+
+		if !status.UpgradeSafe {
+			if status.IsProving {
+				cmd.PrintErrln("Error: Node is currently proving")
+			} else if status.InChallengeWindow && !status.HasProven {
+				cmd.PrintErrln("Error: Node is in an unproven challenge window")
+			}
+			cmd.PrintErrln("Update blocked for safety. Use --force to override")
+			return fmt.Errorf("not safe to update")
+		}
 	}
 
-	cmd.Printf("Successfully updated to version %s\n", latestVersion)
-	cmd.Println("Please restart piri for the update to take effect")
+	// Apply the update
+	if err := DownloadAndApplyUpdate(ctx, cmd, updateInfo.Release, execPath, true); err != nil {
+		return err
+	}
 
+	cmd.Println("Restart required for update to take effect")
 	return nil
 }

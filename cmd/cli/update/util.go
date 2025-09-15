@@ -14,14 +14,17 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/minio/selfupdate"
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 	"github.com/storacha/piri/cmd/cliutil"
+	"github.com/storacha/piri/pkg/build"
 )
 
 func getLatestRelease(ctx context.Context) (*GitHubRelease, error) {
@@ -344,4 +347,95 @@ func needsElevatedPrivileges(binaryPath string) bool {
 	}
 	_ = file.Close()
 	return false
+}
+
+// UpdateInfo contains information about available updates
+type UpdateInfo struct {
+	CurrentVersion string
+	LatestVersion  string
+	NeedsUpdate    bool
+	Release        *GitHubRelease
+}
+
+// CheckForUpdate checks if an update is available
+func CheckForUpdate(ctx context.Context, cmd *cobra.Command) (*UpdateInfo, error) {
+	currentVersion := build.Version
+	cmd.Printf("Current version: %s\n", currentVersion)
+
+	// Check for latest release
+	release, err := getLatestRelease(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest release: %w", err)
+	}
+
+	latestVersion := strings.TrimPrefix(release.TagName, "v")
+	currentVersionClean := strings.Split(strings.TrimPrefix(currentVersion, "v"), "-")[0]
+
+	cmd.Printf("Latest version: %s\n", latestVersion)
+
+	return &UpdateInfo{
+		CurrentVersion: currentVersionClean,
+		LatestVersion:  latestVersion,
+		NeedsUpdate:    currentVersionClean != latestVersion,
+		Release:        release,
+	}, nil
+}
+
+// DownloadAndApplyUpdate downloads and applies the update to the binary
+func DownloadAndApplyUpdate(ctx context.Context, cmd *cobra.Command, release *GitHubRelease, execPath string, showProgress bool) error {
+	// Find the appropriate asset for this platform
+	assetURL, err := findAssetURL(release)
+	if err != nil {
+		return fmt.Errorf("failed to find appropriate release asset: %w", err)
+	}
+
+	cmd.Printf("Downloading update from %s\n", assetURL)
+
+	// Get the filename from the URL
+	assetFileName := path.Base(assetURL)
+
+	// Download and parse checksums
+	cmd.Println("Fetching checksums...")
+	checksum, err := getAssetChecksum(ctx, cmd, release, assetFileName)
+	if err != nil {
+		return fmt.Errorf("failed to get asset checksum, aborting update: %w", err)
+	}
+
+	// Download and verify the archive, then extract the binary
+	newBinary, err := downloadAndVerifyBinary(ctx, cmd, assetURL, checksum, showProgress)
+	if err != nil {
+		return fmt.Errorf("failed to download update: %w", err)
+	}
+	defer newBinary.Close()
+
+	// Apply the update
+	cmd.Println("Applying update...")
+	err = selfupdate.Apply(newBinary, selfupdate.Options{
+		TargetPath:  execPath,
+		OldSavePath: execPath + ".old",
+	})
+	if err != nil {
+		if rerr := selfupdate.RollbackError(err); rerr != nil {
+			return fmt.Errorf("failed to apply update and rollback: %w", rerr)
+		}
+		return fmt.Errorf("failed to apply update: %w", err)
+	}
+
+	cmd.Printf("Successfully updated to version %s\n", release.TagName)
+	return nil
+}
+
+// GetExecutablePath returns the path to the current executable, resolved of any symlinks
+func GetExecutablePath() (string, error) {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve executable path: %w", err)
+	}
+
+	return execPath, nil
 }

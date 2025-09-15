@@ -19,6 +19,7 @@ import (
 	"github.com/storacha/piri/cmd/cli/identity"
 	"github.com/storacha/piri/cmd/cli/initalize"
 	"github.com/storacha/piri/cmd/cli/serve"
+	"github.com/storacha/piri/cmd/cli/status"
 	"github.com/storacha/piri/cmd/cli/update"
 	"github.com/storacha/piri/cmd/cli/wallet"
 	"github.com/storacha/piri/pkg/build"
@@ -81,6 +82,7 @@ func init() {
 	rootCmd.AddCommand(initalize.InitCmd)
 	rootCmd.AddCommand(initalize.InstallCmd)
 	rootCmd.AddCommand(client.Cmd)
+	rootCmd.AddCommand(status.Cmd)
 	rootCmd.AddCommand(update.UpdateCmd)
 
 	// this command is hidden from the user

@@ -21,10 +21,10 @@ const PiriServerShutdownTimeout = time.Minute
 // The total systemd timeout will be PiriServerShutdownTimeout + PiriSystemdShutdownBuffer
 const PiriSystemdShutdownBuffer = 15 * time.Second
 
-// PiriOptDir is the base directory for piri installation
+// PiriOptDir is the base directory for piri installation, any file outside of this directory MUST be a symlink.
 const PiriOptDir = "/opt/piri"
 
-// PiriBinaryDir is the directory containing the piri binary
+// PiriBinaryDir is the directory containing the piri binary used by service files
 const PiriBinaryDir = "/opt/piri/bin"
 
 // PiriBinaryPath is the default location of the piri binary
@@ -36,7 +36,7 @@ const PiriServeCommand = "serve full"
 // PiriUpdateCommand is the internal update command
 const PiriUpdateCommand = "update-internal"
 
-// SystemDPath is the directory where systemd service files are installed
+// SystemDPath is the directory where systemd service files are installed as symlinks
 const SystemDPath = "/etc/systemd/system"
 
 // PiriServiceFile is the filename for the main piri systemd service
@@ -59,8 +59,8 @@ var PiriUpdateTimerServiceFilePath = filepath.Join(SystemDPath, PiriUpdateTimerS
 
 // Systemd service names (without .service extension) for systemctl commands
 const PiriServiceName = "piri"
-const PiriUpdateServiceName = "piri-updater"
 const PiriUpdateTimerName = "piri-updater.timer"
+const PiriUpdateServiceName = "piri-updater"
 
 // PiriSystemDir is the system configuration directory for piri
 const PiriSystemDir = "/opt/piri/etc"
