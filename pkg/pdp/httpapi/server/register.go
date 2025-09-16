@@ -48,6 +48,9 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 	// /pdp/ping
 	e.GET("/pdp/ping", p.handlePing)
 
+	// /echo - test endpoint for connection handling
+	e.POST("/echo", p.handleEcho)
+
 	// /pdp/piece
 	e.POST(path.Join(PDPRoutePath, piecePrefix), p.handlePreparePiece)
 	e.PUT(path.Join(PDPRoutePath, piecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload)
