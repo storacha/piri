@@ -113,8 +113,7 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("install command requires root privileges. Re-run with `sudo`")
 	}
 
-	// Initialize paths based on the current binary version
-	cliutil.InitializePaths(build.Version)
+	// Display version info
 	cmd.PrintErrf("Installing version: %s\n", build.Version)
 	cmd.PrintErrf("Installation directory: %s\n", cliutil.PiriOptDir)
 
@@ -257,16 +256,21 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 	installStarted = true
 
 	// Create the /opt/piri directory structure
-	if err := os.MkdirAll(cliutil.PiriBinaryDir, 0755); err != nil {
-		return fmt.Errorf("failed to create binary directory %s: %w", cliutil.PiriBinaryDir, err)
+	// Create versioned binary directory
+	versionedBinDir := cliutil.GetVersionedBinaryDir(build.Version)
+	if err := os.MkdirAll(versionedBinDir, 0755); err != nil {
+		return fmt.Errorf("failed to create versioned binary directory %s: %w", versionedBinDir, err)
 	}
+	// Create config directory (not versioned)
 	if err := os.MkdirAll(cliutil.PiriSystemDir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory %s: %w", cliutil.PiriSystemDir, err)
 	}
+	// Create systemd directory (not versioned)
 	if err := os.MkdirAll(cliutil.PiriSystemdDir, 0755); err != nil {
 		return fmt.Errorf("failed to create systemd directory %s: %w", cliutil.PiriSystemdDir, err)
 	}
 	cmd.PrintErrf("  Created directory structure under %s\n", cliutil.PiriOptDir)
+	cmd.PrintErrf("  Binary version directory: %s\n", versionedBinDir)
 
 	cmd.PrintErrln("Installing Piri binary...")
 	if err := installBinary(cmd); err != nil {
@@ -326,33 +330,38 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 	return nil
 }
 
-// installBinary installs the piri binary to the system location
+// installBinary installs the piri binary to the versioned directory and creates current symlink
 func installBinary(cmd *cobra.Command) error {
 	exeBinPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to determine executable path: %w", err)
 	}
 
-	// Check if we need to copy the binary
-	if exeBinPath != cliutil.PiriBinaryPath {
-		// Check if they're actually the same file (could be symlink or hardlink)
-		srcInfo, srcErr := os.Stat(exeBinPath)
-		dstInfo, dstErr := os.Stat(cliutil.PiriBinaryPath)
+	// Get the versioned binary path
+	versionedBinDir := cliutil.GetVersionedBinaryDir(build.Version)
+	versionedBinPath := filepath.Join(versionedBinDir, "piri")
 
-		// Only copy if destination doesn't exist or they're different files
-		if dstErr != nil || (srcErr == nil && !os.SameFile(srcInfo, dstInfo)) {
-			data, err := os.ReadFile(exeBinPath)
-			if err != nil {
-				return fmt.Errorf("failed to read piri executable: %w", err)
-			}
-			if err := os.WriteFile(cliutil.PiriBinaryPath, data, 0755); err != nil {
-				return fmt.Errorf("failed to write piri executable: %w", err)
-			}
-			cmd.PrintErrf("  Installed binary to %s\n", cliutil.PiriBinaryPath)
-		} else {
-			cmd.PrintErrf("  Binary already at %s\n", cliutil.PiriBinaryPath)
-		}
+	// Copy the binary to the versioned directory
+	data, err := os.ReadFile(exeBinPath)
+	if err != nil {
+		return fmt.Errorf("failed to read piri executable: %w", err)
 	}
+	if err := os.WriteFile(versionedBinPath, data, 0755); err != nil {
+		return fmt.Errorf("failed to write piri executable: %w", err)
+	}
+	cmd.PrintErrf("  Installed binary to %s\n", versionedBinPath)
+
+	// Create or update the "current" symlink
+	// Remove existing symlink if it exists
+	if err := os.Remove(cliutil.PiriCurrentSymlink); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove existing current symlink: %w", err)
+	}
+
+	// Create symlink to the versioned directory
+	if err := os.Symlink(versionedBinDir, cliutil.PiriCurrentSymlink); err != nil {
+		return fmt.Errorf("failed to create current symlink: %w", err)
+	}
+	cmd.PrintErrf("  Created symlink %s -> %s\n", cliutil.PiriCurrentSymlink, versionedBinDir)
 
 	return nil
 }

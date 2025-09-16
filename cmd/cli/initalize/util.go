@@ -34,7 +34,7 @@ WantedBy=multi-user.target
 		cliutil.PiriSystemDir,
 		cliutil.PiriBinaryPath,
 		cliutil.PiriServeCommand,
-		cliutil.PiriServerShutdownTimeout+cliutil.PiriServerShutdownTimeout,
+		cliutil.PiriServerShutdownTimeout+cliutil.PiriSystemdShutdownBuffer,
 	)
 }
 

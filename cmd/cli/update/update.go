@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -80,6 +81,17 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 	execPath, err := GetExecutablePath()
 	if err != nil {
 		return err
+	}
+
+	// Check if this is a managed installation
+	if strings.HasPrefix(execPath, cliutil.PiriOptDir) {
+		cmd.Println("This is a managed piri installation.")
+		cmd.Println("Manual updates are not supported for managed installations.")
+		cmd.Println("")
+		cmd.Println("Options:")
+		cmd.Println("  1. Enable auto-updates: sudo systemctl enable --now piri-updater.timer")
+		cmd.Println("  2. Reinstall with new version: Download new version and run 'sudo piri install --config <config>'")
+		return fmt.Errorf("cannot manually update managed installation")
 	}
 
 	// Check if we need elevated privileges and handle sudo if necessary
