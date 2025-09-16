@@ -332,7 +332,6 @@ func getAssetChecksum(ctx context.Context, cmd *cobra.Command, release *GitHubRe
 	return nil, fmt.Errorf("checksum not found for %s", assetFileName)
 }
 
-
 // UpdateInfo contains information about available updates
 type UpdateInfo struct {
 	CurrentVersion string
@@ -433,20 +432,31 @@ func downloadAndApplyUpdate(ctx context.Context, cmd *cobra.Command, release *Gi
 
 	// Apply the update
 	cmd.Println("Applying update...")
-	err = selfupdate.Apply(newBinary, selfupdate.Options{
-		TargetPath:  updateTarget,
-		OldSavePath: oldSavePath,
-	})
-	if err != nil {
-		if rerr := selfupdate.RollbackError(err); rerr != nil {
-			return fmt.Errorf("failed to apply update and rollback: %w", rerr)
+
+	// Check if target file exists to determine update method
+	if _, err := os.Stat(updateTarget); os.IsNotExist(err) {
+		// New file (managed installation creating new version) - write directly
+		binaryData, err := io.ReadAll(newBinary)
+		if err != nil {
+			return fmt.Errorf("failed to read update binary: %w", err)
 		}
-		return fmt.Errorf("failed to apply update: %w", err)
+		if err := os.WriteFile(updateTarget, binaryData, 0755); err != nil {
+			return fmt.Errorf("failed to write update: %w", err)
+		}
+	} else {
+		// Existing file - use selfupdate for atomic replacement with optional backup
+		err = selfupdate.Apply(newBinary, selfupdate.Options{
+			TargetPath:  updateTarget,
+			OldSavePath: oldSavePath,
+		})
+		if err != nil {
+			if rerr := selfupdate.RollbackError(err); rerr != nil {
+				return fmt.Errorf("failed to apply update and rollback: %w", rerr)
+			}
+			return fmt.Errorf("failed to apply update: %w", err)
+		}
 	}
 
 	cmd.Printf("Successfully updated to version %s\n", release.TagName)
 	return nil
 }
-
-
-
