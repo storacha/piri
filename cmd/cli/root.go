@@ -12,14 +12,13 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/storacha/piri/cmd/cli/setup"
 
 	"github.com/storacha/piri/cmd/cli/client"
 	"github.com/storacha/piri/cmd/cli/delegate"
 	"github.com/storacha/piri/cmd/cli/identity"
-	"github.com/storacha/piri/cmd/cli/initalize"
 	"github.com/storacha/piri/cmd/cli/serve"
 	"github.com/storacha/piri/cmd/cli/status"
-	"github.com/storacha/piri/cmd/cli/update"
 	"github.com/storacha/piri/cmd/cli/wallet"
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/telemetry"
@@ -76,15 +75,14 @@ func init() {
 	rootCmd.AddCommand(wallet.Cmd)
 	rootCmd.AddCommand(identity.Cmd)
 	rootCmd.AddCommand(delegate.Cmd)
-	rootCmd.AddCommand(initalize.InitCmd)
-	rootCmd.AddCommand(initalize.InstallCmd)
-	rootCmd.AddCommand(initalize.UninstallCmd)
 	rootCmd.AddCommand(client.Cmd)
 	rootCmd.AddCommand(status.Cmd)
-	rootCmd.AddCommand(update.UpdateCmd)
 
-	// this command is hidden from the user
-	rootCmd.AddCommand(update.InternalUpdateCmd)
+	rootCmd.AddCommand(setup.InitCmd)
+	rootCmd.AddCommand(setup.InstallCmd)
+	rootCmd.AddCommand(setup.UninstallCmd)
+	rootCmd.AddCommand(setup.UpdateCmd)
+	rootCmd.AddCommand(setup.InternalUpdateCmd)
 
 }
 

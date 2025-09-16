@@ -1,0 +1,24 @@
+# Test configuration file for Piri setup tests
+
+[Identity]
+KeyFile = "/path/to/test/key.pem"
+
+[Repo]
+DataDir = "/tmp/piri/data"
+TempDir = "/tmp/piri/temp"
+
+[Server]
+Port = 3000
+Host = "localhost"
+PublicURL = "https://test.example.com"
+
+[PDPService]
+OwnerAddress = "0x1234567890abcdef1234567890abcdef12345678"
+ContractAddress = "0xabcdef1234567890abcdef1234567890abcdef12"
+LotusEndpoint = "https://lotus.test.example.com"
+
+[UCANService]
+ProofSetID = 1
+
+[UCANService.Services.Indexer]
+Proof = "test-proof-data"
