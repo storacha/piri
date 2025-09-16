@@ -28,7 +28,13 @@ import (
 )
 
 func getLatestRelease(ctx context.Context) (*GitHubRelease, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", cliutil.ReleaseURL, nil)
+	// Allow overriding the release URL for testing
+	releaseURL := cliutil.ReleaseURL
+	if testURL := os.Getenv("PIRI_GITHUB_API_URL"); testURL != "" {
+		releaseURL = testURL + "/repos/storacha/piri/releases/latest"
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", releaseURL, nil)
 	if err != nil {
 		return nil, err
 	}

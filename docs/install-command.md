@@ -21,14 +21,24 @@ We create a self-contained installation under `/opt/piri/`:
 ```
 /opt/piri/
 ├── bin/
-│   └── piri              # The piri executable
+│   ├── v0.0.13/
+│   │   └── piri          # Version 0.0.13 binary
+│   ├── v0.0.14/
+│   │   └── piri          # Version 0.0.14 binary (after update)
+│   └── current -> v0.0.14/  # Symlink to active version
 ├── etc/
-│   └── piri-config.toml  # Your configuration
+│   └── piri-config.toml  # Your configuration (shared across versions)
 └── systemd/
     ├── piri.service
     ├── piri-updater.service
     └── piri-updater.timer
 ```
+
+The key innovation here is **versioned binaries**. Each piri version gets its own directory under `/opt/piri/bin/`, and a `current` symlink points to the active version. Old versions are preserved, not overwritten. This design enables:
+
+- **Atomic updates**: The symlink switch is instantaneous
+- **Easy rollback**: Previous versions remain available
+- **Clean version management**: Like package managers (apt, yum), we never delete old binaries
 
 Everything piri needs lives in one place. The entire directory tree is owned by your user account, not root. This design has an important consequence: the service can update its own binary without needing root privileges.
 
@@ -42,7 +52,15 @@ Rather than copying service files directly to `/etc/systemd/system/`, we create 
 /etc/systemd/system/piri-updater.timer → /opt/piri/systemd/piri-updater.timer
 ```
 
-This approach keeps everything organized. When you uninstall piri, we just remove `/opt/piri/` and the symlinks. Clean and simple.
+The service files reference the binary through the `current` symlink: `/opt/piri/bin/current/piri`. This means when we update and switch the symlink, systemd automatically uses the new version after restart.
+
+Additionally, we create a convenience symlink for CLI access:
+
+```
+/usr/local/bin/piri → /opt/piri/bin/current/piri
+```
+
+This lets you run `piri` commands from anywhere without adding to PATH. When you uninstall piri, we remove the symlinks but preserve the `/opt/piri/` directory - your binaries and data remain intact.
 
 ## The Auto-Update System
 
@@ -72,10 +90,33 @@ When conditions are right for an update:
 
 1. The updater downloads the new version
 2. Verifies checksums to ensure integrity
-3. Replaces the binary at `/opt/piri/bin/piri`
-4. Restarts the piri service to run the new version
+3. Creates a new version directory (e.g., `/opt/piri/bin/v0.0.14/`)
+4. Installs the new binary there
+5. Atomically switches the `current` symlink to the new version
+6. Restarts the piri service to run the new version
 
-Because the updater runs as your user (not root) and the binary is in `/opt/piri/bin/` (owned by your user), this all works without elevated privileges. The service briefly goes offline during restart, but systemd brings it back up immediately with the new version.
+Because the updater runs as your user (not root) and the `/opt/piri/` directory is owned by your user, this all works without elevated privileges. The service briefly goes offline during restart, but systemd brings it back up immediately with the new version.
+
+The versioned structure means:
+- **No file overwrites**: Each version lives in its own directory
+- **Atomic switches**: The symlink update is instantaneous
+- **Rollback capability**: Old versions remain available if needed
+
+### Manual Updates vs Auto-Updates
+
+There's an important distinction between manual and automatic updates:
+
+**Manual updates** (`piri update`):
+- Work only for standalone binaries (not managed installations)
+- If you try to manually update a managed installation, you'll get an error with instructions
+- This prevents accidentally breaking the versioned structure
+
+**Automatic updates** (`piri update-internal`):
+- Called by the systemd timer
+- Properly handle the versioned directory structure
+- Create new version directories and update symlinks correctly
+
+This separation ensures the integrity of managed installations while still allowing flexibility for standalone deployments.
 
 ## Security Considerations
 
@@ -98,6 +139,56 @@ This design gives you several operational advantages:
 
 4. **Easy uninstall**: Everything lives under `/opt/piri/`. Removal is straightforward.
 
+## Version Management
+
+The versioned binary structure provides several operational benefits:
+
+### Listing Installed Versions
+
+You can see all installed versions:
+
+```bash
+ls -la /opt/piri/bin/
+```
+
+Output might look like:
+```
+drwxr-xr-x  5 ubuntu ubuntu 4096 Jan 15 10:00 .
+drwxr-xr-x  5 ubuntu ubuntu 4096 Jan 15 09:00 ..
+lrwxrwxrwx  1 ubuntu ubuntu   10 Jan 15 10:00 current -> v0.0.14/
+drwxr-xr-x  2 ubuntu ubuntu 4096 Jan 14 12:00 v0.0.12/
+drwxr-xr-x  2 ubuntu ubuntu 4096 Jan 14 18:00 v0.0.13/
+drwxr-xr-x  2 ubuntu ubuntu 4096 Jan 15 10:00 v0.0.14/
+```
+
+### Manual Rollback
+
+If you need to rollback to a previous version:
+
+```bash
+# Stop the service
+sudo systemctl stop piri
+
+# Switch the symlink
+sudo ln -sfn /opt/piri/bin/v0.0.13 /opt/piri/bin/current
+
+# Restart the service
+sudo systemctl start piri
+```
+
+### Cleaning Old Versions
+
+While we never automatically remove old versions, you can manually clean them up:
+
+```bash
+# Remove specific old version
+sudo rm -rf /opt/piri/bin/v0.0.12/
+
+# Keep only the current and one previous version
+cd /opt/piri/bin/
+ls -d v*/ | head -n -2 | xargs -r sudo rm -rf
+```
+
 ## Manual Installation
 
 If you prefer to set things up manually or need a custom configuration, you can inspect what the install command would do by using the `--dry-run` flag:
@@ -118,6 +209,16 @@ If your service fails to start after installation, check:
 
 The install command performs basic validation, but it can't catch every possible configuration issue. The service logs usually point directly to the problem.
 
+## Migration from Older Installations
+
+If you're upgrading from a pre-versioned piri installation (where the binary was at `/usr/local/bin/piri`), the new installer handles this gracefully:
+
+1. The installer will replace the old binary with a symlink to the managed installation
+2. Your existing binary gets moved to the versioned structure
+3. Auto-updates will start using the new versioned approach
+
+No manual intervention needed - the installer detects and migrates automatically.
+
 ## Design Philosophy
 
 This installation approach reflects a few core principles:
@@ -126,5 +227,9 @@ This installation approach reflects a few core principles:
 - **Self-containment**: Everything in `/opt/piri/` for easy management
 - **Smart automation**: Updates that understand your node's responsibilities
 - **Standard tooling**: Works with systemd like any other system service
+- **Version preservation**: Like traditional package managers, we never delete old binaries
+- **Atomic operations**: Updates via symlink switches are instantaneous and safe
 
 The goal is to make running a storage node as operationally simple as possible while maintaining the flexibility advanced users need. You shouldn't have to babysit your node or worry about updates breaking things at critical moments. Set it up once, and it just works.
+
+The versioned binary structure, borrowed from package management best practices, ensures that updates are always safe and reversible. Combined with the intelligent update timing that respects your node's proof obligations, this creates a robust, production-ready deployment system.
