@@ -25,10 +25,11 @@ var InstallCmd = &cobra.Command{
 	Long: `Install configures Piri to run as a systemd service on Linux systems.
 
 This command performs the following operations:
-  - Installs the piri binary to /opt/bin/piri
-  - Creates the /opt/etc/piri directory for configuration
+  - Installs the piri binary to /opt/piri/bin/{version}/piri
+  - Creates the /opt/piri/etc directory for configuration
   - Installs the provided configuration file to /opt/piri/systemd, and symlinks to /etc/systemd/system/
   - Creates and enables systemd service files
+  - Creates sudoers entry for service restart (required for auto-updates)
   - Optionally enables automatic updates (--enable-auto-update)
 
 Requirements:
@@ -297,6 +298,20 @@ func doInstall(cmd *cobra.Command, state *installState) (err error) {
 		return fmt.Errorf("failed to set ownership of %s: %w", cliutil.PiriOptDir, err)
 	}
 	cmd.PrintErrf("  Set ownership of %s to %s\n", cliutil.PiriOptDir, state.serviceUser)
+
+	// Always create sudoers entry for auto-updater (user might enable it later)
+	// This ensures auto-update works whether enabled now or in the future
+	cmd.PrintErrln("Creating sudoers entry for service management...")
+	// Create minimal sudoers rule - ONLY allows restart of piri service
+	sudoersContent := fmt.Sprintf("%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart piri\n", state.serviceUser)
+	if err := os.WriteFile(cliutil.PiriSudoersFile, []byte(sudoersContent), 0440); err != nil {
+		return fmt.Errorf("failed to create sudoers file: %w", err)
+	}
+	cmd.PrintErrf("  Created minimal sudoers entry for piri service restart only\n")
+	if !state.enableAutoUpdate {
+		cmd.PrintErrf("  Note: Auto-update is disabled, but can be enabled later with:\n")
+		cmd.PrintErrf("        sudo systemctl enable --now piri-updater.timer\n")
+	}
 
 	// Create symlink in /usr/local/bin for easier CLI access
 	cmd.PrintErrln("Creating CLI symlink...")

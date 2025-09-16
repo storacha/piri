@@ -106,3 +106,6 @@ const PiriUpdateUnitActiveDuration = 30 * time.Minute
 
 // PiriUpdateRandomizedDelayDuration adds random delay to prevent simultaneous updates across fleet (5 minutes)
 const PiriUpdateRandomizedDelayDuration = 5 * time.Minute
+
+// PiriSudoersFile is the sudoers configuration for auto-updater to restart piri service
+const PiriSudoersFile = "/etc/sudoers.d/piri-updater"
