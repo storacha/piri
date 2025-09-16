@@ -1,14 +1,11 @@
-package update
+package setup
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/client"
 )
 
@@ -57,12 +54,9 @@ type GitHubRelease struct {
 
 func doUpdate(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 
 	// Check for updates
-	updateInfo, err := CheckForUpdate(ctx, cmd)
+	updateInfo, err := checkForUpdate(ctx, cmd)
 	if err != nil {
 		return err
 	}
@@ -83,8 +77,14 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Create platform checker
+	platform, err := NewPlatformChecker()
+	if err != nil {
+		return err
+	}
+
 	// Check if this is a managed installation
-	if strings.HasPrefix(execPath, cliutil.PiriOptDir) {
+	if platform.IsManagedInstallation(execPath) {
 		cmd.Println("This is a managed piri installation.")
 		cmd.Println("Manual updates are not supported for managed installations.")
 		cmd.Println("")
@@ -95,10 +95,15 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Check if we need elevated privileges and handle sudo if necessary
-	if needsElevatedPrivileges(execPath) {
-		if !cliutil.IsRunningAsRoot() {
+	if NeedsElevatedPrivileges(execPath) {
+		if !platform.IsRoot {
 			cmd.Println("Update requires administrator privileges...")
-			return cliutil.RunWithSudo()
+			// re-run this exact command with sudo
+			// TODO(forrest): I don't like this as it means making a network call as root, should we fail here and tell
+			// user to re-run? Otherwise, the command re-executes and prompts for root password.
+			// this won't happen if the bin is in a path that doesn't require root, e.g. /home/user/bin/piri
+			// but will happen for locations like /usr/local/bin/piri
+			return RunWithSudo()
 		}
 	}
 
@@ -122,8 +127,8 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Apply the update
-	if err := DownloadAndApplyUpdate(ctx, cmd, updateInfo.Release, execPath, true); err != nil {
+	// Apply the update (pass empty targetPath for standalone binary)
+	if err := downloadAndApplyUpdate(ctx, cmd, updateInfo.Release, execPath, "", true); err != nil {
 		return err
 	}
 

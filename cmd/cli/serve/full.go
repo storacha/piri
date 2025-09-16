@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/storacha/piri/cmd/cli/setup"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
@@ -188,7 +189,7 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 			return el
 		}),
 
-		fx.StopTimeout(cliutil.PiriServerShutdownTimeout),
+		fx.StopTimeout(setup.PiriServerShutdownTimeout),
 
 		// common dependencies of the PDP and UCAN module:
 		//   - identity
@@ -230,7 +231,7 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 					return nil
 				},
 				OnStop: func(ctx context.Context) error {
-					log.Infof("Shutting down piri...this may take up to %s", cliutil.PiriServerShutdownTimeout)
+					log.Infof("Shutting down piri...this may take up to %s", setup.PiriServerShutdownTimeout)
 					return nil
 				},
 			})

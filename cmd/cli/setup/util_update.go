@@ -1,4 +1,4 @@
-package update
+package setup
 
 import (
 	"archive/tar"
@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -23,14 +22,14 @@ import (
 	"github.com/minio/selfupdate"
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
-	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/build"
+	"golang.org/x/mod/semver"
 )
 
 func getLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 	// Allow overriding the release URL for testing
-	releaseURL := cliutil.ReleaseURL
-	if testURL := os.Getenv("PIRI_GITHUB_API_URL"); testURL != "" {
+	releaseURL := ReleaseURL
+	if testURL := os.Getenv("PIRI_TEST_GITHUB_API_URL"); testURL != "" {
 		releaseURL = testURL + "/repos/storacha/piri/releases/latest"
 	}
 
@@ -333,27 +332,6 @@ func getAssetChecksum(ctx context.Context, cmd *cobra.Command, release *GitHubRe
 	return nil, fmt.Errorf("checksum not found for %s", assetFileName)
 }
 
-// needsElevatedPrivileges checks if we need elevated privileges to update the binary
-func needsElevatedPrivileges(binaryPath string) bool {
-	// Try to open the file for writing
-	file, err := os.OpenFile(binaryPath, os.O_WRONLY, 0)
-	if err != nil {
-		// If we get a permission error, we need elevated privileges
-		if os.IsPermission(err) {
-			return true
-		}
-		// For other errors, check if the parent directory is writable
-		dir := filepath.Dir(binaryPath)
-		testFile := filepath.Join(dir, ".piri-update-test")
-		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-			return os.IsPermission(err)
-		}
-		_ = os.Remove(testFile)
-		return false
-	}
-	_ = file.Close()
-	return false
-}
 
 // UpdateInfo contains information about available updates
 type UpdateInfo struct {
@@ -363,8 +341,8 @@ type UpdateInfo struct {
 	Release        *GitHubRelease
 }
 
-// CheckForUpdate checks if an update is available
-func CheckForUpdate(ctx context.Context, cmd *cobra.Command) (*UpdateInfo, error) {
+// checkForUpdate checks if an update is available
+func checkForUpdate(ctx context.Context, cmd *cobra.Command) (*UpdateInfo, error) {
 	currentVersion := build.Version
 	cmd.Printf("Current version: %s\n", currentVersion)
 
@@ -374,21 +352,45 @@ func CheckForUpdate(ctx context.Context, cmd *cobra.Command) (*UpdateInfo, error
 		return nil, fmt.Errorf("failed to get latest release: %w", err)
 	}
 
-	latestVersion := strings.TrimPrefix(release.TagName, "v")
-	currentVersionClean := strings.Split(strings.TrimPrefix(currentVersion, "v"), "-")[0]
+	// Prepare versions for comparison
+	// semver requires "v" prefix, so ensure both have it
+	latestVersion := release.TagName
+	if !strings.HasPrefix(latestVersion, "v") {
+		latestVersion = "v" + latestVersion
+	}
+
+	// Clean current version (remove build metadata after "-")
+	currentVersionClean := strings.Split(currentVersion, "-")[0]
+	if !strings.HasPrefix(currentVersionClean, "v") {
+		currentVersionClean = "v" + currentVersionClean
+	}
 
 	cmd.Printf("Latest version: %s\n", latestVersion)
 
+	// Use semver to properly compare versions
+	// semver.Compare returns -1 if v1 < v2, 0 if v1 == v2, +1 if v1 > v2
+	needsUpdate := false
+	if semver.IsValid(currentVersionClean) && semver.IsValid(latestVersion) {
+		// Only update if latest is greater than current
+		needsUpdate = semver.Compare(latestVersion, currentVersionClean) > 0
+	} else {
+		// Fallback to string comparison if versions aren't valid semver
+		cmd.Printf("Warning: Unable to parse versions as semver, using string comparison\n")
+		needsUpdate = latestVersion != currentVersionClean
+	}
+
 	return &UpdateInfo{
-		CurrentVersion: currentVersionClean,
-		LatestVersion:  latestVersion,
-		NeedsUpdate:    currentVersionClean != latestVersion,
+		CurrentVersion: strings.TrimPrefix(currentVersionClean, "v"),
+		LatestVersion:  strings.TrimPrefix(latestVersion, "v"),
+		NeedsUpdate:    needsUpdate,
 		Release:        release,
 	}, nil
 }
 
-// DownloadAndApplyUpdate downloads and applies the update to the binary
-func DownloadAndApplyUpdate(ctx context.Context, cmd *cobra.Command, release *GitHubRelease, execPath string, showProgress bool) error {
+// downloadAndApplyUpdate downloads and applies the update to the binary
+// If targetPath is provided, the update is written to that path instead of execPath
+// This allows using the same logic for both standalone and managed installations
+func downloadAndApplyUpdate(ctx context.Context, cmd *cobra.Command, release *GitHubRelease, execPath string, targetPath string, showProgress bool) error {
 	// Find the appropriate asset for this platform
 	assetURL, err := findAssetURL(release)
 	if err != nil {
@@ -414,17 +416,26 @@ func DownloadAndApplyUpdate(ctx context.Context, cmd *cobra.Command, release *Gi
 	}
 	defer newBinary.Close()
 
-	// Safety check: Don't allow updating managed installations via this path
-	// This should have been caught earlier, but double-check here
-	if strings.HasPrefix(execPath, cliutil.PiriOptDir) {
-		return fmt.Errorf("cannot update managed installation at %s", execPath)
+	// Determine the actual target path
+	updateTarget := execPath
+	oldSavePath := execPath + ".old"
+
+	// If targetPath is provided, use it instead (for managed installations)
+	if targetPath != "" {
+		updateTarget = targetPath
+		oldSavePath = "" // Don't save old versions for managed installs (we keep them in versioned dirs)
+	} else {
+		// Safety check: Don't allow updating managed installations without explicit targetPath
+		if strings.HasPrefix(execPath, PiriOptDir) {
+			return fmt.Errorf("cannot update managed installation at %s without explicit target path", execPath)
+		}
 	}
 
 	// Apply the update
 	cmd.Println("Applying update...")
 	err = selfupdate.Apply(newBinary, selfupdate.Options{
-		TargetPath:  execPath,
-		OldSavePath: execPath + ".old",
+		TargetPath:  updateTarget,
+		OldSavePath: oldSavePath,
 	})
 	if err != nil {
 		if rerr := selfupdate.RollbackError(err); rerr != nil {
@@ -437,17 +448,5 @@ func DownloadAndApplyUpdate(ctx context.Context, cmd *cobra.Command, release *Gi
 	return nil
 }
 
-// GetExecutablePath returns the path to the current executable, resolved of any symlinks
-func GetExecutablePath() (string, error) {
-	execPath, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("failed to get executable path: %w", err)
-	}
 
-	execPath, err = filepath.EvalSymlinks(execPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve executable path: %w", err)
-	}
 
-	return execPath, nil
-}

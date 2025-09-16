@@ -66,10 +66,10 @@ func GetNodeStatus(ctx context.Context) (*NodeStatus, error) {
 
 // calculateUpgradeSafety determines if it's safe to update based on proof set state
 func calculateUpgradeSafety(psState *types.ProofSetState) bool {
-	// If in fault state, we can update (might fix the issue)
+	// If in fault state, we cannot update
 	// TODO/REVIEW: I don't know if we want to allow updates to nodes in fault.
 	if psState.IsInFaultState {
-		return true
+		return false
 	}
 
 	// Don't update while actively proving
