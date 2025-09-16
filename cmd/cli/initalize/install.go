@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 	"github.com/storacha/piri/cmd/cliutil"
+	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/config"
 )
 
@@ -111,6 +112,11 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 	if !cliutil.IsRunningAsRoot() {
 		return fmt.Errorf("install command requires root privileges. Re-run with `sudo`")
 	}
+
+	// Initialize paths based on the current binary version
+	cliutil.InitializePaths(build.Version)
+	cmd.PrintErrf("Installing version: %s\n", build.Version)
+	cmd.PrintErrf("Installation directory: %s\n", cliutil.PiriOptDir)
 
 	// Detect the actual user (when running with sudo)
 	// This user is the owner of all piri data installed.

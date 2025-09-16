@@ -123,7 +123,7 @@ func uninstall(services []string) error {
 		return errs
 	}
 
-	// Note: We do NOT remove /opt/piri - binaries are versioned and preserved
+	// Note: We do NOT remove /opt/piri/* - binaries are versioned and preserved
 	// Users can manually clean up old versions if desired
 
 	// Clean up service file symlinks
