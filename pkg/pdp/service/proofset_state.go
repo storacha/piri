@@ -57,6 +57,13 @@ func (p *PDPService) GetProofSetState(ctx context.Context, id uint64) (res types
 		}
 	}
 
+	// don't get contract state if ps isn't initialized since it will fail
+	if !ps.InitReady {
+		return types.ProofSetState{
+			ID: id,
+		}, nil
+	}
+
 	cs, err := p.getContractState(big.NewInt(int64(id)))
 	if err != nil {
 		return types.ProofSetState{}, fmt.Errorf("failed to get contract state: %w", err)
