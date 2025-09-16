@@ -142,6 +142,11 @@ func uninstall(services []string) error {
 		errs = multierror.Append(errs, fmt.Errorf("failed to remove CLI symlink %s: %w", cliutil.PiriCLISymlinkPath, err))
 	}
 
+	// Remove sudoers file (always created during install for potential auto-updates)
+	if err := os.Remove(cliutil.PiriSudoersFile); err != nil && !os.IsNotExist(err) {
+		errs = multierror.Append(errs, fmt.Errorf("failed to remove sudoers file %s: %w", cliutil.PiriSudoersFile, err))
+	}
+
 	// Reload systemd to recognize services are gone
 	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 		errs = multierror.Append(errs, fmt.Errorf("failed to reload systemd: %w", err))

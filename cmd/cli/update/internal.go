@@ -169,9 +169,10 @@ func doUpdateInternal(cmd *cobra.Command, _ []string) error {
 
 	// Restart the service if running under systemd
 	if isRunningUnderSystemd() {
-		// Use systemctl to restart the service
-		if err := exec.Command("systemctl", "restart", "piri").Run(); err != nil {
-			return fmt.Errorf("failed to restart piri service via systemctl: %w", err)
+		// Use sudo to restart the service (sudoers file allows this without password)
+		// The sudoers rule ONLY allows: /usr/bin/systemctl restart piri
+		if err := exec.Command("sudo", "systemctl", "restart", "piri").Run(); err != nil {
+			return fmt.Errorf("failed to restart piri service via sudo systemctl: %w", err)
 		}
 		cmd.Println("Restarted piri service via systemctl")
 	} else {
@@ -271,5 +272,6 @@ func applyManagedUpdate(ctx context.Context, cmd *cobra.Command, release *GitHub
 
 	cmd.Printf("Updated symlink %s -> %s\n", cliutil.PiriCurrentSymlink, versionedBinDir)
 
+	// Note: The service restart happens in the calling function after this returns
 	return nil
 }
