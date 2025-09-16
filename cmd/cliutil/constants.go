@@ -22,11 +22,26 @@ const PiriServerShutdownTimeout = time.Minute
 // The total systemd timeout will be PiriServerShutdownTimeout + PiriSystemdShutdownBuffer
 const PiriSystemdShutdownBuffer = 15 * time.Second
 
-// PiriOptBaseDir is the base directory for all piri installations
-const PiriOptBaseDir = "/opt/piri"
+// PiriOptDir is the base directory for piri installation
+const PiriOptDir = "/opt/piri"
 
-// GetVersionedPiriDir returns the versioned directory for a specific piri installation
-func GetVersionedPiriDir(version string) string {
+// PiriBinaryBaseDir is the base directory for all versioned binaries
+const PiriBinaryBaseDir = "/opt/piri/bin"
+
+// PiriCurrentSymlink is the symlink that points to the current version
+const PiriCurrentSymlink = "/opt/piri/bin/current"
+
+// PiriBinaryPath is the path to the current piri binary via symlink
+const PiriBinaryPath = "/opt/piri/bin/current/piri"
+
+// PiriSystemDir is the system configuration directory for piri (not versioned)
+const PiriSystemDir = "/opt/piri/etc"
+
+// PiriSystemdDir is the directory where piri's systemd service files are stored (not versioned)
+const PiriSystemdDir = "/opt/piri/systemd"
+
+// GetVersionedBinaryDir returns the versioned directory for a specific piri binary
+func GetVersionedBinaryDir(version string) string {
 	// Clean version string - remove any commit hash suffixes
 	cleanVersion := version
 	if idx := strings.Index(version, "-"); idx != -1 {
@@ -36,28 +51,8 @@ func GetVersionedPiriDir(version string) string {
 	if !strings.HasPrefix(cleanVersion, "v") {
 		cleanVersion = "v" + cleanVersion
 	}
-	return filepath.Join(PiriOptBaseDir, cleanVersion)
+	return filepath.Join(PiriBinaryBaseDir, cleanVersion)
 }
-
-// InitializePaths sets all the dynamic paths based on the version
-func InitializePaths(version string) {
-	PiriOptDir = GetVersionedPiriDir(version)
-	PiriBinaryDir = filepath.Join(PiriOptDir, "bin")
-	PiriBinaryPath = filepath.Join(PiriBinaryDir, "piri")
-	PiriSystemDir = filepath.Join(PiriOptDir, "etc")
-	PiriSystemdDir = filepath.Join(PiriOptDir, "systemd")
-	PiriSystemConfigPath = filepath.Join(PiriSystemDir, PiriConfigFileName)
-}
-
-// These will be set during install based on the actual version
-var (
-	// PiriOptDir is the versioned directory for this piri installation
-	PiriOptDir string
-	// PiriBinaryDir is the directory containing the piri binary used by service files
-	PiriBinaryDir string
-	// PiriBinaryPath is the location of the piri binary
-	PiriBinaryPath string
-)
 
 // PiriCLISymlinkPath is the location of the piri symlink in PATH for CLI access
 const PiriCLISymlinkPath = "/usr/local/bin/piri"
@@ -94,19 +89,11 @@ const PiriServiceName = "piri"
 const PiriUpdateTimerName = "piri-updater.timer"
 const PiriUpdateServiceName = "piri-updater"
 
-// These will be set during install based on the actual version
-var (
-	// PiriSystemDir is the system configuration directory for piri
-	PiriSystemDir string
-	// PiriSystemdDir is the directory where piri's systemd service files are stored
-	PiriSystemdDir string
-)
-
 // PiriConfigFileName is the default config file name created by init command
 const PiriConfigFileName = "piri-config.toml"
 
-// PiriSystemConfigPath is the installed config location (set during install)
-var PiriSystemConfigPath string
+// PiriSystemConfigPath is the installed config location
+var PiriSystemConfigPath = filepath.Join(PiriSystemDir, PiriConfigFileName)
 
 // ReleaseURL is the GitHub API endpoint for checking latest piri releases
 const ReleaseURL = "https://api.github.com/repos/storacha/piri/releases/latest"
