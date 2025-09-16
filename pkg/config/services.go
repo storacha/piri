@@ -18,7 +18,7 @@ type ServicesConfig struct {
 	ServicePrincipalMapping map[string]string `mapstructure:"principal_mapping" flag:"service-principal-mapping" toml:"principal_mapping,omitempty"`
 
 	Indexer       IndexingServiceConfig       `mapstructure:"indexer" validate:"required" toml:"indexer,omitempty"`
-	EgressTracker EgressTrackingServiceConfig `mapstructure:"etracker" validate:"required" toml:"etracker,omitempty"`
+	EgressTracker EgressTrackingServiceConfig `mapstructure:"etracker" toml:"etracker,omitempty"`
 	Upload        UploadServiceConfig         `mapstructure:"upload" validate:"required" toml:"upload,omitempty"`
 	Publisher     PublisherServiceConfig      `mapstructure:"publisher" validate:"required" toml:"publisher,omitempty"`
 }
@@ -107,8 +107,8 @@ func (s *IndexingServiceConfig) ToAppConfig() (app.IndexingServiceConfig, error)
 }
 
 type EgressTrackingServiceConfig struct {
-	DID   string `mapstructure:"did" validate:"required" flag:"egress-tracking-service-did" toml:"did,omitempty"`
-	URL   string `mapstructure:"url" validate:"required,url" flag:"egress-tracking-service-url" toml:"url,omitempty"`
+	DID   string `mapstructure:"did" flag:"egress-tracking-service-did" toml:"did,omitempty"`
+	URL   string `mapstructure:"url" flag:"egress-tracking-service-url" toml:"url,omitempty"`
 	Proof string `mapstructure:"proof" flag:"egress-tracking-service-proof" toml:"proof,omitempty"`
 }
 
@@ -117,22 +117,36 @@ func (c *EgressTrackingServiceConfig) Validate() error {
 }
 
 func (c *EgressTrackingServiceConfig) ToAppConfig() (app.EgressTrackingServiceConfig, error) {
+	if c.DID == "" {
+		log.Warn("no egress tracking service DID provided, egress tracking is disabled")
+		return app.EgressTrackingServiceConfig{}, nil
+	}
+
+	if c.URL == "" {
+		log.Warn("no egress tracking service URL provided, egress tracking is disabled")
+		return app.EgressTrackingServiceConfig{}, nil
+	}
+
 	sdid, err := did.Parse(c.DID)
 	if err != nil {
 		return app.EgressTrackingServiceConfig{}, fmt.Errorf("parsing egress tracking service DID: %w", err)
 	}
+
 	surl, err := url.Parse(c.URL)
 	if err != nil {
 		return app.EgressTrackingServiceConfig{}, fmt.Errorf("parsing egress tracking service URL: %w", err)
 	}
-	schannel := ucanhttp.NewHTTPChannel(surl)
+
+	schannel := ucanhttp.NewChannel(surl)
 	sconn, err := client.NewConnection(sdid, schannel)
 	if err != nil {
 		return app.EgressTrackingServiceConfig{}, fmt.Errorf("creating egress tracking service connection: %w", err)
 	}
+
 	out := app.EgressTrackingServiceConfig{
 		Connection: sconn,
 	}
+
 	// Parse egress tracking service proofs if provided
 	if c.Proof != "" {
 		dlg, err := delegation.Parse(c.Proof)
@@ -141,14 +155,9 @@ func (c *EgressTrackingServiceConfig) ToAppConfig() (app.EgressTrackingServiceCo
 		}
 		out.Proofs = delegation.Proofs{delegation.FromDelegation(dlg)}
 	} else {
-		// TODO(forrest): in the event a node is run without an egress tracking service proof, it will
-		// almost always fail to track egress...obviously.
-		// The TODO here is one of:
-		//   1. Fail to start the node (will be annoying for testing
-		//   2. Return an app config with a nil egress tracking service connection
-		//      dependencies of this config are usually fine with a nil connection, as they check it before use.
 		log.Warn("no egress tracking service proof provided, egress tracking will likely fail, please provide egress tracking proof")
 	}
+
 	return out, nil
 }
 
