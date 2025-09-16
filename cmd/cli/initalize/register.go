@@ -256,10 +256,10 @@ func setupProofSet(ctx context.Context, cmd *cobra.Command, pdpSvc *service.PDPS
 }
 
 // registerWithDelegator handles registration with the delegator service
-func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common.Address, proofSetID uint64) (string, error) {
+func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common.Address, proofSetID uint64) (string, string, error) {
 	c, err := delgclient.New(flags.delegatorURL)
 	if err != nil {
-		return "", fmt.Errorf("creating delegator client: %w", err)
+		return "", "", fmt.Errorf("creating delegator client: %w", err)
 	}
 
 	// Generate delegation proof for upload service
@@ -275,12 +275,12 @@ func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.
 		delegation.WithNoExpiration(),
 	)
 	if err != nil {
-		return "", fmt.Errorf("creating delegation: %w", err)
+		return "", "", fmt.Errorf("creating delegation: %w", err)
 	}
 
 	nodeProof, err := delegate.FormatDelegation(d.Archive())
 	if err != nil {
-		return "", fmt.Errorf("formatting delegation: %w", err)
+		return "", "", fmt.Errorf("formatting delegation: %w", err)
 	}
 
 	req := &delgclient.RegisterRequest{
@@ -294,32 +294,37 @@ func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.
 
 	registered, err := c.IsRegistered(ctx, &delgclient.IsRegisteredRequest{DID: cfg.Identity.Signer.DID().String()})
 	if err != nil {
-		return "", fmt.Errorf("checking registration status: %w", err)
+		return "", "", fmt.Errorf("checking registration status: %w", err)
 	}
 
 	if !registered {
 		err = c.Register(ctx, req)
 		if err != nil {
-			return "", fmt.Errorf("registering with delegator: %w", err)
+			return "", "", fmt.Errorf("registering with delegator: %w", err)
 		}
 		cmd.PrintErrln("✅ Successfully registered with delegator service")
 	} else {
 		cmd.PrintErrln("✅ Node already registered with delegator service")
 	}
 
-	// Request proof from delegator
-	cmd.PrintErrln("📥 Requesting proof from delegator service...")
-	delegatorProof, err := c.RequestProof(ctx, cfg.Identity.Signer.DID().String())
+	// Request proofs from delegator
+	cmd.PrintErrln("📥 Requesting proofs from delegator service...")
+	res, err := c.RequestProofs(ctx, cfg.Identity.Signer.DID().String())
 	if err != nil {
-		return "", fmt.Errorf("requesting delegator proof: %w", err)
+		return "", "", fmt.Errorf("requesting delegator proof: %w", err)
 	}
-	cmd.PrintErrln("✅ Received delegator proof")
 
-	return delegatorProof.Proof, nil
+	if res == nil || res.Proofs.Indexer == "" || res.Proofs.EgressTracker == "" {
+		return "", "", fmt.Errorf("missing proofs from delegator")
+	}
+
+	cmd.PrintErrln("✅ Received proofs from delegator")
+
+	return res.Proofs.Indexer, res.Proofs.EgressTracker, nil
 }
 
 // generateConfig generates the final configuration for the user
-func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common.Address, proofSetID uint64, delegatorProof string) (config.FullServerConfig, error) {
+func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common.Address, proofSetID uint64, indexerProof string, egressTrackerProof string) (config.FullServerConfig, error) {
 	return config.FullServerConfig{
 		Identity: config.IdentityConfig{KeyFile: flags.keyFile},
 		Repo: config.RepoConfig{
@@ -339,7 +344,10 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 		UCANService: config.UCANServiceConfig{
 			Services: config.ServicesConfig{
 				Indexer: config.IndexingServiceConfig{
-					Proof: delegatorProof,
+					Proof: indexerProof,
+				},
+				EgressTracker: config.EgressTrackingServiceConfig{
+					Proof: egressTrackerProof,
 				},
 			},
 			ProofSetID: proofSetID,
@@ -383,7 +391,7 @@ func doInit(cmd *cobra.Command, _ []string) error {
 
 	// Step 4: Register with delegator service
 	cmd.PrintErrln("[4/5] Registering with delegator service...")
-	delegatorProof, err := registerWithDelegator(ctx, cmd, cfg, flags, ownerAddress, proofSetID)
+	indexerProof, egressTrackerProof, err := registerWithDelegator(ctx, cmd, cfg, flags, ownerAddress, proofSetID)
 	if err != nil {
 		return err
 	}
@@ -391,7 +399,7 @@ func doInit(cmd *cobra.Command, _ []string) error {
 
 	// Step 5: Generate configuration
 	cmd.PrintErrln("[5/5] Generating configuration file...")
-	userConfig, err := generateConfig(cfg, flags, ownerAddress, proofSetID, delegatorProof)
+	userConfig, err := generateConfig(cfg, flags, ownerAddress, proofSetID, indexerProof, egressTrackerProof)
 	if err != nil {
 		return err
 	}
