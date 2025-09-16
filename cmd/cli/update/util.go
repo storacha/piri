@@ -413,7 +413,7 @@ func DownloadAndApplyUpdate(ctx context.Context, cmd *cobra.Command, release *Gi
 	if err == nil && fileInfo.Mode()&os.ModeSymlink != 0 {
 		// It's a symlink - check where it points
 		target, err := os.Readlink(execPath)
-		if err == nil && strings.HasPrefix(target, cliutil.PiriOptDir) {
+		if err == nil && strings.HasPrefix(target, cliutil.PiriOptBaseDir) {
 			// This is our managed installation - don't update via selfupdate
 			return fmt.Errorf("cannot update managed installation at %s.\nTo update, download the new version and run: sudo piri install --config <config>", target)
 		}
