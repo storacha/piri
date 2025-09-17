@@ -195,7 +195,7 @@ func applyManagedUpdate(ctx context.Context, cmd *cobra.Command, release *GitHub
 	}
 
 	// Perform symlink update with rollback capability
-	oldTarget, rollbackFunc, err := fsm.UpdateSymlinkAtomic(
+	oldTarget, symlinkRollbackFunc, err := fsm.UpdateSymlinkAtomic(
 		PiriCurrentSymlink,
 		versionedBinDir,
 	)
@@ -211,6 +211,92 @@ func applyManagedUpdate(ctx context.Context, cmd *cobra.Command, release *GitHub
 			PiriCurrentSymlink, versionedBinDir)
 	}
 
-	// Return the rollback function for use if restart fails
+	// Create versioned systemd directory and write service files
+	installer, err := NewInstaller()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create installer: %w", err)
+	}
+
+	// Get the service user from platform
+	platform, err := NewPlatformChecker()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get platform info: %w", err)
+	}
+
+	// Create versioned systemd directory
+	versionedSystemdDir := getVersionedSystemdDir(newVersion)
+	if err := fsm.CreateDirectory(versionedSystemdDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create systemd directory: %w", err)
+	}
+
+	// Generate and write service files to the versioned directory
+	serviceFiles := installer.GenerateSystemdServices(platform.ServiceUser, newVersion)
+	for _, svc := range serviceFiles {
+		if err := fsm.WriteFile(svc.SourcePath, []byte(svc.Content), 0644); err != nil {
+			return nil, fmt.Errorf("failed to write service file %s: %w", svc.Name, err)
+		}
+	}
+
+	// Set ownership on systemd directory
+	if err := fsm.SetOwnershipFromPath(versionedSystemdDir, PiriOptDir); err != nil {
+		return nil, fmt.Errorf("failed to set ownership on systemd dir: %w", err)
+	}
+
+	// Update systemd symlink atomically
+	oldSystemdTarget, systemdRollbackFunc, err := fsm.UpdateSymlinkAtomic(
+		PiriSystemdCurrentSymlink,
+		versionedSystemdDir,
+	)
+	if err != nil {
+		// Rollback binary symlink and fail
+		_ = symlinkRollbackFunc()
+		return nil, fmt.Errorf("failed to update systemd symlink: %w", err)
+	}
+
+	if oldSystemdTarget != "" {
+		cmd.Printf("Updated systemd symlink %s -> %s (previous: %s)\n",
+			PiriSystemdCurrentSymlink, versionedSystemdDir, oldSystemdTarget)
+	} else {
+		cmd.Printf("Created systemd symlink %s -> %s\n",
+			PiriSystemdCurrentSymlink, versionedSystemdDir)
+	}
+
+	// Reload systemd daemon to pick up the new symlinks
+	sm := NewServiceManager("piri")
+	if err := sm.executor.Run("sudo", "systemctl", "daemon-reload"); err != nil {
+		cmd.Printf("Warning: Failed to reload systemd daemon: %v\n", err)
+	}
+
+	// Create combined rollback function that handles both binary and systemd symlinks
+	rollbackFunc := func() error {
+		var errs error
+
+		// Rollback binary symlink
+		if err := symlinkRollbackFunc(); err != nil {
+			errs = fmt.Errorf("failed to rollback binary symlink: %w", err)
+		}
+
+		// Rollback systemd symlink
+		if err := systemdRollbackFunc(); err != nil {
+			if errs != nil {
+				errs = fmt.Errorf("%v; failed to rollback systemd symlink: %w", errs, err)
+			} else {
+				errs = fmt.Errorf("failed to rollback systemd symlink: %w", err)
+			}
+		}
+
+		// Reload systemd daemon after rollback
+		if err := sm.executor.Run("sudo", "systemctl", "daemon-reload"); err != nil {
+			if errs != nil {
+				errs = fmt.Errorf("%v; failed to reload systemd after rollback: %w", errs, err)
+			} else {
+				errs = fmt.Errorf("failed to reload systemd after rollback: %w", err)
+			}
+		}
+
+		return errs
+	}
+
+	// Return the combined rollback function for use if restart fails
 	return rollbackFunc, nil
 }

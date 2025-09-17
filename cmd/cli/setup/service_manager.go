@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -230,19 +231,18 @@ func (sm *ServiceManager) GetServiceStatus(service string) (*ServiceStatus, erro
 	return status, nil
 }
 
-// InstallServiceFiles writes service files and creates symlinks
+// InstallServiceFiles creates symlinks to the current version of service files
 func (sm *ServiceManager) InstallServiceFiles(services []ServiceFile) error {
 	for _, svc := range services {
-		servicePath := svc.SourcePath
+		// The source path should now point through the current symlink
+		currentServicePath := filepath.Join(PiriSystemdCurrentSymlink, filepath.Base(svc.SourcePath))
 		symlinkPath := svc.TargetPath
 
-		// Write the service file
-		if err := os.WriteFile(servicePath, []byte(svc.Content), 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", svc.Name, err)
-		}
+		// Remove existing symlink if it exists
+		_ = os.Remove(symlinkPath)
 
-		// Create symlink in /etc/systemd/system/
-		if err := os.Symlink(servicePath, symlinkPath); err != nil {
+		// Create symlink in /etc/systemd/system/ pointing to current version
+		if err := os.Symlink(currentServicePath, symlinkPath); err != nil {
 			return fmt.Errorf("failed to create symlink for %s: %w", svc.Name, err)
 		}
 	}

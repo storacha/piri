@@ -84,25 +84,26 @@ func (i *Installer) InstallConfiguration(cmd *cobra.Command, cfg config.FullServ
 	return nil
 }
 
-// GenerateSystemdServices generates systemd service configurations
-func (i *Installer) GenerateSystemdServices(serviceUser string) []ServiceFile {
+// GenerateSystemdServices generates systemd service configurations for a specific version
+func (i *Installer) GenerateSystemdServices(serviceUser string, version string) []ServiceFile {
+	versionedSystemdDir := getVersionedSystemdDir(version)
 	return []ServiceFile{
 		{
 			Name:       PiriServiceFile,
 			Content:    i.generatePiriService(serviceUser),
-			SourcePath: filepath.Join(PiriSystemdDir, PiriServiceFile),
+			SourcePath: filepath.Join(versionedSystemdDir, PiriServiceFile),
 			TargetPath: filepath.Join(SystemDPath, PiriServiceFile),
 		},
 		{
 			Name:       PiriUpdateServiceFile,
 			Content:    i.generatePiriUpdaterService(serviceUser),
-			SourcePath: filepath.Join(PiriSystemdDir, PiriUpdateServiceFile),
+			SourcePath: filepath.Join(versionedSystemdDir, PiriUpdateServiceFile),
 			TargetPath: filepath.Join(SystemDPath, PiriUpdateServiceFile),
 		},
 		{
 			Name:       PiriUpdateTimerServiceFile,
 			Content:    i.generatePiriUpdaterTimer(),
-			SourcePath: filepath.Join(PiriSystemdDir, PiriUpdateTimerServiceFile),
+			SourcePath: filepath.Join(versionedSystemdDir, PiriUpdateTimerServiceFile),
 			TargetPath: filepath.Join(SystemDPath, PiriUpdateTimerServiceFile),
 		},
 	}
@@ -115,7 +116,24 @@ func (i *Installer) InstallSystemdServices(cmd *cobra.Command, state *InstallSta
 		cmd.PrintErrln("  Including auto-update timer (checks every 30 minutes)")
 	}
 
-	services := i.GenerateSystemdServices(state.ServiceUser)
+	// Generate service files for this version
+	services := i.GenerateSystemdServices(state.ServiceUser, state.Version)
+
+	// Write service files to versioned directory
+	for _, svc := range services {
+		if err := i.FileSystem.WriteFile(svc.SourcePath, []byte(svc.Content), 0644); err != nil {
+			return fmt.Errorf("failed to write service file %s: %w", svc.Name, err)
+		}
+	}
+
+	// Update the systemd current symlink
+	versionedSystemdDir := getVersionedSystemdDir(state.Version)
+	if err := i.FileSystem.CreateSymlink(versionedSystemdDir, PiriSystemdCurrentSymlink); err != nil {
+		return fmt.Errorf("failed to create systemd current symlink: %w", err)
+	}
+	cmd.PrintErrf("  Created symlink %s -> %s\n", PiriSystemdCurrentSymlink, versionedSystemdDir)
+
+	// Install symlinks in /etc/systemd/system pointing to current version
 	if err := i.ServiceManager.InstallServiceFiles(services); err != nil {
 		return err
 	}
@@ -150,14 +168,24 @@ func (i *Installer) CreateSymlink(cmd *cobra.Command) error {
 func (i *Installer) CreateSudoersEntry(cmd *cobra.Command, serviceUser string, enableAutoUpdate bool) error {
 	cmd.PrintErrln("Creating sudoers entry for service management...")
 
-	// Create minimal sudoers rule - ONLY allows restart of piri service
-	sudoersContent := fmt.Sprintf("%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart piri\n", serviceUser)
+	// Create sudoers rules for service management
+	// With symlink-based versioning, we only need:
+	// 1. Restarting the piri service
+	// 2. Reloading systemd daemon (to pick up symlink changes)
+	sudoersContent := fmt.Sprintf(`# Allow %s to manage piri service
+%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart piri
+%s ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
+`,
+		serviceUser,
+		serviceUser,
+		serviceUser,
+	)
 
 	if err := i.FileSystem.WriteFile(PiriSudoersFile, []byte(sudoersContent), 0440); err != nil {
 		return fmt.Errorf("failed to create sudoers file: %w", err)
 	}
 
-	cmd.PrintErrf("  Created minimal sudoers entry for piri service restart only\n")
+	cmd.PrintErrf("  Created sudoers entry for piri service management\n")
 	if !enableAutoUpdate {
 		cmd.PrintErrf("  Note: Auto-update is disabled, but can be enabled later with:\n")
 		cmd.PrintErrf("        sudo systemctl enable --now piri-updater.timer\n")
