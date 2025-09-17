@@ -19,6 +19,10 @@ var ErrTooLarge = errors.New("payload too large")
 // ErrTooSmall is returned when the data being written is smaller than expected.
 var ErrTooSmall = errors.New("payload too small")
 
+// ErrRangeNotSatisfiable is returned when the byte range option falls outside
+// of the total size of the blob.
+var ErrRangeNotSatisfiable = errors.New("range not satisfiable")
+
 // GetOption is an option configuring byte retrieval from a blobstore.
 type GetOption func(cfg *options) error
 
@@ -55,15 +59,19 @@ type Object interface {
 	Body() io.ReadCloser
 }
 
-type Blobstore interface {
-	// Put stores the bytes to the store and ensures it hashes to the passed
-	// digest.
-	Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error
+type BlobGetter interface {
 	// Get retrieves the object identified by the passed digest. Returns nil and
 	// [ErrNotFound] if the object does not exist.
 	//
 	// Note: data is not hashed on read.
 	Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error)
+}
+
+type Blobstore interface {
+	BlobGetter
+	// Put stores the bytes to the store and ensures it hashes to the passed
+	// digest.
+	Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error
 }
 
 // FileSystemer exposes the filesystem interface for reading blobs.

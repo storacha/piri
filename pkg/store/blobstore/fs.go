@@ -99,6 +99,13 @@ func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 		return nil, fmt.Errorf("stat file: %w", err)
 	}
 
+	if o.byteRange.Offset >= uint64(inf.Size()) {
+		return nil, ErrRangeNotSatisfiable
+	}
+	if o.byteRange.Length != nil && o.byteRange.Offset+*o.byteRange.Length > uint64(inf.Size()) {
+		return nil, ErrRangeNotSatisfiable
+	}
+
 	return FileObject{name: n, size: inf.Size(), byteRange: o.byteRange}, nil
 }
 

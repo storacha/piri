@@ -15,6 +15,7 @@ import (
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
+	"github.com/storacha/go-ucanto/server/retrieval"
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/lib"
@@ -361,17 +362,25 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		telemetry.Int64Attr("proof_set", int64(cfg.UCANService.ProofSetID)),
 	)
 
+	errHandler := func(err ucanserver.HandlerExecutionError[any]) {
+		l := log.With("error", err.Error())
+		if s := err.Stack(); s != "" {
+			l.With("stack", s)
+		}
+		l.Error("ucan handler execution error")
+	}
+
 	err = server.ListenAndServe(
 		fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 		svc,
-		ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
-		ucanserver.WithErrorHandler(func(err ucanserver.HandlerExecutionError[any]) {
-			l := log.With("error", err.Error())
-			if s := err.Stack(); s != "" {
-				l.With("stack", s)
-			}
-			l.Error("ucan handler execution error")
-		}),
+		server.WithUCANServerOptions(
+			ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
+			ucanserver.WithErrorHandler(errHandler),
+		),
+		server.WithUCANRetrievalServerOptions(
+			retrieval.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
+			retrieval.WithErrorHandler(errHandler),
+		),
 	)
 	return err
 

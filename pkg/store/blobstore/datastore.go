@@ -41,6 +41,13 @@ func (d *DsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 		return nil, err
 	}
 
+	if o.byteRange.Offset >= uint64(len(b)) {
+		return nil, ErrRangeNotSatisfiable
+	}
+	if o.byteRange.Length != nil && o.byteRange.Offset+*o.byteRange.Length > uint64(len(b)) {
+		return nil, ErrRangeNotSatisfiable
+	}
+
 	obj := DsObject{bytes: b, byteRange: o.byteRange}
 	return obj, nil
 }

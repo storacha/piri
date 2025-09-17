@@ -12,6 +12,7 @@ import (
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/server"
+	"github.com/storacha/go-ucanto/server/retrieval"
 
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/service/blobs"
@@ -22,8 +23,27 @@ import (
 
 var log = logging.Logger("server")
 
+type serverConfig struct {
+	ucanSrvOpts          []server.Option
+	ucanRetrievalSrvOpts []retrieval.Option
+}
+
+type Option = func(c *serverConfig)
+
+func WithUCANServerOptions(options ...server.Option) Option {
+	return func(c *serverConfig) {
+		c.ucanSrvOpts = options
+	}
+}
+
+func WithUCANRetrievalServerOptions(options ...retrieval.Option) Option {
+	return func(c *serverConfig) {
+		c.ucanRetrievalSrvOpts = options
+	}
+}
+
 // ListenAndServe creates a new storage node HTTP server, and starts it up.
-func ListenAndServe(addr string, service storage.Service, options ...server.Option) error {
+func ListenAndServe(addr string, service storage.Service, options ...Option) error {
 	srvMux, err := NewServer(service, options...)
 	if err != nil {
 		return err
@@ -41,15 +61,26 @@ func ListenAndServe(addr string, service storage.Service, options ...server.Opti
 }
 
 // NewServer creates a new storage node server.
-func NewServer(service storage.Service, options ...server.Option) (*echo.Echo, error) {
+func NewServer(service storage.Service, options ...Option) (*echo.Echo, error) {
+	cfg := serverConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
+
 	mux := echo.New()
 	mux.GET("/", echo.WrapHandler(NewHandler(service.ID())))
 
-	httpUcanSrv, err := storage.NewServer(service, options...)
+	httpUcanSrv, err := storage.NewServer(service, cfg.ucanSrvOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating UCAN server: %w", err)
 	}
 	httpUcanSrv.RegisterRoutes(mux)
+
+	httpUcanRetrievalSrv, err := storage.NewRetrievalServer(service, cfg.ucanRetrievalSrvOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("creating UCAN retrieval server: %w", err)
+	}
+	httpUcanRetrievalSrv.RegisterRoutes(mux)
 
 	httpClaimsSrv, err := claims.NewServer(service.Claims().Store())
 	if err != nil {
