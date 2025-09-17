@@ -236,16 +236,18 @@ func TestFileSystemManager_CreatePiriDirectoryStructure(t *testing.T) {
 		PiriOptDir = Config.OptDir
 		PiriBinaryBaseDir = Config.BinaryBaseDir
 		PiriSystemDir = Config.SystemDir
-		PiriSystemdDir = Config.SystemdDir
+		PiriSystemdBaseDir = Config.SystemdBaseDir
+		PiriSystemdCurrentSymlink = Config.SystemdCurrentSymlink
 	}()
 
 	// Create test config with temp paths
 	tempDir := t.TempDir()
 	testConfig := &PathConfig{
-		OptDir:        tempDir,
-		BinaryBaseDir: filepath.Join(tempDir, "bin"),
-		SystemDir:     filepath.Join(tempDir, "etc"),
-		SystemdDir:    filepath.Join(tempDir, "systemd"),
+		OptDir:                tempDir,
+		BinaryBaseDir:         filepath.Join(tempDir, "bin"),
+		SystemDir:             filepath.Join(tempDir, "etc"),
+		SystemdBaseDir:        filepath.Join(tempDir, "systemd"),
+		SystemdCurrentSymlink: filepath.Join(tempDir, "systemd", "current"),
 	}
 
 	// Override global config
@@ -253,7 +255,8 @@ func TestFileSystemManager_CreatePiriDirectoryStructure(t *testing.T) {
 	PiriOptDir = testConfig.OptDir
 	PiriBinaryBaseDir = testConfig.BinaryBaseDir
 	PiriSystemDir = testConfig.SystemDir
-	PiriSystemdDir = testConfig.SystemdDir
+	PiriSystemdBaseDir = testConfig.SystemdBaseDir
+	PiriSystemdCurrentSymlink = testConfig.SystemdCurrentSymlink
 
 	fsm := NewFileSystemManager()
 	err := fsm.CreatePiriDirectoryStructure("v1.0.0")
@@ -262,7 +265,7 @@ func TestFileSystemManager_CreatePiriDirectoryStructure(t *testing.T) {
 	// Verify all directories were created
 	require.DirExists(t, filepath.Join(testConfig.BinaryBaseDir, "v1.0.0"))
 	require.DirExists(t, testConfig.SystemDir)
-	require.DirExists(t, testConfig.SystemdDir)
+	require.DirExists(t, filepath.Join(testConfig.SystemdBaseDir, "v1.0.0"))
 
 	// Verify they were tracked for rollback
 	require.Len(t, fsm.CreatedDirs, 3)

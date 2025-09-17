@@ -43,13 +43,14 @@ func (fsm *FileSystemManager) CreatePiriDirectoryStructure(version string) error
 		return err
 	}
 
-	// Create config directory
-	if err := fsm.CreateDirectory(PiriSystemDir, 0755); err != nil {
+	// Create versioned systemd directory
+	versionedSystemdDir := getVersionedSystemdDir(version)
+	if err := fsm.CreateDirectory(versionedSystemdDir, 0755); err != nil {
 		return err
 	}
 
-	// Create systemd directory
-	if err := fsm.CreateDirectory(PiriSystemdDir, 0755); err != nil {
+	// Create config directory (not versioned - contains user config)
+	if err := fsm.CreateDirectory(PiriSystemDir, 0755); err != nil {
 		return err
 	}
 
