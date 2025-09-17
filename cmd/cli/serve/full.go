@@ -75,6 +75,29 @@ func init() {
 	cobra.CheckErr(viper.BindEnv("ucan.services.indexer.url", "PIRI_INDEXING_SERVICE_URL"))
 
 	FullCmd.Flags().String(
+		"egress-tracking-service-proof",
+		"",
+		"A delegation that allows the node to track egress with the egress tracking service",
+	)
+	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.proof", FullCmd.Flags().Lookup("egress-tracking-service-proof")))
+
+	FullCmd.Flags().String(
+		"egress-tracking-service-did",
+		presets.EgressTrackingServiceDID.String(),
+		"DID of the egress tracking service",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracking-service-did"))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.did", FullCmd.Flags().Lookup("egress-tracking-service-did")))
+
+	FullCmd.Flags().String(
+		"egress-tracking-service-url",
+		presets.EgressTrackingServiceURL.String(),
+		"URL of the egress tracking service",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracking-service-url"))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.url", FullCmd.Flags().Lookup("egress-tracking-service-url")))
+
+	FullCmd.Flags().String(
 		"upload-service-did",
 		presets.UploadServiceDID.String(),
 		"DID of the upload service",
