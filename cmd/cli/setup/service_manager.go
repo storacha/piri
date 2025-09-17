@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,14 +33,14 @@ type ServiceManager struct {
 	// Services to manage
 	Services []string
 	// Command executor (can be mocked for testing)
-	executor CommandExecutor
+	Executor CommandExecutor
 }
 
 // NewServiceManager creates a new service manager
 func NewServiceManager(services ...string) *ServiceManager {
 	return &ServiceManager{
 		Services: services,
-		executor: &RealCommandExecutor{},
+		Executor: &RealCommandExecutor{},
 	}
 }
 
@@ -47,13 +48,13 @@ func NewServiceManager(services ...string) *ServiceManager {
 func NewServiceManagerWithExecutor(executor CommandExecutor, services ...string) *ServiceManager {
 	return &ServiceManager{
 		Services: services,
-		executor: executor,
+		Executor: executor,
 	}
 }
 
 // IsActive checks if a service is currently active
 func (sm *ServiceManager) IsActive(service string) (bool, error) {
-	output, err := sm.executor.Output("systemctl", "is-active", service)
+	output, err := sm.Executor.Output("systemctl", "is-active", service)
 	status := strings.TrimSpace(string(output))
 	return status == "active", err
 }
@@ -74,7 +75,7 @@ func (sm *ServiceManager) CheckServicesNotRunning() error {
 func (sm *ServiceManager) StopService(service string) error {
 	active, _ := sm.IsActive(service)
 	if active {
-		if err := sm.executor.Run("systemctl", "stop", service); err != nil {
+		if err := sm.Executor.Run("systemctl", "stop", service); err != nil {
 			return fmt.Errorf("failed to stop service %s: %w", service, err)
 		}
 	}
@@ -83,7 +84,7 @@ func (sm *ServiceManager) StopService(service string) error {
 
 // StartService starts a service
 func (sm *ServiceManager) StartService(service string) error {
-	if err := sm.executor.Run("systemctl", "start", service); err != nil {
+	if err := sm.Executor.Run("systemctl", "start", service); err != nil {
 		return fmt.Errorf("failed to start service %s: %w", service, err)
 	}
 	return nil
@@ -91,7 +92,7 @@ func (sm *ServiceManager) StartService(service string) error {
 
 // EnableService enables a service for auto-start
 func (sm *ServiceManager) EnableService(service string) error {
-	if err := sm.executor.Run("systemctl", "enable", service); err != nil {
+	if err := sm.Executor.Run("systemctl", "enable", service); err != nil {
 		return fmt.Errorf("failed to enable service %s: %w", service, err)
 	}
 	return nil
@@ -100,7 +101,7 @@ func (sm *ServiceManager) EnableService(service string) error {
 // DisableService disables a service from auto-start
 func (sm *ServiceManager) DisableService(service string) error {
 	// The disable command will succeed even if the service doesn't exist
-	if err := sm.executor.Run("systemctl", "disable", service); err != nil {
+	if err := sm.Executor.Run("systemctl", "disable", service); err != nil {
 		// Only return error if it's not "service not found"
 		if !strings.Contains(err.Error(), "exit status") {
 			return fmt.Errorf("failed to disable service %s: %w", service, err)
@@ -134,7 +135,7 @@ func (sm *ServiceManager) EnableAndStartService(service string) error {
 
 // RestartService restarts a service
 func (sm *ServiceManager) RestartService(service string) error {
-	if err := sm.executor.Run("systemctl", "restart", service); err != nil {
+	if err := sm.Executor.Run("systemctl", "restart", service); err != nil {
 		return fmt.Errorf("failed to restart service %s: %w", service, err)
 	}
 	return nil
@@ -142,7 +143,7 @@ func (sm *ServiceManager) RestartService(service string) error {
 
 // RestartServiceWithSudo restarts a service using sudo
 func (sm *ServiceManager) RestartServiceWithSudo(service string) error {
-	if err := sm.executor.Run("sudo", "systemctl", "restart", service); err != nil {
+	if err := sm.Executor.Run("sudo", "systemctl", "restart", service); err != nil {
 		return fmt.Errorf("failed to restart service with sudo: %w", err)
 	}
 	return nil
@@ -173,7 +174,7 @@ func (sm *ServiceManager) VerifyServiceRestart(service string, timeoutSec int, u
 		}
 
 		// Check for failure state
-		output, _ := sm.executor.Output("systemctl", "is-failed", service)
+		output, _ := sm.Executor.Output("systemctl", "is-failed", service)
 		if strings.TrimSpace(string(output)) == "failed" {
 			return fmt.Errorf("service failed to start")
 		}
@@ -187,7 +188,7 @@ func (sm *ServiceManager) VerifyServiceRestart(service string, timeoutSec int, u
 
 // ReloadDaemon reloads the systemd daemon configuration
 func (sm *ServiceManager) ReloadDaemon() error {
-	if err := sm.executor.Run("systemctl", "daemon-reload"); err != nil {
+	if err := sm.Executor.Run("systemctl", "daemon-reload"); err != nil {
 		return fmt.Errorf("failed to reload systemd daemon: %w", err)
 	}
 	return nil
@@ -223,29 +224,28 @@ func (sm *ServiceManager) GetServiceStatus(service string) (*ServiceStatus, erro
 	status.Running = active
 
 	// Check if enabled
-	output, _ := sm.executor.Output("systemctl", "is-enabled", service)
+	output, _ := sm.Executor.Output("systemctl", "is-enabled", service)
 	status.Enabled = strings.TrimSpace(string(output)) == "enabled"
 
 	// Check if failed
-	output, _ = sm.executor.Output("systemctl", "is-failed", service)
+	output, _ = sm.Executor.Output("systemctl", "is-failed", service)
 	status.Failed = strings.TrimSpace(string(output)) == "failed"
 
 	return status, nil
 }
 
-// InstallServiceFiles writes service files and creates symlinks
+// InstallServiceFiles creates symlinks to the current version of service files
 func (sm *ServiceManager) InstallServiceFiles(services []ServiceFile) error {
 	for _, svc := range services {
-		servicePath := svc.SourcePath
+		// The source path should now point through the current symlink
+		currentServicePath := filepath.Join(PiriSystemdCurrentSymlink, filepath.Base(svc.SourcePath))
 		symlinkPath := svc.TargetPath
 
-		// Write the service file
-		if err := os.WriteFile(servicePath, []byte(svc.Content), 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", svc.Name, err)
-		}
+		// Remove existing symlink if it exists
+		_ = os.Remove(symlinkPath)
 
-		// Create symlink in /etc/systemd/system/
-		if err := os.Symlink(servicePath, symlinkPath); err != nil {
+		// Create symlink in /etc/systemd/system/ pointing to current version
+		if err := os.Symlink(currentServicePath, symlinkPath); err != nil {
 			return fmt.Errorf("failed to create symlink for %s: %w", svc.Name, err)
 		}
 	}
@@ -272,3 +272,4 @@ type ServiceFile struct {
 	SourcePath string // Where to write the actual file
 	TargetPath string // Where to create the symlink
 }
+
