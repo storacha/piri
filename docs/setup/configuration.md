@@ -45,6 +45,8 @@ The configuration file uses TOML format with these parts:
 	[ucan.services]
 		[ucan.services.indexer]
 			proof = "mAYIEA..."
+		[ucan.services.etracker]
+			proof = "mAYIEA..."
 ```
 
 ### Configuration Sections

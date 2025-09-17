@@ -722,8 +722,8 @@ github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/me
 github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 h1:tfuBGBXKqDEevZMzYi5KSi8KkcZtzBcTgAUUtapy0OI=
 github.com/go-task/slim-sprig/v3 v3.0.0 h1:sUs3vkvUymDpBKi3qH1YSqBQk9+9D/8M2mN1vB6EwHI=
 github.com/go-task/slim-sprig/v3 v3.0.0/go.mod h1:W848ghGpv3Qj3dhTPRyJypKRiqCdHZiAzKg9hl15HA8=
-github.com/go-viper/mapstructure/v2 v2.2.1 h1:ZAaOCxANMuZx5RCeg0mBdEZk7DZasvvZIxtHqx8aGss=
-github.com/go-viper/mapstructure/v2 v2.2.1/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
+github.com/go-viper/mapstructure/v2 v2.4.0 h1:EBsztssimR/CONLSZZ04E8qAkxNYq4Qp9LvH92wZUgs=
+github.com/go-viper/mapstructure/v2 v2.4.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/go-yaml/yaml v2.1.0+incompatible/go.mod h1:w2MrLa16VYP0jy6N7M5kHaCkaLENm+P+Tv+MfurjSw0=
 github.com/gobwas/glob v0.2.3 h1:A4xDbljILXROh+kObIiy5kIaPYD8e96x1tgBhUI5J+Y=
 github.com/gobwas/glob v0.2.3/go.mod h1:d3Ez4x06l9bZtSvzIay5+Yzi0fmZzPgnTbPcKjJAkT8=
@@ -1676,10 +1676,10 @@ github.com/spf13/viper v1.8.1/go.mod h1:o0Pch8wJ9BVSWGQMbra6iw0oQ5oktSIBaujf1rJH
 github.com/spf13/viper v1.20.1 h1:ZMi+z/lvLyPSCoNtFCpqjy0S4kPbirhpTMwl8BkW9X4=
 github.com/spf13/viper v1.20.1/go.mod h1:P9Mdzt1zoHIG8m2eZQinpiBjo6kCmZSKBClNNqjJvu4=
 github.com/stoewer/go-strcase v1.3.0/go.mod h1:fAH5hQ5pehh+j3nZfvwdk2RgEgQjAoM8wodgtPmh1xo=
-github.com/storacha/delegator v0.0.2-0.20250826191448-ba8d497e162a h1:X8B/I0YUWJIddDqs0gjyphCG/NGcgBXxsMRu2L/E/mQ=
-github.com/storacha/delegator v0.0.2-0.20250826191448-ba8d497e162a/go.mod h1:+0Zy0O74ZJvXdauvP5VacEn06r18nQPCX/8Y6ciaeHc=
-github.com/storacha/go-libstoracha v0.2.5 h1:5LLEOQnX7x5Go2x3XorEA88J/DK1A9La4Agtu0s+rT0=
-github.com/storacha/go-libstoracha v0.2.5/go.mod h1:zzeqIZhBBuWR2dkGygYqv4Bhg3JsvHuuvDCcdXCwGhg=
+github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92 h1:Xe1z064lEQPgxl5nkzlUQAXnIr9u7MAoBvUePhXWAts=
+github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92/go.mod h1:1xN1tz2TkpwShpImD2Bf6DZ0VLeYI3c04c84BrNMuhc=
+github.com/storacha/go-libstoracha v0.2.6 h1:UlRr6OqdiRFYf6WsvVEsWQvWOHj2zKvTdTeyDn7PK0g=
+github.com/storacha/go-libstoracha v0.2.6/go.mod h1:zzeqIZhBBuWR2dkGygYqv4Bhg3JsvHuuvDCcdXCwGhg=
 github.com/storacha/go-ucanto v0.6.1 h1:aHDIR18nf6XI6VWsFmTG78FDCzNPgMwGIYJUW5DA2yY=
 github.com/storacha/go-ucanto v0.6.1/go.mod h1:O35Ze4x18EWtz3ftRXXd/mTZ+b8OQVjYYrnadJ/xNjg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

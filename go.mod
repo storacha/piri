@@ -47,8 +47,8 @@ require (
 	github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
-	github.com/storacha/delegator v0.0.2-0.20250826191448-ba8d497e162a
-	github.com/storacha/go-libstoracha v0.2.5
+	github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92
+	github.com/storacha/go-libstoracha v0.2.6
 	github.com/storacha/go-ucanto v0.6.1
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
@@ -124,7 +124,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect

@@ -11,14 +11,20 @@ import (
 type ExternalServicesConfig struct {
 	PrincipalMapping map[string]string
 
-	Indexer   IndexingServiceConfig
-	Upload    UploadServiceConfig
-	Publisher PublisherServiceConfig
+	Indexer       IndexingServiceConfig
+	EgressTracker EgressTrackingServiceConfig
+	Upload        UploadServiceConfig
+	Publisher     PublisherServiceConfig
 }
 
 // IndexingServiceConfig contains indexing service connection and proof(s) for
 // using the service
 type IndexingServiceConfig struct {
+	Connection client.Connection
+	Proofs     delegation.Proofs
+}
+
+type EgressTrackingServiceConfig struct {
 	Connection client.Connection
 	Proofs     delegation.Proofs
 }
