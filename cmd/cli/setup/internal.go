@@ -102,6 +102,12 @@ func doUpdateInternal(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// If rollbackFunc is nil, the version was already installed and active
+	if rollbackFunc == nil {
+		cmd.Println("Version already active, no restart needed")
+		return nil
+	}
+
 	// Restart the service to apply update
 	cmd.Println("Restarting service to apply update...")
 
@@ -147,8 +153,20 @@ func applyManagedUpdate(ctx context.Context, cmd *cobra.Command, release *GitHub
 
 	// Check if this version already exists
 	if FileExists(versionedBinPath) {
-		cmd.Printf("Version %s already installed at %s\n", newVersion, versionedBinPath)
-		return nil, nil
+		// Check if the symlink actually points to this version
+		currentTarget, err := os.Readlink(PiriCurrentSymlink)
+		if err == nil && currentTarget == versionedBinDir {
+			// Symlink points to this version - it's truly installed
+			cmd.Printf("Version %s already installed and active at %s\n", newVersion, versionedBinPath)
+			return nil, nil
+		}
+
+		// Version exists but symlink points elsewhere - this version previously failed
+		cmd.Printf("Found failed version %s at %s, removing and re-downloading...\n", newVersion, versionedBinPath)
+		if err := os.RemoveAll(versionedBinDir); err != nil {
+			cmd.Printf("Warning: Failed to remove old version directory: %v\n", err)
+			// Continue anyway - the download will fail if we can't write
+		}
 	}
 
 	fsm := NewFileSystemManager()
