@@ -1676,12 +1676,8 @@ github.com/spf13/viper v1.8.1/go.mod h1:o0Pch8wJ9BVSWGQMbra6iw0oQ5oktSIBaujf1rJH
 github.com/spf13/viper v1.20.1 h1:ZMi+z/lvLyPSCoNtFCpqjy0S4kPbirhpTMwl8BkW9X4=
 github.com/spf13/viper v1.20.1/go.mod h1:P9Mdzt1zoHIG8m2eZQinpiBjo6kCmZSKBClNNqjJvu4=
 github.com/stoewer/go-strcase v1.3.0/go.mod h1:fAH5hQ5pehh+j3nZfvwdk2RgEgQjAoM8wodgtPmh1xo=
-github.com/storacha/delegator v0.0.2-0.20250826191448-ba8d497e162a h1:X8B/I0YUWJIddDqs0gjyphCG/NGcgBXxsMRu2L/E/mQ=
-github.com/storacha/delegator v0.0.2-0.20250826191448-ba8d497e162a/go.mod h1:+0Zy0O74ZJvXdauvP5VacEn06r18nQPCX/8Y6ciaeHc=
 github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92 h1:Xe1z064lEQPgxl5nkzlUQAXnIr9u7MAoBvUePhXWAts=
 github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92/go.mod h1:1xN1tz2TkpwShpImD2Bf6DZ0VLeYI3c04c84BrNMuhc=
-github.com/storacha/go-libstoracha v0.2.2 h1:PWzjdUfdcsd2qmN+HKpGyZu1tQXRY1F4zdlyVXT7f/w=
-github.com/storacha/go-libstoracha v0.2.2/go.mod h1:zzeqIZhBBuWR2dkGygYqv4Bhg3JsvHuuvDCcdXCwGhg=
 github.com/storacha/go-libstoracha v0.2.6 h1:UlRr6OqdiRFYf6WsvVEsWQvWOHj2zKvTdTeyDn7PK0g=
 github.com/storacha/go-libstoracha v0.2.6/go.mod h1:zzeqIZhBBuWR2dkGygYqv4Bhg3JsvHuuvDCcdXCwGhg=
 github.com/storacha/go-ucanto v0.6.1 h1:aHDIR18nf6XI6VWsFmTG78FDCzNPgMwGIYJUW5DA2yY=
