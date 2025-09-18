@@ -9,9 +9,11 @@ import (
 	"github.com/storacha/piri/pkg/fx/principalresolver"
 	"github.com/storacha/piri/pkg/fx/publisher"
 	"github.com/storacha/piri/pkg/fx/replicator"
+	"github.com/storacha/piri/pkg/fx/retrieval"
+	retrievalucan "github.com/storacha/piri/pkg/fx/retrieval/ucan"
 	"github.com/storacha/piri/pkg/fx/root"
 	"github.com/storacha/piri/pkg/fx/storage"
-	"github.com/storacha/piri/pkg/fx/ucan"
+	storageucan "github.com/storacha/piri/pkg/fx/storage/ucan"
 )
 
 var UCANModule = fx.Module("ucan",
@@ -22,6 +24,8 @@ var UCANModule = fx.Module("ucan",
 	publisher.Module,         // Provides publisher service and handler
 	replicator.Module,        // Provides replicator service (works with or without PDP)
 	storage.Module,           // Provides storage service wrapper
+	retrieval.Module,         // Provides retrieval service wrapper
 	principalresolver.Module, // Provides principal resolver for UCAN
-	ucan.Module,              // Provides UCAN handler
+	storageucan.Module,       // Provides storage UCAN handler
+	retrievalucan.Module,     // Provides retrieval UCAN handler
 )

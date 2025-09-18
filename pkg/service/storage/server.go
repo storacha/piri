@@ -2,11 +2,9 @@ package storage
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-ucanto/server"
-	"github.com/storacha/go-ucanto/server/retrieval"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/piri/pkg/server/handler"
 )
@@ -36,49 +34,13 @@ func NewHandler(server server.ServerView[server.Service]) handler.Func {
 			return fmt.Errorf("handling UCAN request: %w", err)
 		}
 
-		addHeaders(ctx.Response().Header(), res.Headers())
+		for key, vals := range res.Headers() {
+			for _, v := range vals {
+				ctx.Response().Header().Add(key, v)
+			}
+		}
 
 		// content type is empty as it will have been set by ucanto transport codec
 		return ctx.Stream(res.Status(), "", res.Body())
-	}
-}
-
-type RetrievalServer struct {
-	server server.ServerView[retrieval.Service]
-}
-
-func NewRetrievalServer(service Service, options ...retrieval.Option) (*RetrievalServer, error) {
-	retrievalSrv, err := NewUCANRetrievalServer(service, options...)
-	if err != nil {
-		return nil, fmt.Errorf("creating UCAN retrieval server: %w", err)
-	}
-	return &RetrievalServer{retrievalSrv}, nil
-}
-
-func (srv *RetrievalServer) RegisterRoutes(e *echo.Echo) {
-	e.GET("/piece/:cid", NewRetrievalHandler(srv.server))
-}
-
-func NewRetrievalHandler(server server.ServerView[retrieval.Service]) echo.HandlerFunc {
-	return func(ctx echo.Context) error {
-		r := ctx.Request()
-		res, err := server.Request(r.Context(), ucanhttp.NewInboundRequest(r.URL, r.Body, r.Header))
-		if err != nil {
-			return fmt.Errorf("handling UCAN retrieval request: %w", err)
-		}
-
-		addHeaders(ctx.Response().Header(), res.Headers())
-
-		// content type is empty as it will have been set by ucanto transport codec
-		return ctx.Stream(res.Status(), "", res.Body())
-	}
-}
-
-// addHeaders adds all headers from src to dst
-func addHeaders(dst, src http.Header) {
-	for key, vals := range src {
-		for _, v := range vals {
-			dst.Add(key, v)
-		}
 	}
 }

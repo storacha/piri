@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/testutil"
@@ -29,7 +30,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type retrievalService struct {
+	allocations allocationstore.AllocationStore
+	blobs       blobstore.BlobGetter
+}
+
+func (rs *retrievalService) Allocations() allocationstore.AllocationStore {
+	return rs.allocations
+}
+
+func (rs *retrievalService) Blobs() blobstore.BlobGetter {
+	return rs.blobs
+}
+
 func TestSpaceContentRetrieve(t *testing.T) {
+	logging.SetLogLevel("retrieval/ucan", "DEBUG")
 	alice := testutil.Alice
 	space := testutil.RandomSigner(t)
 	proof, err := delegation.Delegate(
@@ -302,8 +317,8 @@ func TestSpaceContentRetrieve(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			handlerOpt := retrieval.WithServiceMethod(SpaceContentRetrieve(allocations, blobs))
-			server, err := retrieval.NewServer(testutil.Service, handlerOpt)
+			service := retrievalService{allocations, blobs}
+			server, err := retrieval.NewServer(testutil.Service, SpaceContentRetrieve(&service))
 			require.NoError(t, err)
 
 			inv, err := invocation.Invoke(

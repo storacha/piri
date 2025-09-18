@@ -15,7 +15,7 @@ import (
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
-	"github.com/storacha/go-ucanto/server/retrieval"
+	ucanretrieval "github.com/storacha/go-ucanto/server/retrieval"
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/lib"
@@ -24,6 +24,7 @@ import (
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
+	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/telemetry"
@@ -310,13 +311,25 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if blobAddr != nil {
 		opts = append(opts, storage.WithPublisherBlobAddress(blobAddr))
 	}
-	svc, err := storage.New(opts...)
+	storageSvc, err := storage.New(opts...)
 	if err != nil {
-		return fmt.Errorf("creating service instance: %w", err)
+		return fmt.Errorf("creating storage service instance: %w", err)
 	}
-	err = svc.Startup(ctx)
+	err = storageSvc.Startup(ctx)
 	if err != nil {
-		return fmt.Errorf("starting service: %w", err)
+		return fmt.Errorf("starting storage service: %w", err)
+	}
+	retrievalSvc, err := retrieval.New(
+		retrieval.WithIdentity(id),
+		retrieval.WithBlobstore(blobStore),
+		retrieval.WithAllocationStore(storageSvc.Blobs().Allocations()),
+	)
+	if err != nil {
+		return fmt.Errorf("creating retrieval service instance: %w", err)
+	}
+	err = retrievalSvc.Startup(ctx)
+	if err != nil {
+		return fmt.Errorf("starting retrieval service: %w", err)
 	}
 
 	go func() {
@@ -332,9 +345,9 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			UploadServiceDID:     uploadServiceDID,
 			UploadServiceURL:     uploadServiceURL,
 			IPNIAnnounceURLs:     ipniAnnounceURLs,
-			PDPEnabled:           svc.PDP() != nil,
+			PDPEnabled:           storageSvc.PDP() != nil,
 		}
-		if svc.PDP() != nil {
+		if storageSvc.PDP() != nil {
 			serverConfig.PDPServerURL = pdpConfig.PDPServerURL
 			serverConfig.ProofSetID = pdpConfig.ProofSet
 		}
@@ -342,7 +355,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		cliutil.PrintHero(cmd.OutOrStdout(), id.DID())
 	}()
 
-	defer svc.Close(ctx)
+	defer storageSvc.Close(ctx)
 
 	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID})
 	if err != nil {
@@ -372,14 +385,15 @@ func startServer(cmd *cobra.Command, _ []string) error {
 
 	err = server.ListenAndServe(
 		fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		svc,
+		storageSvc,
+		retrievalSvc,
 		server.WithUCANServerOptions(
 			ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
 			ucanserver.WithErrorHandler(errHandler),
 		),
 		server.WithUCANRetrievalServerOptions(
-			retrieval.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
-			retrieval.WithErrorHandler(errHandler),
+			ucanretrieval.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
+			ucanretrieval.WithErrorHandler(errHandler),
 		),
 	)
 	return err
