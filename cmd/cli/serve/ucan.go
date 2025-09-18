@@ -267,7 +267,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing indexing service URL: %w", err)
 	}
 
-	var opts []storage.Option
+	var storageOpts []storage.Option
 	var indexingServiceProof delegation.Proof
 	if cfg.UCANService.Services.Indexer.Proof != "" {
 		dlg, err := delegation.Parse(cfg.UCANService.Services.Indexer.Proof)
@@ -275,7 +275,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("parsing indexing service proof: %w", err)
 		}
 		indexingServiceProof = delegation.FromDelegation(dlg)
-		opts = append(opts, storage.WithPublisherIndexingServiceProof(indexingServiceProof))
+		storageOpts = append(storageOpts, storage.WithPublisherIndexingServiceProof(indexingServiceProof))
 	}
 
 	var pubURL *url.URL
@@ -292,7 +292,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	opts = append(opts,
+	storageOpts = append(storageOpts,
 		storage.WithIdentity(id),
 		storage.WithBlobstore(blobStore),
 		storage.WithAllocationDatastore(allocDs),
@@ -306,12 +306,12 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	)
 
 	if pdpConfig != nil {
-		opts = append(opts, storage.WithPDPConfig(*pdpConfig))
+		storageOpts = append(storageOpts, storage.WithPDPConfig(*pdpConfig))
 	}
 	if blobAddr != nil {
-		opts = append(opts, storage.WithPublisherBlobAddress(blobAddr))
+		storageOpts = append(storageOpts, storage.WithPublisherBlobAddress(blobAddr))
 	}
-	storageSvc, err := storage.New(opts...)
+	storageSvc, err := storage.New(storageOpts...)
 	if err != nil {
 		return fmt.Errorf("creating storage service instance: %w", err)
 	}
@@ -319,18 +319,11 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("starting storage service: %w", err)
 	}
-	retrievalSvc, err := retrieval.New(
-		retrieval.WithIdentity(id),
-		retrieval.WithBlobstore(blobStore),
-		retrieval.WithAllocationStore(storageSvc.Blobs().Allocations()),
-	)
-	if err != nil {
-		return fmt.Errorf("creating retrieval service instance: %w", err)
+
+	if pdpConfig != nil {
+		// TODO: blobstore that proxies to pdpConfig.PDPServerURL
 	}
-	err = retrievalSvc.Startup(ctx)
-	if err != nil {
-		return fmt.Errorf("starting retrieval service: %w", err)
-	}
+	retrievalSvc := retrieval.New(id, blobStore, storageSvc.Blobs().Allocations())
 
 	go func() {
 		serverConfig := cliutil.UCANServerConfig{

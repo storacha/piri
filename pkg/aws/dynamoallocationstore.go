@@ -131,9 +131,8 @@ func (d *DynamoAllocationStore) Put(ctx context.Context, alloc allocation.Alloca
 }
 
 type allocationItem struct {
-	Hash string `dynamodbav:"hash"`
-	// note: now contains a space DID not invocation CID
-	Cause      string `dynamodbav:"cause"`
+	Hash       string `dynamodbav:"hash"`
+	Cause      string `dynamodbav:"cause"` // note: now space DID not invocation CID
 	Allocation []byte `dynamodbav:"allocation"`
 }
 
