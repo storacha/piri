@@ -165,7 +165,7 @@ type s3BlobObject struct {
 }
 
 // Body implements blobstore.Object.
-func (s *s3BlobObject) Body() io.Reader {
+func (s *s3BlobObject) Body() io.ReadCloser {
 	return s.outPut.Body
 }
 

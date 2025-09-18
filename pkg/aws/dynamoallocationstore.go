@@ -8,9 +8,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/ipld/go-ipld-prime/codec/dagcbor"
 	multihash "github.com/multiformats/go-multihash"
+	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/piri/pkg/internal/digestutil"
+	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 )
@@ -29,12 +32,48 @@ func NewDynamoAllocationStore(cfg aws.Config, tableName string, opts ...func(*dy
 	}
 }
 
+func (d *DynamoAllocationStore) Get(ctx context.Context, mh multihash.Multihash, space did.DID) (allocation.Allocation, error) {
+	res, err := d.dynamoDbClient.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(d.tableName),
+		Key: map[string]types.AttributeValue{
+			"hash":  &types.AttributeValueMemberS{Value: digestutil.Format(mh)},
+			"cause": &types.AttributeValueMemberS{Value: space.String()},
+		},
+	})
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("getting item: %w", err)
+	}
+	if res.Item == nil {
+		return allocation.Allocation{}, store.ErrNotFound
+	}
+	var item allocationItem
+	err = attributevalue.UnmarshalMap(res.Item, &item)
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("unmarshalling allocation item: %w", err)
+	}
+	alloc, err := allocation.Decode(item.Allocation, dagcbor.Decode)
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("decoding allocation: %w", err)
+	}
+	return alloc, nil
+}
+
 // List implements allocationstore.AllocationStore.
-func (d *DynamoAllocationStore) List(ctx context.Context, mh multihash.Multihash) ([]allocation.Allocation, error) {
+func (d *DynamoAllocationStore) List(ctx context.Context, mh multihash.Multihash, options ...allocationstore.ListOption) ([]allocation.Allocation, error) {
+	cfg := allocationstore.ListConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
+
 	keyEx := expression.Key("hash").Equal(expression.Value(digestutil.Format(mh)))
 	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
 	if err != nil {
 		return nil, fmt.Errorf("building query: %w", err)
+	}
+
+	var limit *int32
+	if cfg.Limit > 0 {
+		limit = aws.Int32(int32(cfg.Limit))
 	}
 
 	var allocations []allocation.Allocation
@@ -44,6 +83,7 @@ func (d *DynamoAllocationStore) List(ctx context.Context, mh multihash.Multihash
 		ExpressionAttributeValues: expr.Values(),
 		KeyConditionExpression:    expr.KeyCondition(),
 		ConsistentRead:            aws.Bool(true),
+		Limit:                     limit,
 	})
 	for queryPaginator.HasMorePages() {
 		response, err := queryPaginator.NextPage(ctx)
@@ -91,7 +131,8 @@ func (d *DynamoAllocationStore) Put(ctx context.Context, alloc allocation.Alloca
 }
 
 type allocationItem struct {
-	Hash       string `dynamodbav:"hash"`
+	Hash string `dynamodbav:"hash"`
+	// note: now contains a space DID not invocation CID
 	Cause      string `dynamodbav:"cause"`
 	Allocation []byte `dynamodbav:"allocation"`
 }

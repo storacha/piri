@@ -90,5 +90,4 @@ type PieceAPI interface {
 	AllocatePiece(ctx context.Context, allocation PieceAllocation) (*AllocatedPiece, error)
 	UploadPiece(ctx context.Context, upload PieceUpload) error
 	FindPiece(ctx context.Context, piece Piece) (cid.Cid, bool, error)
-	ReadPiece(ctx context.Context, piece cid.Cid) (*PieceReader, error)
 }
