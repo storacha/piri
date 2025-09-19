@@ -27,13 +27,12 @@ func (o MapObject) Size() int64 {
 
 func (o MapObject) Body() io.ReadCloser {
 	b := o.bytes
-	if o.byteRange.Offset > 0 {
-		b = b[o.byteRange.Offset:]
+	start := int(o.byteRange.Start)
+	end := len(b)
+	if o.byteRange.End != nil {
+		end = int(*o.byteRange.End + 1)
 	}
-	if o.byteRange.Length != nil {
-		b = b[0:*o.byteRange.Length]
-	}
-	return io.NopCloser(bytes.NewReader(b))
+	return io.NopCloser(bytes.NewReader(b[start:end]))
 }
 
 type MapBlobstore struct {
@@ -52,10 +51,10 @@ func (mb *MapBlobstore) Get(ctx context.Context, digest multihash.Multihash, opt
 		return nil, store.ErrNotFound
 	}
 
-	if o.byteRange.Offset >= uint64(len(b)) {
+	if o.byteRange.Start >= uint64(len(b)) {
 		return nil, ErrRangeNotSatisfiable
 	}
-	if o.byteRange.Length != nil && o.byteRange.Offset+*o.byteRange.Length > uint64(len(b)) {
+	if o.byteRange.End != nil && *o.byteRange.End >= uint64(len(b)) {
 		return nil, ErrRangeNotSatisfiable
 	}
 

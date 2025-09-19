@@ -37,10 +37,10 @@ func (d *TODO_DsBlobstore) Get(ctx context.Context, digest multihash.Multihash, 
 		return nil, err
 	}
 
-	if o.byteRange.Offset >= uint64(len(b)) {
+	if o.byteRange.Start >= uint64(len(b)) {
 		return nil, ErrRangeNotSatisfiable
 	}
-	if o.byteRange.Length != nil && o.byteRange.Offset+*o.byteRange.Length > uint64(len(b)) {
+	if o.byteRange.End != nil && *o.byteRange.End >= uint64(len(b)) {
 		return nil, ErrRangeNotSatisfiable
 	}
 

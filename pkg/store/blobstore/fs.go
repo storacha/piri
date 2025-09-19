@@ -37,14 +37,14 @@ func (o FileObject) Body() io.ReadCloser {
 		return r
 	}
 
-	if o.byteRange.Offset > 0 {
-		f.Seek(int64(o.byteRange.Offset), io.SeekStart)
+	if o.byteRange.Start > 0 {
+		f.Seek(int64(o.byteRange.Start), io.SeekStart)
 	}
 
 	go func() {
 		var err error
-		if o.byteRange.Length != nil {
-			_, err = io.CopyN(w, f, int64(*o.byteRange.Length))
+		if o.byteRange.End != nil {
+			_, err = io.CopyN(w, f, int64(*o.byteRange.End-o.byteRange.Start+1))
 		} else {
 			_, err = io.Copy(w, f)
 		}
@@ -99,10 +99,10 @@ func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 		return nil, fmt.Errorf("stat file: %w", err)
 	}
 
-	if o.byteRange.Offset >= uint64(inf.Size()) {
+	if o.byteRange.Start >= uint64(inf.Size()) {
 		return nil, ErrRangeNotSatisfiable
 	}
-	if o.byteRange.Length != nil && o.byteRange.Offset+*o.byteRange.Length > uint64(inf.Size()) {
+	if o.byteRange.End != nil && *o.byteRange.End >= uint64(inf.Size()) {
 		return nil, ErrRangeNotSatisfiable
 	}
 

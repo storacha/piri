@@ -5,6 +5,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/pdp"
+	"github.com/storacha/piri/pkg/pdp/store/adapter"
 	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/retrieval/ucan"
 	"github.com/storacha/piri/pkg/store/allocationstore"
@@ -27,7 +28,6 @@ type RetrievalServiceParams struct {
 	ID          principal.Signer
 	Allocations allocationstore.AllocationStore
 	Blobs       blobstore.BlobGetter
-	Pieces      blobstore.PDPStore
 	PDP         pdp.PDP `optional:"true"`
 }
 
@@ -37,11 +37,10 @@ func NewRetrievalService(params RetrievalServiceParams) *retrieval.RetrievalServ
 	// hash. We need to adapt it to resolve a blob hash to a piece hash before
 	// fetching.
 	if params.PDP != nil {
-		blobs = retrieval.NewPieceStoreAdapter(
-			params.Allocations,
-			params.PDP.PieceFinder(),
-			params.Pieces,
-		)
+		finder := params.PDP.PieceFinder()
+		reader := params.PDP.PieceReader()
+		sizer := allocationstore.NewBlobSizer(params.Allocations)
+		blobs = adapter.NewBlobGetterAdapter(finder, reader, sizer)
 	}
 	return retrieval.New(params.ID, blobs, params.Allocations)
 }

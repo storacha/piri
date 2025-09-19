@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -322,7 +323,7 @@ func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.
 
 func (c *Client) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, strconv.FormatUint(proofSetID, 10), "roots", strconv.FormatUint(rootID, 10)).String()
-	res, err := c.sendRequest(ctx, http.MethodDelete, route, nil)
+	res, err := c.sendRequest(ctx, http.MethodDelete, route, nil, nil)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to remove root: %w", err)
 	}
@@ -416,7 +417,7 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 
 func (c *Client) UploadPiece(ctx context.Context, upload types.PieceUpload) error {
 	route := c.endpoint.JoinPath(pdpRoutePath, piecePath, "upload", upload.ID.String()).String()
-	return c.verifySuccess(c.sendRequest(ctx, http.MethodPut, route, upload.Data))
+	return c.verifySuccess(c.sendRequest(ctx, http.MethodPut, route, upload.Data, nil))
 }
 
 func (c *Client) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, bool, error) {
@@ -426,7 +427,7 @@ func (c *Client) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, boo
 	query.Add("name", piece.Name)
 	query.Add("hash", piece.Hash)
 	route.RawQuery = query.Encode()
-	res, err := c.sendRequest(ctx, http.MethodGet, route.String(), nil)
+	res, err := c.sendRequest(ctx, http.MethodGet, route.String(), nil, nil)
 	if err != nil {
 		return cid.Undef, false, fmt.Errorf("failed to find piece: %w", err)
 	}
@@ -448,18 +449,45 @@ func (c *Client) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, boo
 	return cid.Undef, false, errFromResponse(res)
 }
 
-func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid) (*types.PieceReader, error) {
+func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error) {
+	cfg := types.ReadPieceConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
+
 	// piece gets are not at the pdp path but rather the raw /piece path
 	route := c.endpoint.JoinPath(piecePath, "/", piece.String()).String()
-	res, err := c.sendRequest(ctx, http.MethodGet, route, nil)
+	headers := http.Header{}
+	if cfg.ByteRange.Start != 0 || cfg.ByteRange.End != nil {
+		rangeString := fmt.Sprintf("bytes=%d-", cfg.ByteRange.Start)
+		if cfg.ByteRange.End != nil {
+			rangeString += strconv.FormatUint(*cfg.ByteRange.End, 10)
+		}
+		headers.Add("Range", rangeString)
+	}
+
+	res, err := c.sendRequest(ctx, http.MethodGet, route, nil, headers)
 	if err != nil {
 		return nil, err
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil, errFromResponse(res)
 	}
+
+	size := res.ContentLength
+	// get total size from Content-Range header if this was a byte range request
+	if headers.Get("Range") != "" {
+		contentRange := res.Header.Get("Content-Range")
+		_, after, found := strings.Cut(contentRange, "/")
+		if found {
+			s, err := strconv.Atoi(after)
+			if err == nil {
+				size = int64(s)
+			}
+		}
+	}
 	return &types.PieceReader{
-		Size: res.ContentLength,
+		Size: size,
 		Data: res.Body,
 	}, nil
 }
@@ -467,7 +495,7 @@ func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid) (*types.PieceRead
 // detectServerType pings the server to determine if it's a piri server or generic server
 func (c *Client) detectServerType(ctx context.Context) error {
 	route := c.endpoint.JoinPath(pdpRoutePath, pingPath).String()
-	res, err := c.sendRequest(ctx, http.MethodGet, route, nil)
+	res, err := c.sendRequest(ctx, http.MethodGet, route, nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to ping server: %w", err)
 	}
@@ -509,7 +537,7 @@ func (c *Client) isPiriServer() bool {
 	return c.serverType == PiriEndpoint
 }
 
-func (c *Client) sendRequest(ctx context.Context, method string, url string, body io.Reader) (*http.Response, error) {
+func (c *Client) sendRequest(ctx context.Context, method string, url string, body io.Reader, headers http.Header) (*http.Response, error) {
 	log.Debugf("requesting [%s]: %s", method, url)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -520,6 +548,11 @@ func (c *Client) sendRequest(ctx context.Context, method string, url string, bod
 		req.Header.Add("Authorization", c.authHeader)
 	}
 	req.Header.Add("Content-Type", "application/json")
+	for key, values := range headers {
+		for _, v := range values {
+			req.Header.Add(key, v)
+		}
+	}
 	// send request
 	res, err := c.client.Do(req)
 	if err != nil {
@@ -539,11 +572,11 @@ func (c *Client) postJson(ctx context.Context, url string, params interface{}) (
 		body = bytes.NewReader(asBytes)
 	}
 
-	return c.sendRequest(ctx, http.MethodPost, url, body)
+	return c.sendRequest(ctx, http.MethodPost, url, body, nil)
 }
 
 func (c *Client) getJsonResponse(ctx context.Context, url string, target interface{}) error {
-	res, err := c.sendRequest(ctx, http.MethodGet, url, nil)
+	res, err := c.sendRequest(ctx, http.MethodGet, url, nil, nil)
 	if err != nil {
 		return err
 	}

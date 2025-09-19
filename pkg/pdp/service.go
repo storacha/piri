@@ -13,6 +13,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/httpapi/client"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
+	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -27,6 +28,7 @@ type PDPService struct {
 	aggregator  aggregator.Aggregator
 	pieceFinder piecefinder.PieceFinder
 	pieceAdder  pieceadder.PieceAdder
+	pieceReader piecereader.PieceReader
 	startFuncs  []func(ctx context.Context) error
 	closeFuncs  []func(ctx context.Context) error
 }
@@ -41,6 +43,10 @@ func (p *PDPService) PieceAdder() pieceadder.PieceAdder {
 
 func (p *PDPService) PieceFinder() piecefinder.PieceFinder {
 	return p.pieceFinder
+}
+
+func (p *PDPService) PieceReader() piecereader.PieceReader {
+	return p.pieceReader
 }
 
 func (p *PDPService) Startup(ctx context.Context) error {
@@ -74,6 +80,7 @@ func NewRemote(cfg *Config, id principal.Signer, receiptStore receiptstore.Recei
 		aggregator:  agg,
 		pieceFinder: piecefinder.New(api, cfg.PDPServerURL),
 		pieceAdder:  pieceadder.New(api, cfg.PDPServerURL),
+		pieceReader: piecereader.New(api, cfg.PDPServerURL),
 		startFuncs: []func(ctx context.Context) error{
 			func(ctx context.Context) error {
 				return agg.Startup(ctx)

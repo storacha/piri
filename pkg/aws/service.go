@@ -36,6 +36,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/httpapi/client"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
+	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/delegationstore"
@@ -68,6 +69,7 @@ type PDP struct {
 	aggregator  *AWSAggregator
 	pieceAdder  pieceadder.PieceAdder
 	pieceFinder piecefinder.PieceFinder
+	pieceReader piecereader.PieceReader
 }
 
 // Aggregator implements pdp.PDP.
@@ -85,6 +87,10 @@ func (p *PDP) PieceFinder() piecefinder.PieceFinder {
 	return p.pieceFinder
 }
 
+func (p *PDP) PieceReader() piecereader.PieceReader {
+	return p.pieceReader
+}
+
 func NewPDP(cfg Config) (*PDP, error) {
 	pdpAPIURL, err := url.Parse(cfg.PDPServerURL)
 	if err != nil {
@@ -100,6 +106,7 @@ func NewPDP(cfg Config) (*PDP, error) {
 		},
 		pieceAdder:  pieceadder.New(pdpAPI, pdpAPIURL),
 		pieceFinder: piecefinder.New(pdpAPI, pdpAPIURL),
+		pieceReader: piecereader.New(pdpAPI, pdpAPIURL),
 	}, nil
 }
 

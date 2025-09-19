@@ -86,8 +86,8 @@ func TestBlobstore(t *testing.T) {
 			err := s.Put(t.Context(), digest, uint64(len(data)), bytes.NewReader(data))
 			require.NoError(t, err)
 
-			length := uint64(10)
-			_, err = s.Get(t.Context(), digest, WithRange(Range{Offset: 5, Length: &length}))
+			end := uint64(15)
+			_, err = s.Get(t.Context(), digest, WithRange(5, &end))
 			require.ErrorIs(t, err, ErrRangeNotSatisfiable)
 		})
 	}

@@ -74,6 +74,7 @@ type AllocatedPiece struct {
 }
 
 type PieceReader struct {
+	// Size is the total size of the piece
 	Size int64
 	Data io.ReadCloser
 }
@@ -86,8 +87,28 @@ type ProofSetAPI interface {
 	RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (common.Hash, error)
 }
 
+type Range struct {
+	// Start is the byte to start extracting from (inclusive).
+	Start uint64
+	// End is the byte to stop extracting at (inclusive).
+	End *uint64
+}
+
+type ReadPieceConfig struct {
+	ByteRange Range
+}
+
+type ReadPieceOption func(c *ReadPieceConfig)
+
+func WithRange(start uint64, end *uint64) ReadPieceOption {
+	return func(c *ReadPieceConfig) {
+		c.ByteRange = Range{start, end}
+	}
+}
+
 type PieceAPI interface {
 	AllocatePiece(ctx context.Context, allocation PieceAllocation) (*AllocatedPiece, error)
 	UploadPiece(ctx context.Context, upload PieceUpload) error
 	FindPiece(ctx context.Context, piece Piece) (cid.Cid, bool, error)
+	ReadPiece(ctx context.Context, piece cid.Cid, options ...ReadPieceOption) (*PieceReader, error)
 }

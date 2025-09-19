@@ -141,11 +141,10 @@ func (s *S3BlobStore) Get(ctx context.Context, digest multihash.Multihash, opts 
 	config.ProcessOptions(opts)
 
 	var rangeParam *string
-	if config.Range().Offset != 0 || config.Range().Length != nil {
-		rangeString := fmt.Sprintf("bytes=%d-", config.Range().Offset)
-		if config.Range().Length != nil {
-			end := (config.Range().Offset + *config.Range().Length) - 1
-			rangeString += strconv.FormatUint(end, 10)
+	if config.Range().Start != 0 || config.Range().End != nil {
+		rangeString := fmt.Sprintf("bytes=%d-", config.Range().Start)
+		if config.Range().End != nil {
+			rangeString += strconv.FormatUint(*config.Range().End, 10)
 		}
 		rangeParam = &rangeString
 	}

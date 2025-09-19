@@ -65,9 +65,7 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 					if end < start {
 						return blobstore.ErrRangeNotSatisfiable
 					}
-					length := end - start + 1
-					byteRange := blobstore.Range{Offset: start, Length: &length}
-					blob, err = retrievalService.Blobs().Get(gctx, digest, blobstore.WithRange(byteRange))
+					blob, err = retrievalService.Blobs().Get(gctx, digest, blobstore.WithRange(start, &end))
 					return err
 				})
 				if err := g.Wait(); err != nil {
@@ -93,14 +91,15 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 				status := http.StatusOK
 				contentLength := end - start + 1
 				headers := http.Header{}
-				headers.Add("Content-Length", fmt.Sprintf("%d", contentLength))
-				headers.Add("Content-Type", "application/octet-stream")
-				headers.Add("Cache-Control", "public, max-age=29030400, immutable")
-				headers.Add("Etag", fmt.Sprintf(`"%s"`, digestStr))
-				headers.Add("Vary", "Range, Accept-Encoding")
+				headers.Set("Content-Length", fmt.Sprintf("%d", contentLength))
+				headers.Set("Content-Type", "application/octet-stream")
+				headers.Set("Cache-Control", "public, max-age=29030400, immutable")
+				headers.Set("Etag", fmt.Sprintf(`"%s"`, digestStr))
+				headers.Set("Vary", "Accept-Encoding")
 				if contentLength != uint64(blob.Size()) {
 					status = http.StatusPartialContent
-					headers.Add("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, blob.Size()))
+					headers.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, blob.Size()))
+					headers.Add("Vary", "Range")
 				}
 				log.Debugw("serving bytes", "status", status, "size", contentLength)
 				resp := retrieval.NewResponse(status, headers, blob.Body())

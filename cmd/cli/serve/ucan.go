@@ -21,11 +21,13 @@ import (
 	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp"
+	"github.com/storacha/piri/pkg/pdp/store/adapter"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/storage"
+	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/telemetry"
 )
@@ -320,10 +322,17 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("starting storage service: %w", err)
 	}
 
-	if pdpConfig != nil {
-		// TODO: blobstore that proxies to pdpConfig.PDPServerURL
+	blobGetter := blobstore.BlobGetter(blobStore)
+	// When PDP is enabled, blobs are stored in the piece store and keyed by piece
+	// hash. We need to adapt it to resolve a blob hash to a piece hash before
+	// fetching.
+	if storageSvc.PDP() != nil {
+		finder := storageSvc.PDP().PieceFinder()
+		reader := storageSvc.PDP().PieceReader()
+		sizer := allocationstore.NewBlobSizer(storageSvc.Blobs().Allocations())
+		blobGetter = adapter.NewBlobGetterAdapter(finder, reader, sizer)
 	}
-	retrievalSvc := retrieval.New(id, blobStore, storageSvc.Blobs().Allocations())
+	retrievalSvc := retrieval.New(id, blobGetter, storageSvc.Blobs().Allocations())
 
 	go func() {
 		serverConfig := cliutil.UCANServerConfig{

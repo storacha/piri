@@ -27,8 +27,10 @@ var ErrRangeNotSatisfiable = errors.New("range not satisfiable")
 type GetOption func(cfg *options) error
 
 type Range struct {
-	Offset uint64
-	Length *uint64
+	// Start is the byte to start extracting from (inclusive).
+	Start uint64
+	// End is the byte to stop extracting at (inclusive).
+	End *uint64
 }
 
 type options struct {
@@ -46,9 +48,9 @@ func (o *options) Range() Range {
 }
 
 // WithRange configures a byte range to extract.
-func WithRange(byteRange Range) GetOption {
+func WithRange(start uint64, end *uint64) GetOption {
 	return func(opts *options) error {
-		opts.byteRange = byteRange
+		opts.byteRange = Range{start, end}
 		return nil
 	}
 }
