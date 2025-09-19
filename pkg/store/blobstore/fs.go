@@ -79,7 +79,7 @@ func (b *FsBlobstore) FileSystem() http.FileSystem {
 }
 
 func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error) {
-	o := &options{}
+	o := &GetOptions{}
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -99,14 +99,14 @@ func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 		return nil, fmt.Errorf("stat file: %w", err)
 	}
 
-	if o.byteRange.Start >= uint64(inf.Size()) {
+	if o.ByteRange.Start >= uint64(inf.Size()) {
 		return nil, ErrRangeNotSatisfiable
 	}
-	if o.byteRange.End != nil && *o.byteRange.End >= uint64(inf.Size()) {
+	if o.ByteRange.End != nil && *o.ByteRange.End >= uint64(inf.Size()) {
 		return nil, ErrRangeNotSatisfiable
 	}
 
-	return FileObject{name: n, size: inf.Size(), byteRange: o.byteRange}, nil
+	return FileObject{name: n, size: inf.Size(), byteRange: o.ByteRange}, nil
 }
 
 func (b *FsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error {

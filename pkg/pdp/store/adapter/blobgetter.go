@@ -10,6 +10,7 @@ import (
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/piecereader"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
@@ -40,6 +41,9 @@ type BlobGetterAdapter struct {
 }
 
 func (psa *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihash, opts ...blobstore.GetOption) (blobstore.Object, error) {
+	cfg := blobstore.GetOptions{}
+	cfg.ProcessOptions(opts)
+
 	size, err := psa.blobSizer.Size(ctx, digest)
 	if err != nil {
 		return nil, fmt.Errorf("getting size of blob %s: %w", digestutil.Format(digest), err)
@@ -48,7 +52,7 @@ func (psa *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihas
 	if err != nil {
 		return nil, fmt.Errorf("finding piece link for %s: %w", digestutil.Format(digest), err)
 	}
-	res, err := psa.pieceReader.ReadPiece(ctx, pieceLink.Link().(cidlink.Link).Cid)
+	res, err := psa.pieceReader.ReadPiece(ctx, pieceLink.Link().(cidlink.Link).Cid, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	if err != nil {
 		return nil, fmt.Errorf("reading piece: %w", err)
 	}

@@ -15,9 +15,7 @@ import (
 
 func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (res *types.PieceReader, retErr error) {
 	cfg := types.ReadPieceConfig{}
-	for _, opt := range options {
-		opt(&cfg)
-	}
+	cfg.ProcessOptions(options)
 
 	log.Infow("reading piece", "request", piece)
 	defer func() {

@@ -24,7 +24,7 @@ var ErrTooSmall = errors.New("payload too small")
 var ErrRangeNotSatisfiable = errors.New("range not satisfiable")
 
 // GetOption is an option configuring byte retrieval from a blobstore.
-type GetOption func(cfg *options) error
+type GetOption func(cfg *GetOptions) error
 
 type Range struct {
 	// Start is the byte to start extracting from (inclusive).
@@ -33,24 +33,24 @@ type Range struct {
 	End *uint64
 }
 
-type options struct {
-	byteRange Range
+type GetOptions struct {
+	ByteRange Range
 }
 
-func (o *options) ProcessOptions(opts []GetOption) {
+func (o *GetOptions) ProcessOptions(opts []GetOption) {
 	for _, opt := range opts {
 		opt(o)
 	}
 }
 
-func (o *options) Range() Range {
-	return o.byteRange
+func (o *GetOptions) Range() Range {
+	return o.ByteRange
 }
 
 // WithRange configures a byte range to extract.
 func WithRange(start uint64, end *uint64) GetOption {
-	return func(opts *options) error {
-		opts.byteRange = Range{start, end}
+	return func(opts *GetOptions) error {
+		opts.ByteRange = Range{start, end}
 		return nil
 	}
 }
@@ -93,5 +93,5 @@ type GetConfig interface {
 }
 
 func NewGetConfig() GetConfig {
-	return &options{}
+	return &GetOptions{}
 }

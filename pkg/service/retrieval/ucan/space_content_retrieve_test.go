@@ -333,21 +333,19 @@ func TestSpaceContentRetrieve(t *testing.T) {
 			conn, err := client.NewConnection(testutil.Service, server, codecOpt)
 			require.NoError(t, err)
 
-			eres, hres, err := rclient.Execute(t.Context(), inv, conn)
+			xres, hres, err := rclient.Execute(t.Context(), inv, conn)
 			require.NoError(t, err)
 
 			require.Equal(t, test.expectStatus, hres.Status())
-			if test.expectHeaders != nil {
-				for k, v := range test.expectHeaders {
-					require.Equal(t, v, hres.Headers().Values(k))
-				}
+			for k, v := range test.expectHeaders {
+				require.Equal(t, v, hres.Headers().Values(k))
 			}
 			require.Equal(t, test.expectBody, testutil.Must(io.ReadAll(hres.Body()))(t))
 
-			rcptLink, ok := eres.Get(inv.Link())
+			rcptLink, ok := xres.Get(inv.Link())
 			require.True(t, ok)
 
-			rcpt, err := receipt.NewAnyReceiptReader().Read(rcptLink, eres.Blocks())
+			rcpt, err := receipt.NewAnyReceiptReader().Read(rcptLink, xres.Blocks())
 			require.NoError(t, err)
 
 			_, x := result.Unwrap(rcpt.Out())

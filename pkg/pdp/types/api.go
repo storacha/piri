@@ -98,6 +98,12 @@ type ReadPieceConfig struct {
 	ByteRange Range
 }
 
+func (c *ReadPieceConfig) ProcessOptions(opts []ReadPieceOption) {
+	for _, opt := range opts {
+		opt(c)
+	}
+}
+
 type ReadPieceOption func(c *ReadPieceConfig)
 
 func WithRange(start uint64, end *uint64) ReadPieceOption {

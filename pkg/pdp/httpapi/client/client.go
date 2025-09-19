@@ -451,9 +451,7 @@ func (c *Client) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, boo
 
 func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	cfg := types.ReadPieceConfig{}
-	for _, opt := range options {
-		opt(&cfg)
-	}
+	cfg.ProcessOptions(options)
 
 	// piece gets are not at the pdp path but rather the raw /piece path
 	route := c.endpoint.JoinPath(piecePath, "/", piece.String()).String()

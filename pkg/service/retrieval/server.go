@@ -14,7 +14,7 @@ type Server struct {
 }
 
 func NewServer(service Service, options ...retrieval.Option) (*Server, error) {
-	retrievalSrv, err := NewUCANRetrievalServer(service, options...)
+	retrievalSrv, err := NewUCANServer(service, options...)
 	if err != nil {
 		return nil, fmt.Errorf("creating UCAN retrieval server: %w", err)
 	}
