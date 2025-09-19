@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sync"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -36,7 +35,6 @@ const (
 var _ EgressBatchStore = (*fsBatchStore)(nil)
 
 type fsBatchStore struct {
-	mu           sync.Mutex
 	basePath     string
 	curBatchPath string
 	maxBatchSize int64
@@ -63,59 +61,59 @@ func NewFSBatchStore(basePath string, maxBatchSize int64) (*fsBatchStore, error)
 	}, nil
 }
 
-func (s *fsBatchStore) Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) error {
+func (s *fsBatchStore) Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) (bool, cid.Cid, error) {
 	if rcpt == nil {
-		return fmt.Errorf("receipt is nil")
+		return false, cid.Cid{}, fmt.Errorf("receipt is nil")
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	rwbs, err := blockstore.OpenReadWrite(s.curBatchPath, nil)
 	if err != nil {
-		return fmt.Errorf("opening current batch for writing: %w", err)
+		return false, cid.Cid{}, fmt.Errorf("opening current batch for writing: %w", err)
 	}
 
 	rcptArchive := rcpt.Archive()
 	archiveBytes, err := io.ReadAll(rcptArchive)
 	if err != nil {
-		return fmt.Errorf("reading receipt archive: %w", err)
+		return false, cid.Cid{}, fmt.Errorf("reading receipt archive: %w", err)
 	}
 
-	cid, err := cid.V1Builder{
+	archiveCID, err := cid.V1Builder{
 		Codec:    uint64(multicodec.Car),
 		MhType:   uint64(multihash.SHA2_256),
 		MhLength: 0,
 	}.Sum(archiveBytes)
 	if err != nil {
-		return fmt.Errorf("creating receipt archive CID: %w", err)
+		return false, cid.Cid{}, fmt.Errorf("creating receipt archive CID: %w", err)
 	}
 
-	block, err := blocks.NewBlockWithCid(archiveBytes, cid)
+	block, err := blocks.NewBlockWithCid(archiveBytes, archiveCID)
 	if err != nil {
-		return fmt.Errorf("creating receipt block: %w", err)
+		return false, cid.Cid{}, fmt.Errorf("creating receipt block: %w", err)
 	}
 
 	if err := rwbs.Put(ctx, block); err != nil {
-		return fmt.Errorf("adding receipt block to batch: %w", err)
+		return false, cid.Cid{}, fmt.Errorf("adding receipt block to batch: %w", err)
 	}
 
 	if err := rwbs.Finalize(); err != nil {
-		return fmt.Errorf("finalizing batch: %w", err)
+		return false, cid.Cid{}, fmt.Errorf("finalizing batch: %w", err)
 	}
 
-	// send the batch to the egress tracking service if it exceeds the size limit
+	// rotate the batch if it exceeds the size limit
 	curSize, err := s.currentBatchSize()
 	if err != nil {
-		return fmt.Errorf("checking current batch size: %w", err)
+		return false, cid.Cid{}, fmt.Errorf("checking current batch size: %w", err)
 	}
 	if curSize >= s.maxBatchSize {
-		if err := s.flush(ctx); err != nil {
-			return fmt.Errorf("flushing batch: %w", err)
+		rotatedBatchCID, err := s.rotate()
+		if err != nil {
+			return false, cid.Cid{}, fmt.Errorf("rotating batch: %w", err)
 		}
+
+		return true, rotatedBatchCID, nil
 	}
 
-	return nil
+	return false, cid.Cid{}, nil
 }
 
 func (s *fsBatchStore) currentBatchSize() (int64, error) {
@@ -131,46 +129,30 @@ func (s *fsBatchStore) currentBatchSize() (int64, error) {
 	return info.Size(), nil
 }
 
-func (s *fsBatchStore) flush(ctx context.Context) error {
+func (s *fsBatchStore) rotate() (cid.Cid, error) {
 	// Calculate the CID of the current batch
 	f, err := os.Open(s.curBatchPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-
-		return fmt.Errorf("opening current batch file: %w", err)
+		return cid.Cid{}, fmt.Errorf("opening current batch file: %w", err)
 	}
 	defer f.Close()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, f); err != nil {
-		return fmt.Errorf("hashing batch file: %w", err)
+		return cid.Cid{}, fmt.Errorf("hashing batch file: %w", err)
 	}
 
 	// error from Encode can be discarded, it's always nil
 	mhBytes, _ := multihash.Encode(hash.Sum(nil), multihash.SHA2_256)
 	mh := multihash.Multihash(mhBytes)
 
-	cid := cid.NewCidV1(uint64(multicodec.Car), mh)
-	newPath := filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix)
+	batchCID := cid.NewCidV1(uint64(multicodec.Car), mh)
+	newPath := filepath.Join(s.basePath, batchFilePrefix+batchCID.String()+batchFileSuffix)
 
 	// Rename the file to include the CID
 	if err := os.Rename(s.curBatchPath, newPath); err != nil {
-		return fmt.Errorf("renaming batch file: %w", err)
+		return cid.Cid{}, fmt.Errorf("renaming batch file: %w", err)
 	}
 
-	return s.trackEgress(ctx, newPath)
-}
-
-func (s *fsBatchStore) Flush(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return s.flush(ctx)
-}
-
-func (s *fsBatchStore) trackEgress(_ context.Context, _ string) error {
-	// TODO: implement
-	return nil
+	return batchCID, nil
 }

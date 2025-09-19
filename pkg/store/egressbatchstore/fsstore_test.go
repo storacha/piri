@@ -2,10 +2,10 @@ package egressbatchstore
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
@@ -65,10 +65,10 @@ func TestAppend(t *testing.T) {
 		rcpt := createTestReceipt(t)
 
 		// Append a receipt
-		err = store.Append(context.Background(), rcpt)
+		_, _, err = store.Append(context.Background(), rcpt)
 		require.NoError(t, err)
 
-		// Verify the file exists and has content
+		// Verify the file for the current batch exists and has content
 		files, err := filepath.Glob(filepath.Join(tempDir, currentBatchName))
 		require.NoError(t, err)
 		require.Len(t, files, 1, "expected one batch file")
@@ -83,7 +83,7 @@ func TestAppend(t *testing.T) {
 		require.True(t, len(data) > 0, "should be able to read file content")
 	})
 
-	t.Run("batch is flushed when max batch size is reached", func(t *testing.T) {
+	t.Run("batch is rotated when max batch size is reached", func(t *testing.T) {
 		tempDir := t.TempDir()
 
 		// Small batch size to force rotation
@@ -100,7 +100,7 @@ func TestAppend(t *testing.T) {
 		numBatches := 0
 		currentBatchSize := 0
 		for _, rcpt := range rcpts {
-			err = store.Append(context.Background(), rcpt)
+			batchRotated, _, err := store.Append(context.Background(), rcpt)
 			require.NoError(t, err)
 
 			archive := rcpt.Archive()
@@ -110,6 +110,7 @@ func TestAppend(t *testing.T) {
 
 			if int64(currentBatchSize) >= store.maxBatchSize {
 				// Check that batches are flushed when they reach the max size
+				require.True(t, batchRotated)
 				currentBatchSize = 0
 				numBatches++
 				reportedBatchSize, err := store.currentBatchSize()
@@ -119,35 +120,10 @@ func TestAppend(t *testing.T) {
 				files, err := filepath.Glob(filepath.Join(tempDir, batchFilePrefix+"*"+batchFileSuffix))
 				require.NoError(t, err)
 				require.Len(t, files, numBatches, "expected %d completed batch files", numBatches)
+			} else {
+				require.False(t, batchRotated)
 			}
 		}
-	})
-
-	t.Run("concurrent appends", func(t *testing.T) {
-		tempDir := t.TempDir()
-		store, err := NewFSBatchStore(tempDir, 1024) // 1KB
-		require.NoError(t, err)
-
-		var wg sync.WaitGroup
-		numReceipts := 10
-
-		// Create multiple goroutines to append receipts concurrently
-		for range numReceipts {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				rcpt := createTestReceipt(t)
-				err := store.Append(context.Background(), rcpt)
-				require.NoError(t, err)
-			}()
-		}
-
-		wg.Wait()
-
-		// Verify we have some data written
-		files, err := filepath.Glob(filepath.Join(tempDir, batchFilePrefix+"*"+batchFileSuffix))
-		require.NoError(t, err)
-		require.True(t, len(files) > 0, "expected at least one batch file")
 	})
 
 	t.Run("fails with nil receipt", func(t *testing.T) {
@@ -156,40 +132,44 @@ func TestAppend(t *testing.T) {
 		store, err := NewFSBatchStore(tempDir, 0) // Default batch size
 		require.NoError(t, err)
 
-		err = store.Append(context.Background(), nil)
+		_, _, err = store.Append(context.Background(), nil)
 		require.Error(t, err)
 	})
 }
 
-func TestFlush(t *testing.T) {
-	tempDir := t.TempDir()
-
-	store, err := NewFSBatchStore(tempDir, 0) // Default batch size
-	require.NoError(t, err)
-
-	// Create a test receipt
-	rcpt := createTestReceipt(t)
-
-	// Append the receipt. A single receipt is not enough to trigger a flush.
-	err = store.Append(context.Background(), rcpt)
-	require.NoError(t, err)
-
-	// Flush the batch
-	err = store.Flush(context.Background())
-	require.NoError(t, err)
-
-	// Check that the batch file was created
-	files, err := filepath.Glob(filepath.Join(tempDir, batchFilePrefix+"*"+batchFileSuffix))
-	require.NoError(t, err)
-	require.Len(t, files, 1, "expected one batch file")
-
-	t.Run("flushing empty store is a no-op", func(t *testing.T) {
+func TestRotate(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSBatchStore(tempDir, 0) // Default batch size
+		store, err := NewFSBatchStore(tempDir, 0)
 		require.NoError(t, err)
 
-		err = store.Flush(context.Background())
-		require.NoError(t, err, "flushing empty store should not error")
+		// Create a test receipt
+		rcpt := createTestReceipt(t)
+
+		// Append the receipt. A single receipt is not enough to trigger a rotation.
+		batchRotated, _, err := store.Append(context.Background(), rcpt)
+		require.NoError(t, err)
+		require.False(t, batchRotated)
+
+		// Rotate the batch
+		rotatedBatchCID, err := store.rotate()
+		require.NoError(t, err)
+		require.NotEmpty(t, rotatedBatchCID)
+
+		// Check that the batch file was created
+		files, err := filepath.Glob(filepath.Join(tempDir, fmt.Sprintf("%s%s%s", batchFilePrefix, rotatedBatchCID.String(), batchFileSuffix)))
+		require.NoError(t, err)
+		require.Len(t, files, 1, "expected one batch file")
+	})
+
+	t.Run("rotating empty store returns an error", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		store, err := NewFSBatchStore(tempDir, 0)
+		require.NoError(t, err)
+
+		_, err = store.rotate()
+		require.Error(t, err)
 	})
 }
