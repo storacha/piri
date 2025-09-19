@@ -12,19 +12,40 @@ import (
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/server"
+	ucanretrieval "github.com/storacha/go-ucanto/server/retrieval"
 
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
 	"github.com/storacha/piri/pkg/service/publisher"
+	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/storage"
 )
 
 var log = logging.Logger("server")
 
+type serverConfig struct {
+	ucanSrvOpts          []server.Option
+	ucanRetrievalSrvOpts []ucanretrieval.Option
+}
+
+type Option = func(c *serverConfig)
+
+func WithUCANServerOptions(options ...server.Option) Option {
+	return func(c *serverConfig) {
+		c.ucanSrvOpts = options
+	}
+}
+
+func WithUCANRetrievalServerOptions(options ...ucanretrieval.Option) Option {
+	return func(c *serverConfig) {
+		c.ucanRetrievalSrvOpts = options
+	}
+}
+
 // ListenAndServe creates a new storage node HTTP server, and starts it up.
-func ListenAndServe(addr string, service storage.Service, options ...server.Option) error {
-	srvMux, err := NewServer(service, options...)
+func ListenAndServe(addr string, storageSvc storage.Service, retrievalSvc retrieval.Service, options ...Option) error {
+	srvMux, err := NewServer(storageSvc, retrievalSvc, options...)
 	if err != nil {
 		return err
 	}
@@ -41,31 +62,42 @@ func ListenAndServe(addr string, service storage.Service, options ...server.Opti
 }
 
 // NewServer creates a new storage node server.
-func NewServer(service storage.Service, options ...server.Option) (*echo.Echo, error) {
-	mux := echo.New()
-	mux.GET("/", echo.WrapHandler(NewHandler(service.ID())))
+func NewServer(storageSvc storage.Service, retrievalSvc retrieval.Service, options ...Option) (*echo.Echo, error) {
+	cfg := serverConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
 
-	httpUcanSrv, err := storage.NewServer(service, options...)
+	mux := echo.New()
+	mux.GET("/", echo.WrapHandler(NewHandler(storageSvc.ID())))
+
+	httpUcanSrv, err := storage.NewServer(storageSvc, cfg.ucanSrvOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating UCAN server: %w", err)
 	}
 	httpUcanSrv.RegisterRoutes(mux)
 
-	httpClaimsSrv, err := claims.NewServer(service.Claims().Store())
+	httpUcanRetrievalSrv, err := retrieval.NewServer(retrievalSvc, cfg.ucanRetrievalSrvOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("creating UCAN retrieval server: %w", err)
+	}
+	httpUcanRetrievalSrv.RegisterRoutes(mux)
+
+	httpClaimsSrv, err := claims.NewServer(storageSvc.Claims().Store())
 	if err != nil {
 		return nil, fmt.Errorf("creating claims server: %w", err)
 	}
 	httpClaimsSrv.RegisterRoutes(mux)
 
-	if service.PDP() == nil {
-		httpBlobsSrv, err := blobs.NewServer(service.Blobs().Presigner(), service.Blobs().Allocations(), service.Blobs().Store())
+	if storageSvc.PDP() == nil {
+		httpBlobsSrv, err := blobs.NewServer(storageSvc.Blobs().Presigner(), storageSvc.Blobs().Allocations(), storageSvc.Blobs().Store())
 		if err != nil {
 			return nil, fmt.Errorf("creating blobs server: %w", err)
 		}
 		httpBlobsSrv.RegisterRoutes(mux)
 	}
 
-	publisherStore := service.Claims().Publisher().Store()
+	publisherStore := storageSvc.Claims().Publisher().Store()
 	encodableStore, ok := publisherStore.(store.EncodeableStore)
 	if !ok {
 		return nil, errors.New("publisher store does not implement EncodableStore")

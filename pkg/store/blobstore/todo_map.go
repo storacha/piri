@@ -17,7 +17,7 @@ type TODOMapBlobstore struct {
 }
 
 func (mb *TODOMapBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error) {
-	o := &options{}
+	o := &GetOptions{}
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -28,7 +28,14 @@ func (mb *TODOMapBlobstore) Get(ctx context.Context, digest multihash.Multihash,
 		return nil, store.ErrNotFound
 	}
 
-	obj := MapObject{bytes: b, byteRange: o.byteRange}
+	if o.ByteRange.Start >= uint64(len(b)) {
+		return nil, ErrRangeNotSatisfiable
+	}
+	if o.ByteRange.End != nil && *o.ByteRange.End >= uint64(len(b)) {
+		return nil, ErrRangeNotSatisfiable
+	}
+
+	obj := MapObject{bytes: b, byteRange: o.ByteRange}
 	return obj, nil
 }
 

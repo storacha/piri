@@ -6,7 +6,7 @@ import (
 	"github.com/storacha/piri/pkg/service/storage/ucan"
 )
 
-var Module = fx.Module("ucan/handlers",
+var Module = fx.Module("storage/ucan/handlers",
 	fx.Provide(
 		fx.Annotate(
 			ucan.BlobAllocate,
