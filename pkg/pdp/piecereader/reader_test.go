@@ -35,7 +35,7 @@ func TestReadPiece(t *testing.T) {
 		Return(&types.PieceReader{
 			Size: expectedSize,
 			Data: io.NopCloser(bytes.NewReader(expectedData)),
-		})
+		}, nil)
 
 	ret, err := pr.ReadPiece(ctx, pieceCid)
 	require.NoError(t, err)
