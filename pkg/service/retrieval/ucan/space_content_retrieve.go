@@ -58,14 +58,15 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 				var blob blobstore.Object
 				g, gctx := errgroup.WithContext(ctx)
 				g.Go(func() error {
-					_, err = retrievalService.Allocations().Get(gctx, digest, space)
+					_, err := retrievalService.Allocations().Get(gctx, digest, space)
 					return err
 				})
 				g.Go(func() error {
 					if end < start {
 						return blobstore.ErrRangeNotSatisfiable
 					}
-					blob, err = retrievalService.Blobs().Get(gctx, digest, blobstore.WithRange(start, &end))
+					b, err := retrievalService.Blobs().Get(gctx, digest, blobstore.WithRange(start, &end))
+					blob = b
 					return err
 				})
 				if err := g.Wait(); err != nil {

@@ -3,6 +3,7 @@ package allocationstore
 import (
 	"context"
 	"strings"
+	"sync"
 
 	multihash "github.com/multiformats/go-multihash"
 	"github.com/storacha/go-ucanto/did"
@@ -12,10 +13,13 @@ import (
 
 // MapAllocationStore is a store for allocations, backed by an in-memory map.
 type MapAllocationStore struct {
-	data map[string]allocation.Allocation
+	mutex sync.RWMutex
+	data  map[string]allocation.Allocation
 }
 
 func (m *MapAllocationStore) Get(ctx context.Context, digest multihash.Multihash, space did.DID) (allocation.Allocation, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 	a, ok := m.data[encodeKey(digest, space)]
 	if !ok {
 		return allocation.Allocation{}, store.ErrNotFound
@@ -24,6 +28,9 @@ func (m *MapAllocationStore) Get(ctx context.Context, digest multihash.Multihash
 }
 
 func (m *MapAllocationStore) List(ctx context.Context, digest multihash.Multihash, options ...ListOption) ([]allocation.Allocation, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
 	cfg := ListConfig{}
 	for _, opt := range options {
 		opt(&cfg)
@@ -44,6 +51,8 @@ func (m *MapAllocationStore) List(ctx context.Context, digest multihash.Multihas
 }
 
 func (m *MapAllocationStore) Put(ctx context.Context, alloc allocation.Allocation) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	m.data[encodeKey(alloc.Blob.Digest, alloc.Space)] = alloc
 	return nil
 }
