@@ -2,6 +2,7 @@ package egressbatchstore
 
 import (
 	"context"
+	"io"
 
 	"github.com/ipfs/go-cid"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
@@ -16,4 +17,7 @@ type EgressBatchStore interface {
 	// If the batch reaches the size limit, it will be rotated. When that happens, Append returns
 	// true and the CID of the rotated batch.
 	Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) (batchRotated bool, rotatedBatchCID cid.Cid, err error)
+
+	// GetBatch returns a batch of receipts by its CID.
+	GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error)
 }

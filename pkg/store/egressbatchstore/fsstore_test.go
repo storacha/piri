@@ -1,11 +1,11 @@
 package egressbatchstore
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
@@ -65,7 +65,7 @@ func TestAppend(t *testing.T) {
 		rcpt := createTestReceipt(t)
 
 		// Append a receipt
-		_, _, err = store.Append(context.Background(), rcpt)
+		_, _, err = store.Append(t.Context(), rcpt)
 		require.NoError(t, err)
 
 		// Verify the file for the current batch exists and has content
@@ -100,7 +100,7 @@ func TestAppend(t *testing.T) {
 		numBatches := 0
 		currentBatchSize := 0
 		for _, rcpt := range rcpts {
-			batchRotated, _, err := store.Append(context.Background(), rcpt)
+			batchRotated, _, err := store.Append(t.Context(), rcpt)
 			require.NoError(t, err)
 
 			archive := rcpt.Archive()
@@ -132,7 +132,7 @@ func TestAppend(t *testing.T) {
 		store, err := NewFSBatchStore(tempDir, 0) // Default batch size
 		require.NoError(t, err)
 
-		_, _, err = store.Append(context.Background(), nil)
+		_, _, err = store.Append(t.Context(), nil)
 		require.Error(t, err)
 	})
 }
@@ -148,7 +148,7 @@ func TestRotate(t *testing.T) {
 		rcpt := createTestReceipt(t)
 
 		// Append the receipt. A single receipt is not enough to trigger a rotation.
-		batchRotated, _, err := store.Append(context.Background(), rcpt)
+		batchRotated, _, err := store.Append(t.Context(), rcpt)
 		require.NoError(t, err)
 		require.False(t, batchRotated)
 
@@ -171,5 +171,38 @@ func TestRotate(t *testing.T) {
 
 		_, err = store.rotate()
 		require.Error(t, err)
+	})
+}
+
+func TestGetBatch(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		store, err := NewFSBatchStore(tempDir, 100)
+		require.NoError(t, err)
+
+		// Create a test receipt
+		rcpt := createTestReceipt(t)
+
+		// Append the receipt. Max batch size is small, so a batch should be rotated.
+		batchRotated, rotatedBatchCID, err := store.Append(t.Context(), rcpt)
+		require.NoError(t, err)
+		require.True(t, batchRotated)
+
+		// Read the batch file directly from the file system
+		f, err := os.Open(filepath.Join(tempDir, fmt.Sprintf("egress.%s.car", rotatedBatchCID.String())))
+		require.NoError(t, err)
+		readBytes, err := io.ReadAll(f)
+		require.NoError(t, err)
+
+		// Get the batch
+		batch, err := store.GetBatch(t.Context(), rotatedBatchCID)
+		require.NoError(t, err)
+
+		// Read the batch and compare with file contents
+		batchBytes, err := io.ReadAll(batch)
+		require.NoError(t, err)
+
+		require.True(t, slices.Equal(readBytes, batchBytes))
 	})
 }

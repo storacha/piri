@@ -156,3 +156,7 @@ func (s *fsBatchStore) rotate() (cid.Cid, error) {
 
 	return batchCID, nil
 }
+
+func (s *fsBatchStore) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error) {
+	return os.Open(filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix))
+}

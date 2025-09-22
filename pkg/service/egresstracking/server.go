@@ -1,0 +1,56 @@
+package egresstracking
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/ipfs/go-cid"
+	"github.com/labstack/echo/v4"
+
+	"github.com/storacha/go-ucanto/core/car"
+	echofx "github.com/storacha/piri/pkg/fx/echo"
+	"github.com/storacha/piri/pkg/server/handler"
+	"github.com/storacha/piri/pkg/store"
+	"github.com/storacha/piri/pkg/store/egressbatchstore"
+)
+
+var _ echofx.RouteRegistrar = (*Server)(nil)
+
+const ReceiptsPath = "/receipts"
+
+type Server struct {
+	egressBatches egressbatchstore.EgressBatchStore
+}
+
+func NewServer(egressBatches egressbatchstore.EgressBatchStore) (*Server, error) {
+	return &Server{egressBatches}, nil
+}
+
+func (srv *Server) RegisterRoutes(e *echo.Echo) {
+	e.GET(ReceiptsPath+"/:cid", NewHandler(srv.egressBatches).ToEcho())
+}
+
+func NewHandler(egressBatches egressbatchstore.EgressBatchStore) handler.Func {
+	return func(ctx handler.Context) error {
+		r := ctx.Request()
+		parts := strings.Split(r.URL.Path, "/")
+		cid, err := cid.Parse(parts[len(parts)-1])
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("invalid batch CID: %w", err))
+		}
+
+		batch, err := egressBatches.GetBatch(r.Context(), cid)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return echo.NewHTTPError(http.StatusNotFound, fmt.Errorf("batch not found: %s", cid))
+			}
+
+			return fmt.Errorf("failed to get batch from store: %w", err)
+		}
+		defer batch.Close()
+
+		return ctx.Stream(http.StatusOK, car.ContentType, batch)
+	}
+}
