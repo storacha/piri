@@ -14,7 +14,6 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-car/v2/blockstore"
-	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
@@ -83,7 +82,15 @@ func (s *fsBatchStore) Append(ctx context.Context, rcpt receipt.Receipt[content.
 		return fmt.Errorf("reading receipt archive: %w", err)
 	}
 
-	cid := rcpt.Root().Link().(cidlink.Link).Cid
+	cid, err := cid.V1Builder{
+		Codec:    uint64(multicodec.Car),
+		MhType:   uint64(multihash.SHA2_256),
+		MhLength: 0,
+	}.Sum(archiveBytes)
+	if err != nil {
+		return fmt.Errorf("creating receipt archive CID: %w", err)
+	}
+
 	block, err := blocks.NewBlockWithCid(archiveBytes, cid)
 	if err != nil {
 		return fmt.Errorf("creating receipt block: %w", err)
@@ -145,8 +152,8 @@ func (s *fsBatchStore) flush(ctx context.Context) error {
 	mhBytes, _ := multihash.Encode(hash.Sum(nil), multihash.SHA2_256)
 	mh := multihash.Multihash(mhBytes)
 
-	cidStr := cid.NewCidV1(uint64(multicodec.Car), mh).String()
-	newPath := filepath.Join(s.basePath, batchFilePrefix+cidStr+batchFileSuffix)
+	cid := cid.NewCidV1(uint64(multicodec.Car), mh)
+	newPath := filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix)
 
 	// Rename the file to include the CID
 	if err := os.Rename(s.curBatchPath, newPath); err != nil {
