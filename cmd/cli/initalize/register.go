@@ -359,7 +359,7 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	logging.SetAllLoggers(logging.LevelFatal)
 	ctx := context.Background()
 
-	cmd.PrintErrln("🚀 Initializing your Piri node in the Storacha network...")
+	cmd.PrintErrln("🚀 Initializing your Piri node on the Storacha Network...")
 	cmd.PrintErrln()
 
 	// Step 1: Parse and validate flags
