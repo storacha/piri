@@ -16,6 +16,7 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
+	"github.com/storacha/piri/pkg/store/egressbatchstore"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/stashstore"
@@ -80,6 +81,12 @@ func NewPublisherStore() store.FullStore {
 func NewReceiptStore() (receiptstore.ReceiptStore, error) {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	return receiptstore.NewDsReceiptStore(ds)
+}
+
+// TODO need an in-memory impl of the egress batch store...
+func NewEgressBatchStore() (egressbatchstore.EgressBatchStore, error) {
+	tmpDir := filepath.Join(os.TempDir(), "piri-egress-batch-tmp")
+	return egressbatchstore.NewFSBatchStore(tmpDir, 0)
 }
 
 func NewKeyStore() (keystore.KeyStore, error) {
