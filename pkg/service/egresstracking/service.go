@@ -27,30 +27,29 @@ import (
 // When batches reaches a certain size, they are sent to the egress tracking service via
 // `space/egress/track` invocations.
 type EgressTrackingService struct {
-	mu                 sync.Mutex
-	id                 principal.Signer
-	egressTrackerDID   did.DID
-	egressTrackerProof delegation.Proof
-	egressTrackerConn  client.Connection
-	batchEndpoint      *url.URL
-	store              egressbatchstore.EgressBatchStore
+	mu                  sync.Mutex
+	id                  principal.Signer
+	egressTrackerDID    did.DID
+	egressTrackerProofs delegation.Proofs
+	egressTrackerConn   client.Connection
+	batchEndpoint       *url.URL
+	store               egressbatchstore.EgressBatchStore
 }
 
 func New(
 	id principal.Signer,
-	egressTrackerDID did.DID,
-	egressTrackerProof delegation.Proof,
 	egressTrackerConn client.Connection,
+	egressTrackerProofs delegation.Proofs,
 	batchEndpoint *url.URL,
 	store egressbatchstore.EgressBatchStore,
 ) *EgressTrackingService {
 	return &EgressTrackingService{
-		id:                 id,
-		egressTrackerDID:   egressTrackerDID,
-		egressTrackerProof: egressTrackerProof,
-		egressTrackerConn:  egressTrackerConn,
-		batchEndpoint:      batchEndpoint,
-		store:              store,
+		id:                  id,
+		egressTrackerDID:    egressTrackerConn.ID().DID(),
+		egressTrackerProofs: egressTrackerProofs,
+		egressTrackerConn:   egressTrackerConn,
+		batchEndpoint:       batchEndpoint,
+		store:               store,
 	}
 }
 
@@ -81,7 +80,7 @@ func (s *EgressTrackingService) trackEgress(ctx context.Context, batchCID cid.Ci
 			Receipts: cidlink.Link{Cid: batchCID},
 			Endpoint: s.batchEndpoint,
 		},
-		delegation.WithProof(s.egressTrackerProof),
+		delegation.WithProof(s.egressTrackerProofs...),
 		delegation.WithNoExpiration(),
 	)
 	if err != nil {

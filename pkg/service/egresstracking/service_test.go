@@ -54,6 +54,7 @@ func TestAddReceipt(t *testing.T) {
 		},
 		delegation.WithNoExpiration(),
 	)
+	require.NoError(t, err)
 
 	// Setup egress tracker connection
 	eTrackerURL, err := url.Parse(mockServer.URL())
@@ -71,9 +72,8 @@ func TestAddReceipt(t *testing.T) {
 		// Create service
 		service := New(
 			thisNode,
-			testutil.Service.DID(),
-			delegation.FromDelegation(eTrackerDlg),
 			eTrackerConn,
+			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
 			store,
 		)
@@ -100,9 +100,8 @@ func TestAddReceipt(t *testing.T) {
 		// Create service
 		service := New(
 			thisNode,
-			testutil.Service.DID(),
-			delegation.FromDelegation(eTrackerDlg),
 			eTrackerConn,
+			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
 			store,
 		)
