@@ -1,4 +1,4 @@
-package contract
+package smartcontracts
 
 import (
 	"math/big"
