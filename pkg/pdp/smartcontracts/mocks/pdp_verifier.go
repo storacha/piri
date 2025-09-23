@@ -10,13 +10,14 @@
 package mocks
 
 import (
-	big "math/big"
-	reflect "reflect"
+	"math/big"
+	"reflect"
 
-	bind "github.com/ethereum/go-ethereum/accounts/abi/bind"
-	common "github.com/ethereum/go-ethereum/common"
-	internal "github.com/storacha/piri/pkg/pdp/service/contract/internal"
-	gomock "go.uber.org/mock/gomock"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"go.uber.org/mock/gomock"
+
+	"github.com/storacha/piri/pkg/pdp/contract/internal"
 )
 
 // MockPDPVerifier is a mock of PDPVerifier interface.

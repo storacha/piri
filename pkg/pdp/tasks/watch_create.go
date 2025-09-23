@@ -15,7 +15,7 @@ import (
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
@@ -27,7 +27,7 @@ type ProofSetCreate struct {
 func NewWatcherCreate(
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient contract.PDP,
+	contractClient contract2.PDP,
 	pcs *chainsched.Scheduler,
 ) error {
 	log.Infow("Initializing proof set creation watcher")
@@ -50,7 +50,7 @@ func processPendingProofSetCreates(
 	ctx context.Context,
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient contract.PDP,
+	contractClient contract2.PDP,
 ) error {
 	log.Debugw("Querying for pending proof set creations", "query_conditions", "ok=true AND proofset_created=false")
 	// Query for pdp_proofset_creates entries where ok = TRUE and proofset_created = FALSE
@@ -100,12 +100,12 @@ func processProofSetCreate(
 	db *gorm.DB,
 	psc models.PDPProofsetCreate,
 	ethClient bind.ContractBackend,
-	contactClient contract.PDP,
+	contactClient contract2.PDP,
 ) error {
 	txHash := psc.CreateMessageHash
 	service := psc.Service
 
-	lg := log.With("tx_hash", txHash, "owner", service, "verifier_address", contract.Addresses().PDPVerifier.String())
+	lg := log.With("tx_hash", txHash, "owner", service, "verifier_address", contract2.Addresses().PDPVerifier.String())
 
 	// Retrieve the tx_receipt from message_waits_eth
 	lg.Debug("Retrieving transaction receipt")
@@ -143,7 +143,7 @@ func processProofSetCreate(
 
 	// Get the listener address for this proof set from the PDPVerifier contract
 	lg.Debug("Getting PDP verifier contract")
-	pdpVerifier, err := contactClient.NewPDPVerifier(contract.Addresses().PDPVerifier, ethClient)
+	pdpVerifier, err := contactClient.NewPDPVerifier(contract2.Addresses().PDPVerifier, ethClient)
 	if err != nil {
 		lg.Errorw("Failed to instantiate PDPVerifier contract", "error", err)
 		return fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
@@ -235,7 +235,7 @@ func insertProofSet(
 	return nil
 }
 
-func getProvingPeriodChallengeWindow(ctx context.Context, ethClient bind.ContractBackend, listenerAddr common.Address, contractClient contract.PDP) (uint64, uint64, error) {
+func getProvingPeriodChallengeWindow(ctx context.Context, ethClient bind.ContractBackend, listenerAddr common.Address, contractClient contract2.PDP) (uint64, uint64, error) {
 	log.Debugw("Creating proving schedule contract binding",
 		"listener_address", listenerAddr.Hex())
 

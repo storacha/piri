@@ -16,10 +16,10 @@ import (
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
+	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
@@ -33,7 +33,7 @@ var _ scheduler.TaskInterface = &InitProvingPeriodTask{}
 type InitProvingPeriodTask struct {
 	db             *gorm.DB
 	ethClient      bind.ContractBackend
-	contractClient contract.PDP
+	contractClient contract2.PDP
 	sender         ethereum.Sender
 
 	chain ChainAPI
@@ -49,7 +49,7 @@ type ChainAPI interface {
 func NewInitProvingPeriodTask(
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient contract.PDP,
+	contractClient contract2.PDP,
 	chain ChainAPI,
 	chainSched *chainsched.Scheduler,
 	sender ethereum.Sender,
@@ -181,8 +181,8 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 
 	// Get the listener address for this proof set from the PDPVerifier contract
 	lg.Debugw("Getting PDP verifier contract",
-		"verifier_address", contract.Addresses().PDPVerifier.Hex())
-	pdpVerifier, err := ipp.contractClient.NewPDPVerifier(contract.Addresses().PDPVerifier, ipp.ethClient)
+		"verifier_address", contract2.Addresses().PDPVerifier.Hex())
+	pdpVerifier, err := ipp.contractClient.NewPDPVerifier(contract2.Addresses().PDPVerifier, ipp.ethClient)
 	if err != nil {
 		lg.Errorw("Failed to instantiate PDPVerifier contract", "error", err)
 		return false, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
@@ -228,12 +228,12 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	lg.Debug("Calculated proving epoch")
 
 	// Instantiate the PDPVerifier contract
-	pdpContracts := contract.Addresses()
+	pdpContracts := contract2.Addresses()
 	pdpVeriferAddress := pdpContracts.PDPVerifier
 
 	// Prepare the transaction data
 	lg.Debug("Preparing transaction data")
-	abiData, err := contract.PDPVerifierMetaData()
+	abiData, err := contract2.PDPVerifierMetaData()
 	if err != nil {
 		lg.Errorw("Failed to get PDPVerifier ABI", "error", err)
 		return false, fmt.Errorf("failed to get PDPVerifier ABI: %w", err)

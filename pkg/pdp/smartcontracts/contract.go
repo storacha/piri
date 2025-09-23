@@ -1,4 +1,4 @@
-package contract
+package smartcontracts
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"golang.org/x/xerrors"
 
-	"github.com/storacha/piri/pkg/pdp/service/contract/internal"
+	internal2 "github.com/storacha/piri/pkg/pdp/contract/internal"
 )
 
 type PDP interface {
@@ -32,28 +32,28 @@ type PDPVerifier interface {
 	GetProofSetOwner(opts *bind.CallOpts, setId *big.Int) (common.Address, common.Address, error)
 	GetNextChallengeEpoch(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 	GetChallengeRange(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
-	FindRootIds(opts *bind.CallOpts, setId *big.Int, leafIndexs []*big.Int) ([]internal.PDPVerifierRootIdAndOffset, error)
+	FindRootIds(opts *bind.CallOpts, setId *big.Int, leafIndexs []*big.Int) ([]internal2.PDPVerifierRootIdAndOffset, error)
 	GetScheduledRemovals(opts *bind.CallOpts, setId *big.Int) ([]*big.Int, error)
 	CalculateProofFee(opts *bind.CallOpts, setId *big.Int, estimatedGasFee *big.Int) (*big.Int, error)
 	GetChallengeFinality(opts *bind.CallOpts) (*big.Int, error)
 }
 
 func PDPVerifierMetaData() (*abi.ABI, error) {
-	return internal.PDPVerifierMetaData.GetAbi()
+	return internal2.PDPVerifierMetaData.GetAbi()
 }
 
-type PDPVerifierProof = internal.PDPVerifierProof
+type PDPVerifierProof = internal2.PDPVerifierProof
 
 type PDPContract struct{}
 
 var _ PDP = (*PDPContract)(nil)
 
 func (p *PDPContract) NewPDPVerifier(address common.Address, backend bind.ContractBackend) (PDPVerifier, error) {
-	return internal.NewPDPVerifier(address, backend)
+	return internal2.NewPDPVerifier(address, backend)
 }
 
 func (p *PDPContract) NewIPDPProvingSchedule(address common.Address, backend bind.ContractBackend) (PDPProvingSchedule, error) {
-	return internal.NewIPDPProvingSchedule(address, backend)
+	return internal2.NewIPDPProvingSchedule(address, backend)
 }
 
 func (p *PDPContract) GetProofSetIdFromReceipt(receipt *types.Receipt) (uint64, error) {

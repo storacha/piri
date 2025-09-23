@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"go.uber.org/mock/gomock"
 
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	"github.com/storacha/piri/pkg/pdp/contract"
 )
 
 // MockPDP is a mock of PDP interface.
@@ -75,10 +75,10 @@ func (mr *MockPDPMockRecorder) GetRootIdsFromReceipt(receipt any) *gomock.Call {
 }
 
 // NewIPDPProvingSchedule mocks base method.
-func (m *MockPDP) NewIPDPProvingSchedule(address common.Address, backend bind.ContractBackend) (contract.PDPProvingSchedule, error) {
+func (m *MockPDP) NewIPDPProvingSchedule(address common.Address, backend bind.ContractBackend) (smartcontract.PDPProvingSchedule, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewIPDPProvingSchedule", address, backend)
-	ret0, _ := ret[0].(contract.PDPProvingSchedule)
+	ret0, _ := ret[0].(smartcontract.PDPProvingSchedule)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -90,10 +90,10 @@ func (mr *MockPDPMockRecorder) NewIPDPProvingSchedule(address, backend any) *gom
 }
 
 // NewPDPVerifier mocks base method.
-func (m *MockPDP) NewPDPVerifier(address common.Address, backend bind.ContractBackend) (contract.PDPVerifier, error) {
+func (m *MockPDP) NewPDPVerifier(address common.Address, backend bind.ContractBackend) (smartcontract.PDPVerifier, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewPDPVerifier", address, backend)
-	ret0, _ := ret[0].(contract.PDPVerifier)
+	ret0, _ := ret[0].(smartcontract.PDPVerifier)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
