@@ -13,6 +13,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/httpapi/server"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
+	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/types"
@@ -51,6 +52,11 @@ type TODO_PDP_Impl struct {
 	aggregator  aggregator.Aggregator
 	pieceFinder piecefinder.PieceFinder
 	pieceAdder  pieceadder.PieceAdder
+	pieceReader piecereader.PieceReader
+}
+
+func (s *TODO_PDP_Impl) PieceReader() piecereader.PieceReader {
+	return s.pieceReader
 }
 
 func (s *TODO_PDP_Impl) PieceAdder() pieceadder.PieceAdder {
@@ -65,13 +71,17 @@ func (s *TODO_PDP_Impl) Aggregator() aggregator.Aggregator {
 	return s.aggregator
 }
 
+var _ pdp.PDP = (*TODO_PDP_Impl)(nil)
+
 func ProvideTODOPDPImplInterface(service types.API, agg aggregator.Aggregator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
 	finder := piecefinder.New(service, &cfg.Server.PublicURL)
 	adder := pieceadder.New(service, &cfg.Server.PublicURL)
+	reader := piecereader.New(service, &cfg.Server.PublicURL)
 	return &TODO_PDP_Impl{
 		aggregator:  agg,
 		pieceFinder: finder,
 		pieceAdder:  adder,
+		pieceReader: reader,
 	}, nil
 }
 
