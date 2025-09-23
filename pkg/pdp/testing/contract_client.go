@@ -3,13 +3,13 @@ package testing
 import (
 	"go.uber.org/mock/gomock"
 
-	mocks2 "github.com/storacha/piri/pkg/pdp/service/contract/mocks"
+	"github.com/storacha/piri/pkg/pdp/contract/mocks"
 )
 
-func NewMockContractClient(ctrl *gomock.Controller) (*mocks2.MockPDP, *mocks2.MockPDPVerifier, *mocks2.MockPDPProvingSchedule) {
-	mockPDP := mocks2.NewMockPDP(ctrl)
-	mockVerifier := mocks2.NewMockPDPVerifier(ctrl)
-	mockSchedule := mocks2.NewMockPDPProvingSchedule(ctrl)
+func NewMockContractClient(ctrl *gomock.Controller) (*mocks.MockPDP, *mocks.MockPDPVerifier, *mocks.MockPDPProvingSchedule) {
+	mockPDP := mocks.NewMockPDP(ctrl)
+	mockVerifier := mocks.NewMockPDPVerifier(ctrl)
+	mockSchedule := mocks.NewMockPDPProvingSchedule(ctrl)
 
 	// Setup the PDP mock to return our mocked verifier and schedule
 	mockPDP.EXPECT().NewPDPVerifier(gomock.Any(), gomock.Any()).Return(mockVerifier, nil).AnyTimes()

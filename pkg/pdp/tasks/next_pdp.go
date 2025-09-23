@@ -14,10 +14,10 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
+	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
@@ -28,7 +28,7 @@ var _ scheduler.TaskInterface = &NextProvingPeriodTask{}
 type NextProvingPeriodTask struct {
 	db             *gorm.DB
 	ethClient      bind.ContractBackend
-	contractClient contract.PDP
+	contractClient contract2.PDP
 	sender         ethereum.Sender
 
 	fil ChainAPI
@@ -36,7 +36,7 @@ type NextProvingPeriodTask struct {
 	addFunc promise.Promise[scheduler.AddTaskFunc]
 }
 
-func NewNextProvingPeriodTask(db *gorm.DB, ethClient bind.ContractBackend, contractClient contract.PDP, api ChainAPI, chainSched *chainsched.Scheduler, sender ethereum.Sender) (*NextProvingPeriodTask, error) {
+func NewNextProvingPeriodTask(db *gorm.DB, ethClient bind.ContractBackend, contractClient contract2.PDP, api ChainAPI, chainSched *chainsched.Scheduler, sender ethereum.Sender) (*NextProvingPeriodTask, error) {
 	n := &NextProvingPeriodTask{
 		db:             db,
 		ethClient:      ethClient,
@@ -140,7 +140,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	proofSetID := pdp.ID
 
 	// Get the listener address for this proof set from the PDPVerifier contract
-	pdpVerifier, err := n.contractClient.NewPDPVerifier(contract.Addresses().PDPVerifier, n.ethClient)
+	pdpVerifier, err := n.contractClient.NewPDPVerifier(contract2.Addresses().PDPVerifier, n.ethClient)
 	if err != nil {
 		return false, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
 	}
@@ -219,11 +219,11 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	//
 
 	// Instantiate the PDPVerifier contract
-	pdpContracts := contract.Addresses()
+	pdpContracts := contract2.Addresses()
 	pdpVerifierAddress := pdpContracts.PDPVerifier
 
 	// Prepare the transaction data
-	abiData, err := contract.PDPVerifierMetaData()
+	abiData, err := contract2.PDPVerifierMetaData()
 	if err != nil {
 		return false, fmt.Errorf("failed to get PDPVerifier ABI: %w", err)
 	}

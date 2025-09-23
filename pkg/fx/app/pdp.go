@@ -14,8 +14,8 @@ import (
 	"github.com/storacha/piri/pkg/fx/pdp"
 	"github.com/storacha/piri/pkg/fx/scheduler"
 	"github.com/storacha/piri/pkg/fx/wallet"
+	"github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/service"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 )
 
 var PDPModule = fx.Module("pdp",
@@ -23,7 +23,7 @@ var PDPModule = fx.Module("pdp",
 		fx.Annotate(
 			ProvideContractClient,
 			// provide the contract as it's interface
-			fx.As(new(contract.PDP)),
+			fx.As(new(smartcontract.PDP)),
 		),
 		fx.Annotate(
 			ProvideEthClient,
@@ -42,8 +42,8 @@ var PDPModule = fx.Module("pdp",
 	wallet.Module,
 )
 
-func ProvideContractClient() *contract.PDPContract {
-	return new(contract.PDPContract)
+func ProvideContractClient() *smartcontract.PDPContract {
+	return new(smartcontract.PDPContract)
 }
 
 func ProvideEthClient(lc fx.Lifecycle, cfg app.AppConfig) (*ethclient.Client, error) {

@@ -8,7 +8,7 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
@@ -30,7 +30,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Add
 	}
 
 	// Obtain the ABI of the PDPVerifier contract
-	abiData, err := contract.PDPVerifierMetaData()
+	abiData, err := contract2.PDPVerifierMetaData()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to get contract ABI: %w", err)
 	}
@@ -44,8 +44,8 @@ func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Add
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	tx := ethtypes.NewTransaction(
 		0,
-		contract.Addresses().PDPVerifier,
-		contract.SybilFee(),
+		contract2.Addresses().PDPVerifier,
+		contract2.SybilFee(),
 		0,
 		nil,
 		data,

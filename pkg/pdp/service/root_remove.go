@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
@@ -23,7 +23,7 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 		}
 	}()
 	// Get the ABI and pack the transaction data
-	abiData, err := contract.PDPVerifierMetaData()
+	abiData, err := contract2.PDPVerifierMetaData()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("get contract ABI: %w", err)
 	}
@@ -43,7 +43,7 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 	// Prepare the transaction
 	ethTx := types.NewTransaction(
 		0, // nonce will be set by SenderETH
-		contract.Addresses().PDPVerifier,
+		contract2.Addresses().PDPVerifier,
 		big.NewInt(0), // value
 		0,             // gas limit (will be estimated)
 		nil,           // gas price (will be set by SenderETH)
