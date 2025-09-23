@@ -16,7 +16,6 @@ import (
 	"github.com/storacha/go-ucanto/server"
 	"github.com/storacha/go-ucanto/server/retrieval"
 	"github.com/storacha/go-ucanto/ucan"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/store"
@@ -55,37 +54,36 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 					"range", fmt.Sprintf("%d-%d", start, end),
 				)
 
-				var blob blobstore.Object
-				g, gctx := errgroup.WithContext(ctx)
-				g.Go(func() error {
-					_, err := retrievalService.Allocations().Get(gctx, digest, space)
-					return err
-				})
-				g.Go(func() error {
-					if end < start {
-						return blobstore.ErrRangeNotSatisfiable
-					}
-					b, err := retrievalService.Blobs().Get(gctx, digest, blobstore.WithRange(start, &end))
-					blob = b
-					return err
-				})
-				if err := g.Wait(); err != nil {
+				_, err = retrievalService.Allocations().Get(ctx, digest, space)
+				if err != nil {
 					if errors.Is(err, store.ErrNotFound) {
-						log.Debugw("not found", "status", http.StatusNotFound)
-						notFoundErr := content.NewNotFoundError(fmt.Sprintf("blob not found: %s", digestStr))
+						log.Debugw("allocation not found", "status", http.StatusNotFound)
+						notFoundErr := content.NewNotFoundError(fmt.Sprintf("allocation not found: %s", digestStr))
 						res := result.Error[content.RetrieveCaveats, failure.IPLDBuilderFailure](notFoundErr)
 						resp := retrieval.NewResponse(http.StatusNotFound, nil, nil)
 						return res, nil, resp, nil
 					}
-					if errors.Is(err, blobstore.ErrRangeNotSatisfiable) {
+					log.Errorw("getting allocation", "error", err)
+					return nil, nil, retrieval.Response{}, fmt.Errorf("getting allocation: %w", err)
+				}
+
+				blob, err := retrievalService.Blobs().Get(ctx, digest, blobstore.WithRange(start, &end))
+				if err != nil {
+					if errors.Is(err, store.ErrNotFound) {
+						log.Debugw("blob not found", "status", http.StatusNotFound)
+						notFoundErr := content.NewNotFoundError(fmt.Sprintf("blob not found: %s", digestStr))
+						res := result.Error[content.RetrieveCaveats, failure.IPLDBuilderFailure](notFoundErr)
+						resp := retrieval.NewResponse(http.StatusNotFound, nil, nil)
+						return res, nil, resp, nil
+					} else if errors.Is(err, blobstore.ErrRangeNotSatisfiable) {
 						log.Debugw("range not satisfiable", "status", http.StatusRequestedRangeNotSatisfiable)
 						rangeNotSatisfiableErr := content.NewRangeNotSatisfiableError(fmt.Sprintf("range not satisfiable: %d-%d", start, end))
 						res := result.Error[content.RetrieveCaveats, failure.IPLDBuilderFailure](rangeNotSatisfiableErr)
 						resp := retrieval.NewResponse(http.StatusRequestedRangeNotSatisfiable, nil, nil)
 						return res, nil, resp, nil
 					}
-					log.Errorw("getting allocation and blob", "error", err)
-					return nil, nil, retrieval.Response{}, fmt.Errorf("getting allocation and blob: %w", err)
+					log.Errorw("getting blob", "error", err)
+					return nil, nil, retrieval.Response{}, fmt.Errorf("getting blob: %w", err)
 				}
 
 				res := result.Ok[content.RetrieveCaveats, failure.IPLDBuilderFailure](content.RetrieveCaveats{})

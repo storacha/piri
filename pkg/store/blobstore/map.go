@@ -51,10 +51,7 @@ func (mb *MapBlobstore) Get(ctx context.Context, digest multihash.Multihash, opt
 		return nil, store.ErrNotFound
 	}
 
-	if o.ByteRange.Start >= uint64(len(b)) {
-		return nil, ErrRangeNotSatisfiable
-	}
-	if o.ByteRange.End != nil && *o.ByteRange.End >= uint64(len(b)) {
+	if !rangeSatisfiable(o.ByteRange.Start, o.ByteRange.End, uint64(len(b))) {
 		return nil, ErrRangeNotSatisfiable
 	}
 
