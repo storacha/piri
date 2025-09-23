@@ -6,7 +6,7 @@ This guide covers how to upgrade an existing Piri installation to a newer versio
 
 Before upgrading, ensure you have:
 - ✅ A running Piri installation
-- ✅ Your configuration file (piri-config.toml)
+- ✅ Your configuration file (config.toml)
 - ✅ Access to the Piri server process
 
 ## Upgrade Process
@@ -36,7 +36,7 @@ piri version
 Restart your Piri server using your existing configuration file:
 
 ```bash
-piri serve full --config=piri-config.toml
+piri serve full --config=config.toml
 ```
 
 **Note:** Do not run `piri init` when upgrading - your existing configuration and proof set should be preserved.

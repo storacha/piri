@@ -13,7 +13,7 @@ The configuration file is created when you run `piri init`. See the [Piri Node S
 ### Using a Configuration File
 
 ```bash
-piri serve full --config=piri-config.toml
+piri serve full --config=config.toml
 ```
 
 ## Configuration File Format

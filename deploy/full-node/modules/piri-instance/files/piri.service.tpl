@@ -21,9 +21,9 @@ ExecStartPre=/bin/bash -c '/usr/local/bin/piri init \
   --lotus-endpoint="${lotus_endpoint}" \
   --operator-email="${operator_email}" \
   --public-url="${public_url}" \
-  > /etc/piri/piri-config.toml'
+  > /etc/piri/config.toml'
 
-ExecStart=/usr/local/bin/piri serve full --config=/etc/piri/piri-config.toml
+ExecStart=/usr/local/bin/piri serve full --config=/etc/piri/config.toml
 
 Restart=on-failure
 RestartSec=10

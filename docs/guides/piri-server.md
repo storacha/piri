@@ -33,10 +33,10 @@ piri init \
   --wallet-file=/path/to/wallet.hex \
   --lotus-endpoint=wss://YOUR_LOTUS_ENDPOINT/rpc/v1 \
   --operator-email=your-email@example.com \
-  --public-url=https://piri.example.com > piri-config.toml
+  --public-url=https://piri.example.com > config.toml
 ```
 
-Note: if you move the config file to your user config directory (e.g. `~/.config/piri-config.toml` on Linux) then Piri will automatically load it on start.
+Note: if you move the config file to your user config directory (e.g. `~/.config/piri/config.toml` on Linux) then Piri will automatically load it on start.
 
 **Settings:**
 - `--data-dir`: Folder for permanent Piri data
@@ -84,10 +84,10 @@ The command creates a complete TOML configuration file. If you didn't save it to
 After setup is complete, run your Piri node using the configuration file:
 
 ```bash
-piri serve full --config=piri-config.toml
+piri serve full --config=config.toml
 ```
 
-If the `--config` option is not provided, Piri will automatically load config from `piri-config.toml` if found your user config directory e.g. `~/.config/piri-config.toml`.
+If the `--config` option is not provided, Piri will automatically load config from your user config directory e.g. `~/.config/piri/config.toml`.
 
 **Expected Output:**
 ```bash
