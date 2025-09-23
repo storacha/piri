@@ -34,6 +34,7 @@ type EgressTrackingService struct {
 	egressTrackerConn   client.Connection
 	batchEndpoint       *url.URL
 	store               egressbatchstore.EgressBatchStore
+	queue               EgressTrackingQueue
 }
 
 func New(
@@ -42,15 +43,23 @@ func New(
 	egressTrackerProofs delegation.Proofs,
 	batchEndpoint *url.URL,
 	store egressbatchstore.EgressBatchStore,
-) *EgressTrackingService {
-	return &EgressTrackingService{
+	queue EgressTrackingQueue,
+) (*EgressTrackingService, error) {
+	svc := &EgressTrackingService{
 		id:                  id,
 		egressTrackerDID:    egressTrackerConn.ID().DID(),
 		egressTrackerProofs: egressTrackerProofs,
 		egressTrackerConn:   egressTrackerConn,
 		batchEndpoint:       batchEndpoint,
 		store:               store,
+		queue:               queue,
 	}
+
+	if err := queue.Register(svc.egressTrack); err != nil {
+		return nil, fmt.Errorf("registering egress track task: %w", err)
+	}
+
+	return svc, nil
 }
 
 func (s *EgressTrackingService) AddReceipt(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) error {
@@ -63,15 +72,19 @@ func (s *EgressTrackingService) AddReceipt(ctx context.Context, rcpt receipt.Rec
 	}
 
 	if batchRotated {
-		if err := s.trackEgress(ctx, rotatedBatchCID); err != nil {
-			return fmt.Errorf("sending egress track invocation: %w", err)
+		if err := s.enqueueEgressTrackTask(ctx, rotatedBatchCID); err != nil {
+			return fmt.Errorf("enqueuing egress track task: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (s *EgressTrackingService) trackEgress(ctx context.Context, batchCID cid.Cid) error {
+func (s *EgressTrackingService) enqueueEgressTrackTask(ctx context.Context, batchCID cid.Cid) error {
+	return s.queue.Enqueue(ctx, batchCID)
+}
+
+func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Cid) error {
 	trackInv, err := egress.Track.Invoke(
 		s.id,
 		s.egressTrackerDID,

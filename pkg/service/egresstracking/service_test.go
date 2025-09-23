@@ -63,20 +63,23 @@ func TestAddReceipt(t *testing.T) {
 	eTrackerConn, err := client.NewConnection(testutil.Service, ch)
 	require.NoError(t, err)
 
-	t.Run("invokes egress track on full batches", func(t *testing.T) {
+	t.Run("enqueues an egress track task on full batches", func(t *testing.T) {
 		// Create a test store
 		tempDir := t.TempDir()
 		store, err := egressbatchstore.NewFSBatchStore(tempDir, 100) // 100 bytes batch size
 		require.NoError(t, err)
+		queue := NewMockEgressTrackingQueue(t)
 
 		// Create service
-		service := New(
+		service, err := New(
 			thisNode,
 			eTrackerConn,
 			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
 			store,
+			queue,
 		)
+		require.NoError(t, err)
 
 		// Create a test receipt
 		rcpt := createTestReceipt(t, testutil.Alice, thisNode)
@@ -96,15 +99,18 @@ func TestAddReceipt(t *testing.T) {
 		tempDir := t.TempDir()
 		store, err := egressbatchstore.NewFSBatchStore(tempDir, 1024)
 		require.NoError(t, err)
+		queue := NewMockEgressTrackingQueue(t)
 
 		// Create service
-		service := New(
+		service, err := New(
 			thisNode,
 			eTrackerConn,
 			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
 			store,
+			queue,
 		)
+		require.NoError(t, err)
 
 		var wg sync.WaitGroup
 		numReceipts := 10
@@ -158,6 +164,27 @@ func createTestReceipt(t *testing.T, client ucan.Signer, node ucan.Signer) recei
 	require.NoError(t, err)
 
 	return retrieveRcpt
+}
+
+type MockEgressTrackingQueue struct {
+	t  *testing.T
+	fn func(ctx context.Context, batchCID cid.Cid) error
+}
+
+func NewMockEgressTrackingQueue(t *testing.T) *MockEgressTrackingQueue {
+	return &MockEgressTrackingQueue{t: t}
+}
+
+func (m *MockEgressTrackingQueue) Register(fn func(ctx context.Context, batchCID cid.Cid) error) error {
+	m.fn = fn
+	return nil
+}
+
+func (m *MockEgressTrackingQueue) Enqueue(ctx context.Context, batchCID cid.Cid) error {
+	if m.fn == nil {
+		m.t.Fatal("no enqueue function registered")
+	}
+	return m.fn(ctx, batchCID)
 }
 
 // MockEgressTrackerServer is a mock UCAN server that handles egress track invocations
