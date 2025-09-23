@@ -5,10 +5,10 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
+	"github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
@@ -37,7 +37,7 @@ type InitProvingPeriodTaskParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
 	Client    service.EthClient
-	Contract  contract.PDP
+	Contract  smartcontract.PDP
 	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 	Sender    ethereum.Sender
@@ -58,7 +58,7 @@ type NextProvingPeriodTaskParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
 	Client    service.EthClient
-	Contract  contract.PDP
+	Contract  smartcontract.PDP
 	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 	Sender    ethereum.Sender
@@ -79,7 +79,7 @@ type PDPProveTaskParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
 	Client    service.EthClient
-	Contract  contract.PDP
+	Contract  smartcontract.PDP
 	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 	Sender    ethereum.Sender
