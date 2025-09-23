@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -51,7 +52,7 @@ Piri can run entirely on its own with no software other than Filecoin Lotus, or 
 func init() {
 	cobra.OnInitialize(initLogging, initConfig, initTelemetry)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path. Attempts to load from ~/.piri/config.toml if not set.")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "logging level")
 
 	rootCmd.PersistentFlags().String("data-dir", filepath.Join(lo.Must(os.UserHomeDir()), ".storacha"), "Storage service data directory")
@@ -85,6 +86,16 @@ func initConfig() {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.SetEnvPrefix("PIRI")
+
+	if cfgFile == "" {
+		if homedir, err := os.UserHomeDir(); err == nil {
+			defaultCfgFile := path.Join(homedir, ".piri", "config.toml")
+			if inf, err := os.Stat(defaultCfgFile); err == nil && !inf.IsDir() {
+				log.Infof("loading config automatically from: %s", defaultCfgFile)
+				cfgFile = defaultCfgFile
+			}
+		}
+	}
 
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)

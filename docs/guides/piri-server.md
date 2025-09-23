@@ -36,6 +36,8 @@ piri init \
   --public-url=https://piri.example.com > config.toml
 ```
 
+Note: if you move the config file to `~/.piri/config.toml` then Piri will automatically load it on start.
+
 **Settings:**
 - `--data-dir`: Folder for permanent Piri data
 - `--temp-dir`: Folder for temporary data
@@ -84,6 +86,8 @@ After setup is complete, run your Piri node using the configuration file:
 ```bash
 piri serve full --config=config.toml
 ```
+
+Piri will automatically load config from `~/.piri/config.toml` if the `--config` option is not provided.
 
 **Expected Output:**
 ```bash
