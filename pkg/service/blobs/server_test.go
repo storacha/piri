@@ -19,8 +19,8 @@ import (
 
 	"github.com/storacha/go-libstoracha/testutil"
 
+	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/fx/echo"
-	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
