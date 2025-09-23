@@ -33,6 +33,8 @@ func ExecuteContext(ctx context.Context) {
 
 var log = logging.Logger("cmd")
 
+const configFileName = "piri-config.toml"
+
 const piriShortDescription = `
 Piri is the software run by all storage providers on the Storacha network
 `
@@ -52,7 +54,7 @@ Piri can run entirely on its own with no software other than Filecoin Lotus, or 
 func init() {
 	cobra.OnInitialize(initLogging, initConfig, initTelemetry)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path. Attempts to load from ~/.piri/config.toml if not set.")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path. Attempts to load from user config directory if not set e.g. ~/.config/"+configFileName)
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "logging level")
 
 	rootCmd.PersistentFlags().String("data-dir", filepath.Join(lo.Must(os.UserHomeDir()), ".storacha"), "Storage service data directory")
@@ -88,8 +90,8 @@ func initConfig() {
 	viper.SetEnvPrefix("PIRI")
 
 	if cfgFile == "" {
-		if homedir, err := os.UserHomeDir(); err == nil {
-			defaultCfgFile := path.Join(homedir, ".piri", "config.toml")
+		if configDir, err := os.UserConfigDir(); err == nil {
+			defaultCfgFile := path.Join(configDir, configFileName)
 			if inf, err := os.Stat(defaultCfgFile); err == nil && !inf.IsDir() {
 				log.Infof("loading config automatically from: %s", defaultCfgFile)
 				cfgFile = defaultCfgFile
