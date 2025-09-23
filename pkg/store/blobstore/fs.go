@@ -15,7 +15,7 @@ import (
 
 	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multihash"
-	"github.com/storacha/piri/pkg/internal/digestutil"
+	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/store"
 )
 

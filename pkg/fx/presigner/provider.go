@@ -7,8 +7,8 @@ import (
 	"github.com/storacha/go-ucanto/principal"
 	"go.uber.org/fx"
 
+	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/presigner"
 )
 

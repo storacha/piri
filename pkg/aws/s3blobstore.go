@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/multiformats/go-multicodec"
 	multihash "github.com/multiformats/go-multihash"
-	"github.com/storacha/piri/pkg/internal/digestutil"
+	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
