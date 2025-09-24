@@ -27,7 +27,7 @@ func TestBlobGetterAdapter(t *testing.T) {
 		digest := testutil.MultihashFromBytes(t, data)
 		digestStr := digestutil.Format(digest)
 		pieceLink := testutil.RandomPiece(t, int64(len(data)))
-		pieceLinkStr := pieceLink.Link().String()
+		pieceLinkStr := pieceLink.V1Link().String()
 
 		finder := mockPieceFinder{map[string]piece.PieceLink{digestStr: pieceLink}}
 		reader := mockPieceReader{map[string][]byte{pieceLinkStr: data}}
@@ -46,7 +46,7 @@ func TestBlobGetterAdapter(t *testing.T) {
 		digest := testutil.MultihashFromBytes(t, data)
 		digestStr := digestutil.Format(digest)
 		pieceLink := testutil.RandomPiece(t, int64(len(data)))
-		pieceLinkStr := pieceLink.Link().String()
+		pieceLinkStr := pieceLink.V1Link().String()
 
 		finder := mockPieceFinder{map[string]piece.PieceLink{digestStr: pieceLink}}
 		reader := mockPieceReader{map[string][]byte{pieceLinkStr: data}}

@@ -34,7 +34,7 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 		content.RetrieveAbility,
 		retrieval.Provide(
 			content.Retrieve,
-			func(ctx context.Context, cap ucan.Capability[content.RetrieveCaveats], inv invocation.Invocation, iCtx server.InvocationContext, request retrieval.Request) (result.Result[content.RetrieveCaveats, failure.IPLDBuilderFailure], fx.Effects, retrieval.Response, error) {
+			func(ctx context.Context, cap ucan.Capability[content.RetrieveCaveats], inv invocation.Invocation, iCtx server.InvocationContext, request retrieval.Request) (result.Result[content.RetrieveOk, failure.IPLDBuilderFailure], fx.Effects, retrieval.Response, error) {
 				space, err := did.Parse(cap.With())
 				if err != nil {
 					return nil, nil, retrieval.Response{}, fmt.Errorf("parsing space DID: %w", err)
@@ -58,7 +58,7 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 					if errors.Is(err, store.ErrNotFound) {
 						log.Debugw("allocation not found", "status", http.StatusNotFound)
 						notFoundErr := content.NewNotFoundError(fmt.Sprintf("allocation not found: %s", digestStr))
-						res := result.Error[content.RetrieveCaveats, failure.IPLDBuilderFailure](notFoundErr)
+						res := result.Error[content.RetrieveOk, failure.IPLDBuilderFailure](notFoundErr)
 						resp := retrieval.NewResponse(http.StatusNotFound, nil, nil)
 						return res, nil, resp, nil
 					}
@@ -71,13 +71,13 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 					if errors.Is(err, store.ErrNotFound) {
 						log.Debugw("blob not found", "status", http.StatusNotFound)
 						notFoundErr := content.NewNotFoundError(fmt.Sprintf("blob not found: %s", digestStr))
-						res := result.Error[content.RetrieveCaveats, failure.IPLDBuilderFailure](notFoundErr)
+						res := result.Error[content.RetrieveOk, failure.IPLDBuilderFailure](notFoundErr)
 						resp := retrieval.NewResponse(http.StatusNotFound, nil, nil)
 						return res, nil, resp, nil
 					} else if errors.Is(err, blobstore.ErrRangeNotSatisfiable) {
 						log.Debugw("range not satisfiable", "status", http.StatusRequestedRangeNotSatisfiable)
 						rangeNotSatisfiableErr := content.NewRangeNotSatisfiableError(fmt.Sprintf("range not satisfiable: %d-%d", start, end))
-						res := result.Error[content.RetrieveCaveats, failure.IPLDBuilderFailure](rangeNotSatisfiableErr)
+						res := result.Error[content.RetrieveOk, failure.IPLDBuilderFailure](rangeNotSatisfiableErr)
 						resp := retrieval.NewResponse(http.StatusRequestedRangeNotSatisfiable, nil, nil)
 						return res, nil, resp, nil
 					}
@@ -85,7 +85,7 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 					return nil, nil, retrieval.Response{}, fmt.Errorf("getting blob: %w", err)
 				}
 
-				res := result.Ok[content.RetrieveCaveats, failure.IPLDBuilderFailure](content.RetrieveCaveats{})
+				res := result.Ok[content.RetrieveOk, failure.IPLDBuilderFailure](content.RetrieveOk{})
 				status := http.StatusOK
 				contentLength := end - start + 1
 				headers := http.Header{}

@@ -40,19 +40,19 @@ type BlobGetterAdapter struct {
 	blobSizer   BlobSizer
 }
 
-func (psa *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihash, opts ...blobstore.GetOption) (blobstore.Object, error) {
+func (bga *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihash, opts ...blobstore.GetOption) (blobstore.Object, error) {
 	cfg := blobstore.GetOptions{}
 	cfg.ProcessOptions(opts)
 
-	size, err := psa.blobSizer.Size(ctx, digest)
+	size, err := bga.blobSizer.Size(ctx, digest)
 	if err != nil {
 		return nil, fmt.Errorf("getting size of blob %s: %w", digestutil.Format(digest), err)
 	}
-	pieceLink, err := psa.pieceFinder.FindPiece(ctx, digest, size)
+	pieceLink, err := bga.pieceFinder.FindPiece(ctx, digest, size)
 	if err != nil {
 		return nil, fmt.Errorf("finding piece link for %s: %w", digestutil.Format(digest), err)
 	}
-	res, err := psa.pieceReader.ReadPiece(ctx, pieceLink.Link().(cidlink.Link).Cid, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
+	res, err := bga.pieceReader.ReadPiece(ctx, pieceLink.V1Link().(cidlink.Link).Cid, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	if err != nil {
 		return nil, fmt.Errorf("reading piece: %w", err)
 	}
