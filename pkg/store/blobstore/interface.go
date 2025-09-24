@@ -19,32 +19,38 @@ var ErrTooLarge = errors.New("payload too large")
 // ErrTooSmall is returned when the data being written is smaller than expected.
 var ErrTooSmall = errors.New("payload too small")
 
+// ErrRangeNotSatisfiable is returned when the byte range option falls outside
+// of the total size of the blob.
+var ErrRangeNotSatisfiable = errors.New("range not satisfiable")
+
 // GetOption is an option configuring byte retrieval from a blobstore.
-type GetOption func(cfg *options) error
+type GetOption func(cfg *GetOptions) error
 
 type Range struct {
-	Offset uint64
-	Length *uint64
+	// Start is the byte to start extracting from (inclusive).
+	Start uint64
+	// End is the byte to stop extracting at (inclusive).
+	End *uint64
 }
 
-type options struct {
-	byteRange Range
+type GetOptions struct {
+	ByteRange Range
 }
 
-func (o *options) ProcessOptions(opts []GetOption) {
+func (o *GetOptions) ProcessOptions(opts []GetOption) {
 	for _, opt := range opts {
 		opt(o)
 	}
 }
 
-func (o *options) Range() Range {
-	return o.byteRange
+func (o *GetOptions) Range() Range {
+	return o.ByteRange
 }
 
 // WithRange configures a byte range to extract.
-func WithRange(byteRange Range) GetOption {
-	return func(opts *options) error {
-		opts.byteRange = byteRange
+func WithRange(start uint64, end *uint64) GetOption {
+	return func(opts *GetOptions) error {
+		opts.ByteRange = Range{start, end}
 		return nil
 	}
 }
@@ -52,18 +58,22 @@ func WithRange(byteRange Range) GetOption {
 type Object interface {
 	// Size returns the total size of the object in bytes.
 	Size() int64
-	Body() io.Reader
+	Body() io.ReadCloser
 }
 
-type Blobstore interface {
-	// Put stores the bytes to the store and ensures it hashes to the passed
-	// digest.
-	Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error
+type BlobGetter interface {
 	// Get retrieves the object identified by the passed digest. Returns nil and
 	// [ErrNotFound] if the object does not exist.
 	//
 	// Note: data is not hashed on read.
 	Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error)
+}
+
+type Blobstore interface {
+	BlobGetter
+	// Put stores the bytes to the store and ensures it hashes to the passed
+	// digest.
+	Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error
 }
 
 // FileSystemer exposes the filesystem interface for reading blobs.
@@ -83,5 +93,5 @@ type GetConfig interface {
 }
 
 func NewGetConfig() GetConfig {
-	return &options{}
+	return &GetOptions{}
 }

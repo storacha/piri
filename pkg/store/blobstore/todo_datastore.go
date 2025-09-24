@@ -20,7 +20,7 @@ type TODO_DsBlobstore struct {
 
 // Get implements Blobstore.
 func (d *TODO_DsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error) {
-	o := &options{}
+	o := &GetOptions{}
 	for _, opt := range opts {
 		if err := opt(o); err != nil {
 			return nil, err
@@ -37,7 +37,11 @@ func (d *TODO_DsBlobstore) Get(ctx context.Context, digest multihash.Multihash, 
 		return nil, err
 	}
 
-	obj := DsObject{bytes: b, byteRange: o.byteRange}
+	if !rangeSatisfiable(o.ByteRange.Start, o.ByteRange.End, uint64(len(b))) {
+		return nil, ErrRangeNotSatisfiable
+	}
+
+	obj := DsObject{bytes: b, byteRange: o.ByteRange}
 	return obj, nil
 }
 

@@ -10,17 +10,17 @@ import (
 	"go.uber.org/fx"
 
 	echofx "github.com/storacha/piri/pkg/fx/echo"
-	"github.com/storacha/piri/pkg/fx/ucan/handlers"
+	"github.com/storacha/piri/pkg/fx/storage/ucan/handlers"
 	"github.com/storacha/piri/pkg/service/storage"
 )
 
-var log = logging.Logger("fx/ucan")
+var log = logging.Logger("fx/storage/ucan")
 
 type Handler struct {
 	ucanServer ucanserver.ServerView[ucanserver.Service]
 }
 
-var Module = fx.Module("ucan/server",
+var Module = fx.Module("storage/ucan/server",
 	fx.Provide(
 		NewHandler,
 		fx.Annotate(
@@ -44,9 +44,9 @@ func NewHandler(p Params) (*Handler, error) {
 		ucanserver.WithErrorHandler(func(err ucanserver.HandlerExecutionError[any]) {
 			l := log.With("error", err.Error())
 			if s := err.Stack(); s != "" {
-				l.With("stack", s)
+				l = l.With("stack", s)
 			}
-			l.Error("ucan handler execution error")
+			l.Error("ucan storage handler execution error")
 		}),
 	}
 	options = append(options, p.Options...)

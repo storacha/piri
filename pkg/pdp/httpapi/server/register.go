@@ -48,11 +48,7 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 	e.GET("/pdp/ping", p.handlePing)
 
 	// /pdp/piece
-	e.POST(path.Join(PDPRoutePath, piecePrefix), p.handlePreparePiece)
-	e.PUT(path.Join(PDPRoutePath, piecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload)
-	e.GET(path.Join(PDPRoutePath, piecePrefix), p.handleFindPiece)
-
-	// retrieval, supporting head requests too
-	e.GET(path.Join(PiecePrefix, ":cid"), p.handleDownloadByPieceCid)
-	e.HEAD(path.Join(PiecePrefix, ":cid"), p.handleDownloadByPieceCid)
+	e.POST(path.Join(PDPRoutePath, PiecePrefix), p.handlePreparePiece)
+	e.PUT(path.Join(PDPRoutePath, PiecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload)
+	e.GET(path.Join(PDPRoutePath, PiecePrefix), p.handleFindPiece)
 }

@@ -92,6 +92,7 @@ resource "aws_dynamodb_table" "allocation_store" {
     type = "S"
   }
 
+  # note: now contains a space DID not invocation CID
   attribute {
     name = "cause"
     type = "S"

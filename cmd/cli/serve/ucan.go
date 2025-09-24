@@ -15,15 +15,19 @@ import (
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
+	ucanretrieval "github.com/storacha/go-ucanto/server/retrieval"
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp"
+	"github.com/storacha/piri/pkg/pdp/store/adapter"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
+	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/storage"
+	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/telemetry"
 )
@@ -265,7 +269,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing indexing service URL: %w", err)
 	}
 
-	var opts []storage.Option
+	var storageOpts []storage.Option
 	var indexingServiceProof delegation.Proof
 	if cfg.UCANService.Services.Indexer.Proof != "" {
 		dlg, err := delegation.Parse(cfg.UCANService.Services.Indexer.Proof)
@@ -273,7 +277,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("parsing indexing service proof: %w", err)
 		}
 		indexingServiceProof = delegation.FromDelegation(dlg)
-		opts = append(opts, storage.WithPublisherIndexingServiceProof(indexingServiceProof))
+		storageOpts = append(storageOpts, storage.WithPublisherIndexingServiceProof(indexingServiceProof))
 	}
 
 	var pubURL *url.URL
@@ -290,7 +294,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	opts = append(opts,
+	storageOpts = append(storageOpts,
 		storage.WithIdentity(id),
 		storage.WithBlobstore(blobStore),
 		storage.WithAllocationDatastore(allocDs),
@@ -304,19 +308,31 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	)
 
 	if pdpConfig != nil {
-		opts = append(opts, storage.WithPDPConfig(*pdpConfig))
+		storageOpts = append(storageOpts, storage.WithPDPConfig(*pdpConfig))
 	}
 	if blobAddr != nil {
-		opts = append(opts, storage.WithPublisherBlobAddress(blobAddr))
+		storageOpts = append(storageOpts, storage.WithPublisherBlobAddress(blobAddr))
 	}
-	svc, err := storage.New(opts...)
+	storageSvc, err := storage.New(storageOpts...)
 	if err != nil {
-		return fmt.Errorf("creating service instance: %w", err)
+		return fmt.Errorf("creating storage service instance: %w", err)
 	}
-	err = svc.Startup(ctx)
+	err = storageSvc.Startup(ctx)
 	if err != nil {
-		return fmt.Errorf("starting service: %w", err)
+		return fmt.Errorf("starting storage service: %w", err)
 	}
+
+	blobGetter := blobstore.BlobGetter(blobStore)
+	// When PDP is enabled, blobs are stored in the piece store and keyed by piece
+	// hash. We need to adapt it to resolve a blob hash to a piece hash before
+	// fetching.
+	if storageSvc.PDP() != nil {
+		finder := storageSvc.PDP().PieceFinder()
+		reader := storageSvc.PDP().PieceReader()
+		sizer := allocationstore.NewBlobSizer(storageSvc.Blobs().Allocations())
+		blobGetter = adapter.NewBlobGetterAdapter(finder, reader, sizer)
+	}
+	retrievalSvc := retrieval.New(id, blobGetter, storageSvc.Blobs().Allocations())
 
 	go func() {
 		serverConfig := cliutil.UCANServerConfig{
@@ -331,9 +347,9 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			UploadServiceDID:     uploadServiceDID,
 			UploadServiceURL:     uploadServiceURL,
 			IPNIAnnounceURLs:     ipniAnnounceURLs,
-			PDPEnabled:           svc.PDP() != nil,
+			PDPEnabled:           storageSvc.PDP() != nil,
 		}
-		if svc.PDP() != nil {
+		if storageSvc.PDP() != nil {
 			serverConfig.PDPServerURL = pdpConfig.PDPServerURL
 			serverConfig.ProofSetID = pdpConfig.ProofSet
 		}
@@ -341,7 +357,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		cliutil.PrintHero(cmd.OutOrStdout(), id.DID())
 	}()
 
-	defer svc.Close(ctx)
+	defer storageSvc.Close(ctx)
 
 	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID})
 	if err != nil {
@@ -361,17 +377,26 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		telemetry.Int64Attr("proof_set", int64(cfg.UCANService.ProofSetID)),
 	)
 
+	errHandler := func(err ucanserver.HandlerExecutionError[any]) {
+		l := log.With("error", err.Error())
+		if s := err.Stack(); s != "" {
+			l.With("stack", s)
+		}
+		l.Error("ucan handler execution error")
+	}
+
 	err = server.ListenAndServe(
 		fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		svc,
-		ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
-		ucanserver.WithErrorHandler(func(err ucanserver.HandlerExecutionError[any]) {
-			l := log.With("error", err.Error())
-			if s := err.Stack(); s != "" {
-				l.With("stack", s)
-			}
-			l.Error("ucan handler execution error")
-		}),
+		storageSvc,
+		retrievalSvc,
+		server.WithUCANServerOptions(
+			ucanserver.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
+			ucanserver.WithErrorHandler(errHandler),
+		),
+		server.WithUCANRetrievalServerOptions(
+			ucanretrieval.WithPrincipalResolver(cachedpresolv.ResolveDIDKey),
+			ucanretrieval.WithErrorHandler(errHandler),
+		),
 	)
 	return err
 

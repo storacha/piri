@@ -40,7 +40,13 @@ var Module = fx.Module("filesystem-store",
 			fx.As(new(store.EncodeableStore)),
 		),
 		NewAllocationStore,
-		NewBlobStore,
+		fx.Annotate(
+			NewBlobStore,
+			// provide as Blobstore (self)
+			fx.As(fx.Self()),
+			// provide sub-interfaces of Blobstore
+			fx.As(new(blobstore.BlobGetter)),
+		),
 		NewClaimStore,
 		NewReceiptStore,
 		NewKeyStore,

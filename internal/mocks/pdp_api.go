@@ -135,18 +135,23 @@ func (mr *MockAPIMockRecorder) GetProofSetStatus(ctx, txHash any) *gomock.Call {
 }
 
 // ReadPiece mocks base method.
-func (m *MockAPI) ReadPiece(ctx context.Context, piece cid.Cid) (*types.PieceReader, error) {
+func (m *MockAPI) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadPiece", ctx, piece)
+	varargs := []any{ctx, piece}
+	for _, a := range options {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReadPiece", varargs...)
 	ret0, _ := ret[0].(*types.PieceReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadPiece indicates an expected call of ReadPiece.
-func (mr *MockAPIMockRecorder) ReadPiece(ctx, piece any) *gomock.Call {
+func (mr *MockAPIMockRecorder) ReadPiece(ctx, piece any, options ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadPiece", reflect.TypeOf((*MockAPI)(nil).ReadPiece), ctx, piece)
+	varargs := append([]any{ctx, piece}, options...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadPiece", reflect.TypeOf((*MockAPI)(nil).ReadPiece), varargs...)
 }
 
 // RemoveRoot mocks base method.
@@ -333,18 +338,23 @@ func (mr *MockPieceAPIMockRecorder) FindPiece(ctx, piece any) *gomock.Call {
 }
 
 // ReadPiece mocks base method.
-func (m *MockPieceAPI) ReadPiece(ctx context.Context, piece cid.Cid) (*types.PieceReader, error) {
+func (m *MockPieceAPI) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadPiece", ctx, piece)
+	varargs := []any{ctx, piece}
+	for _, a := range options {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReadPiece", varargs...)
 	ret0, _ := ret[0].(*types.PieceReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadPiece indicates an expected call of ReadPiece.
-func (mr *MockPieceAPIMockRecorder) ReadPiece(ctx, piece any) *gomock.Call {
+func (mr *MockPieceAPIMockRecorder) ReadPiece(ctx, piece any, options ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadPiece", reflect.TypeOf((*MockPieceAPI)(nil).ReadPiece), ctx, piece)
+	varargs := append([]any{ctx, piece}, options...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadPiece", reflect.TypeOf((*MockPieceAPI)(nil).ReadPiece), varargs...)
 }
 
 // UploadPiece mocks base method.

@@ -78,5 +78,17 @@ func TestBlobstore(t *testing.T) {
 
 			require.Equal(t, data, b)
 		})
+
+		t.Run("range not satisfiable "+k, func(t *testing.T) {
+			data := testutil.RandomBytes(t, 10)
+			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
+
+			err := s.Put(t.Context(), digest, uint64(len(data)), bytes.NewReader(data))
+			require.NoError(t, err)
+
+			end := uint64(15)
+			_, err = s.Get(t.Context(), digest, WithRange(5, &end))
+			require.ErrorIs(t, err, ErrRangeNotSatisfiable)
+		})
 	}
 }

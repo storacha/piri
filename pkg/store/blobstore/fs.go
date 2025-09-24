@@ -29,7 +29,7 @@ func (o FileObject) Size() int64 {
 	return o.size
 }
 
-func (o FileObject) Body() io.Reader {
+func (o FileObject) Body() io.ReadCloser {
 	r, w := io.Pipe()
 	f, err := os.Open(o.name)
 	if err != nil {
@@ -37,14 +37,14 @@ func (o FileObject) Body() io.Reader {
 		return r
 	}
 
-	if o.byteRange.Offset > 0 {
-		f.Seek(int64(o.byteRange.Offset), io.SeekStart)
+	if o.byteRange.Start > 0 {
+		f.Seek(int64(o.byteRange.Start), io.SeekStart)
 	}
 
 	go func() {
 		var err error
-		if o.byteRange.Length != nil {
-			_, err = io.CopyN(w, f, int64(*o.byteRange.Length))
+		if o.byteRange.End != nil {
+			_, err = io.CopyN(w, f, int64(*o.byteRange.End-o.byteRange.Start+1))
 		} else {
 			_, err = io.Copy(w, f)
 		}
@@ -79,7 +79,7 @@ func (b *FsBlobstore) FileSystem() http.FileSystem {
 }
 
 func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts ...GetOption) (Object, error) {
-	o := &options{}
+	o := &GetOptions{}
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -99,7 +99,11 @@ func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 		return nil, fmt.Errorf("stat file: %w", err)
 	}
 
-	return FileObject{name: n, size: inf.Size(), byteRange: o.byteRange}, nil
+	if !rangeSatisfiable(o.ByteRange.Start, o.ByteRange.End, uint64(inf.Size())) {
+		return nil, ErrRangeNotSatisfiable
+	}
+
+	return FileObject{name: n, size: inf.Size(), byteRange: o.ByteRange}, nil
 }
 
 func (b *FsBlobstore) Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error {
