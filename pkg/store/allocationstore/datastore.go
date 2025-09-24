@@ -21,6 +21,26 @@ type DsAllocationStore struct {
 
 func (d *DsAllocationStore) Get(ctx context.Context, digest multihash.Multihash, space did.DID) (allocation.Allocation, error) {
 	value, err := d.data.Get(ctx, datastore.NewKey(encodeKey(digest, space)))
+
+	// HACK: (ash) Temporary hack to allow allocation to be found if it was
+	// stored with the old style key ("<digest>/<cause>") not the new key
+	// ("<digest>/<space>"). This works because listing works on digest
+	// prefix i.e. "<digest>/*".
+	//
+	// This code is safe to be removed after the next time we reset the
+	// warm storage network.
+	if err != nil && errors.Is(err, store.ErrNotFound) {
+		allocs, listErr := d.List(ctx, digest)
+		if listErr != nil {
+			return allocation.Allocation{}, fmt.Errorf("listing from datastore: %w", listErr)
+		}
+		for _, a := range allocs {
+			if a.Space == space {
+				return a, nil
+			}
+		}
+	}
+
 	if err != nil {
 		if errors.Is(err, datastore.ErrNotFound) {
 			return allocation.Allocation{}, store.ErrNotFound
