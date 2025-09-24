@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	multihash "github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/piri/pkg/store"
 )
 
