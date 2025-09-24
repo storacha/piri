@@ -54,28 +54,6 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 				)
 
 				_, err = retrievalService.Allocations().Get(ctx, digest, space)
-
-				// HACK: (ash) Temporary hack to allow allocation to be found if it was
-				// stored with the old style key ("<digest>/<cause>") not the new key
-				// ("<digest>/<space>"). This works because listing works on digest
-				// prefix i.e. "<digest>/*".
-				//
-				// This code is safe to be removed after the next time we reset the
-				// warm storage network.
-				if err != nil && errors.Is(err, store.ErrNotFound) {
-					allocs, listErr := retrievalService.Allocations().List(ctx, digest)
-					if listErr != nil {
-						log.Errorw("listing allocations", "error", err)
-						return nil, nil, retrieval.Response{}, fmt.Errorf("listing allocations: %w", err)
-					}
-					for _, a := range allocs {
-						if a.Space == space {
-							err = nil // remove the "not found" error if found in list
-							break
-						}
-					}
-				}
-
 				if err != nil {
 					if errors.Is(err, store.ErrNotFound) {
 						log.Debugw("allocation not found", "status", http.StatusNotFound)
