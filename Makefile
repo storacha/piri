@@ -30,9 +30,20 @@ mockgen:
 	mockgen -destination=./internal/mocks/sender_eth_client.go -package=mocks github.com/storacha/piri/pkg/pdp/tasks SenderETHClient
 	mockgen -destination=./internal/mocks/message_watcher_eth_client.go -package=mocks github.com/storacha/piri/pkg/pdp/tasks MessageWatcherEthClient
 	mockgen -destination=./internal/mocks/contract_backend.go -package=mocks github.com/ethereum/go-ethereum/accounts/abi/bind ContractBackend
-	mockgen -destination=./internal/mocks/pdp.go -package=mocks github.com/storacha/piri/pkg/pdp/service/contract PDP
-	mockgen -destination=./internal/mocks/pdp_proving_schedule.go -package=mocks github.com/storacha/piri/pkg/pdp/service/contract PDPProvingSchedule
-	mockgen -destination=./internal/mocks/pdp_verifier.go -package=mocks github.com/storacha/piri/pkg/pdp/service/contract PDPVerifier
+	mockgen -source=./pkg/pdp/smartcontracts/contract.go -destination=./pkg/pdp/smartcontracts/mocks/pdp.go -package=mocks
+
+# Contract generation targets
+.PHONY: generate-contracts clean-contracts
+
+generate-contracts:
+	cd pkg/pdp/smartcontracts && ./generate.sh
+
+clean-contracts:
+	rm -f pkg/pdp/smartcontracts/bindings/*.go
+	rm -f pkg/pdp/smartcontracts/mocks/*.go
+
+mockgen-contracts: generate-contracts
+	mockgen -source=./pkg/pdp/smartcontracts/contract.go -destination=./pkg/pdp/smartcontracts/mocks/pdp.go -package=mocks
 
 
 # special target that sets the calibnet tag and invokes build

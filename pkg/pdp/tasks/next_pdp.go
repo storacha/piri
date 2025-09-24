@@ -14,11 +14,11 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
-	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 var _ scheduler.TaskInterface = &NextProvingPeriodTask{}
@@ -28,7 +28,7 @@ var _ scheduler.TaskInterface = &NextProvingPeriodTask{}
 type NextProvingPeriodTask struct {
 	db             *gorm.DB
 	ethClient      bind.ContractBackend
-	contractClient contract2.PDP
+	contractClient smartcontracts.PDP
 	sender         ethereum.Sender
 
 	fil ChainAPI
@@ -36,7 +36,7 @@ type NextProvingPeriodTask struct {
 	addFunc promise.Promise[scheduler.AddTaskFunc]
 }
 
-func NewNextProvingPeriodTask(db *gorm.DB, ethClient bind.ContractBackend, contractClient contract2.PDP, api ChainAPI, chainSched *chainsched.Scheduler, sender ethereum.Sender) (*NextProvingPeriodTask, error) {
+func NewNextProvingPeriodTask(db *gorm.DB, ethClient bind.ContractBackend, contractClient smartcontracts.PDP, api ChainAPI, chainSched *chainsched.Scheduler, sender ethereum.Sender) (*NextProvingPeriodTask, error) {
 	n := &NextProvingPeriodTask{
 		db:             db,
 		ethClient:      ethClient,
@@ -140,90 +140,32 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	proofSetID := pdp.ID
 
 	// Get the listener address for this proof set from the PDPVerifier contract
-	pdpVerifier, err := n.contractClient.NewPDPVerifier(contract2.Addresses().PDPVerifier, n.ethClient)
+	pdpVerifier, err := n.contractClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, n.ethClient)
 	if err != nil {
 		return false, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
 	}
 
-	listenerAddr, err := pdpVerifier.GetProofSetListener(nil, big.NewInt(proofSetID))
+	listenerAddr, err := pdpVerifier.GetDataSetListener(nil, big.NewInt(proofSetID))
 	if err != nil {
-		return false, fmt.Errorf("failed to get listener address for proof set %d: %w", proofSetID, err)
+		return false, fmt.Errorf("failed to get listener address for data set %d: %w", proofSetID, err)
 	}
 
 	// Determine the next challenge window start by consulting the listener
-	provingSchedule, err := n.contractClient.NewIPDPProvingSchedule(listenerAddr, n.ethClient)
+	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, n.ethClient)
 	if err != nil {
 		return false, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
 	}
-	next_prove_at, err := provingSchedule.NextChallengeWindowStart(nil, big.NewInt(proofSetID))
+	next_prove_at, err := provingSchedule.NextPDPChallengeWindowStart(nil, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
 
-	//
-	// special case
-	/*
-		 In the event this node has been offline, next_prove_at will be =< current chain head.
-		 This will result in a message send failure on the contract as the next_prove_at epoch must:
-			- fall within the next challenge window
-		 	- be at least challengeFinality epochs in the future.
-		 In this event:
-			- Explicitly calculate the minimum required epoch based on the contract's requirements.
-			- Ensures a buffer of at least half the challengeWindow but never less than the required challengeFinality.
-			- Set new next_prove_at value.
-			- warn the user!
-	*/
-	// used for logging later if case is hit.
-	originalProveAt := new(big.Int).Set(next_prove_at)
-
-	// get the current head (height) of chain.
-	head, err := n.fil.ChainHead(context.Background())
-	if err != nil {
-		return false, fmt.Errorf("failed to get chain head: %w", err)
-	}
-	// get the challengeFinality parameter from the PDPVerifier.
-	challengeFinality, err := pdpVerifier.GetChallengeFinality(nil)
-	if err != nil {
-		return false, fmt.Errorf("failed to get challenge finality: %w", err)
-	}
-	// get the challengeWindow parameter from the PDPProvingScheduler.
-	challengeWindow, err := provingSchedule.ChallengeWindow(nil)
-	if err != nil {
-		return false, fmt.Errorf("failed to get challenge window: %w", err)
-	}
-	// ensure it's at least challengeFinality epochs in the future
-	minRequiredEpoch := new(big.Int).Add(big.NewInt(int64(head.Height())), challengeFinality)
-	if next_prove_at.Cmp(minRequiredEpoch) < 0 {
-		next_prove_at = adjustNextProveAt(int64(head.Height()), challengeFinality, challengeWindow)
-
-		// notify user of issue after adjusting.
-		log.Warnw("Adjusting next_prove_at due to offline period or timing constraints",
-			"proof_set_id", proofSetID,
-			"original_next_prove_at", originalProveAt,
-			"current_height", head.Height(),
-			"challenge_finality", challengeFinality,
-			"challenge_window", challengeWindow,
-			"min_required_epoch", minRequiredEpoch,
-			"adjusted_next_prove_at", next_prove_at)
-	}
-
-	// an initial hacky fix, that did work, but wasn't robust, confirm new fix works, then remove this
-	/*
-		if next_prove_at.Uint64() < uint64(head.Height())+challengeWindow.Uint64() {
-			next_prove_at = next_prove_at.Add(next_prove_at, challengeWindow.Div(challengeWindow, big.NewInt(2)))
-		}
-
-	*/
-	//
-	// end special case
-	//
-
 	// Instantiate the PDPVerifier contract
-	pdpContracts := contract2.Addresses()
+	pdpContracts := smartcontracts.Addresses()
 	pdpVerifierAddress := pdpContracts.PDPVerifier
 
 	// Prepare the transaction data
-	abiData, err := contract2.PDPVerifierMetaData()
+	abiData, err := smartcontracts.PDPVerifierMetaData()
 	if err != nil {
 		return false, fmt.Errorf("failed to get PDPVerifier ABI: %w", err)
 	}
@@ -243,7 +185,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 		data,               // data
 	)
 
-	fromAddress, _, err := pdpVerifier.GetProofSetOwner(nil, big.NewInt(proofSetID))
+	fromAddress, _, err := pdpVerifier.GetDataSetStorageProvider(nil, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
 	}
@@ -256,7 +198,8 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 
 	// Send the transaction
 	reason := "pdp-proving-period"
-	log.Infow("Sending next proving period transaction", "task_id", taskID, "proof_set_id", proofSetID, "next_prove_at", next_prove_at, "current_height", head.Height(), "challenge_window", challengeWindow)
+	log.Infow("Sending next proving period transaction", "task_id", taskID, "proof_set_id", proofSetID,
+		"next_prove_at", next_prove_at, "current_height", ts.Height())
 	txHash, err := n.sender.Send(ctx, fromAddress, txEth, reason)
 	if err != nil {
 		return false, fmt.Errorf("failed to send transaction: %w", err)

@@ -1,140 +1,75 @@
 package smartcontracts
 
 import (
-	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"golang.org/x/xerrors"
 
-	internal2 "github.com/storacha/piri/pkg/pdp/contract/internal"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 )
 
+// Main factory interface for creating contract instances and parsing events
 type PDP interface {
+	// Factory methods for contract instances
 	NewPDPVerifier(address common.Address, backend bind.ContractBackend) (PDPVerifier, error)
-	NewIPDPProvingSchedule(address common.Address, backend bind.ContractBackend) (PDPProvingSchedule, error)
-	GetProofSetIdFromReceipt(receipt *types.Receipt) (uint64, error)
-	GetRootIdsFromReceipt(receipt *types.Receipt) ([]uint64, error)
+	NewPDPProvingSchedule(address common.Address, backend bind.ContractBackend) (PDPProvingSchedule, error)
+	NewFilecoinWarmStorageService(address common.Address, backend bind.ContractBackend) (FilecoinWarmStorageService, error)
+	NewServiceProviderRegistry(address common.Address, backend bind.ContractBackend) (ServiceProviderRegistry, error)
+
+	// Event parsing helpers
+	GetDataSetIdFromReceipt(receipt *types.Receipt) (uint64, error)
+	GetPieceIdsFromReceipt(receipt *types.Receipt) ([]uint64, error)
 }
 
+// PDPProvingSchedule interface for managing challenge windows
 type PDPProvingSchedule interface {
-	InitChallengeWindowStart(opts *bind.CallOpts) (*big.Int, error)
-	NextChallengeWindowStart(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
-	GetMaxProvingPeriod(opts *bind.CallOpts) (uint64, error)
-	ChallengeWindow(opts *bind.CallOpts) (*big.Int, error)
+	// GetPDPConfig returns all PDP configuration parameters
+	GetPDPConfig(opts *bind.CallOpts) (struct {
+		MaxProvingPeriod         uint64
+		ChallengeWindow          *big.Int
+		ChallengesPerProof       *big.Int
+		InitChallengeWindowStart *big.Int
+	}, error)
+	NextPDPChallengeWindowStart(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 }
 
+// PDPVerifier interface matching the IPDPVerifier.sol contract
 type PDPVerifier interface {
-	GetProofSetListener(opts *bind.CallOpts, setId *big.Int) (common.Address, error)
-	GetProofSetOwner(opts *bind.CallOpts, setId *big.Int) (common.Address, common.Address, error)
-	GetNextChallengeEpoch(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
-	GetChallengeRange(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
-	FindRootIds(opts *bind.CallOpts, setId *big.Int, leafIndexs []*big.Int) ([]internal2.PDPVerifierRootIdAndOffset, error)
-	GetScheduledRemovals(opts *bind.CallOpts, setId *big.Int) ([]*big.Int, error)
-	CalculateProofFee(opts *bind.CallOpts, setId *big.Int, estimatedGasFee *big.Int) (*big.Int, error)
+	// View functions
 	GetChallengeFinality(opts *bind.CallOpts) (*big.Int, error)
+	GetNextDataSetId(opts *bind.CallOpts) (uint64, error)
+	DataSetLive(opts *bind.CallOpts, setId *big.Int) (bool, error)
+	PieceLive(opts *bind.CallOpts, setId *big.Int, pieceId *big.Int) (bool, error)
+	PieceChallengable(opts *bind.CallOpts, setId *big.Int, pieceId *big.Int) (bool, error)
+	GetDataSetLeafCount(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
+	GetNextPieceId(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
+	GetNextChallengeEpoch(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
+	GetDataSetListener(opts *bind.CallOpts, setId *big.Int) (common.Address, error)
+	GetDataSetStorageProvider(opts *bind.CallOpts, setId *big.Int) (common.Address, common.Address, error)
+	GetDataSetLastProvenEpoch(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
+	GetPieceCid(opts *bind.CallOpts, setId *big.Int, pieceId *big.Int) (bindings.CidsCid, error)
+	GetPieceLeafCount(opts *bind.CallOpts, setId *big.Int, pieceId *big.Int) (*big.Int, error)
+	GetChallengeRange(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
+	GetScheduledRemovals(opts *bind.CallOpts, setId *big.Int) ([]*big.Int, error)
+	FindPieceIds(opts *bind.CallOpts, setId *big.Int, leafIndexs []*big.Int) ([]bindings.IPDPTypesPieceIdAndOffset, error)
+
+	// CalculateProofFee returns the required proof fee based on the dataset size and gas estimate
+	CalculateProofFee(opts *bind.CallOpts, setId *big.Int, estimatedGasFee *big.Int) (*big.Int, error)
+
+	// ProvePossession submits possession proofs for the given dataset
+	ProvePossession(opts *bind.TransactOpts, setId *big.Int, proofs []bindings.IPDPTypesProof) (*types.Transaction, error)
 }
 
-func PDPVerifierMetaData() (*abi.ABI, error) {
-	return internal2.PDPVerifierMetaData.GetAbi()
+// FilecoinWarmStorageService interface
+type FilecoinWarmStorageService interface {
+	// Add methods as needed based on the actual contract
+	// This is a placeholder - actual methods will be added after examining the contract
 }
 
-type PDPVerifierProof = internal2.PDPVerifierProof
-
-type PDPContract struct{}
-
-var _ PDP = (*PDPContract)(nil)
-
-func (p *PDPContract) NewPDPVerifier(address common.Address, backend bind.ContractBackend) (PDPVerifier, error) {
-	return internal2.NewPDPVerifier(address, backend)
-}
-
-func (p *PDPContract) NewIPDPProvingSchedule(address common.Address, backend bind.ContractBackend) (PDPProvingSchedule, error) {
-	return internal2.NewIPDPProvingSchedule(address, backend)
-}
-
-func (p *PDPContract) GetProofSetIdFromReceipt(receipt *types.Receipt) (uint64, error) {
-	pdpABI, err := PDPVerifierMetaData()
-	if err != nil {
-		return 0, xerrors.Errorf("failed to get PDP ABI: %w", err)
-	}
-
-	event, exists := pdpABI.Events["ProofSetCreated"]
-	if !exists {
-		return 0, xerrors.Errorf("ProofSetCreated event not found in ABI")
-	}
-
-	for _, vLog := range receipt.Logs {
-		if len(vLog.Topics) > 0 && vLog.Topics[0] == event.ID {
-			if len(vLog.Topics) < 2 {
-				return 0, xerrors.Errorf("log does not contain setId topic")
-			}
-
-			setIdBigInt := new(big.Int).SetBytes(vLog.Topics[1].Bytes())
-			return setIdBigInt.Uint64(), nil
-		}
-	}
-
-	return 0, xerrors.Errorf("ProofSetCreated event not found in receipt")
-}
-
-func (p *PDPContract) GetRootIdsFromReceipt(receipt *types.Receipt) ([]uint64, error) {
-	// Get the ABI from the contract metadata
-	pdpABI, err := PDPVerifierMetaData()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get PDP ABI: %w", err)
-	}
-
-	// Get the event definition
-	event, exists := pdpABI.Events["RootsAdded"]
-	if !exists {
-		return nil, fmt.Errorf("RootsAdded event not found in ABI")
-	}
-
-	var rootIds []uint64
-	eventFound := false
-
-	// Iterate over the logs in the receipt
-	for _, vLog := range receipt.Logs {
-		// Check if the log corresponds to the RootsAdded event
-		if len(vLog.Topics) > 0 && vLog.Topics[0] == event.ID {
-			// The setId is an indexed parameter in Topics[1], but we don't need it here
-			// as we already have the proofset ID from the database
-
-			// Parse the non-indexed parameter (rootIds array) from the data
-			unpacked, err := event.Inputs.Unpack(vLog.Data)
-			if err != nil {
-				return nil, fmt.Errorf("failed to unpack log data: %w", err)
-			}
-
-			// Extract the rootIds array
-			if len(unpacked) == 0 {
-				return nil, fmt.Errorf("no unpacked data found in log")
-			}
-
-			// Convert the unpacked rootIds ([]interface{} containing *big.Int) to []uint64
-			bigIntRootIds, ok := unpacked[0].([]*big.Int)
-			if !ok {
-				return nil, fmt.Errorf("failed to convert unpacked data to array")
-			}
-
-			rootIds = make([]uint64, len(bigIntRootIds))
-			for i := range bigIntRootIds {
-				rootIds[i] = bigIntRootIds[i].Uint64()
-			}
-
-			eventFound = true
-			// We found the event, so we can break the loop
-			break
-		}
-	}
-
-	if !eventFound {
-		return nil, fmt.Errorf("RootsAdded event not found in receipt")
-	}
-
-	return rootIds, nil
+// ServiceProviderRegistry interface
+type ServiceProviderRegistry interface {
+	// Add methods as needed based on the actual contract
+	// This is a placeholder - actual methods will be added after examining the contract
 }

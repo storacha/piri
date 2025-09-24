@@ -25,7 +25,11 @@ func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...ty
 			log.Infow("read piece", "request", piece, "response", res)
 		}
 	}()
+
+	// TODO(forrest): Nice to have in follow on is attempting to map the `piece` arg to a PieceCIDV2, then
+	// performing the query to blobstore with that CID. allowing the read pieces with the cid they allocated them using
 	obj, err := p.blobstore.Get(ctx, piece.Hash(), blobstore.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
+
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, types.NewErrorf(types.KindNotFound, "piece %s not found", piece.String())

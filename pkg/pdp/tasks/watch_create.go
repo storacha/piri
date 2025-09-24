@@ -15,8 +15,8 @@ import (
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
-	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 type ProofSetCreate struct {
@@ -27,7 +27,7 @@ type ProofSetCreate struct {
 func NewWatcherCreate(
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient contract2.PDP,
+	contractClient smartcontracts.PDP,
 	pcs *chainsched.Scheduler,
 ) error {
 	log.Infow("Initializing proof set creation watcher")
@@ -50,7 +50,7 @@ func processPendingProofSetCreates(
 	ctx context.Context,
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient contract2.PDP,
+	contractClient smartcontracts.PDP,
 ) error {
 	log.Debugw("Querying for pending proof set creations", "query_conditions", "ok=true AND proofset_created=false")
 	// Query for pdp_proofset_creates entries where ok = TRUE and proofset_created = FALSE
@@ -100,12 +100,12 @@ func processProofSetCreate(
 	db *gorm.DB,
 	psc models.PDPProofsetCreate,
 	ethClient bind.ContractBackend,
-	contactClient contract2.PDP,
+	contactClient smartcontracts.PDP,
 ) error {
 	txHash := psc.CreateMessageHash
 	service := psc.Service
 
-	lg := log.With("tx_hash", txHash, "owner", service, "verifier_address", contract2.Addresses().PDPVerifier.String())
+	lg := log.With("tx_hash", txHash, "owner", service, "verifier_address", smartcontracts.Addresses().PDPVerifier.String())
 
 	// Retrieve the tx_receipt from message_waits_eth
 	lg.Debug("Retrieving transaction receipt")
@@ -131,7 +131,7 @@ func processProofSetCreate(
 
 	// Parse the logs to extract the proofSetId
 	lg.Debug("Extracting proof set ID from transaction receipt")
-	proofSetId, err := contactClient.GetProofSetIdFromReceipt(&txReceipt)
+	proofSetId, err := contactClient.GetDataSetIdFromReceipt(&txReceipt)
 	if err != nil {
 		lg.Errorw("Failed to extract proof set ID from receipt",
 			"tx_hash", txHash,
@@ -143,14 +143,14 @@ func processProofSetCreate(
 
 	// Get the listener address for this proof set from the PDPVerifier contract
 	lg.Debug("Getting PDP verifier contract")
-	pdpVerifier, err := contactClient.NewPDPVerifier(contract2.Addresses().PDPVerifier, ethClient)
+	pdpVerifier, err := contactClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, ethClient)
 	if err != nil {
 		lg.Errorw("Failed to instantiate PDPVerifier contract", "error", err)
 		return fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
 	}
 
 	lg.Debug("Querying proof set listener address")
-	listenerAddr, err := pdpVerifier.GetProofSetListener(nil, big.NewInt(int64(proofSetId)))
+	listenerAddr, err := pdpVerifier.GetDataSetListener(nil, big.NewInt(int64(proofSetId)))
 	if err != nil {
 		lg.Errorw("Failed to get listener address for proof set", "error", err)
 		return fmt.Errorf("failed to get listener address for proof set %d: %w", proofSetId, err)
@@ -235,12 +235,12 @@ func insertProofSet(
 	return nil
 }
 
-func getProvingPeriodChallengeWindow(ctx context.Context, ethClient bind.ContractBackend, listenerAddr common.Address, contractClient contract2.PDP) (uint64, uint64, error) {
+func getProvingPeriodChallengeWindow(ctx context.Context, ethClient bind.ContractBackend, listenerAddr common.Address, contractClient smartcontracts.PDP) (uint64, uint64, error) {
 	log.Debugw("Creating proving schedule contract binding",
 		"listener_address", listenerAddr.Hex())
 
 	// ProvingPeriod
-	schedule, err := contractClient.NewIPDPProvingSchedule(listenerAddr, ethClient)
+	schedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, ethClient)
 	if err != nil {
 		log.Errorw("Failed to create proving schedule contract binding",
 			"listener_address", listenerAddr.Hex(),
@@ -248,26 +248,11 @@ func getProvingPeriodChallengeWindow(ctx context.Context, ethClient bind.Contrac
 		return 0, 0, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
 	}
 
-	log.Debugw("Querying max proving period", "listener_address", listenerAddr.Hex())
-	period, err := schedule.GetMaxProvingPeriod(&bind.CallOpts{Context: ctx})
+	config, err := schedule.GetPDPConfig(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		log.Errorw("Failed to get proving period",
-			"listener_address", listenerAddr.Hex(),
-			"error", err)
-		return 0, 0, fmt.Errorf("failed to get proving period: %w", err)
+		return 0, 0, fmt.Errorf("failed to get pdp config config: %w", err)
 	}
-	log.Debugw("Retrieved proving period", "proving_period", period)
 
-	// ChallengeWindow
-	log.Debugw("Querying challenge window", "listener_address", listenerAddr.Hex())
-	challengeWindow, err := schedule.ChallengeWindow(&bind.CallOpts{Context: ctx})
-	if err != nil {
-		log.Errorw("Failed to get challenge window",
-			"listener_address", listenerAddr.Hex(),
-			"error", err)
-		return 0, 0, fmt.Errorf("failed to get challenge window: %w", err)
-	}
-	log.Debugw("Retrieved challenge window", "challenge_window", challengeWindow.Uint64())
+	return config.MaxProvingPeriod, config.ChallengeWindow.Uint64(), nil
 
-	return period, challengeWindow.Uint64(), nil
 }

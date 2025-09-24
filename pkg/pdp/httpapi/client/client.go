@@ -137,10 +137,11 @@ func createAuthBearerTokenFromID(id principal.Signer) (string, error) {
 	return "Bearer " + tokenString, nil
 }
 
-func (c *Client) CreateProofSet(ctx context.Context, recordKeeper common.Address) (common.Hash, error) {
+func (c *Client) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath).String()
 	request := httpapi.CreateProofSetRequest{
-		RecordKeeper: recordKeeper.String(),
+		RecordKeeper: params.RecordKeeper.String(),
+		ExtraData:    string(params.ExtraData),
 	}
 	// send request
 	res, err := c.postJson(ctx, route, request)
@@ -287,7 +288,8 @@ func (c *Client) ListProofSet(ctx context.Context) ([]types.ProofSet, error) {
 	return out, nil
 }
 
-func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.RootAdd) (common.Hash, error) {
+func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.RootAdd,
+	extraData types.ExtraData) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, "/", strconv.FormatUint(proofSetID, 10), rootsPath).String()
 
 	addRoots := make([]httpapi.Root, 0, len(roots))
@@ -303,7 +305,7 @@ func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.
 			Subroots: subRoots,
 		})
 	}
-	payload := httpapi.AddRootsRequest{Roots: addRoots}
+	payload := httpapi.AddRootsRequest{Roots: addRoots, ExtraData: string(extraData)}
 	if !c.isPiriServer() {
 		return common.Hash{}, c.verifySuccess(c.postJson(ctx, route, payload))
 	}
