@@ -127,6 +127,21 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 	}
 	log.Infow("computed piece commp", "request", pieceUpload, "commp", pieceCIDComputed.String())
 
+	// convert to a pieceCIDV2
+	pieceCIDV2, paddedSize, err := asPieceCIDv2(pieceCIDComputed.String(), uint64(upload.CheckSize))
+	if err != nil {
+		return fmt.Errorf("failed to compute v2 piece: %w", err)
+	}
+
+	// TODO seems these will never be equal since the pieceCIDV2 size is padded
+	_ = paddedSize
+	/*
+		if uint64(upload.CheckSize) != size {
+			//TODO(forrest) Seems like a developer error or my lack of understanding
+			return fmt.Errorf("piece data does not match the expected size")
+		}
+	*/
+
 	// Compare the computed piece CID with the expected one from the database
 	if upload.PieceCID != nil && pieceCIDComputed.String() != *upload.PieceCID {
 		return fmt.Errorf("computer piece CID does not match expected piece CID")
@@ -135,7 +150,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 	if err := p.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Create a long-term parked piece entry (marked as complete immediately).
 		parkedPiece := models.ParkedPiece{
-			PieceCID:        pieceCIDComputed.String(),
+			PieceCID:        pieceCIDV2.String(),
 			PiecePaddedSize: int64(paddedPieceSize),
 			PieceRawSize:    readSize,
 			LongTerm:        true,
@@ -146,7 +161,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		}
 
 		// 2. Create a parked piece ref pointing to PDPStore.
-		dataURL := fmt.Sprintf("pdpstore://%s", pieceCIDComputed.String())
+		dataURL := fmt.Sprintf("pdpstore://%s", pieceCIDV2.String())
 
 		parkedPieceRef := models.ParkedPieceRef{
 			PieceID:     parkedPiece.ID,
@@ -164,7 +179,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 			mhToCommp := models.PDPPieceMHToCommp{
 				Mhash: phMh,
 				Size:  upload.CheckSize,
-				Commp: pieceCIDComputed.String(),
+				Commp: pieceCIDV2.String(),
 			}
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&mhToCommp).Error; err != nil {
 				return fmt.Errorf("failed to insert into %s: %w", mhToCommp.TableName(), err)
@@ -174,7 +189,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		// 4. Move the entry from pdp_piece_uploads to pdp_piecerefs
 		ref := models.PDPPieceRef{
 			Service:  upload.Service,
-			PieceCID: pieceCIDComputed.String(),
+			PieceCID: pieceCIDV2.String(),
 			PieceRef: parkedPieceRef.RefID,
 		}
 		if err := tx.Create(&ref).Error; err != nil {
@@ -187,10 +202,10 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		}
 
 		// Write to PDPStore after successfully creating required database records, if this operation fails, the above tx is rolled back
-		if err := p.blobstore.Put(ctx, pieceCIDComputed.Hash(), uint64(readSize), bytes.NewReader(dataBuffer.Bytes())); err != nil {
+		if err := p.blobstore.Put(ctx, pieceCIDV2.Hash(), uint64(readSize), bytes.NewReader(dataBuffer.Bytes())); err != nil {
 			return fmt.Errorf("failed to write piece to PDPStore: %w", err)
 		}
-		log.Infow("wrote piece to PDPStore", "request", pieceUpload, "piece_cid", pieceCIDComputed.String())
+		log.Infow("wrote piece to PDPStore", "request", pieceUpload, "piece_cid", pieceCIDV2.String())
 
 		// nil returns will commit the transaction.
 		return nil
