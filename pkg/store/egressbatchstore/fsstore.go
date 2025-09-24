@@ -26,7 +26,7 @@ const (
 	DefaultBatchSize = 100 * 1024 * 1024 // 100MiB
 
 	// currentBatchName is the name of the current batch file.
-	currentBatchName = "egress.car"
+	currentBatchName = "egress.car.wip"
 
 	// batchFilePrefix is the prefix for completed batch files.
 	batchFilePrefix = "egress."

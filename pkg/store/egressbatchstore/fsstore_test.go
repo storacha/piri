@@ -69,7 +69,7 @@ func TestAppend(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify the file exists and has content
-		files, err := filepath.Glob(filepath.Join(tempDir, "egress.car"))
+		files, err := filepath.Glob(filepath.Join(tempDir, currentBatchName))
 		require.NoError(t, err)
 		require.Len(t, files, 1, "expected one batch file")
 
@@ -116,7 +116,7 @@ func TestAppend(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, int64(0), reportedBatchSize)
 
-				files, err := filepath.Glob(filepath.Join(tempDir, "egress.*.car"))
+				files, err := filepath.Glob(filepath.Join(tempDir, batchFilePrefix+"*"+batchFileSuffix))
 				require.NoError(t, err)
 				require.Len(t, files, numBatches, "expected %d completed batch files", numBatches)
 			}
@@ -145,7 +145,7 @@ func TestAppend(t *testing.T) {
 		wg.Wait()
 
 		// Verify we have some data written
-		files, err := filepath.Glob(filepath.Join(tempDir, "egress.*.car"))
+		files, err := filepath.Glob(filepath.Join(tempDir, batchFilePrefix+"*"+batchFileSuffix))
 		require.NoError(t, err)
 		require.True(t, len(files) > 0, "expected at least one batch file")
 	})
@@ -179,7 +179,7 @@ func TestFlush(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the batch file was created
-	files, err := filepath.Glob(filepath.Join(tempDir, "egress.*.car"))
+	files, err := filepath.Glob(filepath.Join(tempDir, batchFilePrefix+"*"+batchFileSuffix))
 	require.NoError(t, err)
 	require.Len(t, files, 1, "expected one batch file")
 
