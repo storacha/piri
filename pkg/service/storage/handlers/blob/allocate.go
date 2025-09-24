@@ -14,7 +14,7 @@ import (
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/ucan"
 
-	"github.com/storacha/piri/pkg/internal/digestutil"
+	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/store"
