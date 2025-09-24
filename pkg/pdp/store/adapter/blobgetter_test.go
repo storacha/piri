@@ -10,9 +10,9 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
+	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-libstoracha/testutil"
-	"github.com/storacha/piri/pkg/internal/digestutil"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/pdp/store/adapter"

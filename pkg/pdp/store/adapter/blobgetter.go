@@ -7,7 +7,7 @@ import (
 
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/multiformats/go-multihash"
-	"github.com/storacha/piri/pkg/internal/digestutil"
+	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/pdp/types"
