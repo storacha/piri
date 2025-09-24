@@ -52,7 +52,7 @@ func (psa *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihas
 	if err != nil {
 		return nil, fmt.Errorf("finding piece link for %s: %w", digestutil.Format(digest), err)
 	}
-	res, err := psa.pieceReader.ReadPiece(ctx, pieceLink.Link().(cidlink.Link).Cid, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
+	res, err := psa.pieceReader.ReadPiece(ctx, pieceLink.V1Link().(cidlink.Link).Cid, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	if err != nil {
 		return nil, fmt.Errorf("reading piece: %w", err)
 	}
