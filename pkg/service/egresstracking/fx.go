@@ -16,7 +16,6 @@ import (
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/service/egresstracking"
 	"github.com/storacha/piri/pkg/store/egressbatchstore"
 )
 
@@ -27,7 +26,7 @@ var Module = fx.Module("egresstracking",
 		ProvideEgressTrackingQueue,
 		NewService,
 		fx.Annotate(
-			egresstracking.NewServer,
+			NewServer,
 			fx.As(new(echofx.RouteRegistrar)),
 			fx.ResultTags(`group:"route_registrar"`),
 		),
@@ -40,7 +39,7 @@ type QueueParams struct {
 	DB *sql.DB `name:"egress_tracking_db"`
 }
 
-func ProvideEgressTrackingQueue(lc fx.Lifecycle, params QueueParams) (egresstracking.EgressTrackingQueue, error) {
+func ProvideEgressTrackingQueue(lc fx.Lifecycle, params QueueParams) (EgressTrackingQueue, error) {
 	// non-configurable defaults
 	maxRetries := uint(10)
 	maxWorkers := uint(runtime.NumCPU())
@@ -70,20 +69,20 @@ func ProvideEgressTrackingQueue(lc fx.Lifecycle, params QueueParams) (egresstrac
 		},
 	})
 
-	return egresstracking.NewEgressTrackingQueue(queue), nil
+	return NewEgressTrackingQueue(queue), nil
 }
 
 func NewService(
 	id principal.Signer,
 	store egressbatchstore.EgressBatchStore,
-	queue egresstracking.EgressTrackingQueue,
+	queue EgressTrackingQueue,
 	cfg app.AppConfig,
-) (*egresstracking.EgressTrackingService, error) {
-	batchEndpoint := cfg.Server.PublicURL.JoinPath(egresstracking.ReceiptsPath + "/{cid}")
+) (*EgressTrackingService, error) {
+	batchEndpoint := cfg.Server.PublicURL.JoinPath(ReceiptsPath + "/{cid}")
 	egressTrackerConn := cfg.UCANService.Services.EgressTracker.Connection
 	egressTrackerProofs := cfg.UCANService.Services.EgressTracker.Proofs
 
-	return egresstracking.New(
+	return New(
 		id,
 		egressTrackerConn,
 		egressTrackerProofs,
