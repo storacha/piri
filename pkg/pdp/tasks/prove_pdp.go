@@ -15,6 +15,7 @@ import (
 	"github.com/minio/sha256-simd"
 	"github.com/samber/lo"
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/xerrors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -31,12 +32,13 @@ import (
 	pool "github.com/libp2p/go-buffer-pool"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
-	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/proof"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
@@ -47,7 +49,7 @@ const LeafSize = proof.NODE_SIZE
 type ProveTask struct {
 	db             *gorm.DB
 	ethClient      bind.ContractBackend
-	contractClient contract2.PDP
+	contractClient smartcontracts.PDP
 	sender         ethereum.Sender
 	bs             blobstore.Blobstore
 	api            ChainAPI
@@ -61,7 +63,7 @@ func NewProveTask(
 	chainSched *chainsched.Scheduler,
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient contract2.PDP,
+	contractClient smartcontracts.PDP,
 	api ChainAPI,
 	sender ethereum.Sender,
 	bs blobstore.Blobstore,
@@ -166,7 +168,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	}
 	proofSetID := proveTask.ProofsetID
 
-	pdpContracts := contract2.Addresses()
+	pdpContracts := smartcontracts.Addresses()
 	pdpVerifierAddress := pdpContracts.PDPVerifier
 
 	pdpVerifier, err := p.contractClient.NewPDPVerifier(pdpVerifierAddress, p.ethClient)
@@ -189,12 +191,12 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		return false, fmt.Errorf("failed to get chain randomness from beacon for pdp prove: %w", err)
 	}
 
-	proofs, err := p.GenerateProofs(ctx, pdpVerifier, proofSetID, seed, contract2.NumChallenges)
+	proofs, err := p.GenerateProofs(ctx, pdpVerifier, proofSetID, seed, smartcontracts.NumChallenges)
 	if err != nil {
 		return false, fmt.Errorf("failed to generate proofs: %w", err)
 	}
 
-	abiData, err := contract2.PDPVerifierMetaData()
+	abiData, err := smartcontracts.PDPVerifierMetaData()
 	if err != nil {
 		return false, fmt.Errorf("failed to get PDPVerifier ABI: %w", err)
 	}
@@ -227,9 +229,34 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 
 	// If gas used is 0 fee is maximized
 	gasFee := big.NewInt(0)
-	proofFee, err := pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID), gasFee)
-	if err != nil {
-		return false, fmt.Errorf("failed to calculate proof fee: %w", err)
+	proofFee := big.NewInt(0)
+
+	// this case will be true in production, false in testing with a mocked contract
+	// context: https://filecoinproject.slack.com/archives/C07CGTXHHT4/p1755606117712229 (and curio PR #600)
+	if pdpVerifierImpl, ok := pdpVerifier.(*bindings.PDPVerifier); ok {
+		pdpVerifierRaw := bindings.PDPVerifierRaw{Contract: pdpVerifierImpl}
+		calcProofFeeResult := make([]any, 0)
+		err = pdpVerifierRaw.Call(callOpts, &calcProofFeeResult, "calculateProofFee", big.NewInt(proofSetID), gasFee)
+		if err != nil {
+			return false, xerrors.Errorf("failed to calculate proof fee: %w", err)
+		}
+
+		if len(calcProofFeeResult) == 0 {
+			return false, xerrors.Errorf("failed to calculate proof fee: wrong number of return values")
+		}
+		if calcProofFeeResult[0] == nil {
+			return false, xerrors.Errorf("failed to calculate proof fee: nil return value")
+		}
+		if calcProofFeeResult[0].(*big.Int) == nil {
+			return false, xerrors.Errorf("failed to calculate proof fee: nil *big.Int return value")
+		}
+		proofFee = calcProofFeeResult[0].(*big.Int)
+	} else {
+		// this condition would be during testing
+		proofFee, err = pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID), gasFee)
+		if err != nil {
+			return false, fmt.Errorf("failed to calculate proof fee: %w", err)
+		}
 	}
 
 	// Add 2x buffer for certainty
@@ -237,7 +264,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 
 	// TODO need to validate this is okay, previously in curio this was pulled form the DB, though I think
 	// this is the same address
-	fromAddress, _, err := pdpVerifier.GetProofSetOwner(nil, big.NewInt(proofSetID))
+	fromAddress, _, err := pdpVerifier.GetDataSetStorageProvider(nil, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
 	}
@@ -252,11 +279,33 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		data,
 	)
 
+	// Prepare a temp struct for logging proofs as hex
+	type proofLog struct {
+		Leaf  string   `json:"leaf"`
+		Proof []string `json:"proof"`
+	}
+	proofLogs := make([]proofLog, len(proofs))
+	for i, pf := range proofs {
+		leafHex := hex.EncodeToString(pf.Leaf[:])
+		proofHex := make([]string, len(pf.Proof))
+		for j, p := range pf.Proof {
+			proofHex[j] = hex.EncodeToString(p[:])
+		}
+		proofLogs[i] = proofLog{
+			Leaf:  leafHex,
+			Proof: proofHex,
+		}
+	}
+
 	log.Infow("PDP Prove Task",
-		"proofSetID", proofSetID,
-		"taskID", taskID,
-		"gasFeeEstimate", gasFee,
-		"txEth", txEth,
+		"proof_set_id", proofSetID,
+		"task_id", taskID,
+		"proofs", proofLogs,
+		"data", hex.EncodeToString(data),
+		"gas_fee_estimate", gasFee,
+		"proof_fee initial", proofFee.Div(proofFee, big.NewInt(3)),
+		"proof_fee 3x", proofFee,
+		"tx_eth", txEth,
 	)
 
 	reason := "pdp-prove"
@@ -277,8 +326,8 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	return true, nil
 }
 
-func (p *ProveTask) GenerateProofs(ctx context.Context, pdpService contract2.PDPVerifier, proofSetID int64, seed abi.Randomness, numChallenges int) ([]contract2.PDPVerifierProof, error) {
-	proofs := make([]contract2.PDPVerifierProof, numChallenges)
+func (p *ProveTask) GenerateProofs(ctx context.Context, pdpService smartcontracts.PDPVerifier, proofSetID int64, seed abi.Randomness, numChallenges int) ([]smartcontracts.IPDPTypesProof, error) {
+	proofs := make([]smartcontracts.IPDPTypesProof, numChallenges)
 
 	callOpts := &bind.CallOpts{
 		Context: ctx,
@@ -294,17 +343,18 @@ func (p *ProveTask) GenerateProofs(ctx context.Context, pdpService contract2.PDP
 		return generateChallengeIndex(seed, proofSetID, i, totalLeaves)
 	})
 
-	rootId, err := pdpService.FindRootIds(callOpts, big.NewInt(proofSetID), lo.Map(challenges, func(i int64, _ int) *big.Int { return big.NewInt(i) }))
+	pieceIds, err := pdpService.FindPieceIds(callOpts, big.NewInt(proofSetID), lo.Map(challenges, func(i int64, _ int) *big.Int { return big.NewInt(i) }))
 	if err != nil {
-		return nil, fmt.Errorf("failed to find root IDs: %w", err)
+		return nil, fmt.Errorf("failed to find piece IDs: %w", err)
 	}
 
 	for i := 0; i < numChallenges; i++ {
-		root := rootId[i]
+		piece := pieceIds[i]
 
-		proof, err := p.proveRoot(ctx, proofSetID, root.RootId.Int64(), root.Offset.Int64())
+		proof, err := p.proveRoot(ctx, proofSetID, piece.PieceId.Int64(), piece.Offset.Int64())
 		if err != nil {
-			return nil, fmt.Errorf("failed to prove root %d (%d, %d, %d): %w", i, proofSetID, root.RootId.Int64(), root.Offset.Int64(), err)
+			return nil, fmt.Errorf("failed to prove piece %d (dataSetId: %d, pieceId: %d, leafIndex: %d): %w", i,
+				proofSetID, piece.PieceId.Int64(), piece.Offset.Int64(), err)
 		}
 
 		proofs[i] = proof
@@ -391,13 +441,10 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 		r = io.MultiReader(r, nullreader.NewNullReader(abi.UnpaddedPieceSize(int64(subrootSize)-sr.Size())))
 	}
 
-	// TODO unsure how closing the object from a blobstore works.
-	// defer sr.Body().Close()
-
 	return proof.BuildSha254Memtree(r, subrootSize.Unpadded())
 }
 
-func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int64, challengedLeaf int64) (contract2.PDPVerifierProof, error) {
+func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int64, challengedLeaf int64) (smartcontracts.IPDPTypesProof, error) {
 	const arity = 2
 
 	rootChallengeOffset := challengedLeaf * LeafSize
@@ -415,7 +462,7 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 		Where("proofset_id = ? AND root_id = ?", proofSetID, rootId).
 		Order("subroot_offset ASC").
 		Scan(&subroots).Error; err != nil {
-		return contract2.PDPVerifierProof{}, fmt.Errorf("failed to get root and subroot: %w", err)
+		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to get root and subroot: %w", err)
 	}
 
 	// find first subroot with subroot_offset >= rootChallengeOffset
@@ -423,13 +470,13 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 		return subroot.SubrootOffset < rootChallengeOffset
 	})
 	if !ok {
-		return contract2.PDPVerifierProof{}, fmt.Errorf("no subroot found")
+		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("no subroot found")
 	}
 
 	// build subroot memtree
 	memtree, err := p.genSubrootMemtree(ctx, challSubRoot.Subroot, abi.PaddedPieceSize(challSubRoot.SubrootSize))
 	if err != nil {
-		return contract2.PDPVerifierProof{}, fmt.Errorf("failed to generate subroot memtree: %w", err)
+		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to generate subroot memtree: %w", err)
 	}
 
 	subrootChallengedLeaf := challengedLeaf - (challSubRoot.SubrootOffset / LeafSize)
@@ -445,7 +492,7 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 	subrootProof, err := proof.MemtreeProof(memtree, subrootChallengedLeaf)
 	pool.Put(memtree)
 	if err != nil {
-		return contract2.PDPVerifierProof{}, fmt.Errorf("failed to generate subroot proof: %w", err)
+		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to generate subroot proof: %w", err)
 	}
 	log.Debugw("subrootProof", "subrootProof", subrootProof)
 
@@ -468,12 +515,12 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 
 		unsCid, err := cid.Parse(subroot.Subroot)
 		if err != nil {
-			return contract2.PDPVerifierProof{}, fmt.Errorf("failed to parse subroot CID: %w", err)
+			return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to parse subroot CID: %w", err)
 		}
 
 		commp, err := commcid.CIDToPieceCommitmentV1(unsCid)
 		if err != nil {
-			return contract2.PDPVerifierProof{}, fmt.Errorf("failed to convert CID to piece commitment: %w", err)
+			return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to convert CID to piece commitment: %w", err)
 		}
 
 		var comm [LeafSize]byte
@@ -564,10 +611,10 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 
 	challSubtreeLeaf := partialTree[elemIndex{Level: challLevel, ElemOffset: challOffset}]
 	if challSubtreeLeaf.Hash != subrootProof.Root {
-		return contract2.PDPVerifierProof{}, fmt.Errorf("subtree root doesn't match partial tree leaf, %x != %x", challSubtreeLeaf.Hash, subrootProof.Root)
+		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("subtree root doesn't match partial tree leaf, %x != %x", challSubtreeLeaf.Hash, subrootProof.Root)
 	}
 
-	var out contract2.PDPVerifierProof
+	var out smartcontracts.IPDPTypesProof
 	copy(out.Leaf[:], subrootProof.Leaf[:])
 	out.Proof = append(out.Proof, subrootProof.Proof...)
 
@@ -582,11 +629,11 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 		index := elemIndex{Level: currentLevel, ElemOffset: currentOffset}
 		siblingElem, ok := partialTree[siblingIndex]
 		if !ok {
-			return contract2.PDPVerifierProof{}, fmt.Errorf("missing sibling at level %d, offset %d", currentLevel, siblingOffset)
+			return smartcontracts.IPDPTypesProof{}, fmt.Errorf("missing sibling at level %d, offset %d", currentLevel, siblingOffset)
 		}
 		elem, ok := partialTree[index]
 		if !ok {
-			return contract2.PDPVerifierProof{}, fmt.Errorf("missing element at level %d, offset %d", currentLevel, currentOffset)
+			return smartcontracts.IPDPTypesProof{}, fmt.Errorf("missing element at level %d, offset %d", currentLevel, currentOffset)
 		}
 		if currentOffset < siblingOffset { // left
 			log.Debugw("Proof", "position", index, "left-c", hex.EncodeToString(elem.Hash[:]), "right-s", hex.EncodeToString(siblingElem.Hash[:]), "out", hex.EncodeToString(shabytes(append(elem.Hash[:], siblingElem.Hash[:]...))[:]))
@@ -606,24 +653,24 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 
 	rootCid, err := cid.Parse(subroots[0].Root)
 	if err != nil {
-		return contract2.PDPVerifierProof{}, fmt.Errorf("failed to parse root CID: %w", err)
+		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to parse root CID: %w", err)
 	}
 	commRoot, err := commcid.CIDToPieceCommitmentV1(rootCid)
 	if err != nil {
-		return contract2.PDPVerifierProof{}, fmt.Errorf("failed to convert CID to piece commitment: %w", err)
+		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to convert CID to piece commitment: %w", err)
 	}
 	var cr [LeafSize]byte
 	copy(cr[:], commRoot)
 
 	if !Verify(out, cr, uint64(challengedLeaf)) {
-		return contract2.PDPVerifierProof{}, fmt.Errorf("proof verification failed")
+		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("proof verification failed")
 	}
 
 	// Return the completed proof
 	return out, nil
 }
 
-func (p *ProveTask) cleanupDeletedRoots(ctx context.Context, proofSetID int64, pdpVerifier contract2.PDPVerifier) error {
+func (p *ProveTask) cleanupDeletedRoots(ctx context.Context, proofSetID int64, pdpVerifier smartcontracts.PDPVerifier) error {
 	removals, err := pdpVerifier.GetScheduledRemovals(nil, big.NewInt(proofSetID))
 	if err != nil {
 		return fmt.Errorf("failed to get scheduled removals: %w", err)
@@ -654,7 +701,7 @@ func (p *ProveTask) cleanupDeletedRoots(ctx context.Context, proofSetID int64, p
 	if err != nil {
 		return fmt.Errorf("failed to cleanup deleted roots: %w", err)
 	}
-
+	// TODO(forrest): also probably want to delete the data of these roots from the store.
 	return nil
 }
 
@@ -682,7 +729,7 @@ func nextPowerOfTwo(n abi.PaddedPieceSize) abi.PaddedPieceSize {
 	return 1 << (64 - lz)
 }
 
-func Verify(proof contract2.PDPVerifierProof, root [32]byte, position uint64) bool {
+func Verify(proof smartcontracts.IPDPTypesProof, root [32]byte, position uint64) bool {
 	computedHash := proof.Leaf
 
 	for i := 0; i < len(proof.Proof); i++ {

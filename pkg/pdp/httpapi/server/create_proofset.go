@@ -8,6 +8,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
+	"github.com/storacha/piri/pkg/pdp/types"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi"
 )
@@ -32,7 +33,10 @@ func (p *PDPHandler) handleCreateProofSet(c echo.Context) error {
 
 	log.Debugw("Processing CreateProofSet request", "recordKeeper", recordKeeperAddr)
 
-	txHash, err := p.Service.CreateProofSet(ctx, recordKeeperAddr)
+	txHash, err := p.Service.CreateProofSet(ctx, types.CreateProofSetParams{
+		RecordKeeper: recordKeeperAddr,
+		ExtraData:    types.ExtraData(req.ExtraData),
+	})
 	if err != nil {
 		return middleware.NewError(operation, "Failed to create proof set", err, http.StatusInternalServerError)
 	}
