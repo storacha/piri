@@ -2,24 +2,33 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/filecoin-project/go-commp-utils/nonffi"
+	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 
-	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-// TODO return something useful here, like the transaction Hash.
-func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (res common.Hash, retErr error) {
+// REVIEW(forrest): this method assumes the cids in the request are PieceCIDV2
+func (p *PDPService) AddRoots(
+	ctx context.Context,
+	id uint64,
+	request []types.RootAdd,
+	extraData types.ExtraData,
+) (res common.Hash,
+	retErr error) {
 	log.Infow("adding roots", "id", id, "request", request)
 	defer func() {
 		if retErr != nil {
@@ -30,6 +39,16 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	}()
 	if len(request) == 0 {
 		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "must provide at least one root")
+	}
+
+	var extraDataBytes []byte
+	if extraData != "" {
+		extraDataHexStr := string(extraData)
+		decodedBytes, err := hex.DecodeString(strings.TrimPrefix(extraDataHexStr, "0x"))
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("failed to decode extra data: %w", err)
+		}
+		extraDataBytes = decodedBytes
 	}
 
 	// Collect all subrootCIDs to fetch their info in a batch
@@ -134,35 +153,56 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		proofType := abi.RegisteredSealProof_StackedDrg64GiBV1_1
 		generatedCID, err := nonffi.GenerateUnsealedCID(proofType, pieceInfos)
 		if err != nil {
-			return common.Hash{}, fmt.Errorf("failed to generate RootCID: %v", err)
+			return common.Hash{}, fmt.Errorf("failed to generate RootCID: %w", err)
 		}
+
+		// turn the uploaded roots into PieceCIDV1
+		providedPieceCidV1, err := asPieceCIDv1(addReq.Root.String())
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("failed to generate PieceCIDV1 for request: %w", err)
+		}
+
 		// Compare the generated and provided CIDs.
-		if !addReq.Root.Equals(generatedCID) {
-			return common.Hash{}, fmt.Errorf("provided RootCID does not match generated RootCID: %s != %s", addReq.Root, generatedCID)
+		if !providedPieceCidV1.Equals(generatedCID) {
+			return common.Hash{}, fmt.Errorf("provided RootCID does not match generated RootCID: %s (v1 %s) != %s",
+				addReq.Root, providedPieceCidV1, generatedCID)
 		}
 	}
 
 	// Step 5: Prepare the Ethereum transaction data outside the DB transaction
 	// Obtain the ABI of the PDPVerifier contract
-	abiData, err := contract2.PDPVerifierMetaData()
+	abiData, err := smartcontracts.PDPVerifierMetaData()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to get abi data from PDPVerifierMetaData: %w", err)
 	}
 
-	// Prepare RootData array for Ethereum transaction
-	// Define a Struct that matches the Solidity RootData struct
-	type RootData struct {
-		Root struct {
-			Data []byte
-		}
-		RawSize *big.Int
+	// Prepare PieceData array for Ethereum transaction
+	// Define a Struct that matches the Solidity PieceData struct
+	type PieceData struct {
+		Data []byte // CID
 	}
 
-	var rootDataArray []RootData
+	var pieceDataArray []PieceData
 
 	for _, addRootReq := range request {
 		// Convert RootCID to bytes
 		rootCID := addRootReq.Root
+
+		_, rawSize, err := commcid.PieceCidV1FromV2(rootCID)
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("invalid PieceCIDV2: %w", err)
+		}
+		height, _, err := commcid.PayloadSizeToV1TreeHeightAndPadding(rawSize)
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("computing height and padding: %w", err)
+		}
+		if height > 50 {
+			return common.Hash{}, fmt.Errorf("invalid height: %d", height)
+		}
+
+		// TODO(forrest): since migrating to the new contract, rod states there is an error
+		// in the curio size logic, context here: https://github.com/filecoin-project/curio/issues/650
+		// in commit 91aff56959407ec83171ef73d48c51fed8afb4c7 of curio
 
 		// Get total size by summing up the sizes of subroots
 		// IMPORTANT: Using padded sizes here to match what's stored in the database
@@ -200,20 +240,25 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 			"totalUnpaddedSizeMod32", totalUnpaddedSize%32,
 			"subrootCount", len(addRootReq.SubRoots))
 
-		// Prepare RootData for Ethereum transaction
-		rootData := RootData{
-			Root:    struct{ Data []byte }{Data: rootCID.Bytes()},
-			RawSize: new(big.Int).SetUint64(totalSize),
+		// TODO(forrest): based on my todo above I'd expect the failure to happen here?
+		// sanity check that the rawSize in the CommPv2 matches the totalSize of the subPieces
+		if rawSize != totalSize {
+			return common.Hash{}, fmt.Errorf("raw size miss-match: expected %d, got %d", rawSize, totalSize)
 		}
 
-		rootDataArray = append(rootDataArray, rootData)
+		// Prepare RootData for Ethereum transaction
+		rootData := PieceData{
+			Data: rootCID.Bytes(),
+		}
+
+		pieceDataArray = append(pieceDataArray, rootData)
 	}
 
 	// Convert proofSetID to *big.Int
 	proofSetID := new(big.Int).SetUint64(id)
 
 	// Pack the method call data
-	data, err := abiData.Pack("addRoots", proofSetID, rootDataArray, []byte{})
+	data, err := abiData.Pack("addPieces", proofSetID, pieceDataArray, extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack addRoots: %w", err)
 	}
@@ -221,7 +266,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	txEth := ethtypes.NewTransaction(
 		0,
-		contract2.Addresses().PDPVerifier,
+		smartcontracts.Addresses().PDPVerifier,
 		big.NewInt(0),
 		0,
 		nil,

@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
-	contract2 "github.com/storacha/piri/pkg/pdp/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (res common.Hash, retErr error) {
@@ -23,15 +23,16 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 		}
 	}()
 	// Get the ABI and pack the transaction data
-	abiData, err := contract2.PDPVerifierMetaData()
+	abiData, err := smartcontracts.PDPVerifierMetaData()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("get contract ABI: %w", err)
 	}
 
 	// TODO should probably check if we even have the proof set before scheduling a removal
 
+	// TODO this will surely fail without extraData as a signature.
 	// Pack the method call data
-	data, err := abiData.Pack("scheduleRemovals",
+	data, err := abiData.Pack("schedulePieceDeletions",
 		big.NewInt(int64(proofSetID)),
 		[]*big.Int{big.NewInt(int64(rootID))},
 		[]byte{},
@@ -43,7 +44,7 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 	// Prepare the transaction
 	ethTx := types.NewTransaction(
 		0, // nonce will be set by SenderETH
-		contract2.Addresses().PDPVerifier,
+		smartcontracts.Addresses().PDPVerifier,
 		big.NewInt(0), // value
 		0,             // gas limit (will be estimated)
 		nil,           // gas price (will be set by SenderETH)
