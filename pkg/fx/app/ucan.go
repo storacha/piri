@@ -14,6 +14,7 @@ import (
 	"github.com/storacha/piri/pkg/fx/root"
 	"github.com/storacha/piri/pkg/fx/storage"
 	storageucan "github.com/storacha/piri/pkg/fx/storage/ucan"
+	"github.com/storacha/piri/pkg/service/egresstracking"
 )
 
 var UCANModule = fx.Module("ucan",
@@ -22,6 +23,7 @@ var UCANModule = fx.Module("ucan",
 	blobs.Module,             // Provides blob service and handler
 	claims.Module,            // Provides claims service and handler
 	publisher.Module,         // Provides publisher service and handler
+	egresstracking.Module,    // Provides egress tracking service
 	replicator.Module,        // Provides replicator service (works with or without PDP)
 	storage.Module,           // Provides storage service wrapper
 	retrieval.Module,         // Provides retrieval service wrapper
