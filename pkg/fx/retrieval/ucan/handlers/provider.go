@@ -48,6 +48,11 @@ func withErrorHandler() ucanretrieval.Option {
 
 func withReceiptLogger(ets *egresstracking.EgressTrackingService) ucanretrieval.Option {
 	return ucanretrieval.WithReceiptLogger(func(ctx context.Context, rcpt receipt.AnyReceipt, inv invocation.Invocation) {
+		// Egress Tracking is optional, the service will be nil if it is disabled
+		if ets == nil {
+			return
+		}
+
 		// Collect the receipt in a goroutine to avoid blocking the handler
 		go func() {
 			// Make sure the receipt is self-contained, i.e. it also has invocation blocks
