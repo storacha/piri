@@ -7,8 +7,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"gorm.io/gorm"
+
+	"github.com/storacha/piri/pkg/pdp/service/contract"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/types"
@@ -55,6 +56,13 @@ func (p *PDPService) GetProofSetState(ctx context.Context, id uint64) (res types
 		} else {
 			return types.ProofSetState{}, fmt.Errorf("failed to retrieve proof set tasks: %w", err)
 		}
+	}
+
+	// don't get contract state if ps isn't initialized since it will fail
+	if !ps.InitReady {
+		return types.ProofSetState{
+			ID: id,
+		}, nil
 	}
 
 	cs, err := p.getContractState(big.NewInt(int64(id)))
