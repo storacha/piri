@@ -14,8 +14,8 @@ import (
 	"github.com/storacha/piri/pkg/fx/pdp"
 	"github.com/storacha/piri/pkg/fx/scheduler"
 	"github.com/storacha/piri/pkg/fx/wallet"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/service"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 var PDPModule = fx.Module("pdp",
