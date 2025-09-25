@@ -31,6 +31,10 @@ var Module = fx.Module("database",
 			ProvideAggregatorDB,
 			fx.ResultTags(`name:"aggregator_db"`),
 		),
+		fx.Annotate(
+			ProvideEgressTrackingDB,
+			fx.ResultTags(`name:"egress_tracking_db"`),
+		),
 	),
 )
 
@@ -157,6 +161,46 @@ func ProvideTaskEngineDB(lc fx.Lifecycle, cfg app.StorageConfig) (*gorm.DB, erro
 			return nil
 		},
 	})
+	return db, nil
+}
+
+// ProvideEgressTrackingDB provides the SQLite database for the egress tracking job queue
+func ProvideEgressTrackingDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error) {
+	// If no path is provided, use in-memory database
+	if cfg.EgressTracking.DBPath == "" {
+		db, err := sqlitedb.NewMemory()
+		if err != nil {
+			return nil, fmt.Errorf("creating in-memory egress tracking database: %w", err)
+		}
+		return db, nil
+	}
+
+	// Ensure directory exists for file-based database
+	dir := filepath.Dir(cfg.EgressTracking.DBPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("creating egress tracking database directory: %w", err)
+	}
+
+	// Create SQLite database connection
+	db, err := sqlitedb.New(cfg.EgressTracking.DBPath,
+		database.WithJournalMode(database.JournalModeWAL),
+		database.WithTimeout(5*time.Second),
+		database.WithSyncMode(database.SyncModeNORMAL),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating egress tracking database: %w", err)
+	}
+	configureDatabaseConnection(db)
+
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return db.PingContext(ctx)
+		},
+		OnStop: func(ctx context.Context) error {
+			return db.Close()
+		},
+	})
+
 	return db, nil
 }
 

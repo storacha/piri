@@ -59,31 +59,31 @@ var Module = fx.Module("filesystem-store",
 
 type Configs struct {
 	fx.Out
-	Aggregator  app.AggregatorStorageConfig
-	Publisher   app.PublisherStorageConfig
-	Allocation  app.AllocationStorageConfig
-	Blob        app.BlobStorageConfig
-	Claim       app.ClaimStorageConfig
-	Receipt     app.ReceiptStorageConfig
-	EgressBatch app.EgressBatchStoreConfig
-	KeyStore    app.KeyStoreConfig
-	Stash       app.StashStoreConfig
-	PDP         app.PDPStoreConfig
+	Aggregator     app.AggregatorStorageConfig
+	Publisher      app.PublisherStorageConfig
+	Allocation     app.AllocationStorageConfig
+	Blob           app.BlobStorageConfig
+	Claim          app.ClaimStorageConfig
+	Receipt        app.ReceiptStorageConfig
+	EgressTracking app.EgressTrackingStoreConfig
+	KeyStore       app.KeyStoreConfig
+	Stash          app.StashStoreConfig
+	PDP            app.PDPStoreConfig
 }
 
 // ProvideConfigs provides the fields of a storage config
 func ProvideConfigs(cfg app.StorageConfig) Configs {
 	return Configs{
-		Aggregator:  cfg.Aggregator,
-		Publisher:   cfg.Publisher,
-		Allocation:  cfg.Allocations,
-		Blob:        cfg.Blobs,
-		Claim:       cfg.Claims,
-		Receipt:     cfg.Receipts,
-		EgressBatch: cfg.EgressBatches,
-		KeyStore:    cfg.KeyStore,
-		Stash:       cfg.StashStore,
-		PDP:         cfg.PDPStore,
+		Aggregator:     cfg.Aggregator,
+		Publisher:      cfg.Publisher,
+		Allocation:     cfg.Allocations,
+		Blob:           cfg.Blobs,
+		Claim:          cfg.Claims,
+		Receipt:        cfg.Receipts,
+		EgressTracking: cfg.EgressTracking,
+		KeyStore:       cfg.KeyStore,
+		Stash:          cfg.StashStore,
+		PDP:            cfg.PDPStore,
 	}
 }
 
@@ -204,7 +204,7 @@ func NewReceiptStore(cfg app.ReceiptStorageConfig, lc fx.Lifecycle) (receiptstor
 
 }
 
-func NewEgressBatchStore(cfg app.EgressBatchStoreConfig) (egressbatchstore.EgressBatchStore, error) {
+func NewEgressBatchStore(cfg app.EgressTrackingStoreConfig) (egressbatchstore.EgressBatchStore, error) {
 	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for egress batch store")
 	}
