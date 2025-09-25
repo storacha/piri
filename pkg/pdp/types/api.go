@@ -34,6 +34,56 @@ type RootEntry struct {
 	SubrootOffset int64
 }
 
+type ProofSetState struct {
+	ID uint64
+	// if the proof set has been initialized with a root, and is expecting proofs to be submitted.
+	Initialized bool
+	// When the next challenge for a proof will be issued
+	NextChallengeEpoch int64
+	// When the last challenge for a proof was issued
+	PreviousChallengeEpoch int64
+	// The proving period of this proof set
+	ProvingPeriod int64
+	// The challenge window of this proof set
+	ChallengeWindow int64
+	// The current epoch of the chain
+	CurrentEpoch int64
+	// true if a challenge has been issued: CurrentEpoch >= NextChallengeEpoch
+	ChallengedIssued bool
+	// true if in challenge window: CurrentEpoch < NextChallengeEpoch + ChallengeWindow
+	InChallengeWindow bool
+	// true if we missed the challenge: CurrentEpoch > NextChallengeEpoch + ChallengeWindow
+	IsInFaultState bool
+	// true if we submitted a proof for the current ChallengeWindow
+	HasProven bool
+	// true if the node is currently generating a proof
+	IsProving bool
+
+	// The state of the proof set present in the contract
+	ContractState ProofSetContractState
+}
+
+type ProofSetContractState struct {
+	// owners of the proof set
+	Owners []common.Address
+	// The start of the NEXT OPEN proving period's challenge window
+	NextChallengeWindowStart uint64
+	// the epoch of the next challenge
+	NextChallengeEpoch uint64
+	// Max number of epochs between two consecutive proofs
+	MaxProvingPeriod uint64
+	// challengeWindow Number of epochs for the challenge window
+	ChallengeWindow uint64
+	//index of the most recently added leaf that is challengeable in the current proving period
+	ChallengeRange uint64
+	// piece ids of the pieces scheduled for removal at the start of the next proving period
+	ScheduledRemovals []uint64
+	// estimated cost of submitting a proof
+	ProofFee uint64
+	// estimated cost of submitting a proof with buffer applied
+	ProofFeeBuffered uint64
+}
+
 type RootAdd struct {
 	Root     cid.Cid
 	SubRoots []cid.Cid

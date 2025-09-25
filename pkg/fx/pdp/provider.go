@@ -1,6 +1,7 @@
 package pdp
 
 import (
+	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -88,13 +89,16 @@ func ProvideTODOPDPImplInterface(service types.API, agg aggregator.Aggregator, c
 type Params struct {
 	fx.In
 
-	DB             *gorm.DB `name:"engine_db"`
-	Config         app.PDPServiceConfig
-	Store          blobstore.PDPStore
-	Stash          stashstore.Stash
-	Sender         ethereum.Sender
-	Engine         *scheduler.TaskEngine
-	ChainScheduler *chainsched.Scheduler
+	DB              *gorm.DB `name:"engine_db"`
+	Config          app.PDPServiceConfig
+	Store           blobstore.PDPStore
+	Stash           stashstore.Stash
+	Sender          ethereum.Sender
+	Engine          *scheduler.TaskEngine
+	ChainScheduler  *chainsched.Scheduler
+	ChainClient     service.ChainClient
+	ContractClient  contract.PDP
+	ContractBackend service.EthClient
 }
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
@@ -106,6 +110,9 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.Sender,
 		params.Engine,
 		params.ChainScheduler,
+		params.ChainClient,
+		params.ContractClient,
+		params.ContractBackend,
 	)
 }
 

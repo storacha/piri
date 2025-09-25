@@ -1,8 +1,9 @@
 package config
 
 type Client struct {
-	Identity IdentityConfig `mapstructure:"identity"`
-	API      API            `mapstructure:"api"`
+	Identity    IdentityConfig    `mapstructure:"identity"`
+	API         API               `mapstructure:"api"`
+	UCANService UCANServiceConfig `mapstructure:"ucan" toml:"ucan"`
 }
 
 func (c Client) Validate() error {
