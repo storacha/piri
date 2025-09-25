@@ -82,6 +82,11 @@ func NewService(
 	egressTrackerConn := cfg.UCANService.Services.EgressTracker.Connection
 	egressTrackerProofs := cfg.UCANService.Services.EgressTracker.Proofs
 
+	if egressTrackerConn == nil {
+		log.Warn("no egress tracking service connection provided, egress tracking is disabled")
+		return nil, nil
+	}
+
 	return New(
 		id,
 		egressTrackerConn,
