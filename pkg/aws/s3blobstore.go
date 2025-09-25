@@ -19,8 +19,8 @@ import (
 	"github.com/multiformats/go-multicodec"
 	multihash "github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/digestutil"
-	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/piri/pkg/presigner"
+	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
@@ -160,7 +160,7 @@ func (s *S3BlobStore) Get(ctx context.Context, digest multihash.Multihash, opts 
 		var noSuchKeyError *types.NoSuchKey
 		// wrap in error recognizable as a not found error for Store interface consumers
 		if errors.As(err, &noSuchKeyError) {
-			return nil, store.NewErrNotFound(err)
+			return nil, store.ErrNotFound
 		}
 		return nil, err
 	}
