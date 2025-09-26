@@ -29,6 +29,7 @@ type PDPService struct {
 	blobstore blobstore.Blobstore
 	storage   stashstore.Stash
 	sender    ethereum.Sender
+	ethClient EthClient
 
 	db   *gorm.DB
 	name string
@@ -57,6 +58,7 @@ func New(
 	sender ethereum.Sender,
 	engine *scheduler.TaskEngine,
 	chainScheduler *chainsched.Scheduler,
+	ethClient EthClient,
 ) (*PDPService, error) {
 	return &PDPService{
 		address:        address,
@@ -67,5 +69,6 @@ func New(
 		sender:         sender,
 		engine:         engine,
 		chainScheduler: chainScheduler,
+		ethClient:      ethClient,
 	}, nil
 }

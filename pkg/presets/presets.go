@@ -20,10 +20,13 @@ var (
 )
 
 var (
-	// PDPRecordKeeperAddress is the address of the PDP Service contract: https://github.com/FilOzone/pdp/?tab=readme-ov-file#v110
+	PDPVerifierProxyAddress          = "0x31D87004Fc0C38D897725978e51BC06163603E5A"
+	PDPVerifierImplementationAddress = "0xf2a47b4136Ab2dfB6FA67Fb85c7a031f56F6f024"
+
+	// PDPSimpleServiceRecordKeeperAddress is the address of the PDP Service contract: https://github.com/FilOzone/pdp/?tab=readme-ov-file#v110
 	// NB(forrest): for now we hardcode to the address to the calibnet service contract address
 	// later this may be configured to the mainnet contract address for production settings.
-	PDPRecordKeeperAddress = "0x6170dE2b09b404776197485F3dc6c968Ef948505"
+	PDPSimpleServiceRecordKeeperAddress = "0x6170dE2b09b404776197485F3dc6c968Ef948505"
 )
 
 // Setting this env var will enable certain presets.

@@ -16,6 +16,15 @@ import (
 )
 
 func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (res common.Hash, retErr error) {
+	/*
+		if _, err := p.RegisterProvider(ctx, RegisterProviderParams{
+			Name:        "Testing1",
+			Description: "Testing1",
+		}); err != nil {
+			return common.Hash{}, err
+		}
+
+	*/
 	log.Infow("creating proof set", "recordKeeper", params.RecordKeeper)
 	defer func() {
 		if retErr != nil {
@@ -51,6 +60,10 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 		return common.Hash{}, fmt.Errorf("failed to get contract ABI: %w", err)
 	}
 
+	// REVIEW: We cannot use a record keeper right now since the only supported one is the
+	// Filecoin Warm Storage Service contract. And membership to that contract is gated
+	// but the owner, which is not storacha.
+	// This code can function without a record keeper, but will require some hacks
 	// Pack the method call data
 	data, err := abiData.Pack("createDataSet", params.RecordKeeper, extraDataBytes)
 	if err != nil {

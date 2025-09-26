@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"golang.org/x/xerrors"
 
 	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 )
@@ -48,25 +47,25 @@ func (p *PDPContract) NewServiceProviderRegistry(address common.Address, backend
 func (p *PDPContract) GetDataSetIdFromReceipt(receipt *types.Receipt) (uint64, error) {
 	pdpABI, err := bindings.PDPVerifierMetaData.GetAbi()
 	if err != nil {
-		return 0, xerrors.Errorf("failed to get PDP ABI: %w", err)
+		return 0, fmt.Errorf("failed to get PDP ABI: %w", err)
 	}
 
 	event, exists := pdpABI.Events["DataSetCreated"]
 	if !exists {
-		return 0, xerrors.Errorf("DataSetCreated event not found in ABI")
+		return 0, fmt.Errorf("DataSetCreated event not found in ABI")
 	}
 
 	for _, vLog := range receipt.Logs {
 		if len(vLog.Topics) > 0 && vLog.Topics[0] == event.ID {
 			if len(vLog.Topics) < 2 {
-				return 0, xerrors.Errorf("log does not contain setId topic")
+				return 0, fmt.Errorf("log does not contain setId topic")
 			}
 			setIdBigInt := new(big.Int).SetBytes(vLog.Topics[1].Bytes())
 			return setIdBigInt.Uint64(), nil
 		}
 	}
 
-	return 0, xerrors.Errorf("DataSetCreated event not found in receipt")
+	return 0, fmt.Errorf("DataSetCreated event not found in receipt")
 }
 
 // GetPieceIdsFromReceipt parses PiecesAdded event from transaction receipt

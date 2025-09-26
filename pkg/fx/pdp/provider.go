@@ -95,6 +95,7 @@ type Params struct {
 	Sender         ethereum.Sender
 	Engine         *scheduler.TaskEngine
 	ChainScheduler *chainsched.Scheduler
+	EthClient      service.EthClient
 }
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
@@ -106,6 +107,7 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.Sender,
 		params.Engine,
 		params.ChainScheduler,
+		params.EthClient,
 	)
 }
 

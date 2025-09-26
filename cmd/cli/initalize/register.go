@@ -159,7 +159,7 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 		}.ToAppConfig()),
 		PDPService: lo.Must(config.PDPServiceConfig{
 			OwnerAddress:    walletKey.Address.String(),
-			ContractAddress: presets.PDPRecordKeeperAddress,
+			ContractAddress: presets.PDPSimpleServiceRecordKeeperAddress,
 			LotusEndpoint:   flags.lotusEndpoint,
 		}.ToAppConfig()),
 		Replicator: appcfg.DefaultReplicatorConfig(),
@@ -349,7 +349,7 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 		},
 		PDPService: config.PDPServiceConfig{
 			OwnerAddress:    ownerAddress.String(),
-			ContractAddress: presets.PDPRecordKeeperAddress,
+			ContractAddress: presets.PDPSimpleServiceRecordKeeperAddress,
 			LotusEndpoint:   flags.lotusEndpoint,
 		},
 		UCANService: config.UCANServiceConfig{

@@ -12,6 +12,7 @@ import (
 
 	"github.com/storacha/piri/pkg/config"
 	"github.com/storacha/piri/pkg/pdp/httpapi/client"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
@@ -27,7 +28,7 @@ var (
 func init() {
 	CreateCmd.Flags().String(
 		"record-keeper",
-		"",
+		smartcontracts.PDPFilecoinWarmStorageServiceRecordKeeperAddress,
 		"Hex Address of the PDP Contract Record Keeper (Service Contract)",
 	)
 	cobra.CheckErr(CreateCmd.MarkFlagRequired("record-keeper"))
