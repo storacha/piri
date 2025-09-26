@@ -51,6 +51,10 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		Receipts: app.ReceiptStorageConfig{
 			Dir: filepath.Join(r.DataDir, "receipt"),
 		},
+		EgressBatches: app.EgressBatchStoreConfig{
+			Dir:          filepath.Join(r.DataDir, "egress_batch"),
+			MaxBatchSize: 0,
+		},
 		Allocations: app.AllocationStorageConfig{
 			Dir: filepath.Join(r.DataDir, "allocation"),
 		},

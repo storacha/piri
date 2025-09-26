@@ -17,6 +17,7 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
+	"github.com/storacha/piri/pkg/store/egressbatchstore"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/stashstore"
@@ -49,6 +50,7 @@ var Module = fx.Module("filesystem-store",
 		),
 		NewClaimStore,
 		NewReceiptStore,
+		NewEgressBatchStore,
 		NewKeyStore,
 		NewStashStore,
 		NewPDPStore,
@@ -57,29 +59,31 @@ var Module = fx.Module("filesystem-store",
 
 type Configs struct {
 	fx.Out
-	Aggregator app.AggregatorStorageConfig
-	Publisher  app.PublisherStorageConfig
-	Allocation app.AllocationStorageConfig
-	Blob       app.BlobStorageConfig
-	Claim      app.ClaimStorageConfig
-	Receipt    app.ReceiptStorageConfig
-	KeyStore   app.KeyStoreConfig
-	Stash      app.StashStoreConfig
-	PDP        app.PDPStoreConfig
+	Aggregator  app.AggregatorStorageConfig
+	Publisher   app.PublisherStorageConfig
+	Allocation  app.AllocationStorageConfig
+	Blob        app.BlobStorageConfig
+	Claim       app.ClaimStorageConfig
+	Receipt     app.ReceiptStorageConfig
+	EgressBatch app.EgressBatchStoreConfig
+	KeyStore    app.KeyStoreConfig
+	Stash       app.StashStoreConfig
+	PDP         app.PDPStoreConfig
 }
 
 // ProvideConfigs provides the fields of a storage config
 func ProvideConfigs(cfg app.StorageConfig) Configs {
 	return Configs{
-		Aggregator: cfg.Aggregator,
-		Publisher:  cfg.Publisher,
-		Allocation: cfg.Allocations,
-		Blob:       cfg.Blobs,
-		Claim:      cfg.Claims,
-		Receipt:    cfg.Receipts,
-		KeyStore:   cfg.KeyStore,
-		Stash:      cfg.StashStore,
-		PDP:        cfg.PDPStore,
+		Aggregator:  cfg.Aggregator,
+		Publisher:   cfg.Publisher,
+		Allocation:  cfg.Allocations,
+		Blob:        cfg.Blobs,
+		Claim:       cfg.Claims,
+		Receipt:     cfg.Receipts,
+		EgressBatch: cfg.EgressBatches,
+		KeyStore:    cfg.KeyStore,
+		Stash:       cfg.StashStore,
+		PDP:         cfg.PDPStore,
 	}
 }
 
@@ -198,6 +202,14 @@ func NewReceiptStore(cfg app.ReceiptStorageConfig, lc fx.Lifecycle) (receiptstor
 
 	return receiptstore.NewDsReceiptStore(ds)
 
+}
+
+func NewEgressBatchStore(cfg app.EgressBatchStoreConfig) (egressbatchstore.EgressBatchStore, error) {
+	if cfg.Dir == "" {
+		return nil, fmt.Errorf("no data dir provided for egress batch store")
+	}
+
+	return egressbatchstore.NewFSBatchStore(cfg.Dir, cfg.MaxBatchSize)
 }
 
 func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, error) {
