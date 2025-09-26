@@ -10,6 +10,7 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/capabilities/space/egress"
+	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/dag/blockstore"
 	"github.com/storacha/go-ucanto/core/delegation"
@@ -115,7 +116,7 @@ func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Ci
 		return fmt.Errorf("importing response blocks into blockstore: %w", err)
 	}
 
-	rcptReader, err := egress.NewTrackReceiptReader()
+	rcptReader, err := receipt.NewReceiptReaderFromTypes[egress.TrackOk, fdm.FailureModel](egress.TrackOkType(), fdm.FailureType(), captypes.Converters...)
 	if err != nil {
 		return fmt.Errorf("constructing receipt reader: %w", err)
 	}
@@ -127,7 +128,7 @@ func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Ci
 
 	// we're not expecting any meaningful response here so we just check for error
 	_, x := result.Unwrap(rcpt.Out())
-	var emptyErr egress.TrackError
+	var emptyErr fdm.FailureModel
 	if x != emptyErr {
 		return fmt.Errorf("invocation failed: %s", x.Message)
 	}

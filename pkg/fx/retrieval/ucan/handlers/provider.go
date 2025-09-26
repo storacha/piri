@@ -47,7 +47,7 @@ func withErrorHandler() ucanretrieval.Option {
 }
 
 func withReceiptLogger(ets *egresstracking.EgressTrackingService) ucanretrieval.Option {
-	return ucanretrieval.WithReceiptLogger(func(ctx context.Context, rcpt receipt.AnyReceipt, inv invocation.Invocation) {
+	return ucanretrieval.WithReceiptLogger(func(_ context.Context, rcpt receipt.AnyReceipt, inv invocation.Invocation) {
 		// Egress Tracking is optional, the service will be nil if it is disabled
 		if ets == nil {
 			return
@@ -73,7 +73,7 @@ func withReceiptLogger(ets *egresstracking.EgressTrackingService) ucanretrieval.
 				return
 			}
 
-			if err := ets.AddReceipt(ctx, retrievalRcpt); err != nil {
+			if err := ets.AddReceipt(context.Background(), retrievalRcpt); err != nil {
 				log.Errorw("adding receipt to egress tracking service", "error", err)
 				return
 			}
