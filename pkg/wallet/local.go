@@ -3,16 +3,20 @@ package wallet
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/storacha/piri/pkg/pdp/eip712"
 	"github.com/storacha/piri/pkg/store/keystore"
 )
 
 const KNamePrefix = "wallet-"
+
+const ChainID = 314159
 
 type Key struct {
 	keystore.KeyInfo
@@ -39,6 +43,7 @@ func NewKey(keyinfo keystore.KeyInfo) (*Key, error) {
 type Wallet interface {
 	Import(ctx context.Context, ki *keystore.KeyInfo) (common.Address, error)
 	SignTransaction(ctx context.Context, addr common.Address, signer types.Signer, tx *types.Transaction) (*types.Transaction, error)
+	NewContractMessageSigner(ctx context.Context, signer common.Address, contractAddress common.Address) (*eip712.Signer, error)
 }
 
 type LocalWallet struct {
@@ -54,6 +59,23 @@ func NewWallet(keystore keystore.KeyStore) (*LocalWallet, error) {
 	}
 
 	return w, nil
+}
+
+func (w *LocalWallet) NewContractMessageSigner(
+	ctx context.Context,
+	signer common.Address,
+	contractAddress common.Address,
+) (*eip712.Signer,
+	error) {
+	keyInfo, err := w.findKey(ctx, signer)
+	if err != nil {
+		return nil, err
+	}
+	sk, err := crypto.ToECDSA(keyInfo.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	return eip712.NewSigner(sk, big.NewInt(ChainID), contractAddress), nil
 }
 
 func (w *LocalWallet) SignTransaction(ctx context.Context, addr common.Address, signer types.Signer, tx *types.Transaction) (*types.Transaction, error) {

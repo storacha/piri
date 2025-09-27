@@ -19,6 +19,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/stashstore"
+	"github.com/storacha/piri/pkg/wallet"
 )
 
 var Module = fx.Module("pdp-service",
@@ -96,6 +97,7 @@ type Params struct {
 	Engine         *scheduler.TaskEngine
 	ChainScheduler *chainsched.Scheduler
 	EthClient      service.EthClient
+	Wallet         wallet.Wallet
 }
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
@@ -108,6 +110,7 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.Engine,
 		params.ChainScheduler,
 		params.EthClient,
+		params.Wallet,
 	)
 }
 

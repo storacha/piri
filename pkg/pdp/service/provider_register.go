@@ -51,12 +51,15 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params RegisterProvid
 		if err != nil {
 			return common.Hash{}, fmt.Errorf("failed to get provider ID by address for registered provider: %w", err)
 		}
-		providerInfo, err := registry.GetProvider(bindCtx, providerID)
-		if err != nil {
-			return common.Hash{}, fmt.Errorf("failed to get provider info for registered provider: %w", err)
-		}
-		return common.Hash{}, fmt.Errorf("service provider %d:%s is already registered",
-			providerInfo.ProviderId.Uint64(), p.address.Hex())
+		/*
+			providerInfo, err := registry.GetProvider(bindCtx, providerID)
+			if err != nil {
+				return common.Hash{}, fmt.Errorf("failed to get provider info for registered provider: %w", err)
+			}
+
+		*/
+		log.Errorf("service provider %s is already registered with address %s", providerID, p.address)
+		return common.Hash{}, nil
 	}
 
 	// not registered, lets do this

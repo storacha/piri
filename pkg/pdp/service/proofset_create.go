@@ -2,29 +2,26 @@ package service
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"strings"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
+	"github.com/storacha/piri/pkg/pdp/eip712"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (res common.Hash, retErr error) {
-	/*
-		if _, err := p.RegisterProvider(ctx, RegisterProviderParams{
-			Name:        "Testing1",
-			Description: "Testing1",
-		}); err != nil {
-			return common.Hash{}, err
-		}
-
-	*/
+	if _, err := p.RegisterProvider(ctx, RegisterProviderParams{
+		Name:        "Testing1",
+		Description: "Testing1",
+	}); err != nil {
+		return common.Hash{}, err
+	}
 	log.Infow("creating proof set", "recordKeeper", params.RecordKeeper)
 	defer func() {
 		if retErr != nil {
@@ -40,19 +37,37 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "record keeper %s is not a valid address", params.RecordKeeper)
 	}
 
-	// Decode extraData if provided
-	var extraDataBytes []byte
-	if params.ExtraData != "" {
-		extraDataHexStr := string(params.ExtraData)
-		decodedBytes, err := hex.DecodeString(strings.TrimPrefix(extraDataHexStr, "0x"))
-		if err != nil {
-			log.Errorf("Failed to decode hex extraData: %v", err)
-			return common.Hash{}, types.WrapError(types.KindInvalidInput,
-				fmt.Sprintf("invalid extraData format: %s (must be hex encoded)", params.ExtraData),
-				err)
-		}
-		extraDataBytes = decodedBytes
+	// TODO this might not be the record keeper as the verifing addres, may instead be the service contract
+	// TODO: Need to track clientDataSetId properly - for now using 0 for first dataset
+	clientDataSetId := big.NewInt(1)
+	signer, err := p.wallet.NewContractMessageSigner(ctx, p.address, params.RecordKeeper)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to create signer: %w", err)
 	}
+	extraDataBytes, err := eip712.CreateDataSetExtraData(signer, clientDataSetId, p.address, []eip712.MetadataEntry{
+		{
+			Key:   "foo",
+			Value: "bar",
+		},
+	})
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to create extra data: %w", err)
+	}
+	/*
+		// Decode extraData if provided
+		var extraDataBytes []byte
+		if params.ExtraData != "" {
+			extraDataHexStr := string(params.ExtraData)
+			decodedBytes, err := hex.DecodeString(strings.TrimPrefix(extraDataHexStr, "0x"))
+			if err != nil {
+				log.Errorf("Failed to decode hex extraData: %v", err)
+				return common.Hash{}, types.WrapError(types.KindInvalidInput,
+					fmt.Sprintf("invalid extraData format: %s (must be hex encoded)", params.ExtraData),
+					err)
+			}
+			extraDataBytes = decodedBytes
+		}
+	*/
 
 	// Obtain the ABI of the PDPVerifier contract
 	abiData, err := smartcontracts.PDPVerifierMetaData()
@@ -65,7 +80,8 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 	// but the owner, which is not storacha.
 	// This code can function without a record keeper, but will require some hacks
 	// Pack the method call data
-	data, err := abiData.Pack("createDataSet", params.RecordKeeper, extraDataBytes)
+	data, err := abiData.Pack("createDataSet",
+		common.HexToAddress(smartcontracts.PDPFilecoinWarmStorageServiceRecordKeeperAddress), extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack create proof set: %w", err)
 	}

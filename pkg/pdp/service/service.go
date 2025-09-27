@@ -18,6 +18,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/stashstore"
+	"github.com/storacha/piri/pkg/wallet"
 )
 
 var log = logging.Logger("pdp/service")
@@ -30,6 +31,7 @@ type PDPService struct {
 	storage   stashstore.Stash
 	sender    ethereum.Sender
 	ethClient EthClient
+	wallet    wallet.Wallet
 
 	db   *gorm.DB
 	name string
@@ -59,6 +61,7 @@ func New(
 	engine *scheduler.TaskEngine,
 	chainScheduler *chainsched.Scheduler,
 	ethClient EthClient,
+	wallet wallet.Wallet,
 ) (*PDPService, error) {
 	return &PDPService{
 		address:        address,
@@ -70,5 +73,6 @@ func New(
 		engine:         engine,
 		chainScheduler: chainScheduler,
 		ethClient:      ethClient,
+		wallet:         wallet,
 	}, nil
 }
