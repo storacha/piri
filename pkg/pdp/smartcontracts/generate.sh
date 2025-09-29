@@ -1,23 +1,11 @@
 #!/bin/bash
 set -e
 
-echo "=== Contract Generation Script ==="
-echo "Building contracts and generating Go bindings..."
-
-# Change to script directory
-cd "$(dirname "$0")"
-
-echo "Step 1: Building PDP contracts..."
-cd contracts/pdp
-make build
-cd -
-
-echo "Step 2: Building Filecoin services contracts..."
-cd contracts/filecoin-services/service_contracts
-make build
-cd -
-
-echo "Step 3: Generating Go bindings..."
+# macOS uses BSD sed while Ubuntu uses GNU sed.
+# we need this script to work on both OSs.
+sedi() {
+  sed "$@" > tmpfile && mv tmpfile "${@: -1}"
+}
 
 # Check if abigen is available
 if ! command -v abigen &> /dev/null; then
@@ -25,6 +13,32 @@ if ! command -v abigen &> /dev/null; then
     echo "Run: go install github.com/ethereum/go-ethereum/cmd/abigen@latest"
     exit 1
 fi
+
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq not found. Please install jq"
+    exit 1
+fi
+
+echo "=== Contract Generation Script ==="
+echo "Building contracts and generating Go bindings..."
+
+# Change to script directory
+cd "$(dirname "$0")"
+
+echo
+echo "Step 1: Building PDP contracts..."
+cd contracts/pdp
+make build
+cd -
+
+echo
+echo "Step 2: Building Filecoin services contracts..."
+cd contracts/filecoin-services/service_contracts
+make build
+cd -
+
+echo
+echo "Step 3: Generating Go bindings..."
 
 # Create clean bindings directory
 rm -rf bindings
@@ -35,7 +49,6 @@ echo "Extracting ABIs from JSON artifacts..."
 
 # Extract PDP contract ABIs
 jq -r '.abi' contracts/pdp/out/PDPVerifier.sol/PDPVerifier.json > contracts/pdp/out/PDPVerifier.sol/PDPVerifier.abi
-jq -r '.abi' contracts/pdp/out/SimplePDPService.sol/SimplePDPService.json > contracts/pdp/out/SimplePDPService.sol/SimplePDPService.abi 2>/dev/null || echo "SimplePDPService not found, skipping"
 jq -r '.abi' contracts/pdp/out/IPDPProvingSchedule.sol/IPDPProvingSchedule.json > contracts/pdp/out/IPDPProvingSchedule.sol/IPDPProvingSchedule.abi 2>/dev/null || echo "IPDPProvingSchedule not found, skipping"
 
 # Extract Filecoin services contract ABIs
@@ -78,23 +91,10 @@ abigen --abi contracts/pdp/out/PDPVerifier.sol/PDPVerifier.abi \
 
 # Remove duplicate type definitions
 echo "Removing duplicate types from PDPVerifier..."
-sed -i '/^type CidsCid struct {$/,/^}$/d' bindings/pdp_verifier_temp.go
-sed -i '/^type IPDPTypesProof struct {$/,/^}$/d' bindings/pdp_verifier_temp.go
-sed -i '/^type IPDPTypesPieceIdAndOffset struct {$/,/^}$/d' bindings/pdp_verifier_temp.go
+sedi '/^type CidsCid struct {$/,/^}$/d' bindings/pdp_verifier_temp.go
+sedi '/^type IPDPTypesProof struct {$/,/^}$/d' bindings/pdp_verifier_temp.go
+sedi '/^type IPDPTypesPieceIdAndOffset struct {$/,/^}$/d' bindings/pdp_verifier_temp.go
 mv bindings/pdp_verifier_temp.go bindings/pdp_verifier.go
-
-# Try to generate SimplePDPService if it exists
-if [ -f "contracts/pdp/out/SimplePDPService.sol/SimplePDPService.abi" ]; then
-    echo "Generating SimplePDPService bindings..."
-    abigen --abi contracts/pdp/out/SimplePDPService.sol/SimplePDPService.abi \
-           --pkg bindings \
-           --type SimplePDPService \
-           --out bindings/simple_pdp_service_temp.go
-    
-    # Remove duplicate types
-    sed -i '/^type CidsCid struct {$/,/^}$/d' bindings/simple_pdp_service_temp.go
-    mv bindings/simple_pdp_service_temp.go bindings/simple_pdp_service.go
-fi
 
 # Try to generate PDPProvingSchedule if it exists
 if [ -f "contracts/pdp/out/IPDPProvingSchedule.sol/IPDPProvingSchedule.abi" ]; then
@@ -113,7 +113,7 @@ abigen --abi contracts/filecoin-services/service_contracts/out/FilecoinWarmStora
        --out bindings/filecoin_warm_storage_service_temp.go
 
 # Remove duplicate types
-sed -i '/^type CidsCid struct {$/,/^}$/d' bindings/filecoin_warm_storage_service_temp.go
+sedi '/^type CidsCid struct {$/,/^}$/d' bindings/filecoin_warm_storage_service_temp.go
 mv bindings/filecoin_warm_storage_service_temp.go bindings/filecoin_warm_storage_service.go
 
 echo "Generating ServiceProviderRegistry bindings..."
@@ -122,6 +122,6 @@ abigen --abi contracts/filecoin-services/service_contracts/out/ServiceProviderRe
        --type ServiceProviderRegistry \
        --out bindings/service_provider_registry.go
 
+echo
 echo "✅ Contract generation complete!"
 echo "Generated files in: bindings/"
-ls -la bindings/
