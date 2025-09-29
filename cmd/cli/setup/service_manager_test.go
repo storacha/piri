@@ -290,7 +290,7 @@ func TestServiceManager_CheckServicesNotRunning(t *testing.T) {
 		{
 			name: "all services inactive",
 			services: map[string]string{
-				"piri":              "inactive",
+				"piri":               "inactive",
 				"piri-updater.timer": "inactive",
 			},
 			shouldError: false,
@@ -298,7 +298,7 @@ func TestServiceManager_CheckServicesNotRunning(t *testing.T) {
 		{
 			name: "some services active",
 			services: map[string]string{
-				"piri":              "active",
+				"piri":               "active",
 				"piri-updater.timer": "inactive",
 			},
 			shouldError: true,
