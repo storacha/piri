@@ -14,9 +14,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  go-test:
-    uses: ipdxco/unified-github-workflows/.github/workflows/go-test.yml@v1.0
-    with:
-      go-versions: '["this"]'
-    secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Run tests
+        run: go test -shuffle=on -v ./...
