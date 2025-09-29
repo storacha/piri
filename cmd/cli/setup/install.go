@@ -36,7 +36,7 @@ safe to do so (not during proof generation or active transfers).`,
 
 func init() {
 	InstallCmd.Flags().Bool("force", false, "Force overwrite existing files")
-	InstallCmd.Flags().Bool("enable-auto-update", false, "Enable automatic updates (checks every 30 minutes)")
+	InstallCmd.Flags().Bool("enable-auto-update", true, "Enable automatic updates (checks every 30 minutes)")
 
 	InstallCmd.SetOut(os.Stdout)
 	InstallCmd.SetErr(os.Stderr)
@@ -52,9 +52,9 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 
 	// Check prerequisites
 	prereqs := &Prerequisites{
-		Platform:     installer.Platform,
-		NeedsSystemd: true,
-		NeedsRoot:    true,
+		Platform:      installer.Platform,
+		NeedsSystemd:  true,
+		NeedsRoot:     true,
 		CheckServices: []string{PiriServiceName, PiriUpdateTimerName},
 		CheckFiles: []string{
 			PiriSystemConfigPath,
