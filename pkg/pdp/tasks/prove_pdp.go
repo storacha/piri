@@ -229,7 +229,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 
 	// If gas used is 0 fee is maximized
 	gasFee := big.NewInt(0)
-	proofFee := big.NewInt(0)
+	var proofFee *big.Int
 
 	// this case will be true in production, false in testing with a mocked contract
 	// context: https://filecoinproject.slack.com/archives/C07CGTXHHT4/p1755606117712229 (and curio PR #600)
