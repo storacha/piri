@@ -97,13 +97,9 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 	// Check if we need elevated privileges and handle sudo if necessary
 	if NeedsElevatedPrivileges(execPath) {
 		if !platform.IsRoot {
-			cmd.Println("Update requires administrator privileges...")
-			// re-run this exact command with sudo
-			// TODO(forrest): I don't like this as it means making a network call as root, should we fail here and tell
-			// user to re-run? Otherwise, the command re-executes and prompts for root password.
-			// this won't happen if the bin is in a path that doesn't require root, e.g. /home/user/bin/piri
-			// but will happen for locations like /usr/local/bin/piri
-			return RunWithSudo()
+			cmd.Printf("Update requires administrator privileges to update piri in path: %s\n", execPath)
+			cmd.Println("Re-run with `sudo` to update")
+			return nil
 		}
 	}
 

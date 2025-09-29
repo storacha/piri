@@ -9,17 +9,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 )
 
 // PlatformChecker provides platform and permission checking utilities
 type PlatformChecker struct {
-	OS           string
-	IsLinux      bool
-	IsDarwin     bool
-	HasSystemd   bool
-	IsRoot       bool
-	ServiceUser  string
+	OS          string
+	IsLinux     bool
+	IsDarwin    bool
+	HasSystemd  bool
+	IsRoot      bool
+	ServiceUser string
 }
 
 // NewPlatformChecker creates and initializes a platform checker
@@ -162,54 +161,12 @@ func GetExecutablePath() (string, error) {
 	return execPath, nil
 }
 
-// RunWithSudo re-executes the current command with sudo
-func RunWithSudo() error {
-	// Get the original command arguments
-	args := os.Args
-
-	// Build the sudo command
-	var sudoArgs []string
-
-	// Preserve environment variables that might be needed
-	sudoArgs = append(sudoArgs, "-E")    // Preserve environment
-	sudoArgs = append(sudoArgs, "--")    // End of sudo options
-	sudoArgs = append(sudoArgs, args...) // Original command and arguments
-
-	// Create the sudo command
-	sudoCmd := exec.Command("sudo", sudoArgs...)
-	sudoCmd.Stdin = os.Stdin
-	sudoCmd.Stdout = os.Stdout
-	sudoCmd.Stderr = os.Stderr
-
-	// Run the command and wait for it to complete
-	err := sudoCmd.Run()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			// If sudo was cancelled or failed, return a user-friendly error
-			if exitErr.ExitCode() == 1 {
-				return fmt.Errorf("command cancelled or authentication failed")
-			}
-			// Propagate the exit code
-			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-				os.Exit(status.ExitStatus())
-			}
-		}
-		return fmt.Errorf("failed to run with sudo: %w", err)
-	}
-
-	// If sudo succeeded, exit with success
-	os.Exit(0)
-	return nil
-}
-
-// CheckPrerequisites performs common prerequisite checks for installation/update
 type Prerequisites struct {
-	Platform        *PlatformChecker
-	NeedsRoot       bool
-	NeedsSystemd    bool
-	CheckServices   []string // Services that should not be running
-	CheckFiles      []string // Files that should not exist (unless --force)
+	Platform      *PlatformChecker
+	NeedsRoot     bool
+	NeedsSystemd  bool
+	CheckServices []string // Services that should not be running
+	CheckFiles    []string // Files that should not exist (unless --force)
 }
 
 // Validate checks all prerequisites and returns any errors
