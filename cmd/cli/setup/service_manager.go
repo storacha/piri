@@ -16,14 +16,14 @@ type CommandExecutor interface {
 	Run(name string, args ...string) error
 }
 
-// RealCommandExecutor executes real system commands
-type RealCommandExecutor struct{}
+// realCommandExecutor executes real system commands
+type realCommandExecutor struct{}
 
-func (r *RealCommandExecutor) Output(name string, args ...string) ([]byte, error) {
+func (r *realCommandExecutor) Output(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).Output()
 }
 
-func (r *RealCommandExecutor) Run(name string, args ...string) error {
+func (r *realCommandExecutor) Run(name string, args ...string) error {
 	return exec.Command(name, args...).Run()
 }
 
@@ -37,10 +37,7 @@ type ServiceManager struct {
 
 // NewServiceManager creates a new service manager
 func NewServiceManager(services ...string) *ServiceManager {
-	return &ServiceManager{
-		Services: services,
-		executor: &RealCommandExecutor{},
-	}
+	return NewServiceManagerWithExecutor(&realCommandExecutor{}, services...)
 }
 
 // NewServiceManagerWithExecutor creates a new service manager with custom executor
@@ -206,11 +203,11 @@ func (sm *ServiceManager) StopAllServices() error {
 
 // ServiceStatus represents the status of a systemd service
 type ServiceStatus struct {
-	Name     string
-	Active   bool
-	Enabled  bool
-	Running  bool
-	Failed   bool
+	Name    string
+	Active  bool
+	Enabled bool
+	Running bool
+	Failed  bool
 }
 
 // GetServiceStatus returns detailed status of a service
