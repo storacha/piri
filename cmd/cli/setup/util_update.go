@@ -141,6 +141,9 @@ func downloadAndVerifyBinary(ctx context.Context, cmd *cobra.Command, url string
 		_ = bar.Finish()
 	} else {
 		archiveData, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read update content: %w", err)
+		}
 	}
 
 	// Verify checksum if provided
