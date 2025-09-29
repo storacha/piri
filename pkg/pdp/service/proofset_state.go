@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
 
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/types"
@@ -101,12 +101,12 @@ func (p *PDPService) GetProofSetState(ctx context.Context, id uint64) (res types
 func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState, error) {
 
 	// Get the listener address for this proof set from the PDPVerifier contract
-	pdpVerifier, err := p.contractClient.NewPDPVerifier(contract.Addresses().PDPVerifier, p.contractBackend)
+	pdpVerifier, err := p.contractClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, p.contractBackend)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
 	}
 
-	ownerAddr1, ownerAddre2, err := pdpVerifier.GetProofSetOwner(nil, id)
+	ownerAddr1, ownerAddre2, err := pdpVerifier.GetDataSetStorageProvider(nil, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve owner address: %w", err)
 	}
@@ -121,11 +121,6 @@ func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState,
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve challenge range: %w", err)
 	}
 
-	scheduledRemovals, err := pdpVerifier.GetScheduledRemovals(nil, id)
-	if err != nil {
-		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve scheduled removals: %w", err)
-	}
-
 	// If gas used is 0 fee is maximized
 	proofFee, err := pdpVerifier.CalculateProofFee(nil, id, big.NewInt(0))
 	if err != nil {
@@ -134,27 +129,28 @@ func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState,
 	// Add 2x buffer for certainty (as is done in the prove task)
 	proofFeeBuffer := new(big.Int).Mul(proofFee, big.NewInt(3))
 
-	listenerAddr, err := pdpVerifier.GetProofSetListener(nil, id)
+	listenerAddr, err := pdpVerifier.GetDataSetListener(nil, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to get listener address for proof set %d: %w", id, err)
 	}
 
 	// Determine the next challenge window start by consulting the listener
-	provingSchedule, err := p.contractClient.NewIPDPProvingSchedule(listenerAddr, p.contractBackend)
+	provingSchedule, err := p.contractClient.NewPDPProvingSchedule(listenerAddr, p.contractBackend)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
 	}
-	nextChallengeWindowStart, err := provingSchedule.NextChallengeWindowStart(nil, id)
+	nextChallengeWindowStart, err := provingSchedule.NextPDPChallengeWindowStart(nil, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
-	maxProvingPeriod, err := provingSchedule.GetMaxProvingPeriod(nil)
+	pdpConfig, err := provingSchedule.GetPDPConfig(nil)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to get max proving period: %w", err)
 	}
-	chalWindow, err := provingSchedule.ChallengeWindow(nil)
+
+	scheduledRemovals, err := pdpVerifier.GetScheduledRemovals(nil, id)
 	if err != nil {
-		return types.ProofSetContractState{}, fmt.Errorf("failed to get challenge window: %w", err)
+		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve scheduled removals: %w", err)
 	}
 
 	removeIdx := make([]uint64, len(scheduledRemovals))
@@ -166,8 +162,8 @@ func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState,
 		Owners:                   []common.Address{ownerAddr1, ownerAddre2},
 		NextChallengeWindowStart: nextChallengeWindowStart.Uint64(),
 		NextChallengeEpoch:       nextChallengeEpoch.Uint64(),
-		MaxProvingPeriod:         maxProvingPeriod,
-		ChallengeWindow:          chalWindow.Uint64(),
+		MaxProvingPeriod:         pdpConfig.MaxProvingPeriod,
+		ChallengeWindow:          pdpConfig.ChallengeWindow.Uint64(),
 		ChallengeRange:           challengeRange.Uint64(),
 		ScheduledRemovals:        removeIdx,
 		ProofFee:                 proofFee.Uint64(),

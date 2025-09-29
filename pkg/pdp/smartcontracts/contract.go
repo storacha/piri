@@ -38,28 +38,16 @@ type PDPProvingSchedule interface {
 // PDPVerifier interface matching the IPDPVerifier.sol contract
 type PDPVerifier interface {
 	// View functions
-	GetChallengeFinality(opts *bind.CallOpts) (*big.Int, error)
-	GetNextDataSetId(opts *bind.CallOpts) (uint64, error)
-	DataSetLive(opts *bind.CallOpts, setId *big.Int) (bool, error)
-	PieceLive(opts *bind.CallOpts, setId *big.Int, pieceId *big.Int) (bool, error)
-	PieceChallengable(opts *bind.CallOpts, setId *big.Int, pieceId *big.Int) (bool, error)
 	GetDataSetLeafCount(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
-	GetNextPieceId(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 	GetNextChallengeEpoch(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 	GetDataSetListener(opts *bind.CallOpts, setId *big.Int) (common.Address, error)
 	GetDataSetStorageProvider(opts *bind.CallOpts, setId *big.Int) (common.Address, common.Address, error)
-	GetDataSetLastProvenEpoch(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
-	GetPieceCid(opts *bind.CallOpts, setId *big.Int, pieceId *big.Int) (bindings.CidsCid, error)
-	GetPieceLeafCount(opts *bind.CallOpts, setId *big.Int, pieceId *big.Int) (*big.Int, error)
 	GetChallengeRange(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 	GetScheduledRemovals(opts *bind.CallOpts, setId *big.Int) ([]*big.Int, error)
 	FindPieceIds(opts *bind.CallOpts, setId *big.Int, leafIndexs []*big.Int) ([]bindings.IPDPTypesPieceIdAndOffset, error)
 
 	// CalculateProofFee returns the required proof fee based on the dataset size and gas estimate
 	CalculateProofFee(opts *bind.CallOpts, setId *big.Int, estimatedGasFee *big.Int) (*big.Int, error)
-
-	// ProvePossession submits possession proofs for the given dataset
-	ProvePossession(opts *bind.TransactOpts, setId *big.Int, proofs []bindings.IPDPTypesProof) (*types.Transaction, error)
 }
 
 // FilecoinWarmStorageService interface
