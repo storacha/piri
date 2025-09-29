@@ -10,8 +10,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/httpapi"
 )
 
-// handleListProofSet -> GET /pdp/
-
 // handleGetProofSet -> GET /pdp/proof-sets/:proofSetID
 func (p *PDPHandler) handleGetProofSetState(c echo.Context) error {
 	ctx := c.Request().Context()
