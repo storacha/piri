@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,10 +15,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/multiformats/go-multicodec"
 	multihash "github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/presigner"
+	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
@@ -154,6 +157,11 @@ func (s *S3BlobStore) Get(ctx context.Context, digest multihash.Multihash, opts 
 		Range:  rangeParam,
 	})
 	if err != nil {
+		var noSuchKeyError *types.NoSuchKey
+		// wrap in error recognizable as a not found error for Store interface consumers
+		if errors.As(err, &noSuchKeyError) {
+			return nil, store.ErrNotFound
+		}
 		return nil, err
 	}
 	return &s3BlobObject{outPut}, nil
