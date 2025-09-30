@@ -47,36 +47,31 @@ func withErrorHandler() ucanretrieval.Option {
 }
 
 func withReceiptLogger(ets *egresstracking.EgressTrackingService) ucanretrieval.Option {
-	return ucanretrieval.WithReceiptLogger(func(_ context.Context, rcpt receipt.AnyReceipt, inv invocation.Invocation) {
+	return ucanretrieval.WithReceiptLogger(func(_ context.Context, rcpt receipt.AnyReceipt, inv invocation.Invocation) error {
 		// Egress Tracking is optional, the service will be nil if it is disabled
 		if ets == nil {
-			return
+			return nil
 		}
 
-		// Collect the receipt in a goroutine to avoid blocking the handler
-		go func() {
-			// Make sure the receipt is self-contained, i.e. it also has invocation blocks
-			fullRcpt, err := rcpt.Clone()
-			if err != nil {
-				log.Errorw("cloning receipt", "error", err)
-				return
-			}
+		// Make sure the receipt is self-contained, i.e. it also has invocation blocks
+		fullRcpt, err := rcpt.Clone()
+		if err != nil {
+			return err
+		}
 
-			if err := fullRcpt.AttachInvocation(inv); err != nil {
-				log.Errorw("attaching invocation to receipt", "error", err)
-				return
-			}
+		if err := fullRcpt.AttachInvocation(inv); err != nil {
+			return err
+		}
 
-			retrievalRcpt, err := receipt.Rebind[content.RetrieveOk, fdm.FailureModel](fullRcpt, content.RetrieveOkType(), fdm.FailureType())
-			if err != nil {
-				log.Errorw("rebinding receipt", "error", err)
-				return
-			}
+		retrievalRcpt, err := receipt.Rebind[content.RetrieveOk, fdm.FailureModel](fullRcpt, content.RetrieveOkType(), fdm.FailureType())
+		if err != nil {
+			return err
+		}
 
-			if err := ets.AddReceipt(context.Background(), retrievalRcpt); err != nil {
-				log.Errorw("adding receipt to egress tracking service", "error", err)
-				return
-			}
-		}()
+		if err := ets.AddReceipt(context.Background(), retrievalRcpt); err != nil {
+			return err
+		}
+
+		return nil
 	})
 }
