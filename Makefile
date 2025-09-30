@@ -8,12 +8,7 @@ TAGS?=
 
 all: build
 
-# Git submodules
-build/.update-modules:
-	git submodule update --init --recursive
-	touch $@
-
-build: build/.update-modules piri
+build: piri
 
 # piri depends on Go sources - use shell to check if rebuild needed
 piri: FORCE
@@ -28,12 +23,11 @@ FORCE:
 install:
 	go install ./cmd/storage
 
-test: build
+test:
 	go test ./...
 
 clean:
 	rm -f ./piri
-	rm -f build/.update-modules
 
 mockgen:
 	mockgen -source=./pkg/pdp/aggregator/interface.go -destination=./internal/mocks/aggregator.go -package=mocks
@@ -52,7 +46,8 @@ generate-contracts:
 	cd pkg/pdp/smartcontracts && ./generate.sh
 
 clean-contracts:
-	rm -f pkg/pdp/smartcontracts/bindings/*.go
+	rm -rf pkg/pdp/smartcontracts/abis
+	rm -rf pkg/pdp/smartcontracts/bindings
 	rm -f pkg/pdp/smartcontracts/mocks/*.go
 
 mockgen-contracts: generate-contracts

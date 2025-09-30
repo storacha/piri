@@ -9,8 +9,7 @@ import (
 )
 
 type PDPContracts struct {
-	PDPVerifier  common.Address
-	RecordKeeper common.Address
+	PDPVerifier common.Address
 }
 
 func Addresses() PDPContracts {
@@ -20,8 +19,6 @@ func Addresses() PDPContracts {
 	return PDPContracts{
 		// PDPVerifier contract address
 		PDPVerifier: common.HexToAddress("0x5A23b7df87f59A291C26A2A1d684AD03Ce9B68DC"),
-		// FilecoinWarmStorageService contract address
-		RecordKeeper: common.HexToAddress("0x80617b65FD2EEa1D7fDe2B4F85977670690ed348"),
 	}
 }
 

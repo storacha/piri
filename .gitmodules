@@ -1,8 +1,0 @@
-[submodule "pkg/pdp/smartcontracts/contracts/pdp"]
-	path = pkg/pdp/smartcontracts/contracts/pdp
-	url = https://github.com/FilOzone/pdp.git
-	ignore = dirty
-[submodule "pkg/pdp/smartcontracts/contracts/filecoin-services"]
-	path = pkg/pdp/smartcontracts/contracts/filecoin-services
-	url = https://github.com/FilOzone/filecoin-services.git
-	ignore = dirty
