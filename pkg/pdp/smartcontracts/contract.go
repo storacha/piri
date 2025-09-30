@@ -15,8 +15,6 @@ type PDP interface {
 	// Factory methods for contract instances
 	NewPDPVerifier(address common.Address, backend bind.ContractBackend) (PDPVerifier, error)
 	NewPDPProvingSchedule(address common.Address, backend bind.ContractBackend) (PDPProvingSchedule, error)
-	NewFilecoinWarmStorageService(address common.Address, backend bind.ContractBackend) (FilecoinWarmStorageService, error)
-	NewServiceProviderRegistry(address common.Address, backend bind.ContractBackend) (ServiceProviderRegistry, error)
 
 	// Event parsing helpers
 	GetDataSetIdFromReceipt(receipt *types.Receipt) (uint64, error)
@@ -48,16 +46,4 @@ type PDPVerifier interface {
 
 	// CalculateProofFee returns the required proof fee based on the dataset size and gas estimate
 	CalculateProofFee(opts *bind.CallOpts, setId *big.Int, estimatedGasFee *big.Int) (*big.Int, error)
-}
-
-// FilecoinWarmStorageService interface
-type FilecoinWarmStorageService interface {
-	// Add methods as needed based on the actual contract
-	// This is a placeholder - actual methods will be added after examining the contract
-}
-
-// ServiceProviderRegistry interface
-type ServiceProviderRegistry interface {
-	// Add methods as needed based on the actual contract
-	// This is a placeholder - actual methods will be added after examining the contract
 }

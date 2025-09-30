@@ -34,16 +34,6 @@ func (p *PDPContract) NewPDPProvingSchedule(address common.Address, backend bind
 	return bindings.NewPDPProvingSchedule(address, backend)
 }
 
-// NewFilecoinWarmStorageService creates a new FilecoinWarmStorageService contract instance
-func (p *PDPContract) NewFilecoinWarmStorageService(address common.Address, backend bind.ContractBackend) (FilecoinWarmStorageService, error) {
-	return bindings.NewFilecoinWarmStorageService(address, backend)
-}
-
-// NewServiceProviderRegistry creates a new ServiceProviderRegistry contract instance
-func (p *PDPContract) NewServiceProviderRegistry(address common.Address, backend bind.ContractBackend) (ServiceProviderRegistry, error) {
-	return bindings.NewServiceProviderRegistry(address, backend)
-}
-
 // GetDataSetIdFromReceipt parses DataSetCreated event from transaction receipt
 func (p *PDPContract) GetDataSetIdFromReceipt(receipt *types.Receipt) (uint64, error) {
 	pdpABI, err := bindings.PDPVerifierMetaData.GetAbi()
