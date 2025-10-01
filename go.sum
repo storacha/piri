@@ -1680,8 +1680,8 @@ github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92 h1:Xe1z064lEQ
 github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92/go.mod h1:1xN1tz2TkpwShpImD2Bf6DZ0VLeYI3c04c84BrNMuhc=
 github.com/storacha/go-libstoracha v0.2.7 h1:IlsffQq3mr8hDMqXIFyRLKVTHhq7qelyq8if/eivNC0=
 github.com/storacha/go-libstoracha v0.2.7/go.mod h1:zzeqIZhBBuWR2dkGygYqv4Bhg3JsvHuuvDCcdXCwGhg=
-github.com/storacha/go-ucanto v0.6.3 h1:chxFAU6HyoS2x3yoLlSmOhJDvZmbj5KadGe3DV8ULg0=
-github.com/storacha/go-ucanto v0.6.3/go.mod h1:O35Ze4x18EWtz3ftRXXd/mTZ+b8OQVjYYrnadJ/xNjg=
+github.com/storacha/go-ucanto v0.6.5 h1:mxy1UkJDqszAGe6SkoT0N2SG9YJ62YX7fzU1Pg9lxnA=
+github.com/storacha/go-ucanto v0.6.5/go.mod h1:O35Ze4x18EWtz3ftRXXd/mTZ+b8OQVjYYrnadJ/xNjg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
