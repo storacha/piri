@@ -18,7 +18,7 @@ func Addresses() PDPContracts {
 	// the PDP Service address of the calibration contract, defined at URL above.
 	return PDPContracts{
 		// PDPVerifier contract address
-		PDPVerifier: common.HexToAddress("0x5A23b7df87f59A291C26A2A1d684AD03Ce9B68DC"),
+		PDPVerifier: common.HexToAddress("0x445238Eca6c6aB8Dff1Aa6087d9c05734D22f137"),
 	}
 }
 

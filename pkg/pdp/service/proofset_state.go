@@ -135,7 +135,7 @@ func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState,
 	}
 
 	// Determine the next challenge window start by consulting the listener
-	provingSchedule, err := p.contractClient.NewPDPProvingSchedule(listenerAddr, p.contractBackend)
+	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, p.contractBackend, p.chainClient)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
 	}

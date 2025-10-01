@@ -150,12 +150,12 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 		return false, fmt.Errorf("failed to get listener address for data set %d: %w", proofSetID, err)
 	}
 
-	// Determine the next challenge window start by consulting the listener
-	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, n.ethClient)
+	// Determine the next challenge window start by consulting the proving schedule provider
+	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, n.ethClient, n.fil)
 	if err != nil {
-		return false, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
+		return false, fmt.Errorf("failed to create proving schedule provider: %w", err)
 	}
-	next_prove_at, err := provingSchedule.NextPDPChallengeWindowStart(nil, big.NewInt(proofSetID))
+	next_prove_at, err := provingSchedule.NextPDPChallengeWindowStart(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}

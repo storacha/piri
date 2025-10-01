@@ -52,7 +52,9 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 	}
 
 	// Pack the method call data
-	data, err := abiData.Pack("createDataSet", params.RecordKeeper, extraDataBytes)
+	// TODO(forrest): we are using an empty address for the record keeper right now, but when we integrate with a service
+	// contract soon, we'll want to use its address instead
+	data, err := abiData.Pack("createDataSet", common.Address{}, extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack create proof set: %w", err)
 	}

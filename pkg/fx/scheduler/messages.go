@@ -104,6 +104,7 @@ type WatcherCreateParams struct {
 	DB        *gorm.DB `name:"engine_db"`
 	Client    service.EthClient
 	Contract  smartcontracts.PDP
+	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 }
 
@@ -112,6 +113,7 @@ func StartWatcherCreate(params WatcherCreateParams) error {
 		params.DB,
 		params.Client,
 		params.Contract,
+		params.Chain,
 		params.Scheduler,
 	)
 }

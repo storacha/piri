@@ -127,15 +127,13 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 	)
 	newRoots := make([]types2.RootAdd, 0, len(aggregates))
 	for _, a := range aggregates {
-		// TODO we will no longer want to use V1Link here
-		rootCID, err := cid.Decode(a.Root.V1Link().String())
+		rootCID, err := cid.Decode(a.Root.Link().String())
 		if err != nil {
 			return fmt.Errorf("failed to decode aggregate root CID: %w", err)
 		}
 		subRoots := make([]cid.Cid, 0, len(a.Pieces))
 		for _, p := range a.Pieces {
-			// TODO we will no longer want to use V1Link here
-			pcid, err := cid.Decode(p.Link.V1Link().String())
+			pcid, err := cid.Decode(p.Link.Link().String())
 			if err != nil {
 				return fmt.Errorf("failed to decode piece CID: %w", err)
 			}
@@ -146,7 +144,7 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 			SubRoots: subRoots,
 		})
 	}
-	// TODO we will need to provide extra data here to "authorize" this operation
+	// TODO(forrest): we will need to provide extra data here to "authorize" this operation
 	_, err := client.AddRoots(ctx, proofSet, newRoots, "")
 	if err != nil {
 		return fmt.Errorf("failed to submit aggregates: %w", err)
