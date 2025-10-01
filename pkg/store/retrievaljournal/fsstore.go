@@ -9,9 +9,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-car/v2/blockstore"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
@@ -19,6 +21,8 @@ import (
 	"github.com/storacha/go-ucanto/core/receipt"
 	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 )
+
+var log = logging.Logger("egressbatchstore")
 
 const (
 	// DefaultBatchSize is the default maximum size of a receipt batch in bytes.
@@ -167,4 +171,49 @@ func (s *fsJournal) rotate() (cid.Cid, error) {
 
 func (s *fsJournal) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error) {
 	return os.Open(filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix))
+}
+
+func (s *fsBatchStore) List(ctx context.Context) ([]cid.Cid, error) {
+	entries, err := os.ReadDir(s.basePath)
+	if err != nil {
+		return nil, fmt.Errorf("reading batch directory: %w", err)
+	}
+
+	var cids []cid.Cid
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		// Skip the current batch file
+		if name == currentBatchName {
+			continue
+		}
+
+		// Check if the file has the correct prefix and suffix
+		if !strings.HasPrefix(name, batchFilePrefix) || !strings.HasSuffix(name, batchFileSuffix) {
+			continue
+		}
+
+		// Extract the CID from the filename
+		cidStr := name[len(batchFilePrefix) : len(name)-len(batchFileSuffix)]
+		c, err := cid.Decode(cidStr)
+		if err != nil {
+			log.Warnf("skipping file with invalid CID in name: %s: %v", name, err)
+			continue
+		}
+
+		cids = append(cids, c)
+	}
+
+	return cids, nil
+}
+
+func (s *fsBatchStore) Remove(ctx context.Context, cid cid.Cid) error {
+	path := filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix)
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("removing batch file: %w", err)
+	}
+	return nil
 }

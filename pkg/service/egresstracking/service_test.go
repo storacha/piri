@@ -78,6 +78,7 @@ func TestAddReceipt(t *testing.T) {
 			batchEndpoint,
 			store,
 			queue,
+			0, // cleanup disabled for tests
 		)
 		require.NoError(t, err)
 
@@ -109,6 +110,7 @@ func TestAddReceipt(t *testing.T) {
 			batchEndpoint,
 			store,
 			queue,
+			0, // cleanup disabled for tests
 		)
 		require.NoError(t, err)
 

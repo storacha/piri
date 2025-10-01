@@ -73,6 +73,7 @@ func ProvideEgressTrackingQueue(lc fx.Lifecycle, params QueueParams) (EgressTrac
 }
 
 func NewService(
+	lc fx.Lifecycle,
 	id principal.Signer,
 	store retrievaljournal.Journal,
 	queue EgressTrackingQueue,
@@ -81,18 +82,35 @@ func NewService(
 	batchEndpoint := cfg.Server.PublicURL.JoinPath(ReceiptsPath + "/{cid}")
 	egressTrackerConn := cfg.UCANService.Services.EgressTracker.Connection
 	egressTrackerProofs := cfg.UCANService.Services.EgressTracker.Proofs
+	cleanupCheckInterval := cfg.UCANService.Services.EgressTracker.CleanupCheckInterval
 
 	if egressTrackerConn == nil {
 		log.Warn("no egress tracking service connection provided, egress tracking is disabled")
 		return nil, nil
 	}
 
-	return New(
+	svc, err := New(
 		id,
 		egressTrackerConn,
 		egressTrackerProofs,
 		batchEndpoint,
 		store,
 		queue,
+		cleanupCheckInterval,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add lifecycle hooks for cleanup task
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return svc.StartCleanupTask(ctx)
+		},
+		OnStop: func(ctx context.Context) error {
+			return svc.StopCleanupTask(ctx)
+		},
+	})
+
+	return svc, nil
 }
