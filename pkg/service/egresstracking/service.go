@@ -40,7 +40,6 @@ type EgressTrackingService struct {
 	batchEndpoint        *url.URL
 	store                retrievaljournal.Journal
 	queue                EgressTrackingQueue
-	receiptsEndpoint     *url.URL
 	consolidationStore   consolidationstore.Store
 	rcptsClient          *receipts.Client
 	cleanupCheckInterval time.Duration
@@ -54,7 +53,6 @@ func New(
 	egressTrackerProofs delegation.Proofs,
 	batchEndpoint *url.URL,
 	store retrievaljournal.Journal,
-	receiptsEndpoint *url.URL,
 	consolidationStore consolidationstore.Store,
 	queue EgressTrackingQueue,
 	rcptsClient *receipts.Client,

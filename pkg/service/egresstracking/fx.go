@@ -152,7 +152,6 @@ func NewService(
 		egressTrackerProofs,
 		batchEndpoint,
 		store,
-		receiptsEndpoint,
 		consolidationStore,
 		queue,
 		rcptsClient,
