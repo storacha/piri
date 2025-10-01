@@ -16,9 +16,9 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
-	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
+	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
