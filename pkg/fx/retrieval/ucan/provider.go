@@ -3,7 +3,6 @@ package ucan
 import (
 	"fmt"
 
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-ucanto/principal"
 	ucanserver "github.com/storacha/go-ucanto/server"
@@ -14,8 +13,6 @@ import (
 	"github.com/storacha/piri/pkg/fx/retrieval/ucan/handlers"
 	"github.com/storacha/piri/pkg/service/retrieval"
 )
-
-var log = logging.Logger("fx/retrieval/ucan")
 
 type Handler struct {
 	ucanServer ucanserver.ServerView[ucanretrieval.Service]
@@ -41,17 +38,7 @@ type Params struct {
 }
 
 func NewHandler(p Params) (*Handler, error) {
-	retrievalOpts := []ucanretrieval.Option{
-		ucanretrieval.WithErrorHandler(func(err ucanserver.HandlerExecutionError[any]) {
-			l := log.With("error", err.Error())
-			if s := err.Stack(); s != "" {
-				l = l.With("stack", s)
-			}
-			l.Error("ucan retrieval handler execution error")
-		}),
-	}
-	retrievalOpts = append(retrievalOpts, p.Options...)
-	ucanSvr, err := ucanretrieval.NewServer(p.ID, retrievalOpts...)
+	ucanSvr, err := ucanretrieval.NewServer(p.ID, p.Options...)
 	if err != nil {
 		return nil, fmt.Errorf("creating ucan retrieval server: %w", err)
 	}
