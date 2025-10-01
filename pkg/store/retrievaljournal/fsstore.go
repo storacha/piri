@@ -37,6 +37,7 @@ var _ Journal = (*fsJournal)(nil)
 type fsJournal struct {
 	basePath     string
 	curBatchPath string
+	rwbs         *blockstore.ReadWrite
 	maxBatchSize int64
 }
 
@@ -66,9 +67,14 @@ func (s *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 		return false, cid.Cid{}, fmt.Errorf("receipt is nil")
 	}
 
-	rwbs, err := blockstore.OpenReadWrite(s.curBatchPath, nil)
-	if err != nil {
-		return false, cid.Cid{}, fmt.Errorf("opening current batch for writing: %w", err)
+	if s.rwbs == nil {
+		// Open a new read-write blockstore for the current batch
+		rwbs, err := blockstore.OpenReadWrite(s.curBatchPath, nil, blockstore.WriteAsCarV1(true))
+		if err != nil {
+			return false, cid.Cid{}, fmt.Errorf("opening current batch for writing: %w", err)
+		}
+
+		s.rwbs = rwbs
 	}
 
 	rcptArchive := rcpt.Archive()
@@ -91,12 +97,8 @@ func (s *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 		return false, cid.Cid{}, fmt.Errorf("creating receipt block: %w", err)
 	}
 
-	if err := rwbs.Put(ctx, block); err != nil {
+	if err := s.rwbs.Put(ctx, block); err != nil {
 		return false, cid.Cid{}, fmt.Errorf("adding receipt block to batch: %w", err)
-	}
-
-	if err := rwbs.Finalize(); err != nil {
-		return false, cid.Cid{}, fmt.Errorf("finalizing batch: %w", err)
 	}
 
 	// rotate the batch if it exceeds the size limit
@@ -105,6 +107,12 @@ func (s *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 		return false, cid.Cid{}, fmt.Errorf("checking current batch size: %w", err)
 	}
 	if curSize >= s.maxBatchSize {
+		if err := s.rwbs.Finalize(); err != nil {
+			return false, cid.Cid{}, fmt.Errorf("finalizing batch: %w", err)
+		}
+
+		s.rwbs = nil
+
 		rotatedBatchCID, err := s.rotate()
 		if err != nil {
 			return false, cid.Cid{}, fmt.Errorf("rotating batch: %w", err)
