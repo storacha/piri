@@ -3,16 +3,19 @@ package service
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
+	"math/bits"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/filecoin-project/go-commp-utils/nonffi"
+	"github.com/filecoin-project/go-commp-utils/zerocomm"
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
+	sha256simd "github.com/minio/sha256-simd"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 
@@ -151,7 +154,7 @@ func (p *PDPService) AddRoots(
 
 		// Generate the unsealed CID from the collected piece infos.
 		proofType := abi.RegisteredSealProof_StackedDrg64GiBV1_1
-		generatedCID, err := nonffi.GenerateUnsealedCID(proofType, pieceInfos)
+		generatedCID, err := GenerateUnsealedCID(proofType, pieceInfos)
 		if err != nil {
 			return common.Hash{}, fmt.Errorf("failed to generate RootCID: %w", err)
 		}
@@ -200,13 +203,21 @@ func (p *PDPService) AddRoots(
 			return common.Hash{}, fmt.Errorf("invalid height: %d", height)
 		}
 
+		// REVIEW: I am mega unsure of these code changes, but they do "pass" with the PDP Verifier contract.
 		// TODO(forrest): since migrating to the new contract, rod states there is an error
 		// in the curio size logic, context here: https://github.com/filecoin-project/curio/issues/650
 		// in commit 91aff56959407ec83171ef73d48c51fed8afb4c7 of curio
+		// Filecoin Team hash stated:
+		// subpieces are broken on our branch (called `rename` in Curio, don’t use it if you’re relying on subpieces.
+		// In fact, PieceCIDv2 isn’t quite working on our branch with this being an outstanding problem that’s currently
+		// biting us: https://github.com/filecoin-project/curio/issues/650; the not-quite-comprehensive switch to
+		// PieceCIDv2 hasn’t been a success, but we don’t really want to be changing the db schema just for that so we
+		// compromised and deferred the proper job to mkv2.
 
 		// Get total size by summing up the sizes of subroots
-		// IMPORTANT: Using padded sizes here to match what's stored in the database
-		// and ensure the total is a multiple of 32 (as required by the smart contract)
+		// We track both padded and unpadded sizes:
+		// - Padded sizes are used for smart contract operations
+		// - Unpadded sizes are used to validate against PieceCIDV2's embedded rawSize
 		var totalSize uint64 = 0
 		var totalUnpaddedSize uint64 = 0
 		var prevSubrootSize = subrootInfoMap[addRootReq.SubRoots[0]].PieceInfo.Size
@@ -240,10 +251,10 @@ func (p *PDPService) AddRoots(
 			"totalUnpaddedSizeMod32", totalUnpaddedSize%32,
 			"subrootCount", len(addRootReq.SubRoots))
 
-		// TODO(forrest): based on my todo above I'd expect the failure to happen here?
-		// sanity check that the rawSize in the CommPv2 matches the totalSize of the subPieces
-		if rawSize != totalSize {
-			return common.Hash{}, fmt.Errorf("raw size miss-match: expected %d, got %d", rawSize, totalSize)
+		// Sanity check that the rawSize in the PieceCIDv2 matches the totalUnpaddedSize of the subPieces
+		// Note: PieceCIDv2's rawSize represents unpadded data size, so we compare against totalUnpaddedSize
+		if rawSize != totalUnpaddedSize {
+			return common.Hash{}, fmt.Errorf("raw size miss-match: expected %d, got %d", rawSize, totalUnpaddedSize)
 		}
 
 		// Prepare RootData for Ethereum transaction
@@ -326,4 +337,123 @@ func (p *PDPService) AddRoots(
 		return common.Hash{}, fmt.Errorf("failed to insert into database: %w", err)
 	}
 	return txHash, nil
+}
+
+// Review: Code below is a copy of github.com/filecoin-project/go-commp-utils/nonffi with support for PieceCIDv2
+// mega unsure
+
+type stackFrame struct {
+	size  uint64
+	commP []byte
+}
+
+func GenerateUnsealedCID(proofType abi.RegisteredSealProof, pieceInfos []abi.PieceInfo) (cid.Cid, error) {
+	spi, found := abi.SealProofInfos[proofType]
+	if !found {
+		return cid.Undef, fmt.Errorf("unknown seal proof type %d", proofType)
+	}
+	if len(pieceInfos) == 0 {
+		return cid.Undef, errors.New("no pieces provided")
+	}
+
+	maxSize := uint64(spi.SectorSize)
+
+	todo := make([]stackFrame, len(pieceInfos))
+
+	// sancheck everything
+	for i, p := range pieceInfos {
+		if p.Size < 128 {
+			return cid.Undef, fmt.Errorf("invalid Size of PieceInfo %d: value %d is too small", i, p.Size)
+		}
+		if uint64(p.Size) > maxSize {
+			return cid.Undef, fmt.Errorf("invalid Size of PieceInfo %d: value %d is larger than sector size of SealProofType %d", i, p.Size, proofType)
+		}
+		if bits.OnesCount64(uint64(p.Size)) != 1 {
+			return cid.Undef, fmt.Errorf("invalid Size of PieceInfo %d: value %d is not a power of 2", i, p.Size)
+		}
+
+		cp, _, err := commcid.PieceCidV2ToDataCommitment(p.PieceCID)
+		if err != nil {
+			return cid.Undef, fmt.Errorf("invalid PieceCid for PieceInfo %d: %w", i, err)
+		}
+		todo[i] = stackFrame{size: uint64(p.Size), commP: cp}
+	}
+
+	// reimplement https://github.com/filecoin-project/rust-fil-proofs/blob/380d6437c2/filecoin-proofs/src/pieces.rs#L85-L145
+	stack := append(
+		make(
+			[]stackFrame,
+			0,
+			32,
+		),
+		todo[0],
+	)
+
+	for _, f := range todo[1:] {
+
+		// pre-pad if needed to balance the left limb
+		for stack[len(stack)-1].size < f.size {
+			lastSize := stack[len(stack)-1].size
+
+			stack = reduceStack(
+				append(
+					stack,
+					stackFrame{
+						size:  lastSize,
+						commP: zeroCommForSize(lastSize),
+					},
+				),
+			)
+		}
+
+		stack = reduceStack(
+			append(
+				stack,
+				f,
+			),
+		)
+	}
+
+	for len(stack) > 1 {
+		lastSize := stack[len(stack)-1].size
+		stack = reduceStack(
+			append(
+				stack,
+				stackFrame{
+					size:  lastSize,
+					commP: zeroCommForSize(lastSize),
+				},
+			),
+		)
+	}
+
+	if stack[0].size > maxSize {
+		return cid.Undef, fmt.Errorf("provided pieces sum up to %d bytes, which is larger than sector size of SealProofType %d", stack[0].size, proofType)
+	}
+
+	return commcid.PieceCommitmentV1ToCID(stack[0].commP)
+}
+
+var s256 = sha256simd.New()
+
+func zeroCommForSize(s uint64) []byte { return zerocomm.PieceComms[bits.TrailingZeros64(s)-7][:] }
+
+func reduceStack(s []stackFrame) []stackFrame {
+	for len(s) > 1 && s[len(s)-2].size == s[len(s)-1].size {
+
+		s256.Reset()
+		s256.Write(s[len(s)-2].commP)
+		s256.Write(s[len(s)-1].commP)
+		d := s256.Sum(make([]byte, 0, 32))
+		d[31] &= 0b00111111
+
+		s[len(s)-2] = stackFrame{
+			size:  2 * s[len(s)-2].size,
+			commP: d,
+		}
+
+		s = s[:len(s)-1]
+	}
+
+	return s
 }

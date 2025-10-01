@@ -209,15 +209,15 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	lg = lg.With("listener_address", listenerAddr.Hex())
 	lg.Debug("Retrieved data set listener")
 
-	// Determine the next challenge window start by consulting the listener
-	lg.Debug("Creating proving schedule contract binding")
-	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, ipp.ethClient)
+	// Determine the next challenge window start by consulting the proving schedule provider
+	lg.Debug("Creating proving schedule provider")
+	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, ipp.ethClient, ipp.chain)
 	if err != nil {
-		lg.Errorw("Failed to create proving schedule contract binding", "error", err)
-		return false, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
+		lg.Errorw("Failed to create proving schedule provider", "error", err)
+		return false, fmt.Errorf("failed to create proving schedule provider: %w", err)
 	}
 
-	config, err := provingSchedule.GetPDPConfig(&bind.CallOpts{Context: ctx})
+	config, err := provingSchedule.GetPDPConfig(ctx)
 	if err != nil {
 		return false, xerrors.Errorf("failed to GetPDPConfig: %w", err)
 	}

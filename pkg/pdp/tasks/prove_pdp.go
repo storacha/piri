@@ -518,7 +518,9 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 			return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to parse subroot CID: %w", err)
 		}
 
-		commp, err := commcid.CIDToPieceCommitmentV1(unsCid)
+		// REVIEW: mega unsure
+		commp, _, err := commcid.PieceCidV2ToDataCommitment(unsCid)
+		//commp, err := commcid.CIDToPieceCommitmentV1(unsCid)
 		if err != nil {
 			return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to convert CID to piece commitment: %w", err)
 		}
@@ -655,7 +657,8 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 	if err != nil {
 		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to parse root CID: %w", err)
 	}
-	commRoot, err := commcid.CIDToPieceCommitmentV1(rootCid)
+	commRoot, _, err := commcid.PieceCidV2ToDataCommitment(rootCid)
+	//commRoot, err := commcid.CIDToPieceCommitmentV1(rootCid)
 	if err != nil {
 		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("failed to convert CID to piece commitment: %w", err)
 	}

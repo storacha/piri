@@ -7,8 +7,9 @@ import (
 	"net/url"
 	"time"
 
-	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/multiformats/go-multihash"
+	piecedigest "github.com/storacha/go-libstoracha/piece/digest"
 	"github.com/storacha/go-libstoracha/piece/piece"
 
 	"github.com/storacha/piri/pkg/pdp/types"
@@ -83,7 +84,16 @@ func (a *CurioFinder) FindPiece(ctx context.Context, digest multihash.Multihash,
 			return nil, fmt.Errorf("finding piece: %w", err)
 		}
 		if found {
-			return piece.FromV1LinkAndSize(cidlink.Link{Cid: pieceCID}, size)
+			// REVIEW should we asser that the `size` argument matches the `psize` here?
+			commitment, psize, err := commcid.PieceCidV2ToDataCommitment(pieceCID)
+			if err != nil {
+				return nil, err
+			}
+			pieceDigest, err := piecedigest.FromCommitmentAndSize(commitment, psize)
+			if err != nil {
+				return nil, err
+			}
+			return piece.FromPieceDigest(pieceDigest), nil
 		}
 		// piece not found, try again
 		attempts++

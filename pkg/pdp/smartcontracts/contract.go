@@ -36,6 +36,7 @@ type PDPProvingSchedule interface {
 // PDPVerifier interface matching the IPDPVerifier.sol contract
 type PDPVerifier interface {
 	// View functions
+	GetChallengeFinality(opts *bind.CallOpts) (*big.Int, error)
 	GetDataSetLeafCount(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 	GetNextChallengeEpoch(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 	GetDataSetListener(opts *bind.CallOpts, setId *big.Int) (common.Address, error)
