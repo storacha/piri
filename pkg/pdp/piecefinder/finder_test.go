@@ -182,7 +182,7 @@ func TestURLForPiece(t *testing.T) {
 }
 
 func mustPieceLinkToCid(t testing.TB, pl piece.PieceLink) cid.Cid {
-	out, err := cid.Decode(pl.V1Link().String())
+	out, err := cid.Decode(pl.Link().String())
 	require.NoError(t, err)
 	return out
 }
