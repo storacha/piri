@@ -13,8 +13,8 @@ import (
 // ContractProvingSchedule implements ProvingScheduleProvider using a real service contract.
 // This will be implemented when the service contract is integrated into piri.
 type ContractProvingSchedule struct {
-	listenerAddr common.Address
-	ethClient    bind.ContractBackend
+	//listenerAddr common.Address
+	//ethClient    bind.ContractBackend
 }
 
 // NewContractProvingSchedule creates a new contract-based proving schedule provider.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
 
@@ -65,7 +66,7 @@ func (p *PDPService) GetProofSetState(ctx context.Context, id uint64) (res types
 		}, nil
 	}
 
-	cs, err := p.getContractState(big.NewInt(int64(id)))
+	cs, err := p.getContractState(ctx, big.NewInt(int64(id)))
 	if err != nil {
 		return types.ProofSetState{}, fmt.Errorf("failed to get contract state: %w", err)
 	}
@@ -98,7 +99,8 @@ func (p *PDPService) GetProofSetState(ctx context.Context, id uint64) (res types
 	return result, nil
 }
 
-func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState, error) {
+func (p *PDPService) getContractState(ctx context.Context, id *big.Int) (types.ProofSetContractState, error) {
+	bindCtx := &bind.CallOpts{Context: ctx}
 
 	// Get the listener address for this proof set from the PDPVerifier contract
 	pdpVerifier, err := p.contractClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, p.contractBackend)
@@ -106,49 +108,35 @@ func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState,
 		return types.ProofSetContractState{}, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
 	}
 
-	ownerAddr1, ownerAddre2, err := pdpVerifier.GetDataSetStorageProvider(nil, id)
+	ownerAddr1, ownerAddre2, err := pdpVerifier.GetDataSetStorageProvider(bindCtx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve owner address: %w", err)
 	}
 
-	nextChallengeEpoch, err := pdpVerifier.GetNextChallengeEpoch(nil, id)
+	nextChallengeEpoch, err := pdpVerifier.GetNextChallengeEpoch(bindCtx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve next challenge epoch: %w", err)
 	}
 
-	challengeRange, err := pdpVerifier.GetChallengeRange(nil, id)
+	challengeRange, err := pdpVerifier.GetChallengeRange(bindCtx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve challenge range: %w", err)
 	}
 
 	// If gas used is 0 fee is maximized
-	proofFee, err := pdpVerifier.CalculateProofFee(nil, id, big.NewInt(0))
+	proofFee, err := pdpVerifier.CalculateProofFee(bindCtx, id, big.NewInt(0))
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to calculate proof fee: %w", err)
 	}
 	// Add 2x buffer for certainty (as is done in the prove task)
 	proofFeeBuffer := new(big.Int).Mul(proofFee, big.NewInt(3))
 
-	listenerAddr, err := pdpVerifier.GetDataSetListener(nil, id)
+	listenerAddr, err := pdpVerifier.GetDataSetListener(bindCtx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to get listener address for proof set %d: %w", id, err)
 	}
 
-	// Determine the next challenge window start by consulting the listener
-	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, p.contractBackend, p.chainClient)
-	if err != nil {
-		return types.ProofSetContractState{}, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
-	}
-	nextChallengeWindowStart, err := provingSchedule.NextPDPChallengeWindowStart(nil, id)
-	if err != nil {
-		return types.ProofSetContractState{}, fmt.Errorf("failed to get next challenge window start: %w", err)
-	}
-	pdpConfig, err := provingSchedule.GetPDPConfig(nil)
-	if err != nil {
-		return types.ProofSetContractState{}, fmt.Errorf("failed to get max proving period: %w", err)
-	}
-
-	scheduledRemovals, err := pdpVerifier.GetScheduledRemovals(nil, id)
+	scheduledRemovals, err := pdpVerifier.GetScheduledRemovals(bindCtx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve scheduled removals: %w", err)
 	}
@@ -156,6 +144,20 @@ func (p *PDPService) getContractState(id *big.Int) (types.ProofSetContractState,
 	removeIdx := make([]uint64, len(scheduledRemovals))
 	for i, idx := range scheduledRemovals {
 		removeIdx[i] = idx.Uint64()
+	}
+
+	// Determine the next challenge window start by consulting the listener
+	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, p.contractBackend, p.chainClient)
+	if err != nil {
+		return types.ProofSetContractState{}, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
+	}
+	nextChallengeWindowStart, err := provingSchedule.NextPDPChallengeWindowStart(ctx, id)
+	if err != nil {
+		return types.ProofSetContractState{}, fmt.Errorf("failed to get next challenge window start: %w", err)
+	}
+	pdpConfig, err := provingSchedule.GetPDPConfig(ctx)
+	if err != nil {
+		return types.ProofSetContractState{}, fmt.Errorf("failed to get max proving period: %w", err)
 	}
 
 	return types.ProofSetContractState{

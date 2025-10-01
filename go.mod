@@ -18,7 +18,6 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.2
 	github.com/ethereum/go-ethereum v1.16.2
 	github.com/filecoin-project/go-commp-utils v0.1.4
-	github.com/filecoin-project/go-commp-utils/nonffi v0.0.0-20240802040721-2a04ffc8ffe8
 	github.com/filecoin-project/lotus v1.32.0-rc1
 	github.com/getsentry/sentry-go v0.35.1
 	github.com/glebarez/go-sqlite v1.21.2
