@@ -16,6 +16,7 @@ import (
 	ldbopts "github.com/syndtr/goleveldb/leveldb/opt"
 	"go.uber.org/fx"
 
+	"github.com/storacha/piri/pkg/client/receipts"
 	"github.com/storacha/piri/pkg/config/app"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
@@ -30,6 +31,7 @@ var Module = fx.Module("egresstracking",
 	fx.Provide(
 		ProvideEgressTrackingQueue,
 		ProvideConsolidationStore,
+		ProvideReceiptsClient,
 		NewService,
 		fx.Annotate(
 			NewServer,
@@ -113,12 +115,18 @@ func ProvideConsolidationStore(lc fx.Lifecycle, cfg app.AppConfig) (consolidatio
 	return consolidationstore.New(ds), nil
 }
 
+func ProvideReceiptsClient(lc fx.Lifecycle, cfg app.AppConfig) *receipts.Client {
+	receiptsEndpoint := cfg.UCANService.Services.EgressTracker.ReceiptsEndpoint
+	return receipts.NewClient(receiptsEndpoint)
+}
+
 func NewService(
 	lc fx.Lifecycle,
 	id principal.Signer,
 	store retrievaljournal.Journal,
 	consolidationStore consolidationstore.Store,
 	queue EgressTrackingQueue,
+	rcptsClient *receipts.Client,
 	cfg app.AppConfig,
 ) (*EgressTrackingService, error) {
 	batchEndpoint := cfg.Server.PublicURL.JoinPath(ReceiptsPath + "/{cid}")
@@ -135,9 +143,6 @@ func NewService(
 	// Disable cleanup if receipts endpoint is not configured or empty
 	if receiptsEndpoint == nil || receiptsEndpoint.String() == "" {
 		log.Warn("no egress tracker receipts endpoint configured, cleanup task will be disabled")
-		// Set to a dummy URL to avoid nil pointer dereference
-		dummyURL := cfg.Server.PublicURL.JoinPath("/receipts")
-		receiptsEndpoint = dummyURL
 		cleanupCheckInterval = 0 // Disable cleanup
 	}
 
@@ -150,6 +155,7 @@ func NewService(
 		receiptsEndpoint,
 		consolidationStore,
 		queue,
+		rcptsClient,
 		cleanupCheckInterval,
 	)
 	if err != nil {

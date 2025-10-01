@@ -28,6 +28,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/piri/pkg/client/receipts"
 	"github.com/storacha/piri/pkg/store/consolidationstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/stretchr/testify/require"
@@ -77,6 +78,7 @@ func TestAddReceipt(t *testing.T) {
 
 		// Create receipts endpoint (dummy for tests)
 		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
+		rcptsClient := receipts.NewClient(receiptsEndpoint)
 		require.NoError(t, err)
 
 		// Create service
@@ -89,6 +91,7 @@ func TestAddReceipt(t *testing.T) {
 			receiptsEndpoint,
 			consolidationStore,
 			queue,
+			rcptsClient,
 			0, // cleanup disabled for tests
 		)
 		require.NoError(t, err)
@@ -118,6 +121,7 @@ func TestAddReceipt(t *testing.T) {
 
 		// Create receipts endpoint (dummy for tests)
 		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
+		rcptsClient := receipts.NewClient(receiptsEndpoint)
 		require.NoError(t, err)
 
 		// Create service
@@ -130,6 +134,7 @@ func TestAddReceipt(t *testing.T) {
 			receiptsEndpoint,
 			consolidationStore,
 			queue,
+			rcptsClient,
 			0, // cleanup disabled for tests
 		)
 		require.NoError(t, err)

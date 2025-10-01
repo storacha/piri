@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/ipni/go-libipni/maurl"
 	"github.com/storacha/go-ucanto/client"
@@ -107,9 +108,10 @@ func (s *IndexingServiceConfig) ToAppConfig() (app.IndexingServiceConfig, error)
 }
 
 type EgressTrackingServiceConfig struct {
-	DID   string `mapstructure:"did" flag:"egress-tracking-service-did" toml:"did,omitempty"`
-	URL   string `mapstructure:"url" flag:"egress-tracking-service-url" toml:"url,omitempty"`
-	Proof string `mapstructure:"proof" flag:"egress-tracking-service-proof" toml:"proof,omitempty"`
+	DID              string `mapstructure:"did" flag:"egress-tracking-service-did" toml:"did,omitempty"`
+	URL              string `mapstructure:"url" flag:"egress-tracking-service-url" toml:"url,omitempty"`
+	ReceiptsEndpoint string `mapstructure:"receipts_endpoint" flag:"egress-tracking-service-receipts-endpoint" toml:"receipts_endpoint,omitempty"`
+	Proof            string `mapstructure:"proof" flag:"egress-tracking-service-proof" toml:"proof,omitempty"`
 }
 
 func (c *EgressTrackingServiceConfig) Validate() error {
@@ -143,8 +145,15 @@ func (c *EgressTrackingServiceConfig) ToAppConfig() (app.EgressTrackingServiceCo
 		return app.EgressTrackingServiceConfig{}, fmt.Errorf("creating egress tracking service connection: %w", err)
 	}
 
+	receiptsEndpoint, err := url.Parse(c.ReceiptsEndpoint)
+	if err != nil {
+		return app.EgressTrackingServiceConfig{}, fmt.Errorf("parsing egress tracking service receipts endpoint: %w", err)
+	}
+
 	out := app.EgressTrackingServiceConfig{
-		Connection: sconn,
+		Connection:           sconn,
+		ReceiptsEndpoint:     receiptsEndpoint,
+		CleanupCheckInterval: 1 * time.Hour,
 	}
 
 	// Parse egress tracking service proofs if provided
