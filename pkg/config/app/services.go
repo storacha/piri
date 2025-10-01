@@ -28,6 +28,7 @@ type IndexingServiceConfig struct {
 type EgressTrackingServiceConfig struct {
 	Connection           client.Connection
 	Proofs               delegation.Proofs
+	ReceiptsEndpoint     *url.URL
 	CleanupCheckInterval time.Duration
 }
 

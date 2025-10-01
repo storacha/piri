@@ -4,18 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-ucanto/principal"
+	ldbopts "github.com/syndtr/goleveldb/leveldb/opt"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
+	"github.com/storacha/piri/pkg/store/consolidationstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
@@ -24,6 +29,7 @@ var log = logging.Logger("egresstracking")
 var Module = fx.Module("egresstracking",
 	fx.Provide(
 		ProvideEgressTrackingQueue,
+		ProvideConsolidationStore,
 		NewService,
 		fx.Annotate(
 			NewServer,
@@ -72,21 +78,67 @@ func ProvideEgressTrackingQueue(lc fx.Lifecycle, params QueueParams) (EgressTrac
 	return NewEgressTrackingQueue(queue), nil
 }
 
+func ProvideConsolidationStore(lc fx.Lifecycle, cfg app.AppConfig) (consolidationstore.Store, error) {
+	baseDir := cfg.Storage.EgressTracking.Dir
+
+	var ds datastore.Datastore
+	var err error
+
+	if baseDir == "" {
+		// Use memory-based store
+		log.Info("using memory-based consolidation store")
+		ds = datastore.NewMapDatastore()
+	} else {
+		// Use leveldb
+		dsPath := filepath.Join(baseDir, "consolidation")
+		ds, err = leveldb.NewDatastore(dsPath, &leveldb.Options{
+			Compression: ldbopts.NoCompression,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("creating leveldb datastore: %w", err)
+		}
+
+		// Add lifecycle hook to close leveldb on shutdown
+		lc.Append(fx.Hook{
+			OnStop: func(ctx context.Context) error {
+				if err := ds.Close(); err != nil {
+					log.Errorf("error closing consolidation datastore: %v", err)
+					return err
+				}
+				return nil
+			},
+		})
+	}
+
+	return consolidationstore.New(ds), nil
+}
+
 func NewService(
 	lc fx.Lifecycle,
 	id principal.Signer,
 	store retrievaljournal.Journal,
+	consolidationStore consolidationstore.Store,
 	queue EgressTrackingQueue,
 	cfg app.AppConfig,
 ) (*EgressTrackingService, error) {
 	batchEndpoint := cfg.Server.PublicURL.JoinPath(ReceiptsPath + "/{cid}")
 	egressTrackerConn := cfg.UCANService.Services.EgressTracker.Connection
 	egressTrackerProofs := cfg.UCANService.Services.EgressTracker.Proofs
+	receiptsEndpoint := cfg.UCANService.Services.EgressTracker.ReceiptsEndpoint
 	cleanupCheckInterval := cfg.UCANService.Services.EgressTracker.CleanupCheckInterval
 
 	if egressTrackerConn == nil {
 		log.Warn("no egress tracking service connection provided, egress tracking is disabled")
 		return nil, nil
+	}
+
+	// Disable cleanup if receipts endpoint is not configured or empty
+	if receiptsEndpoint == nil || receiptsEndpoint.String() == "" {
+		log.Warn("no egress tracker receipts endpoint configured, cleanup task will be disabled")
+		// Set to a dummy URL to avoid nil pointer dereference
+		dummyURL := cfg.Server.PublicURL.JoinPath("/receipts")
+		receiptsEndpoint = dummyURL
+		cleanupCheckInterval = 0 // Disable cleanup
 	}
 
 	svc, err := New(
@@ -95,6 +147,8 @@ func NewService(
 		egressTrackerProofs,
 		batchEndpoint,
 		store,
+		receiptsEndpoint,
+		consolidationStore,
 		queue,
 		cleanupCheckInterval,
 	)

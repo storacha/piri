@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/capabilities/space/egress"
@@ -27,6 +28,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/piri/pkg/store/consolidationstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/stretchr/testify/require"
 )
@@ -70,6 +72,13 @@ func TestAddReceipt(t *testing.T) {
 		require.NoError(t, err)
 		queue := NewMockEgressTrackingQueue(t)
 
+		// Create consolidation store (in-memory for tests)
+		consolidationStore := consolidationstore.New(datastore.NewMapDatastore())
+
+		// Create receipts endpoint (dummy for tests)
+		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
+		require.NoError(t, err)
+
 		// Create service
 		service, err := New(
 			thisNode,
@@ -77,6 +86,8 @@ func TestAddReceipt(t *testing.T) {
 			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
 			store,
+			receiptsEndpoint,
+			consolidationStore,
 			queue,
 			0, // cleanup disabled for tests
 		)
@@ -102,6 +113,13 @@ func TestAddReceipt(t *testing.T) {
 		require.NoError(t, err)
 		queue := NewMockEgressTrackingQueue(t)
 
+		// Create consolidation store (in-memory for tests)
+		consolidationStore := consolidationstore.New(datastore.NewMapDatastore())
+
+		// Create receipts endpoint (dummy for tests)
+		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
+		require.NoError(t, err)
+
 		// Create service
 		service, err := New(
 			thisNode,
@@ -109,6 +127,8 @@ func TestAddReceipt(t *testing.T) {
 			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
 			store,
+			receiptsEndpoint,
+			consolidationStore,
 			queue,
 			0, // cleanup disabled for tests
 		)

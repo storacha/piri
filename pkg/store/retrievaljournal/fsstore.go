@@ -173,7 +173,7 @@ func (s *fsJournal) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCl
 	return os.Open(filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix))
 }
 
-func (s *fsBatchStore) List(ctx context.Context) ([]cid.Cid, error) {
+func (s *fsJournal) List(ctx context.Context) ([]cid.Cid, error) {
 	entries, err := os.ReadDir(s.basePath)
 	if err != nil {
 		return nil, fmt.Errorf("reading batch directory: %w", err)
@@ -210,7 +210,7 @@ func (s *fsBatchStore) List(ctx context.Context) ([]cid.Cid, error) {
 	return cids, nil
 }
 
-func (s *fsBatchStore) Remove(ctx context.Context, cid cid.Cid) error {
+func (s *fsJournal) Remove(ctx context.Context, cid cid.Cid) error {
 	path := filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix)
 	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("removing batch file: %w", err)

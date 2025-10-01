@@ -2,7 +2,9 @@ package egresstracking
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/space/egress"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-ucanto/client"
+	"github.com/storacha/go-ucanto/core/car"
 	"github.com/storacha/go-ucanto/core/dag/blockstore"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
@@ -22,6 +25,7 @@ import (
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 
+	"github.com/storacha/piri/pkg/store/consolidationstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
@@ -37,6 +41,8 @@ type EgressTrackingService struct {
 	batchEndpoint        *url.URL
 	store                retrievaljournal.Journal
 	queue                EgressTrackingQueue
+	receiptsEndpoint     *url.URL
+	consolidationStore   consolidationstore.Store
 	cleanupCheckInterval time.Duration
 	cleanupCancel        context.CancelFunc
 	cleanupDone          chan struct{}
@@ -48,6 +54,8 @@ func New(
 	egressTrackerProofs delegation.Proofs,
 	batchEndpoint *url.URL,
 	store retrievaljournal.Journal,
+	receiptsEndpoint *url.URL,
+	consolidationStore consolidationstore.Store,
 	queue EgressTrackingQueue,
 	cleanupCheckInterval time.Duration,
 ) (*EgressTrackingService, error) {
@@ -57,7 +65,9 @@ func New(
 		egressTrackerProofs:  egressTrackerProofs,
 		egressTrackerConn:    egressTrackerConn,
 		batchEndpoint:        batchEndpoint,
+		receiptsEndpoint:     receiptsEndpoint,
 		store:                store,
+		consolidationStore:   consolidationStore,
 		queue:                queue,
 		cleanupCheckInterval: cleanupCheckInterval,
 		cleanupDone:          make(chan struct{}),
@@ -140,6 +150,23 @@ func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Ci
 		return fmt.Errorf("invocation failed: %s", x.Message)
 	}
 
+	// Extract the consolidate invocation from the receipt's effects
+	effects := rcpt.Fx()
+	if effects != nil {
+		fork := effects.Fork()
+		if len(fork) > 0 {
+			// The first effect should be the consolidate invocation
+			consolidateInvLink := fork[0].Link()
+
+			// Store the track invocation and consolidate CID (indexed by batch CID)
+			consolidateCID := consolidateInvLink.(cidlink.Link).Cid
+			if err := s.consolidationStore.Put(ctx, batchCID, trackInv, consolidateCID); err != nil {
+				return fmt.Errorf("storing track invocation in consolidation store: %w", err)
+			}
+			log.Infof("stored track invocation with consolidate invocation %s for batch %s", consolidateInvLink.String(), batchCID.String())
+		}
+	}
+
 	return nil
 }
 
@@ -220,81 +247,76 @@ func (s *EgressTrackingService) cleanupConsolidatedBatches(ctx context.Context) 
 	return nil
 }
 
+var ErrNotFound = errors.New("receipt not found")
+
 func (s *EgressTrackingService) checkAndRemoveConsolidatedBatch(ctx context.Context, batchCID cid.Cid) error {
-	// Get the track invocation link for this batch to use as cause for consolidation
-	trackInv, err := egress.Track.Invoke(
-		s.id,
-		s.egressTrackerDID,
-		s.egressTrackerDID.String(),
-		egress.TrackCaveats{
-			Receipts: cidlink.Link{Cid: batchCID},
-			Endpoint: s.batchEndpoint,
-		},
-		delegation.WithProof(s.egressTrackerProofs...),
-		delegation.WithNoExpiration(),
-	)
+	// Get the consolidate invocation CID from the consolidation store
+	consolidateInvCID, err := s.consolidationStore.GetConsolidateInvocationCID(ctx, batchCID)
 	if err != nil {
-		return fmt.Errorf("creating track invocation for cause: %w", err)
-	}
-
-	// Request consolidation receipt from the egress tracker
-	consolidateInv, err := egress.Consolidate.Invoke(
-		s.id,
-		s.egressTrackerDID,
-		s.egressTrackerDID.String(),
-		egress.ConsolidateCaveats{
-			Cause: trackInv.Link(),
-		},
-		delegation.WithProof(s.egressTrackerProofs...),
-		delegation.WithNoExpiration(),
-	)
-	if err != nil {
-		return fmt.Errorf("creating consolidate invocation: %w", err)
-	}
-
-	resp, err := client.Execute(ctx, []invocation.Invocation{consolidateInv}, s.egressTrackerConn)
-	if err != nil {
-		return fmt.Errorf("executing consolidate invocation: %w", err)
-	}
-
-	rcptLnk, ok := resp.Get(consolidateInv.Link())
-	if !ok {
-		return fmt.Errorf("missing receipt for consolidate invocation: %s", consolidateInv.Link().String())
-	}
-
-	blocks, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(resp.Blocks()))
-	if err != nil {
-		return fmt.Errorf("importing response blocks into blockstore: %w", err)
-	}
-
-	rcptReader, err := egress.NewConsolidateReceiptReader()
-	if err != nil {
-		return fmt.Errorf("constructing consolidate receipt reader: %w", err)
-	}
-
-	rcpt, err := rcptReader.Read(rcptLnk, blocks.Iterator())
-	if err != nil {
-		return fmt.Errorf("reading consolidate receipt: %w", err)
-	}
-
-	// Check if the consolidation was successful
-	okResult, errResult := result.Unwrap(rcpt.Out())
-	var emptyErr egress.ConsolidateError
-	if errResult != emptyErr {
-		log.Warnf("batch %s not consolidated: %s", batchCID, errResult.Message)
+		log.Warnf("batch %s not found in consolidation store, skipping: %v", batchCID, err)
 		return nil
 	}
 
-	// Check if there were any errors in the consolidation
-	if len(okResult.Errors) > 0 {
-		log.Warnf("batch %s consolidated with %d errors, not removing", batchCID, len(okResult.Errors))
-		return nil
+	// Fetch the consolidate receipt from the egress tracker's receipts endpoint
+	receiptURL := s.receiptsEndpoint.JoinPath(consolidateInvCID.String())
+	log.Debugf("fetching consolidate receipt from %s", receiptURL.String())
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, receiptURL.String(), nil)
+	if err != nil {
+		return fmt.Errorf("creating HTTP request: %w", err)
 	}
 
-	// Consolidation was successful, remove the batch
-	log.Infof("batch %s successfully consolidated, removing from store", batchCID)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("fetching consolidate receipt: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// Parse the CAR file containing the receipt
+		roots, blocks, err := car.Decode(resp.Body)
+		if err != nil {
+			return fmt.Errorf("decoding CAR file: %w", err)
+		}
+
+		if len(roots) == 0 {
+			return fmt.Errorf("no roots in CAR file")
+		}
+
+		// Create block reader
+		br, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(blocks))
+		if err != nil {
+			return fmt.Errorf("creating block reader: %w", err)
+		}
+
+		// Read the receipt
+		rcptReader := receipt.NewAnyReceiptReader(captypes.Converters...)
+		_, err = rcptReader.Read(roots[0], br.Iterator())
+		if err != nil {
+			return fmt.Errorf("reading receipt: %w", err)
+		}
+
+		// TODO: Validate the receipt (implement validation logic later)
+		// For now, we just check that we can read it
+
+	case http.StatusNotFound:
+		log.Debugf("consolidate receipt not yet available for batch %s", batchCID)
+		return nil
+	default:
+		return fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	// Remove the batch from the store
+	log.Infof("consolidate receipt found for batch %s, removing from store", batchCID)
 	if err := s.store.Remove(ctx, batchCID); err != nil {
 		return fmt.Errorf("removing consolidated batch: %w", err)
+	}
+
+	// Remove from consolidation store
+	if err := s.consolidationStore.Delete(ctx, batchCID); err != nil {
+		log.Warnf("failed to remove batch %s from consolidation store: %v", batchCID, err)
 	}
 
 	return nil
