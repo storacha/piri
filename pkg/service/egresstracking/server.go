@@ -11,7 +11,7 @@ import (
 	"github.com/storacha/go-ucanto/core/car"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/store"
-	"github.com/storacha/piri/pkg/store/egressbatchstore"
+	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
 var _ echofx.RouteRegistrar = (*Server)(nil)
@@ -19,10 +19,10 @@ var _ echofx.RouteRegistrar = (*Server)(nil)
 const ReceiptsPath = "/receipts"
 
 type Server struct {
-	egressBatches egressbatchstore.EgressBatchStore
+	egressBatches retrievaljournal.Journal
 }
 
-func NewServer(egressBatches egressbatchstore.EgressBatchStore) (*Server, error) {
+func NewServer(egressBatches retrievaljournal.Journal) (*Server, error) {
 	return &Server{egressBatches}, nil
 }
 
@@ -30,7 +30,7 @@ func (srv *Server) RegisterRoutes(e *echo.Echo) {
 	e.GET(ReceiptsPath+"/:cid", NewHandler(srv.egressBatches))
 }
 
-func NewHandler(egressBatches egressbatchstore.EgressBatchStore) echo.HandlerFunc {
+func NewHandler(egressBatches retrievaljournal.Journal) echo.HandlerFunc {
 	return func(ctx echo.Context) error {
 		cid, err := cid.Parse(ctx.Param("cid"))
 		if err != nil {

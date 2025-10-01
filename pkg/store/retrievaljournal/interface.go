@@ -1,4 +1,4 @@
-package egressbatchstore
+package retrievaljournal
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 )
 
-// EgressBatchStore stores batches of receipts. When the batch reaches a certain size,
+// Journal stores batches of receipts. When the batch reaches a certain size,
 // the store calculates the CID of the batch, rotates it and creates a new batch to append receipts to.
-type EgressBatchStore interface {
+type Journal interface {
 	// Append appends a space/content/retrieval receipt to the current batch.
 	// If the batch reaches the size limit, it will be rotated. When that happens, Append returns
 	// true and the CID of the rotated batch.

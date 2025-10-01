@@ -16,7 +16,7 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
-	"github.com/storacha/piri/pkg/store/egressbatchstore"
+	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/stashstore"
@@ -48,7 +48,7 @@ var Module = fx.Module("memory-store",
 		),
 		NewClaimStore,
 		NewReceiptStore,
-		NewEgressBatchStore,
+		NewRetrievalJournal,
 		NewKeyStore,
 		NewStashStore,
 		NewPDPStore,
@@ -85,9 +85,9 @@ func NewReceiptStore() (receiptstore.ReceiptStore, error) {
 }
 
 // TODO need an in-memory impl of the egress batch store...
-func NewEgressBatchStore() (egressbatchstore.EgressBatchStore, error) {
+func NewRetrievalJournal() (retrievaljournal.Journal, error) {
 	tmpDir := filepath.Join(os.TempDir(), "piri-egress-batch-tmp")
-	return egressbatchstore.NewFSBatchStore(tmpDir, 0)
+	return retrievaljournal.NewFSJournal(tmpDir, 0)
 }
 
 func NewKeyStore() (keystore.KeyStore, error) {

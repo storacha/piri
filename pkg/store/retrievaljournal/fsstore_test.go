@@ -1,4 +1,4 @@
-package egressbatchstore
+package retrievaljournal
 
 import (
 	"fmt"
@@ -58,7 +58,7 @@ func TestAppend(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSBatchStore(tempDir, 0) // Default batch size
+		store, err := NewFSJournal(tempDir, 0) // Default batch size
 		require.NoError(t, err)
 
 		// Create a test receipt
@@ -87,7 +87,7 @@ func TestAppend(t *testing.T) {
 		tempDir := t.TempDir()
 
 		// Small batch size to force rotation
-		store, err := NewFSBatchStore(tempDir, 1024) // 1KB batches
+		store, err := NewFSJournal(tempDir, 1024) // 1KB batches
 		require.NoError(t, err)
 
 		// Create a few test receipts
@@ -129,7 +129,7 @@ func TestAppend(t *testing.T) {
 	t.Run("fails with nil receipt", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSBatchStore(tempDir, 0) // Default batch size
+		store, err := NewFSJournal(tempDir, 0) // Default batch size
 		require.NoError(t, err)
 
 		_, _, err = store.Append(t.Context(), nil)
@@ -141,7 +141,7 @@ func TestRotate(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSBatchStore(tempDir, 0)
+		store, err := NewFSJournal(tempDir, 0)
 		require.NoError(t, err)
 
 		// Create a test receipt
@@ -166,7 +166,7 @@ func TestRotate(t *testing.T) {
 	t.Run("rotating empty store returns an error", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSBatchStore(tempDir, 0)
+		store, err := NewFSJournal(tempDir, 0)
 		require.NoError(t, err)
 
 		_, err = store.rotate()
@@ -178,7 +178,7 @@ func TestGetBatch(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSBatchStore(tempDir, 100)
+		store, err := NewFSJournal(tempDir, 100)
 		require.NoError(t, err)
 
 		// Create a test receipt

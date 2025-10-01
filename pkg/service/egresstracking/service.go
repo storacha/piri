@@ -21,7 +21,7 @@ import (
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 
-	"github.com/storacha/piri/pkg/store/egressbatchstore"
+	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
 // EgressTrackingService stores receipts from `space/content/retrieve` invocations and batches them.
@@ -34,7 +34,7 @@ type EgressTrackingService struct {
 	egressTrackerProofs delegation.Proofs
 	egressTrackerConn   client.Connection
 	batchEndpoint       *url.URL
-	store               egressbatchstore.EgressBatchStore
+	store               retrievaljournal.Journal
 	queue               EgressTrackingQueue
 }
 
@@ -43,7 +43,7 @@ func New(
 	egressTrackerConn client.Connection,
 	egressTrackerProofs delegation.Proofs,
 	batchEndpoint *url.URL,
-	store egressbatchstore.EgressBatchStore,
+	store retrievaljournal.Journal,
 	queue EgressTrackingQueue,
 ) (*EgressTrackingService, error) {
 	svc := &EgressTrackingService{

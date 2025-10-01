@@ -17,9 +17,9 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
-	"github.com/storacha/piri/pkg/store/egressbatchstore"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
+	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
@@ -50,7 +50,7 @@ var Module = fx.Module("filesystem-store",
 		),
 		NewClaimStore,
 		NewReceiptStore,
-		NewEgressBatchStore,
+		NewRetrievalJournal,
 		NewKeyStore,
 		NewStashStore,
 		NewPDPStore,
@@ -65,7 +65,7 @@ type Configs struct {
 	Blob           app.BlobStorageConfig
 	Claim          app.ClaimStorageConfig
 	Receipt        app.ReceiptStorageConfig
-	EgressTracking app.EgressTrackingStoreConfig
+	EgressTracking app.EgressTrackingStorageConfig
 	KeyStore       app.KeyStoreConfig
 	Stash          app.StashStoreConfig
 	PDP            app.PDPStoreConfig
@@ -204,12 +204,12 @@ func NewReceiptStore(cfg app.ReceiptStorageConfig, lc fx.Lifecycle) (receiptstor
 
 }
 
-func NewEgressBatchStore(cfg app.EgressTrackingStoreConfig) (egressbatchstore.EgressBatchStore, error) {
+func NewRetrievalJournal(cfg app.EgressTrackingStorageConfig) (retrievaljournal.Journal, error) {
 	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for egress batch store")
 	}
 
-	return egressbatchstore.NewFSBatchStore(cfg.Dir, cfg.MaxBatchSize)
+	return retrievaljournal.NewFSJournal(cfg.Dir, cfg.MaxBatchSize)
 }
 
 func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, error) {

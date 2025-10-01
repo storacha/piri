@@ -1,4 +1,4 @@
-package egressbatchstore
+package retrievaljournal
 
 import (
 	"context"
@@ -32,18 +32,18 @@ const (
 	batchFileSuffix = ".car"
 )
 
-var _ EgressBatchStore = (*fsBatchStore)(nil)
+var _ Journal = (*fsJournal)(nil)
 
-type fsBatchStore struct {
+type fsJournal struct {
 	basePath     string
 	curBatchPath string
 	maxBatchSize int64
 }
 
-// NewFSBatchStore creates a new file system based batch receipt store.
+// NewFSJournal creates a new file system based batch receipt store.
 // Batches will be stored in the given basePath.
 // If maxBatchSize is 0, DefaultBatchSize will be used.
-func NewFSBatchStore(basePath string, maxBatchSize int64) (*fsBatchStore, error) {
+func NewFSJournal(basePath string, maxBatchSize int64) (*fsJournal, error) {
 	if maxBatchSize <= 0 {
 		maxBatchSize = DefaultBatchSize
 	}
@@ -54,14 +54,14 @@ func NewFSBatchStore(basePath string, maxBatchSize int64) (*fsBatchStore, error)
 
 	curBatchPath := filepath.Join(basePath, currentBatchName)
 
-	return &fsBatchStore{
+	return &fsJournal{
 		basePath:     basePath,
 		curBatchPath: curBatchPath,
 		maxBatchSize: maxBatchSize,
 	}, nil
 }
 
-func (s *fsBatchStore) Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) (bool, cid.Cid, error) {
+func (s *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) (bool, cid.Cid, error) {
 	if rcpt == nil {
 		return false, cid.Cid{}, fmt.Errorf("receipt is nil")
 	}
@@ -116,7 +116,7 @@ func (s *fsBatchStore) Append(ctx context.Context, rcpt receipt.Receipt[content.
 	return false, cid.Cid{}, nil
 }
 
-func (s *fsBatchStore) currentBatchSize() (int64, error) {
+func (s *fsJournal) currentBatchSize() (int64, error) {
 	info, err := os.Stat(s.curBatchPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -129,7 +129,7 @@ func (s *fsBatchStore) currentBatchSize() (int64, error) {
 	return info.Size(), nil
 }
 
-func (s *fsBatchStore) rotate() (cid.Cid, error) {
+func (s *fsJournal) rotate() (cid.Cid, error) {
 	// Calculate the CID of the current batch
 	f, err := os.Open(s.curBatchPath)
 	if err != nil {
@@ -157,6 +157,6 @@ func (s *fsBatchStore) rotate() (cid.Cid, error) {
 	return batchCID, nil
 }
 
-func (s *fsBatchStore) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error) {
+func (s *fsJournal) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error) {
 	return os.Open(filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix))
 }

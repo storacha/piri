@@ -16,7 +16,7 @@ import (
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/store/egressbatchstore"
+	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
 var log = logging.Logger("egresstracking")
@@ -74,7 +74,7 @@ func ProvideEgressTrackingQueue(lc fx.Lifecycle, params QueueParams) (EgressTrac
 
 func NewService(
 	id principal.Signer,
-	store egressbatchstore.EgressBatchStore,
+	store retrievaljournal.Journal,
 	queue EgressTrackingQueue,
 	cfg app.AppConfig,
 ) (*EgressTrackingService, error) {

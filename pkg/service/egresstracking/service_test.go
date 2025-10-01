@@ -27,7 +27,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
-	"github.com/storacha/piri/pkg/store/egressbatchstore"
+	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,7 +66,7 @@ func TestAddReceipt(t *testing.T) {
 	t.Run("enqueues an egress track task on full batches", func(t *testing.T) {
 		// Create a test store
 		tempDir := t.TempDir()
-		store, err := egressbatchstore.NewFSBatchStore(tempDir, 100) // 100 bytes batch size
+		store, err := retrievaljournal.NewFSJournal(tempDir, 100) // 100 bytes batch size
 		require.NoError(t, err)
 		queue := NewMockEgressTrackingQueue(t)
 
@@ -97,7 +97,7 @@ func TestAddReceipt(t *testing.T) {
 
 	t.Run("concurrent addition", func(t *testing.T) {
 		tempDir := t.TempDir()
-		store, err := egressbatchstore.NewFSBatchStore(tempDir, 1024)
+		store, err := retrievaljournal.NewFSJournal(tempDir, 1024)
 		require.NoError(t, err)
 		queue := NewMockEgressTrackingQueue(t)
 
