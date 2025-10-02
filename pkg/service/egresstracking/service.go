@@ -224,16 +224,9 @@ func (s *EgressTrackingService) cleanupConsolidatedBatches(ctx context.Context) 
 		return fmt.Errorf("listing batches: %w", err)
 	}
 
-	if len(batchCIDs) == 0 {
-		log.Debug("no batches to clean up")
-		return nil
-	}
-
-	log.Debugf("checking %d batches for consolidation", len(batchCIDs))
-
 	// Check each batch for consolidation
 	// TODO: consider doing this in parallel
-	for _, batchCID := range batchCIDs {
+	for batchCID := range batchCIDs {
 		if err := s.checkAndRemoveConsolidatedBatch(ctx, batchCID); err != nil {
 			log.Errorf("error checking batch %s: %v", batchCID, err)
 			// Continue with other batches even if one fails

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"iter"
 	"os"
 	"path/filepath"
 	"strings"
@@ -210,41 +211,42 @@ func (j *fsJournal) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCl
 	return os.Open(filepath.Join(j.basePath, batchFilePrefix+cid.String()+batchFileSuffix))
 }
 
-func (s *fsJournal) List(ctx context.Context) ([]cid.Cid, error) {
+func (s *fsJournal) List(ctx context.Context) (iter.Seq[cid.Cid], error) {
 	entries, err := os.ReadDir(s.basePath)
 	if err != nil {
-		return nil, fmt.Errorf("reading batch directory: %w", err)
+		return nil, fmt.Errorf("reading batch entries: %w", err)
 	}
 
-	var cids []cid.Cid
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	return func(yield func(cid.Cid) bool) {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+
+			name := entry.Name()
+			// Skip the current batch file
+			if name == currentBatchName {
+				continue
+			}
+
+			// Check if the file has the correct prefix and suffix
+			if !strings.HasPrefix(name, batchFilePrefix) || !strings.HasSuffix(name, batchFileSuffix) {
+				continue
+			}
+
+			// Extract the CID from the filename
+			cidStr := name[len(batchFilePrefix) : len(name)-len(batchFileSuffix)]
+			c, err := cid.Decode(cidStr)
+			if err != nil {
+				log.Warnf("skipping file with invalid CID in name: %s: %v", name, err)
+				continue
+			}
+
+			if !yield(c) {
+				return
+			}
 		}
-
-		name := entry.Name()
-		// Skip the current batch file
-		if name == currentBatchName {
-			continue
-		}
-
-		// Check if the file has the correct prefix and suffix
-		if !strings.HasPrefix(name, batchFilePrefix) || !strings.HasSuffix(name, batchFileSuffix) {
-			continue
-		}
-
-		// Extract the CID from the filename
-		cidStr := name[len(batchFilePrefix) : len(name)-len(batchFileSuffix)]
-		c, err := cid.Decode(cidStr)
-		if err != nil {
-			log.Warnf("skipping file with invalid CID in name: %s: %v", name, err)
-			continue
-		}
-
-		cids = append(cids, c)
-	}
-
-	return cids, nil
+	}, nil
 }
 
 func (s *fsJournal) Remove(ctx context.Context, cid cid.Cid) error {
