@@ -232,6 +232,7 @@ func (s *EgressTrackingService) cleanupConsolidatedBatches(ctx context.Context) 
 	log.Debugf("checking %d batches for consolidation", len(batchCIDs))
 
 	// Check each batch for consolidation
+	// TODO: consider doing this in parallel
 	for _, batchCID := range batchCIDs {
 		if err := s.checkAndRemoveConsolidatedBatch(ctx, batchCID); err != nil {
 			log.Errorf("error checking batch %s: %v", batchCID, err)
@@ -269,7 +270,9 @@ func (s *EgressTrackingService) checkAndRemoveConsolidatedBatch(ctx context.Cont
 		return fmt.Errorf("batch %s not found in consolidation store: %w", batchCID, err)
 	}
 
-	s.validateConsolidateReceipt(rcpt, trackInv)
+	if err := s.validateConsolidateReceipt(rcpt, trackInv); err != nil {
+		return fmt.Errorf("receipt failed validation: %w", err)
+	}
 
 	// Remove the batch from the store
 	log.Infof("consolidate receipt found for batch %s, removing from store", batchCID)
