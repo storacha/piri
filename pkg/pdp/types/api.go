@@ -115,6 +115,7 @@ type PieceUpload struct {
 type API interface {
 	ProofSetAPI
 	PieceAPI
+	ProviderAPI
 }
 
 type AllocatedPiece struct {
@@ -135,6 +136,37 @@ type CreateProofSetParams struct {
 	RecordKeeper common.Address
 	ExtraData    ExtraData
 }
+
+type RegisterProviderParams struct {
+	Name        string
+	Description string
+}
+
+type RegisterProviderResults struct {
+	// transaction hash of message sent by provider to register, when set all
+	// other fields are empty
+	TransactionHash common.Hash
+	// address of the provider
+	Address common.Address
+	// address the provider will receive payment on
+	Payee common.Address
+	// ID of provider
+	ID uint64
+	// True if the provider is registered (don't imply they have been approved
+	// the service contract.
+	IsActive bool
+	// Optional name chosen by provider
+	Name string
+	// Optional description chosen by provider
+	Description string
+}
+
+const (
+	ProductTypePDP uint8 = 0
+	// TODO we need to generate type for this from the contract ABI
+	// this is based on the contract code, right now there is only a single product type
+	// as an enum, so it's value is 0
+)
 
 type ProofSetAPI interface {
 	CreateProofSet(ctx context.Context, params CreateProofSetParams) (common.Hash, error)
@@ -174,4 +206,8 @@ type PieceAPI interface {
 	UploadPiece(ctx context.Context, upload PieceUpload) error
 	FindPiece(ctx context.Context, piece Piece) (cid.Cid, bool, error)
 	ReadPiece(ctx context.Context, piece cid.Cid, options ...ReadPieceOption) (*PieceReader, error)
+}
+
+type ProviderAPI interface {
+	RegisterProvider(ctx context.Context, params RegisterProviderParams) (RegisterProviderResults, error)
 }
