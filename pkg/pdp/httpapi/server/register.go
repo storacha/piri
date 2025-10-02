@@ -52,4 +52,7 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 	e.POST(path.Join(PDPRoutePath, PiecePrefix), p.handlePreparePiece)
 	e.PUT(path.Join(PDPRoutePath, PiecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload)
 	e.GET(path.Join(PDPRoutePath, PiecePrefix), p.handleFindPiece)
+
+	// /pdp/provider
+	e.POST(path.Join(PDPRoutePath, "/provider/register"), p.handleRegisterProvider)
 }
