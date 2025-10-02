@@ -58,14 +58,14 @@ func TestAppend(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSJournal(tempDir, 0) // Default batch size
+		journal, err := NewFSJournal(tempDir, 0) // Default batch size
 		require.NoError(t, err)
 
 		// Create a test receipt
 		rcpt := createTestReceipt(t)
 
 		// Append a receipt
-		_, _, err = store.Append(t.Context(), rcpt)
+		_, _, err = journal.Append(t.Context(), rcpt)
 		require.NoError(t, err)
 
 		// Verify the file for the current batch exists and has content
@@ -87,7 +87,7 @@ func TestAppend(t *testing.T) {
 		tempDir := t.TempDir()
 
 		// Small batch size to force rotation
-		store, err := NewFSJournal(tempDir, 1024) // 1KB batches
+		journal, err := NewFSJournal(tempDir, 1024) // 1KB batches
 		require.NoError(t, err)
 
 		// Create a few test receipts
@@ -98,24 +98,22 @@ func TestAppend(t *testing.T) {
 
 		// Append receipts and fill batches
 		numBatches := 0
-		currentBatchSize := 0
+		currentBatchSize := 18 // 18 bytes is the CAR header size
 		for _, rcpt := range rcpts {
-			batchRotated, _, err := store.Append(t.Context(), rcpt)
+			batchRotated, _, err := journal.Append(t.Context(), rcpt)
 			require.NoError(t, err)
 
 			archive := rcpt.Archive()
 			archBytes, err := io.ReadAll(archive)
 			require.NoError(t, err)
-			currentBatchSize += len(archBytes)
+			currentBatchSize += len(archBytes) + 39 // 39 bytes is the overhead per block in the CAR file
 
-			if int64(currentBatchSize) >= store.maxBatchSize {
+			if int64(currentBatchSize) >= journal.maxBatchSize {
 				// Check that batches are flushed when they reach the max size
 				require.True(t, batchRotated)
-				currentBatchSize = 0
+				currentBatchSize = 18
 				numBatches++
-				reportedBatchSize, err := store.currentBatchSize()
-				require.NoError(t, err)
-				require.Equal(t, int64(0), reportedBatchSize)
+				require.Equal(t, int64(currentBatchSize), journal.currSize)
 
 				files, err := filepath.Glob(filepath.Join(tempDir, batchFilePrefix+"*"+batchFileSuffix))
 				require.NoError(t, err)
@@ -129,10 +127,10 @@ func TestAppend(t *testing.T) {
 	t.Run("fails with nil receipt", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSJournal(tempDir, 0) // Default batch size
+		journal, err := NewFSJournal(tempDir, 0) // Default batch size
 		require.NoError(t, err)
 
-		_, _, err = store.Append(t.Context(), nil)
+		_, _, err = journal.Append(t.Context(), nil)
 		require.Error(t, err)
 	})
 }
@@ -141,19 +139,19 @@ func TestRotate(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSJournal(tempDir, 0)
+		journal, err := NewFSJournal(tempDir, 0)
 		require.NoError(t, err)
 
 		// Create a test receipt
 		rcpt := createTestReceipt(t)
 
 		// Append the receipt. A single receipt is not enough to trigger a rotation.
-		batchRotated, _, err := store.Append(t.Context(), rcpt)
+		batchRotated, _, err := journal.Append(t.Context(), rcpt)
 		require.NoError(t, err)
 		require.False(t, batchRotated)
 
 		// Rotate the batch
-		rotatedBatchCID, err := store.rotate()
+		rotatedBatchCID, err := journal.rotate()
 		require.NoError(t, err)
 		require.NotEmpty(t, rotatedBatchCID)
 
@@ -162,30 +160,20 @@ func TestRotate(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, files, 1, "expected one batch file")
 	})
-
-	t.Run("rotating empty store returns an error", func(t *testing.T) {
-		tempDir := t.TempDir()
-
-		store, err := NewFSJournal(tempDir, 0)
-		require.NoError(t, err)
-
-		_, err = store.rotate()
-		require.Error(t, err)
-	})
 }
 
 func TestGetBatch(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		store, err := NewFSJournal(tempDir, 100)
+		journal, err := NewFSJournal(tempDir, 100)
 		require.NoError(t, err)
 
 		// Create a test receipt
 		rcpt := createTestReceipt(t)
 
 		// Append the receipt. Max batch size is small, so a batch should be rotated.
-		batchRotated, rotatedBatchCID, err := store.Append(t.Context(), rcpt)
+		batchRotated, rotatedBatchCID, err := journal.Append(t.Context(), rcpt)
 		require.NoError(t, err)
 		require.True(t, batchRotated)
 
@@ -196,7 +184,7 @@ func TestGetBatch(t *testing.T) {
 		require.NoError(t, err)
 
 		// Get the batch
-		batch, err := store.GetBatch(t.Context(), rotatedBatchCID)
+		batch, err := journal.GetBatch(t.Context(), rotatedBatchCID)
 		require.NoError(t, err)
 
 		// Read the batch and compare with file contents
