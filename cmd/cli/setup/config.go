@@ -8,33 +8,35 @@ import (
 
 // PathConfig holds all path-related configuration
 type PathConfig struct {
-	OptDir         string        // Base directory for piri installation
-	BinaryBaseDir  string        // Base directory for all versioned binaries
-	CurrentSymlink string        // Symlink that points to the current version
-	BinaryPath     string        // Path to the current piri binary via symlink
-	SystemDir      string        // System configuration directory (not versioned)
-	SystemdDir     string        // Directory where systemd service files are stored
-	CLISymlinkPath string        // Location of piri symlink in PATH
-	SystemdPath    string        // Directory where systemd service files are installed
-	SudoersFile    string        // Sudoers configuration file path
-	ConfigFileName string        // Default config file name
-	ServerShutdown time.Duration // Server shutdown timeout
-	SystemdBuffer  time.Duration // Additional systemd shutdown buffer
+	OptDir                string        // Base directory for piri installation
+	BinaryBaseDir         string        // Base directory for all versioned binaries
+	CurrentSymlink        string        // Symlink that points to the current version
+	BinaryPath            string        // Path to the current piri binary via symlink
+	SystemDir             string        // System configuration directory (not versioned)
+	SystemdBaseDir        string        // Base directory for versioned systemd files
+	SystemdCurrentSymlink string        // Symlink to current systemd version
+	CLISymlinkPath        string        // Location of piri symlink in PATH
+	SystemdPath           string        // /etc/systemd/system - where systemd reads from
+	SudoersFile           string        // Sudoers configuration file path
+	ConfigFileName        string        // Default config file name
+	ServerShutdown        time.Duration // Server shutdown timeout
+	SystemdBuffer         time.Duration // Additional systemd shutdown buffer
 }
 
 // DefaultPathConfig returns the default path configuration
 func DefaultPathConfig() *PathConfig {
 	return &PathConfig{
-		OptDir:         "/opt/piri",
-		BinaryBaseDir:  "/opt/piri/bin",
-		CurrentSymlink: "/opt/piri/bin/current",
-		BinaryPath:     "/opt/piri/bin/current/piri",
-		SystemDir:      "/opt/piri/etc",
-		SystemdDir:     "/opt/piri/systemd",
-		CLISymlinkPath: "/usr/local/bin/piri",
-		SystemdPath:    "/etc/systemd/system",
-		SudoersFile:    "/etc/sudoers.d/piri-updater",
-		ConfigFileName: "piri-config.toml",
+		OptDir:                "/opt/piri",
+		BinaryBaseDir:         "/opt/piri/bin",
+		CurrentSymlink:        "/opt/piri/bin/current",
+		BinaryPath:            "/opt/piri/bin/current/piri",
+		SystemDir:             "/opt/piri/etc",
+		SystemdBaseDir:        "/opt/piri/systemd",
+		SystemdCurrentSymlink: "/opt/piri/systemd/current",
+		CLISymlinkPath:        "/usr/local/bin/piri",
+		SystemdPath:           "/etc/systemd/system",
+		SudoersFile:           "/etc/sudoers.d/piri-updater",
+		ConfigFileName:        "piri-config.toml",
 		// PiriServerShutdownTimeout is the duration in which we expect piri server to shut down gracefully
 		// This timeout allows fx to wait up to one minute for all lifecycle shutdown hooks to execute.
 		ServerShutdown: time.Minute,
@@ -55,7 +57,9 @@ var (
 	PiriCurrentSymlink        = Config.CurrentSymlink
 	PiriBinaryPath            = Config.BinaryPath
 	PiriSystemDir             = Config.SystemDir
-	PiriSystemdDir            = Config.SystemdDir
+	PiriSystemdBaseDir        = Config.SystemdBaseDir
+	PiriSystemdCurrentSymlink = Config.SystemdCurrentSymlink
+	PiriSystemdDir            = Config.SystemdCurrentSymlink // Points to current version for backward compat
 )
 
 // getVersionedBinaryDir returns the versioned directory for a specific piri binary
@@ -70,6 +74,20 @@ func getVersionedBinaryDir(version string) string {
 		cleanVersion = "v" + cleanVersion
 	}
 	return filepath.Join(PiriBinaryBaseDir, cleanVersion)
+}
+
+// getVersionedSystemdDir returns the versioned directory for systemd service files
+func getVersionedSystemdDir(version string) string {
+	// Clean version string - remove any commit hash suffixes
+	cleanVersion := version
+	if idx := strings.Index(version, "-"); idx != -1 {
+		cleanVersion = version[:idx]
+	}
+	// Ensure version starts with 'v'
+	if !strings.HasPrefix(cleanVersion, "v") {
+		cleanVersion = "v" + cleanVersion
+	}
+	return filepath.Join(PiriSystemdBaseDir, cleanVersion)
 }
 
 // More compatibility constants
