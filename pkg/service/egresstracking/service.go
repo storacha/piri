@@ -137,7 +137,6 @@ func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Ci
 		return fmt.Errorf("reading receipt: %w", err)
 	}
 
-	// we're not expecting any meaningful response here so we just check for error
 	_, x := result.Unwrap(rcpt.Out())
 	var emptyErr fdm.FailureModel
 	if x != emptyErr {
@@ -146,20 +145,23 @@ func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Ci
 
 	// Extract the consolidate invocation from the receipt's effects
 	effects := rcpt.Fx()
-	if effects != nil {
-		fork := effects.Fork()
-		if len(fork) > 0 {
-			// The first effect should be the consolidate invocation
-			consolidateInvLink := fork[0].Link()
-
-			// Store the track invocation and consolidate CID (indexed by batch CID)
-			consolidateCID := consolidateInvLink.(cidlink.Link).Cid
-			if err := s.consolidationStore.Put(ctx, batchCID, trackInv, consolidateCID); err != nil {
-				return fmt.Errorf("storing track invocation in consolidation store: %w", err)
-			}
-			log.Infof("stored track invocation with consolidate invocation %s for batch %s", consolidateInvLink.String(), batchCID.String())
-		}
+	if effects == nil {
+		return fmt.Errorf("receipt has no effects")
 	}
+
+	forks := effects.Fork()
+	if len(forks) != 1 {
+		return fmt.Errorf("expected exactly one fork effect, but got: %d", len(forks))
+	}
+
+	consolidateInvLink := forks[0].Link()
+
+	// Store the track invocation and consolidate CID (indexed by batch CID)
+	consolidateCID := consolidateInvLink.(cidlink.Link).Cid
+	if err := s.consolidationStore.Put(ctx, batchCID, trackInv, consolidateCID); err != nil {
+		return fmt.Errorf("storing track invocation in consolidation store: %w", err)
+	}
+	log.Infof("stored track invocation with consolidate invocation %s for batch %s", consolidateInvLink.String(), batchCID.String())
 
 	return nil
 }
