@@ -64,9 +64,9 @@ func TestAddReceipt(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("enqueues an egress track task on full batches", func(t *testing.T) {
-		// Create a test store
+		// Create a test journal
 		tempDir := t.TempDir()
-		store, err := retrievaljournal.NewFSJournal(tempDir, 100) // 100 bytes batch size
+		journal, err := retrievaljournal.NewFSJournal(tempDir, 100) // 100 bytes batch size
 		require.NoError(t, err)
 		queue := NewMockEgressTrackingQueue(t)
 
@@ -76,7 +76,7 @@ func TestAddReceipt(t *testing.T) {
 			eTrackerConn,
 			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
-			store,
+			journal,
 			queue,
 		)
 		require.NoError(t, err)
@@ -93,43 +93,6 @@ func TestAddReceipt(t *testing.T) {
 		require.Len(t, mockServer.BatchCIDs(), 1, "expected one batch CID")
 
 		mockServer.Reset()
-	})
-
-	t.Run("concurrent addition", func(t *testing.T) {
-		tempDir := t.TempDir()
-		store, err := retrievaljournal.NewFSJournal(tempDir, 1024)
-		require.NoError(t, err)
-		queue := NewMockEgressTrackingQueue(t)
-
-		// Create service
-		service, err := New(
-			thisNode,
-			eTrackerConn,
-			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
-			batchEndpoint,
-			store,
-			queue,
-		)
-		require.NoError(t, err)
-
-		var wg sync.WaitGroup
-		numReceipts := 10
-
-		// Create multiple goroutines to add receipts concurrently
-		for range numReceipts {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				rcpt := createTestReceipt(t, testutil.Alice, thisNode)
-				err := service.AddReceipt(t.Context(), rcpt)
-				require.NoError(t, err)
-			}()
-		}
-
-		wg.Wait()
-
-		// Verify the egress tracker was invoked
-		require.True(t, len(mockServer.Invocations()) > 0, "no egress track invocations sent")
 	})
 }
 

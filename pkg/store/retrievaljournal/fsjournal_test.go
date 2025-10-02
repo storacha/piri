@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
@@ -122,6 +124,39 @@ func TestAppend(t *testing.T) {
 				require.False(t, batchRotated)
 			}
 		}
+	})
+
+	t.Run("concurrent append", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		journal, err := NewFSJournal(tempDir, 1024)
+		require.NoError(t, err)
+
+		var wg sync.WaitGroup
+		numReceipts := 10
+
+		// Create multiple goroutines to append receipts concurrently
+		numBatches := atomic.Int32{}
+		for range numReceipts {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rcpt := createTestReceipt(t)
+				batchRotated, _, err := journal.Append(t.Context(), rcpt)
+				require.NoError(t, err)
+
+				if batchRotated {
+					numBatches.Add(1)
+				}
+			}()
+		}
+
+		wg.Wait()
+
+		files, err := filepath.Glob(filepath.Join(tempDir, batchFilePrefix+"*"+batchFileSuffix))
+		require.NoError(t, err)
+		n := int(numBatches.Load())
+		require.Len(t, files, n, "expected %d completed batch files", n)
 	})
 
 	t.Run("fails with nil receipt", func(t *testing.T) {
