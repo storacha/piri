@@ -50,6 +50,7 @@ func withReceiptLogger(ets *egresstracking.EgressTrackingService) ucanretrieval.
 	return ucanretrieval.WithReceiptLogger(func(_ context.Context, rcpt receipt.AnyReceipt, inv invocation.Invocation) error {
 		// Egress Tracking is optional, the service will be nil if it is disabled
 		if ets == nil {
+			log.Warn("Egress tracking is not configured")
 			return nil
 		}
 
