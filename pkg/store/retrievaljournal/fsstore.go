@@ -42,7 +42,7 @@ type fsJournal struct {
 	maxBatchSize  int64
 }
 
-// NewFSJournal creates a new file system based batch receipt store.
+// NewFSJournal creates a new file system based retrieval journal.
 // Batches will be stored in the given basePath.
 // If maxBatchSize is 0, DefaultBatchSize will be used.
 func NewFSJournal(basePath string, maxBatchSize int64) (*fsJournal, error) {
@@ -51,7 +51,7 @@ func NewFSJournal(basePath string, maxBatchSize int64) (*fsJournal, error) {
 	}
 
 	if err := os.MkdirAll(basePath, 0755); err != nil {
-		return nil, fmt.Errorf("creating egress batch store directory: %w", err)
+		return nil, fmt.Errorf("creating retrieval journal directory: %w", err)
 	}
 
 	currBatchPath := filepath.Join(basePath, currentBatchName)
