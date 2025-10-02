@@ -162,12 +162,14 @@ func NewService(
 	}
 
 	// Add lifecycle hooks for cleanup task
+	cleanupCtx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			return svc.StartCleanupTask(ctx)
+			return svc.StartCleanupTask(cleanupCtx)
 		},
 		OnStop: func(ctx context.Context) error {
-			return svc.StopCleanupTask(ctx)
+			cancel()
+			return svc.StopCleanupTask(cleanupCtx)
 		},
 	})
 

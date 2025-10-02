@@ -38,7 +38,7 @@ type EgressTrackingService struct {
 	egressTrackerProofs  delegation.Proofs
 	egressTrackerConn    client.Connection
 	batchEndpoint        *url.URL
-	store                retrievaljournal.Journal
+	journal              retrievaljournal.Journal
 	queue                EgressTrackingQueue
 	consolidationStore   consolidationstore.Store
 	rcptsClient          *receipts.Client
@@ -64,7 +64,7 @@ func New(
 		egressTrackerProofs:  egressTrackerProofs,
 		egressTrackerConn:    egressTrackerConn,
 		batchEndpoint:        batchEndpoint,
-		store:                store,
+		journal:              store,
 		consolidationStore:   consolidationStore,
 		queue:                queue,
 		rcptsClient:          rcptsClient,
@@ -83,7 +83,7 @@ func (s *EgressTrackingService) AddReceipt(ctx context.Context, rcpt receipt.Rec
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	batchRotated, rotatedBatchCID, err := s.store.Append(ctx, rcpt)
+	batchRotated, rotatedBatchCID, err := s.journal.Append(ctx, rcpt)
 	if err != nil {
 		return fmt.Errorf("adding receipt to store: %w", err)
 	}
@@ -206,7 +206,6 @@ func (s *EgressTrackingService) runCleanupTask(ctx context.Context) {
 	defer close(s.cleanupDone)
 
 	ticker := time.NewTicker(s.cleanupCheckInterval)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -223,7 +222,7 @@ func (s *EgressTrackingService) runCleanupTask(ctx context.Context) {
 
 func (s *EgressTrackingService) cleanupConsolidatedBatches(ctx context.Context) error {
 	// List all batches
-	batchCIDs, err := s.store.List(ctx)
+	batchCIDs, err := s.journal.List(ctx)
 	if err != nil {
 		return fmt.Errorf("listing batches: %w", err)
 	}
@@ -246,8 +245,6 @@ func (s *EgressTrackingService) cleanupConsolidatedBatches(ctx context.Context) 
 	return nil
 }
 
-var ErrNotFound = errors.New("receipt not found")
-
 func (s *EgressTrackingService) checkAndRemoveConsolidatedBatch(ctx context.Context, batchCID cid.Cid) error {
 	// Get the consolidate invocation CID from the consolidation store
 	consolidateInvCID, err := s.consolidationStore.GetConsolidateInvocationCID(ctx, batchCID)
@@ -257,7 +254,7 @@ func (s *EgressTrackingService) checkAndRemoveConsolidatedBatch(ctx context.Cont
 	}
 
 	// Fetch the consolidate receipt from the egress tracker's receipts endpoint
-	receipt, err := s.rcptsClient.Fetch(ctx, cidlink.Link{Cid: consolidateInvCID})
+	rcpt, err := s.rcptsClient.Fetch(ctx, cidlink.Link{Cid: consolidateInvCID})
 	if err != nil {
 		if errors.Is(err, receipts.ErrNotFound) {
 			log.Debugf("consolidate receipt not yet available for batch %s", batchCID)
@@ -269,11 +266,17 @@ func (s *EgressTrackingService) checkAndRemoveConsolidatedBatch(ctx context.Cont
 
 	log.Debugf("consolidate receipt fetched for batch %s", batchCID.String())
 
-	s.validateConsolidateReceipt(receipt)
+	// Fetch the original track invocation for the batch
+	trackInv, err := s.consolidationStore.GetTrackInvocation(ctx, batchCID)
+	if err != nil {
+		return fmt.Errorf("batch %s not found in consolidation store: %w", batchCID, err)
+	}
+
+	s.validateConsolidateReceipt(rcpt, trackInv)
 
 	// Remove the batch from the store
 	log.Infof("consolidate receipt found for batch %s, removing from store", batchCID)
-	if err := s.store.Remove(ctx, batchCID); err != nil {
+	if err := s.journal.Remove(ctx, batchCID); err != nil {
 		return fmt.Errorf("removing consolidated batch: %w", err)
 	}
 
@@ -282,17 +285,12 @@ func (s *EgressTrackingService) checkAndRemoveConsolidatedBatch(ctx context.Cont
 		log.Warnf("failed to remove batch %s from consolidation store: %v", batchCID, err)
 	}
 
-	// Remove the batch from the store
-	if err := s.store.Remove(ctx, batchCID); err != nil {
-		return fmt.Errorf("removing batch %s from store: %w", batchCID, err)
-	}
-
-	log.Debugf("batch %s removed from store", batchCID.String())
+	log.Debugf("batch %s removed from journal and consolidation store", batchCID.String())
 
 	return nil
 }
 
-func (s *EgressTrackingService) validateConsolidateReceipt(receipt receipt.AnyReceipt) error {
+func (s *EgressTrackingService) validateConsolidateReceipt(receipt receipt.AnyReceipt, trackInv invocation.Invocation) error {
 	// TODO: Validate the receipt. This will include checking the receipt matches the original track invocation
 	// and confirming that the consolidated amount of bytes matches our records.
 	return nil

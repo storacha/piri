@@ -1,16 +1,15 @@
 package consolidationstore
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
-	"github.com/storacha/go-ucanto/core/car"
-	"github.com/storacha/go-ucanto/core/dag/blockstore"
+	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 )
 
@@ -50,15 +49,15 @@ func (cs *consolidationStore) Put(ctx context.Context, batchCID cid.Cid, trackIn
 		return fmt.Errorf("archiving track invocation: %w", err)
 	}
 
+	key := datastore.NewKey(batchCID.String())
+
 	// Store track invocation
-	trackKey := datastore.NewKey(batchCID.String())
-	if err := cs.trackInvocationsDS.Put(ctx, trackKey, b); err != nil {
+	if err := cs.trackInvocationsDS.Put(ctx, key, b); err != nil {
 		return fmt.Errorf("writing track invocation to datastore: %w", err)
 	}
 
 	// Store consolidate invocation CID
-	consolidateKey := datastore.NewKey(batchCID.String())
-	if err := cs.consolidateInvCIDsDS.Put(ctx, consolidateKey, consolidateInvCID.Bytes()); err != nil {
+	if err := cs.consolidateInvCIDsDS.Put(ctx, key, consolidateInvCID.Bytes()); err != nil {
 		return fmt.Errorf("writing consolidate CID to datastore: %w", err)
 	}
 
@@ -70,32 +69,15 @@ func (cs *consolidationStore) GetTrackInvocation(ctx context.Context, batchCID c
 
 	data, err := cs.trackInvocationsDS.Get(ctx, key)
 	if err != nil {
-		if err == datastore.ErrNotFound {
+		if errors.Is(err, datastore.ErrNotFound) {
 			return nil, fmt.Errorf("track invocation not found for batch CID: %s", batchCID.String())
 		}
 		return nil, fmt.Errorf("getting from datastore: %w", err)
 	}
 
-	// Decode CAR file
-	roots, blocks, err := car.Decode(bytes.NewReader(data))
+	inv, err := delegation.Extract(data)
 	if err != nil {
-		return nil, fmt.Errorf("decoding CAR: %w", err)
-	}
-
-	if len(roots) == 0 {
-		return nil, fmt.Errorf("no roots in CAR file")
-	}
-
-	// Create block reader
-	br, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(blocks))
-	if err != nil {
-		return nil, fmt.Errorf("creating block reader: %w", err)
-	}
-
-	// Read invocation
-	inv, err := invocation.NewInvocationView(roots[0], br)
-	if err != nil {
-		return nil, fmt.Errorf("reading invocation: %w", err)
+		return nil, fmt.Errorf("extracting invocation: %w", err)
 	}
 
 	return inv, nil
@@ -106,7 +88,7 @@ func (cs *consolidationStore) GetConsolidateInvocationCID(ctx context.Context, b
 
 	data, err := cs.consolidateInvCIDsDS.Get(ctx, key)
 	if err != nil {
-		if err == datastore.ErrNotFound {
+		if errors.Is(err, datastore.ErrNotFound) {
 			return cid.Undef, fmt.Errorf("consolidate invocation CID not found for batch CID: %s", batchCID.String())
 		}
 		return cid.Undef, fmt.Errorf("getting from datastore: %w", err)
@@ -125,12 +107,12 @@ func (cs *consolidationStore) Delete(ctx context.Context, batchCID cid.Cid) erro
 	key := datastore.NewKey(batchCID.String())
 
 	// Delete track invocation
-	if err := cs.trackInvocationsDS.Delete(ctx, key); err != nil && err != datastore.ErrNotFound {
+	if err := cs.trackInvocationsDS.Delete(ctx, key); err != nil && !errors.Is(err, datastore.ErrNotFound) {
 		return fmt.Errorf("deleting track invocation from datastore: %w", err)
 	}
 
 	// Delete consolidate CID
-	if err := cs.consolidateInvCIDsDS.Delete(ctx, key); err != nil && err != datastore.ErrNotFound {
+	if err := cs.consolidateInvCIDsDS.Delete(ctx, key); err != nil && !errors.Is(err, datastore.ErrNotFound) {
 		return fmt.Errorf("deleting consolidate CID from datastore: %w", err)
 	}
 
