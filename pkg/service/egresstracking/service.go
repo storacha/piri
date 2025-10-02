@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -32,7 +31,6 @@ import (
 // When batches reaches a certain size, they are sent to the egress tracking service via
 // `space/egress/track` invocations.
 type EgressTrackingService struct {
-	mu                   sync.Mutex
 	id                   principal.Signer
 	egressTrackerDID     did.DID
 	egressTrackerProofs  delegation.Proofs
@@ -80,9 +78,6 @@ func New(
 }
 
 func (s *EgressTrackingService) AddReceipt(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	batchRotated, rotatedBatchCID, err := s.journal.Append(ctx, rcpt)
 	if err != nil {
 		return fmt.Errorf("adding receipt to store: %w", err)

@@ -67,9 +67,9 @@ func TestAddReceipt(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("enqueues an egress track task on full batches", func(t *testing.T) {
-		// Create a test store
+		// Create a test journal
 		tempDir := t.TempDir()
-		store, err := retrievaljournal.NewFSJournal(tempDir, 100) // 100 bytes batch size
+		journal, err := retrievaljournal.NewFSJournal(tempDir, 100) // 100 bytes batch size
 		require.NoError(t, err)
 		queue := NewMockEgressTrackingQueue(t)
 
@@ -87,7 +87,7 @@ func TestAddReceipt(t *testing.T) {
 			eTrackerConn,
 			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
-			store,
+			journal,
 			consolidationStore,
 			queue,
 			rcptsClient,
@@ -111,7 +111,7 @@ func TestAddReceipt(t *testing.T) {
 
 	t.Run("concurrent addition", func(t *testing.T) {
 		tempDir := t.TempDir()
-		store, err := retrievaljournal.NewFSJournal(tempDir, 1024)
+		journal, err := retrievaljournal.NewFSJournal(tempDir, 1024)
 		require.NoError(t, err)
 		queue := NewMockEgressTrackingQueue(t)
 
@@ -129,7 +129,7 @@ func TestAddReceipt(t *testing.T) {
 			eTrackerConn,
 			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
-			store,
+			journal,
 			consolidationStore,
 			queue,
 			rcptsClient,

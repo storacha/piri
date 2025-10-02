@@ -3,18 +3,17 @@ package retrievaljournal
 import (
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipld/go-car/v2/blockstore"
+	"github.com/ipld/go-car"
+	carutil "github.com/ipld/go-car/util"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
@@ -22,7 +21,7 @@ import (
 	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 )
 
-var log = logging.Logger("egressbatchstore")
+var log = logging.Logger("retrievaljournal")
 
 const (
 	// DefaultBatchSize is the default maximum size of a receipt batch in bytes.
@@ -39,13 +38,15 @@ const (
 var _ Journal = (*fsJournal)(nil)
 
 type fsJournal struct {
-	basePath     string
-	curBatchPath string
-	rwbs         *blockstore.ReadWrite
-	maxBatchSize int64
+	mu            sync.Mutex
+	basePath      string
+	currBatchPath string
+	currBatch     *os.File
+	currSize      int64
+	maxBatchSize  int64
 }
 
-// NewFSJournal creates a new file system based batch receipt store.
+// NewFSJournal creates a new file system based retrieval journal.
 // Batches will be stored in the given basePath.
 // If maxBatchSize is 0, DefaultBatchSize will be used.
 func NewFSJournal(basePath string, maxBatchSize int64) (*fsJournal, error) {
@@ -54,31 +55,68 @@ func NewFSJournal(basePath string, maxBatchSize int64) (*fsJournal, error) {
 	}
 
 	if err := os.MkdirAll(basePath, 0755); err != nil {
-		return nil, fmt.Errorf("creating egress batch store directory: %w", err)
+		return nil, fmt.Errorf("creating retrieval journal directory: %w", err)
 	}
 
-	curBatchPath := filepath.Join(basePath, currentBatchName)
+	currBatchPath := filepath.Join(basePath, currentBatchName)
 
-	return &fsJournal{
-		basePath:     basePath,
-		curBatchPath: curBatchPath,
-		maxBatchSize: maxBatchSize,
-	}, nil
+	j := &fsJournal{
+		basePath:      basePath,
+		currBatchPath: currBatchPath,
+		maxBatchSize:  maxBatchSize,
+	}
+
+	if err := j.newBatch(false); err != nil {
+		return nil, fmt.Errorf("creating or opening current batch file: %w", err)
+	}
+
+	return j, nil
 }
 
-func (s *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) (bool, cid.Cid, error) {
-	if rcpt == nil {
-		return false, cid.Cid{}, fmt.Errorf("receipt is nil")
+func (j *fsJournal) newBatch(truncate bool) error {
+	flags := os.O_RDWR | os.O_CREATE
+	if truncate {
+		flags |= os.O_TRUNC
 	}
 
-	if s.rwbs == nil {
-		// Open a new read-write blockstore for the current batch
-		rwbs, err := blockstore.OpenReadWrite(s.curBatchPath, nil, blockstore.WriteAsCarV1(true))
+	var err error
+	j.currBatch, err = os.OpenFile(j.currBatchPath, flags, 0644)
+	if err != nil {
+		return err
+	}
+
+	if truncate {
+		j.currSize = 0
+	} else {
+		info, err := j.currBatch.Stat()
 		if err != nil {
-			return false, cid.Cid{}, fmt.Errorf("opening current batch for writing: %w", err)
+			return err
 		}
 
-		s.rwbs = rwbs
+		j.currSize = info.Size()
+	}
+
+	if j.currSize == 0 {
+		// Write the CAR header if the file is new or truncated
+		hdr := &car.CarHeader{Roots: []cid.Cid{}, Version: 1}
+		if err := car.WriteHeader(hdr, j.currBatch); err != nil {
+			return err
+		}
+
+		hdrSize, err := car.HeaderSize(hdr)
+		if err != nil {
+			return err
+		}
+
+		j.currSize = int64(hdrSize)
+	}
+
+	return nil
+}
+
+func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) (bool, cid.Cid, error) {
+	if rcpt == nil {
+		return false, cid.Cid{}, fmt.Errorf("receipt is nil")
 	}
 
 	rcptArchive := rcpt.Archive()
@@ -96,28 +134,23 @@ func (s *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 		return false, cid.Cid{}, fmt.Errorf("creating receipt archive CID: %w", err)
 	}
 
-	block, err := blocks.NewBlockWithCid(archiveBytes, archiveCID)
-	if err != nil {
-		return false, cid.Cid{}, fmt.Errorf("creating receipt block: %w", err)
-	}
+	// cid to bytes
+	cidBytes := archiveCID.Bytes()
 
-	if err := s.rwbs.Put(ctx, block); err != nil {
-		return false, cid.Cid{}, fmt.Errorf("adding receipt block to batch: %w", err)
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	// append a line in the car file, this is what `Put` is doing internally, but less complicated.
+	if err := carutil.LdWrite(j.currBatch, cidBytes, archiveBytes); err != nil {
+		return false, cid.Cid{}, err
 	}
+	// record the size of the data written
+	blockSize := carutil.LdSize(cidBytes, archiveBytes)
+	j.currSize += int64(blockSize)
 
 	// rotate the batch if it exceeds the size limit
-	curSize, err := s.currentBatchSize()
-	if err != nil {
-		return false, cid.Cid{}, fmt.Errorf("checking current batch size: %w", err)
-	}
-	if curSize >= s.maxBatchSize {
-		if err := s.rwbs.Finalize(); err != nil {
-			return false, cid.Cid{}, fmt.Errorf("finalizing batch: %w", err)
-		}
-
-		s.rwbs = nil
-
-		rotatedBatchCID, err := s.rotate()
+	if j.currSize >= j.maxBatchSize {
+		rotatedBatchCID, err := j.rotate()
 		if err != nil {
 			return false, cid.Cid{}, fmt.Errorf("rotating batch: %w", err)
 		}
@@ -128,30 +161,29 @@ func (s *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 	return false, cid.Cid{}, nil
 }
 
-func (s *fsJournal) currentBatchSize() (int64, error) {
-	info, err := os.Stat(s.curBatchPath)
+func (j *fsJournal) rotate() (cid.Cid, error) {
+	// Reuse the open file handle to calculate the hash
+	off, err := j.currBatch.Seek(0, io.SeekStart)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return 0, nil
-		}
-
-		return 0, fmt.Errorf("checking current batch file: %w", err)
+		return cid.Cid{}, fmt.Errorf("seeking to start of batch file: %w", err)
+	}
+	if off != 0 {
+		return cid.Cid{}, fmt.Errorf("failed to seek to start of batch file")
 	}
 
-	return info.Size(), nil
-}
-
-func (s *fsJournal) rotate() (cid.Cid, error) {
 	// Calculate the CID of the current batch
-	f, err := os.Open(s.curBatchPath)
-	if err != nil {
-		return cid.Cid{}, fmt.Errorf("opening current batch file: %w", err)
-	}
-	defer f.Close()
-
 	hash := sha256.New()
-	if _, err := io.Copy(hash, f); err != nil {
+	n, err := io.Copy(hash, j.currBatch)
+	if err != nil {
 		return cid.Cid{}, fmt.Errorf("hashing batch file: %w", err)
+	}
+	if n != j.currSize {
+		return cid.Cid{}, fmt.Errorf("expected to copy %d bytes, but got %d", n, j.currSize)
+	}
+
+	// Close the current batch file
+	if err := j.currBatch.Close(); err != nil {
+		return cid.Cid{}, fmt.Errorf("closing current batch file: %w", err)
 	}
 
 	// error from Encode can be discarded, it's always nil
@@ -159,18 +191,23 @@ func (s *fsJournal) rotate() (cid.Cid, error) {
 	mh := multihash.Multihash(mhBytes)
 
 	batchCID := cid.NewCidV1(uint64(multicodec.Car), mh)
-	newPath := filepath.Join(s.basePath, batchFilePrefix+batchCID.String()+batchFileSuffix)
 
 	// Rename the file to include the CID
-	if err := os.Rename(s.curBatchPath, newPath); err != nil {
+	newPath := filepath.Join(j.basePath, batchFilePrefix+batchCID.String()+batchFileSuffix)
+	if err := os.Rename(j.currBatchPath, newPath); err != nil {
 		return cid.Cid{}, fmt.Errorf("renaming batch file: %w", err)
+	}
+
+	// Create a new current batch file
+	if err := j.newBatch(true); err != nil {
+		return cid.Cid{}, fmt.Errorf("creating new batch file: %w", err)
 	}
 
 	return batchCID, nil
 }
 
-func (s *fsJournal) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error) {
-	return os.Open(filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix))
+func (j *fsJournal) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error) {
+	return os.Open(filepath.Join(j.basePath, batchFilePrefix+cid.String()+batchFileSuffix))
 }
 
 func (s *fsJournal) List(ctx context.Context) ([]cid.Cid, error) {
@@ -216,4 +253,10 @@ func (s *fsJournal) Remove(ctx context.Context, cid cid.Cid) error {
 		return fmt.Errorf("removing batch file: %w", err)
 	}
 	return nil
+}
+
+func (j *fsJournal) Close() error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.currBatch.Close()
 }

@@ -84,10 +84,21 @@ func NewReceiptStore() (receiptstore.ReceiptStore, error) {
 	return receiptstore.NewDsReceiptStore(ds)
 }
 
-// TODO need an in-memory impl of the egress batch store...
-func NewRetrievalJournal() (retrievaljournal.Journal, error) {
-	tmpDir := filepath.Join(os.TempDir(), "piri-egress-batch-tmp")
-	return retrievaljournal.NewFSJournal(tmpDir, 0)
+// TODO need an in-memory impl of the retrieval journal...
+func NewRetrievalJournal(lc fx.Lifecycle) (retrievaljournal.Journal, error) {
+	tmpDir := filepath.Join(os.TempDir(), "piri-retrieval-journal-tmp")
+	rj, err := retrievaljournal.NewFSJournal(tmpDir, 0)
+	if err != nil {
+		return nil, fmt.Errorf("creating retrieval journal: %w", err)
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return rj.Close()
+		},
+	})
+
+	return rj, nil
 }
 
 func NewKeyStore() (keystore.KeyStore, error) {

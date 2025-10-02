@@ -204,12 +204,23 @@ func NewReceiptStore(cfg app.ReceiptStorageConfig, lc fx.Lifecycle) (receiptstor
 
 }
 
-func NewRetrievalJournal(cfg app.EgressTrackingStorageConfig) (retrievaljournal.Journal, error) {
+func NewRetrievalJournal(cfg app.EgressTrackingStorageConfig, lc fx.Lifecycle) (retrievaljournal.Journal, error) {
 	if cfg.Dir == "" {
-		return nil, fmt.Errorf("no data dir provided for egress batch store")
+		return nil, fmt.Errorf("no data dir provided for retrieval journal")
 	}
 
-	return retrievaljournal.NewFSJournal(cfg.Dir, cfg.MaxBatchSize)
+	rj, err := retrievaljournal.NewFSJournal(cfg.Dir, cfg.MaxBatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("creating retrieval journal: %w", err)
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return rj.Close()
+		},
+	})
+
+	return rj, nil
 }
 
 func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, error) {
