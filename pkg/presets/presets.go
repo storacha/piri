@@ -72,7 +72,7 @@ var (
 	warmStageIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.warm.storacha.network/claims"))
 	warmStageIndexingServiceDID = lo.Must(did.Parse("did:web:staging.indexer.warm.storacha.network"))
 
-	warmStageEgressTrackerServiceURL = lo.Must(url.Parse("https://staging.etracker.warm.storacha.network/track"))
+	warmStageEgressTrackerServiceURL = lo.Must(url.Parse("https://staging.etracker.warm.storacha.network"))
 	warmStageEgressTrackerServiceDID = lo.Must(did.Parse("did:web:staging.etracker.warm.storacha.network"))
 
 	warmStageUploadServiceURL = lo.Must(url.Parse("https://staging.up.warm.storacha.network"))
@@ -93,7 +93,7 @@ var (
 	stagingIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.storacha.network/claims"))
 	stagingIndexingServiceDID = lo.Must(did.Parse("did:web:staging.indexer.storacha.network"))
 
-	stagingEgressTrackerServiceURL = lo.Must(url.Parse("https://staging.etracker.storacha.network/track"))
+	stagingEgressTrackerServiceURL = lo.Must(url.Parse("https://staging.etracker.storacha.network"))
 	stagingEgressTrackerServiceDID = lo.Must(did.Parse("did:web:staging.etracker.storacha.network"))
 
 	stagingUploadServiceURL = lo.Must(url.Parse("https://staging.up.storacha.network"))
@@ -114,7 +114,7 @@ var (
 	prodIndexingServiceURL = lo.Must(url.Parse("https://indexer.storacha.network/claims"))
 	prodIndexingServiceDID = lo.Must(did.Parse("did:web:indexer.storacha.network"))
 
-	prodEgressTrackerServiceURL = lo.Must(url.Parse("https://etracker.storacha.network/track"))
+	prodEgressTrackerServiceURL = lo.Must(url.Parse("https://etracker.storacha.network"))
 	prodEgressTrackerServiceDID = lo.Must(did.Parse("did:web:etracker.storacha.network"))
 
 	prodUploadServiceURL = lo.Must(url.Parse("https://up.storacha.network"))
