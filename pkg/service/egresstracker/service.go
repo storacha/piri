@@ -1,4 +1,4 @@
-package egresstracking
+package egresstracker
 
 import (
 	"context"
@@ -23,17 +23,16 @@ import (
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
-// EgressTrackingService stores receipts from `space/content/retrieve` invocations and batches them.
-// When batches reaches a certain size, they are sent to the egress tracking service via
-// `space/egress/track` invocations.
-type EgressTrackingService struct {
+// Service stores receipts from `space/content/retrieve` invocations, batches them and sends
+// them to an egress tracking service via `space/egress/track` invocations.
+type Service struct {
 	id                  principal.Signer
 	egressTrackerDID    did.DID
 	egressTrackerProofs delegation.Proofs
 	egressTrackerConn   client.Connection
 	batchEndpoint       *url.URL
 	store               retrievaljournal.Journal
-	queue               EgressTrackingQueue
+	queue               EgressTrackerQueue
 }
 
 func New(
@@ -42,9 +41,9 @@ func New(
 	egressTrackerProofs delegation.Proofs,
 	batchEndpoint *url.URL,
 	store retrievaljournal.Journal,
-	queue EgressTrackingQueue,
-) (*EgressTrackingService, error) {
-	svc := &EgressTrackingService{
+	queue EgressTrackerQueue,
+) (*Service, error) {
+	svc := &Service{
 		id:                  id,
 		egressTrackerDID:    egressTrackerConn.ID().DID(),
 		egressTrackerProofs: egressTrackerProofs,
@@ -61,7 +60,7 @@ func New(
 	return svc, nil
 }
 
-func (s *EgressTrackingService) AddReceipt(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) error {
+func (s *Service) AddReceipt(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) error {
 	batchRotated, rotatedBatchCID, err := s.store.Append(ctx, rcpt)
 	if err != nil {
 		return fmt.Errorf("adding receipt to store: %w", err)
@@ -76,11 +75,11 @@ func (s *EgressTrackingService) AddReceipt(ctx context.Context, rcpt receipt.Rec
 	return nil
 }
 
-func (s *EgressTrackingService) enqueueEgressTrackTask(ctx context.Context, batchCID cid.Cid) error {
+func (s *Service) enqueueEgressTrackTask(ctx context.Context, batchCID cid.Cid) error {
 	return s.queue.Enqueue(ctx, batchCID)
 }
 
-func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Cid) error {
+func (s *Service) egressTrack(ctx context.Context, batchCID cid.Cid) error {
 	trackInv, err := egress.Track.Invoke(
 		s.id,
 		s.egressTrackerDID,

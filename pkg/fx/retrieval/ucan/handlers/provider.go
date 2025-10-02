@@ -13,7 +13,7 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanretrieval "github.com/storacha/go-ucanto/server/retrieval"
 
-	"github.com/storacha/piri/pkg/service/egresstracking"
+	"github.com/storacha/piri/pkg/service/egresstracker"
 	"github.com/storacha/piri/pkg/service/retrieval/ucan"
 )
 
@@ -46,9 +46,9 @@ func withErrorHandler() ucanretrieval.Option {
 	})
 }
 
-func withReceiptLogger(ets *egresstracking.EgressTrackingService) ucanretrieval.Option {
+func withReceiptLogger(ets *egresstracker.Service) ucanretrieval.Option {
 	return ucanretrieval.WithReceiptLogger(func(_ context.Context, rcpt receipt.AnyReceipt, inv invocation.Invocation) error {
-		// Egress Tracking is optional, the service will be nil if it is disabled
+		// Egress tracking is optional, the service will be nil if it is disabled
 		if ets == nil {
 			log.Warn("Egress tracking is not configured")
 			return nil

@@ -1,4 +1,4 @@
-package egresstracking
+package egresstracker
 
 import (
 	"context"
@@ -23,8 +23,8 @@ var log = logging.Logger("egresstracking")
 
 var Module = fx.Module("egresstracking",
 	fx.Provide(
-		ProvideEgressTrackingQueue,
-		NewService,
+		ProvideEgressTrackerQueue,
+		NewEgressTrackerService,
 		fx.Annotate(
 			NewServer,
 			fx.As(new(echofx.RouteRegistrar)),
@@ -39,7 +39,7 @@ type QueueParams struct {
 	DB *sql.DB `name:"egress_tracking_db"`
 }
 
-func ProvideEgressTrackingQueue(lc fx.Lifecycle, params QueueParams) (EgressTrackingQueue, error) {
+func ProvideEgressTrackerQueue(lc fx.Lifecycle, params QueueParams) (EgressTrackerQueue, error) {
 	// non-configurable defaults
 	maxRetries := uint(10)
 	maxWorkers := uint(runtime.NumCPU())
@@ -69,15 +69,15 @@ func ProvideEgressTrackingQueue(lc fx.Lifecycle, params QueueParams) (EgressTrac
 		},
 	})
 
-	return NewEgressTrackingQueue(queue), nil
+	return NewEgressTrackerQueue(queue), nil
 }
 
-func NewService(
+func NewEgressTrackerService(
 	id principal.Signer,
 	store retrievaljournal.Journal,
-	queue EgressTrackingQueue,
+	queue EgressTrackerQueue,
 	cfg app.AppConfig,
-) (*EgressTrackingService, error) {
+) (*Service, error) {
 	batchEndpoint := cfg.Server.PublicURL.JoinPath(ReceiptsPath + "/{cid}")
 	egressTrackerConn := cfg.UCANService.Services.EgressTracker.Connection
 	egressTrackerProofs := cfg.UCANService.Services.EgressTracker.Proofs

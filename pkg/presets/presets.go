@@ -9,14 +9,14 @@ import (
 )
 
 var (
-	IPNIAnnounceURLs         []url.URL
-	IndexingServiceDID       did.DID
-	IndexingServiceURL       *url.URL
-	EgressTrackingServiceDID did.DID
-	EgressTrackingServiceURL *url.URL
-	UploadServiceURL         *url.URL
-	UploadServiceDID         did.DID
-	PrincipalMapping         map[string]string
+	IPNIAnnounceURLs        []url.URL
+	IndexingServiceDID      did.DID
+	IndexingServiceURL      *url.URL
+	EgressTrackerServiceDID did.DID
+	EgressTrackerServiceURL *url.URL
+	UploadServiceURL        *url.URL
+	UploadServiceDID        did.DID
+	PrincipalMapping        map[string]string
 )
 
 var (
@@ -38,8 +38,8 @@ func init() {
 		IPNIAnnounceURLs = prodIPNIAnnounceURLs
 		IndexingServiceURL = prodIndexingServiceURL
 		IndexingServiceDID = prodIndexingServiceDID
-		EgressTrackingServiceURL = prodEgressTrackingServiceURL
-		EgressTrackingServiceDID = prodEgressTrackingServiceDID
+		EgressTrackerServiceURL = prodEgressTrackerServiceURL
+		EgressTrackerServiceDID = prodEgressTrackerServiceDID
 		UploadServiceURL = prodUploadServiceURL
 		UploadServiceDID = prodUploadServiceDID
 		PrincipalMapping = prodPrincipalMapping
@@ -47,8 +47,8 @@ func init() {
 		IPNIAnnounceURLs = stagingIPNIAnnounceURLs
 		IndexingServiceURL = stagingIndexingServiceURL
 		IndexingServiceDID = stagingIndexingServiceDID
-		EgressTrackingServiceURL = stagingEgressTrackingServiceURL
-		EgressTrackingServiceDID = stagingEgressTrackingServiceDID
+		EgressTrackerServiceURL = stagingEgressTrackerServiceURL
+		EgressTrackerServiceDID = stagingEgressTrackerServiceDID
 		UploadServiceURL = stagingUploadServiceURL
 		UploadServiceDID = stagingUploadServiceDID
 		PrincipalMapping = stagingPrincipalMapping
@@ -56,8 +56,8 @@ func init() {
 		IPNIAnnounceURLs = warmStageIPNIAnnounceURLs
 		IndexingServiceURL = warmStageIndexingServiceURL
 		IndexingServiceDID = warmStageIndexingServiceDID
-		EgressTrackingServiceURL = warmStageEgressTrackingServiceURL
-		EgressTrackingServiceDID = warmStageEgressTrackingServiceDID
+		EgressTrackerServiceURL = warmStageEgressTrackerServiceURL
+		EgressTrackerServiceDID = warmStageEgressTrackerServiceDID
 		UploadServiceURL = warmStageUploadServiceURL
 		UploadServiceDID = warmStageUploadServiceDID
 		PrincipalMapping = warmStagePrincipalMapping
@@ -72,16 +72,16 @@ var (
 	warmStageIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.warm.storacha.network/claims"))
 	warmStageIndexingServiceDID = lo.Must(did.Parse("did:web:staging.indexer.warm.storacha.network"))
 
-	warmStageEgressTrackingServiceURL = lo.Must(url.Parse("https://staging.etracker.warm.storacha.network/track"))
-	warmStageEgressTrackingServiceDID = lo.Must(did.Parse("did:web:staging.etracker.warm.storacha.network"))
+	warmStageEgressTrackerServiceURL = lo.Must(url.Parse("https://staging.etracker.warm.storacha.network/track"))
+	warmStageEgressTrackerServiceDID = lo.Must(did.Parse("did:web:staging.etracker.warm.storacha.network"))
 
 	warmStageUploadServiceURL = lo.Must(url.Parse("https://staging.up.warm.storacha.network"))
 	warmStageUploadServiceDID = lo.Must(did.Parse("did:web:staging.up.warm.storacha.network"))
 
 	warmStagePrincipalMapping = map[string]string{
-		warmStageUploadServiceDID.String():         "did:key:z6MkpR58oZpK7L3cdZZciKT25ynGro7RZm6boFouWQ7AzF7v",
-		warmStageIndexingServiceDID.String():       "did:key:z6Mkr4QkdinnXQmJ9JdnzwhcEjR8nMnuVPEwREyh9jp2Pb7k",
-		warmStageEgressTrackingServiceDID.String(): "did:key:z6Mkqv9fjGQpNKQdgUxkq2VYH2nKiKZiGPxbtYjhJBz8wfAn",
+		warmStageUploadServiceDID.String():        "did:key:z6MkpR58oZpK7L3cdZZciKT25ynGro7RZm6boFouWQ7AzF7v",
+		warmStageIndexingServiceDID.String():      "did:key:z6Mkr4QkdinnXQmJ9JdnzwhcEjR8nMnuVPEwREyh9jp2Pb7k",
+		warmStageEgressTrackerServiceDID.String(): "did:key:z6Mkqv9fjGQpNKQdgUxkq2VYH2nKiKZiGPxbtYjhJBz8wfAn",
 	}
 )
 
@@ -93,16 +93,16 @@ var (
 	stagingIndexingServiceURL = lo.Must(url.Parse("https://staging.indexer.storacha.network/claims"))
 	stagingIndexingServiceDID = lo.Must(did.Parse("did:web:staging.indexer.storacha.network"))
 
-	stagingEgressTrackingServiceURL = lo.Must(url.Parse("https://staging.etracker.storacha.network/track"))
-	stagingEgressTrackingServiceDID = lo.Must(did.Parse("did:web:staging.etracker.storacha.network"))
+	stagingEgressTrackerServiceURL = lo.Must(url.Parse("https://staging.etracker.storacha.network/track"))
+	stagingEgressTrackerServiceDID = lo.Must(did.Parse("did:web:staging.etracker.storacha.network"))
 
 	stagingUploadServiceURL = lo.Must(url.Parse("https://staging.up.storacha.network"))
 	stagingUploadServiceDID = lo.Must(did.Parse("did:web:staging.up.storacha.network"))
 
 	stagingPrincipalMapping = map[string]string{
-		stagingUploadServiceDID.String():         "did:key:z6MkhcbEpJpEvNVDd3n5RurquVdqs5dPU16JDU5VZTDtFgnn",
-		stagingIndexingServiceDID.String():       "did:key:z6MkszJLAZ1tCHUTfDMKj9srMYA9zzLiPeMXijvmeECUScTZ",
-		stagingEgressTrackingServiceDID.String(): "did:key:z6MkmSQ8ZZQffBaQo5mr3fArRsDxKPXyPQFroiB1H9EbAHod",
+		stagingUploadServiceDID.String():        "did:key:z6MkhcbEpJpEvNVDd3n5RurquVdqs5dPU16JDU5VZTDtFgnn",
+		stagingIndexingServiceDID.String():      "did:key:z6MkszJLAZ1tCHUTfDMKj9srMYA9zzLiPeMXijvmeECUScTZ",
+		stagingEgressTrackerServiceDID.String(): "did:key:z6MkmSQ8ZZQffBaQo5mr3fArRsDxKPXyPQFroiB1H9EbAHod",
 	}
 )
 
@@ -114,15 +114,15 @@ var (
 	prodIndexingServiceURL = lo.Must(url.Parse("https://indexer.storacha.network/claims"))
 	prodIndexingServiceDID = lo.Must(did.Parse("did:web:indexer.storacha.network"))
 
-	prodEgressTrackingServiceURL = lo.Must(url.Parse("https://etracker.storacha.network/track"))
-	prodEgressTrackingServiceDID = lo.Must(did.Parse("did:web:etracker.storacha.network"))
+	prodEgressTrackerServiceURL = lo.Must(url.Parse("https://etracker.storacha.network/track"))
+	prodEgressTrackerServiceDID = lo.Must(did.Parse("did:web:etracker.storacha.network"))
 
 	prodUploadServiceURL = lo.Must(url.Parse("https://up.storacha.network"))
 	prodUploadServiceDID = lo.Must(did.Parse("did:web:up.storacha.network"))
 
 	prodPrincipalMapping = map[string]string{
-		prodUploadServiceDID.String():         "did:key:z6MkqdncRZ1wj8zxCTDUQ8CRT8NQWd63T7mZRvZUX8B7XDFi",
-		prodIndexingServiceDID.String():       "did:key:z6MkqMSJxrjzvpqmP3kZhk7eCasBK6DX1jaVaG7wD72LYRm7",
-		prodEgressTrackingServiceDID.String(): "did:key:z6MkiVMkL8MSzqi3iqFj2AjofQfL8wH6p7AcB2w34mKbyWfF",
+		prodUploadServiceDID.String():        "did:key:z6MkqdncRZ1wj8zxCTDUQ8CRT8NQWd63T7mZRvZUX8B7XDFi",
+		prodIndexingServiceDID.String():      "did:key:z6MkqMSJxrjzvpqmP3kZhk7eCasBK6DX1jaVaG7wD72LYRm7",
+		prodEgressTrackerServiceDID.String(): "did:key:z6MkiVMkL8MSzqi3iqFj2AjofQfL8wH6p7AcB2w34mKbyWfF",
 	}
 )

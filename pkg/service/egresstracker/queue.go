@@ -1,4 +1,4 @@
-package egresstracking
+package egresstracker
 
 import (
 	"context"
@@ -7,20 +7,20 @@ import (
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 )
 
-type EgressTrackingQueue interface {
+type EgressTrackerQueue interface {
 	Register(fn func(ctx context.Context, batchCID cid.Cid) error) error
 	Enqueue(ctx context.Context, batchCID cid.Cid) error
 }
 
 const egressTrackTaskName = "egress-track-task"
 
-var _ EgressTrackingQueue = (*jobQueueAdapter)(nil)
+var _ EgressTrackerQueue = (*jobQueueAdapter)(nil)
 
 type jobQueueAdapter struct {
 	queue *jobqueue.JobQueue[cid.Cid]
 }
 
-func NewEgressTrackingQueue(queue *jobqueue.JobQueue[cid.Cid]) EgressTrackingQueue {
+func NewEgressTrackerQueue(queue *jobqueue.JobQueue[cid.Cid]) EgressTrackerQueue {
 	return &jobQueueAdapter{queue: queue}
 }
 

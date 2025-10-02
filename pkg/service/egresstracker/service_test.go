@@ -1,4 +1,4 @@
-package egresstracking
+package egresstracker
 
 import (
 	"context"

@@ -346,7 +346,7 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 				Indexer: config.IndexingServiceConfig{
 					Proof: indexerProof,
 				},
-				EgressTracker: config.EgressTrackingServiceConfig{
+				EgressTracker: config.EgressTrackerServiceConfig{
 					Proof: egressTrackerProof,
 				},
 			},
