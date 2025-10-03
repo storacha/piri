@@ -1,6 +1,7 @@
 package retrievaljournal
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/testutil"
@@ -227,5 +231,68 @@ func TestGetBatch(t *testing.T) {
 		require.NoError(t, err)
 
 		require.True(t, slices.Equal(readBytes, batchBytes))
+	})
+}
+
+func TestResumeAfterRestart(t *testing.T) {
+	t.Run("hash is computed correctly after restart", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create initial journal and append some receipts
+		journal1, err := NewFSJournal(tempDir, DefaultBatchSize)
+		require.NoError(t, err)
+
+		rcpt1 := createTestReceipt(t)
+		rcpt2 := createTestReceipt(t)
+
+		rotated, batch, err := journal1.Append(t.Context(), rcpt1)
+		require.NoError(t, err)
+		require.False(t, rotated)
+		require.Equal(t, cid.Undef, batch)
+
+		rotated, batch, err = journal1.Append(t.Context(), rcpt2)
+		require.NoError(t, err)
+		require.False(t, rotated)
+		require.Equal(t, cid.Undef, batch)
+
+		// Close the journal (simulating restart)
+		err = journal1.Close()
+		require.NoError(t, err)
+
+		// Reopen the journal (this should resume the existing batch)
+		journal2, err := NewFSJournal(tempDir, DefaultBatchSize)
+		require.NoError(t, err)
+
+		// Append another receipt then force rotation
+		rcpt3 := createTestReceipt(t)
+		rotated, batch, err = journal2.Append(t.Context(), rcpt3)
+		require.NoError(t, err)
+		require.False(t, rotated)
+		require.Equal(t, cid.Undef, batch)
+
+		// Force rotation to get the batch CID
+		rotatedBatchCID, err := journal2.rotate()
+		require.NoError(t, err)
+
+		// Use GetBatch to retrieve the batch
+		batchReader, err := journal2.GetBatch(t.Context(), rotatedBatchCID)
+		require.NoError(t, err)
+		defer batchReader.Close()
+
+		batchData, err := io.ReadAll(batchReader)
+		require.NoError(t, err)
+
+		// Compute the expected CID from the actual file contents
+		expectedHash := sha256.Sum256(batchData)
+		expectedMhBytes, _ := multihash.Encode(expectedHash[:], multihash.SHA2_256)
+		expectedMh := multihash.Multihash(expectedMhBytes)
+		expectedCID := cid.NewCidV1(uint64(multicodec.Car), expectedMh)
+
+		// The rotated batch CID should match the hash of the entire file
+		require.Equal(t, expectedCID.String(), rotatedBatchCID.String(),
+			"batch CID should be the hash of the entire file, including data written before restart")
+
+		err = journal2.Close()
+		require.NoError(t, err)
 	})
 }
