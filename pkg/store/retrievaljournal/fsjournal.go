@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"iter"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-car"
 	carutil "github.com/ipld/go-car/util"
 	"github.com/multiformats/go-multicodec"
@@ -19,6 +22,8 @@ import (
 	"github.com/storacha/go-ucanto/core/receipt"
 	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 )
+
+var log = logging.Logger("retrievaljournal")
 
 const (
 	// DefaultBatchSize is the default maximum size of a receipt batch in bytes.
@@ -193,6 +198,52 @@ func (j *fsJournal) rotate() (cid.Cid, error) {
 
 func (j *fsJournal) GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error) {
 	return os.Open(filepath.Join(j.basePath, batchFilePrefix+cid.String()+batchFileSuffix))
+}
+
+func (s *fsJournal) List(ctx context.Context) (iter.Seq[cid.Cid], error) {
+	entries, err := os.ReadDir(s.basePath)
+	if err != nil {
+		return nil, fmt.Errorf("reading batch entries: %w", err)
+	}
+
+	return func(yield func(cid.Cid) bool) {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+
+			name := entry.Name()
+			// Skip the current batch file
+			if name == currentBatchName {
+				continue
+			}
+
+			// Check if the file has the correct prefix and suffix
+			if !strings.HasPrefix(name, batchFilePrefix) || !strings.HasSuffix(name, batchFileSuffix) {
+				continue
+			}
+
+			// Extract the CID from the filename
+			cidStr := name[len(batchFilePrefix) : len(name)-len(batchFileSuffix)]
+			c, err := cid.Decode(cidStr)
+			if err != nil {
+				log.Warnf("skipping file with invalid CID in name: %s: %v", name, err)
+				continue
+			}
+
+			if !yield(c) {
+				return
+			}
+		}
+	}, nil
+}
+
+func (s *fsJournal) Remove(ctx context.Context, cid cid.Cid) error {
+	path := filepath.Join(s.basePath, batchFilePrefix+cid.String()+batchFileSuffix)
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("removing batch file: %w", err)
+	}
+	return nil
 }
 
 func (j *fsJournal) Close() error {

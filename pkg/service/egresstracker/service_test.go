@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	dssync "github.com/ipfs/go-datastore/sync"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/capabilities/space/egress"
@@ -27,6 +29,8 @@ import (
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/piri/pkg/client/receipts"
+	"github.com/storacha/piri/pkg/store/consolidationstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/stretchr/testify/require"
 )
@@ -70,6 +74,14 @@ func TestAddReceipt(t *testing.T) {
 		require.NoError(t, err)
 		queue := NewMockEgressTrackerQueue(t)
 
+		// Create consolidation store (in-memory for tests)
+		consolidationStore := consolidationstore.New(dssync.MutexWrap(datastore.NewMapDatastore()))
+
+		// Create receipts endpoint (dummy for tests)
+		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
+		rcptsClient := receipts.NewClient(receiptsEndpoint)
+		require.NoError(t, err)
+
 		// Create service
 		service, err := New(
 			thisNode,
@@ -77,7 +89,10 @@ func TestAddReceipt(t *testing.T) {
 			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
 			batchEndpoint,
 			journal,
+			consolidationStore,
 			queue,
+			rcptsClient,
+			0, // cleanup disabled for tests
 		)
 		require.NoError(t, err)
 
@@ -93,6 +108,54 @@ func TestAddReceipt(t *testing.T) {
 		require.Len(t, mockServer.BatchCIDs(), 1, "expected one batch CID")
 
 		mockServer.Reset()
+	})
+
+	t.Run("concurrent addition", func(t *testing.T) {
+		tempDir := t.TempDir()
+		journal, err := retrievaljournal.NewFSJournal(tempDir, 1024)
+		require.NoError(t, err)
+		queue := NewMockEgressTrackerQueue(t)
+
+		// Create consolidation store (in-memory for tests)
+		consolidationStore := consolidationstore.New(dssync.MutexWrap(datastore.NewMapDatastore()))
+
+		// Create receipts endpoint (dummy for tests)
+		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
+		rcptsClient := receipts.NewClient(receiptsEndpoint)
+		require.NoError(t, err)
+
+		// Create service
+		service, err := New(
+			thisNode,
+			eTrackerConn,
+			delegation.Proofs{delegation.FromDelegation(eTrackerDlg)},
+			batchEndpoint,
+			journal,
+			consolidationStore,
+			queue,
+			rcptsClient,
+			0, // cleanup disabled for tests
+		)
+		require.NoError(t, err)
+
+		var wg sync.WaitGroup
+		numReceipts := 10
+
+		// Create multiple goroutines to add receipts concurrently
+		for range numReceipts {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rcpt := createTestReceipt(t, testutil.Alice, thisNode)
+				err := service.AddReceipt(t.Context(), rcpt)
+				require.NoError(t, err)
+			}()
+		}
+
+		wg.Wait()
+
+		// Verify the egress tracker was invoked
+		require.True(t, len(mockServer.Invocations()) > 0, "no egress track invocations sent")
 	})
 }
 
@@ -215,7 +278,23 @@ func (m *MockEgressTrackerServer) egressTrack() ucanserver.Option {
 				m.invocations = append(m.invocations, inv)
 				m.batchCIDs = append(m.batchCIDs, cap.Nb().Receipts.(cidlink.Link).Cid)
 
-				return result.Ok[egress.TrackOk, failure.IPLDBuilderFailure](egress.TrackOk{}), nil, nil
+				// produce space/egress/consolidate effect by invoking on the service itself
+				consolidateInv, err := egress.Consolidate.Invoke(
+					testutil.Service,
+					testutil.Service,
+					testutil.Service.DID().String(),
+					egress.ConsolidateCaveats{
+						Cause: inv.Link(),
+					},
+					delegation.WithNoExpiration(),
+				)
+				if err != nil {
+					return result.Error[egress.TrackOk, failure.IPLDBuilderFailure](egress.NewTrackError(err.Error())), nil, nil
+				}
+
+				effects := fx.NewEffects(fx.WithFork(fx.FromInvocation(consolidateInv)))
+
+				return result.Ok[egress.TrackOk, failure.IPLDBuilderFailure](egress.TrackOk{}), effects, nil
 			},
 		),
 	)

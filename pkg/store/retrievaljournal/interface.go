@@ -3,6 +3,7 @@ package retrievaljournal
 import (
 	"context"
 	"io"
+	"iter"
 
 	"github.com/ipfs/go-cid"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
@@ -20,4 +21,10 @@ type Journal interface {
 
 	// GetBatch returns a batch of receipts by its CID.
 	GetBatch(ctx context.Context, cid cid.Cid) (reader io.ReadCloser, err error)
+
+	// List returns the CIDs of all rotated batches.
+	List(ctx context.Context) (iter.Seq[cid.Cid], error)
+
+	// Remove removes a batch by its CID.
+	Remove(ctx context.Context, cid cid.Cid) error
 }

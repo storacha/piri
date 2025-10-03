@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/url"
+	"time"
 
 	"github.com/multiformats/go-multiaddr"
 	"github.com/storacha/go-ucanto/client"
@@ -25,8 +26,10 @@ type IndexingServiceConfig struct {
 }
 
 type EgressTrackerServiceConfig struct {
-	Connection client.Connection
-	Proofs     delegation.Proofs
+	Connection           client.Connection
+	Proofs               delegation.Proofs
+	ReceiptsEndpoint     *url.URL
+	CleanupCheckInterval time.Duration
 }
 
 type UploadServiceConfig struct {
