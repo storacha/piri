@@ -232,6 +232,44 @@ func (c *Client) GetProofSet(ctx context.Context, proofSetID uint64) (*types.Pro
 	return out, nil
 }
 
+func (c *Client) GetProofSetState(ctx context.Context, proofSetID uint64) (*types.ProofSetState, error) {
+	if !c.isPiriServer() {
+		return nil, fmt.Errorf("pdp server does not support GetProofSetState")
+	}
+	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, "/", strconv.FormatUint(proofSetID, 10), "state").String()
+	var state httpapi.GetProofSetStateResponse
+	err := c.getJsonResponse(ctx, route, &state)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get proof-set: %w", err)
+	}
+
+	return &types.ProofSetState{
+		ID:                     state.ID,
+		Initialized:            state.Initialized,
+		NextChallengeEpoch:     state.NextChallengeEpoch,
+		PreviousChallengeEpoch: state.PreviousChallengeEpoch,
+		ProvingPeriod:          state.ProvingPeriod,
+		ChallengeWindow:        state.ChallengeWindow,
+		CurrentEpoch:           state.CurrentEpoch,
+		ChallengedIssued:       state.ChallengedIssued,
+		InChallengeWindow:      state.InChallengeWindow,
+		IsInFaultState:         state.IsInFaultState,
+		HasProven:              state.HasProven,
+		IsProving:              state.IsProving,
+		ContractState: types.ProofSetContractState{
+			Owners:                   state.ContractState.Owners,
+			NextChallengeWindowStart: state.ContractState.NextChallengeWindowStart,
+			NextChallengeEpoch:       state.ContractState.NextChallengeEpoch,
+			MaxProvingPeriod:         state.ContractState.MaxProvingPeriod,
+			ChallengeWindow:          state.ContractState.ChallengeWindow,
+			ChallengeRange:           state.ContractState.ChallengeRange,
+			ScheduledRemovals:        state.ContractState.ScheduledRemovals,
+			ProofFee:                 state.ContractState.ProofFee,
+			ProofFeeBuffered:         state.ContractState.ProofFeeBuffered,
+		},
+	}, nil
+}
+
 func (c *Client) ListProofSet(ctx context.Context) ([]types.ProofSet, error) {
 	if !c.isPiriServer() {
 		return nil, fmt.Errorf("method requires piri server implementation: unsupported method")
@@ -556,7 +594,7 @@ func (c *Client) sendRequest(ctx context.Context, method string, url string, bod
 	if err != nil {
 		return nil, fmt.Errorf("sending request to pdp server: %w", err)
 	}
-	log.Infof("sent request [%s]: %s response %s", method, url, res.Status)
+	log.Debugf("sent request [%s]: %s response %s", method, url, res.Status)
 	return res, nil
 }
 

@@ -1,10 +1,11 @@
-package initalize
+package setup
 
 import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strings"
@@ -410,7 +411,26 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	}
 
 	cmd.PrintErrln("\n🎉 Initialization complete! Your configuration:")
-	cmd.Print(string(cfgData))
+
+	// Write to both stdout and file using TeeWriter
+	configFile, err := os.Create(PiriConfigFileName)
+	if err != nil {
+		// If we can't create the file, just write to stdout
+		cmd.PrintErrf("Warning: Failed to create %s: %v\n", PiriConfigFileName, err)
+		cmd.Print(string(cfgData))
+		return nil
+	}
+	defer configFile.Close()
+
+	// Use TeeWriter to write to both stdout and file
+	teeWriter := io.MultiWriter(cmd.OutOrStdout(), configFile)
+	if _, err := teeWriter.Write(cfgData); err != nil {
+		cmd.PrintErrf("Error writing configuration: %v\n", err)
+	}
+
+	cmd.PrintErrf("\nConfiguration saved to: %s\n", PiriConfigFileName)
+	cmd.PrintErrln("To install Piri as a system service, run:")
+	cmd.PrintErrf("   sudo piri install --config %s\n", PiriConfigFileName)
 
 	return nil
 }

@@ -124,7 +124,7 @@ func ProvideReceiptsClient(lc fx.Lifecycle, cfg app.AppConfig) *receipts.Client 
 func NewEgressTrackerService(
 	lc fx.Lifecycle,
 	id principal.Signer,
-	store retrievaljournal.Journal,
+	journal retrievaljournal.Journal,
 	consolidationStore consolidationstore.Store,
 	queue EgressTrackerQueue,
 	rcptsClient *receipts.Client,
@@ -152,7 +152,7 @@ func NewEgressTrackerService(
 		egressTrackerConn,
 		egressTrackerProofs,
 		batchEndpoint,
-		store,
+		journal,
 		consolidationStore,
 		queue,
 		rcptsClient,
