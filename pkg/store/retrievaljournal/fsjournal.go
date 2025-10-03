@@ -41,6 +41,7 @@ type fsJournal struct {
 	currBatch     *os.File
 	currSize      int64
 	currHash      hash.Hash
+	multiw        io.Writer
 	maxBatchSize  int64
 }
 
@@ -83,6 +84,11 @@ func (j *fsJournal) newBatch(truncate bool) error {
 		return err
 	}
 
+	j.currHash = sha256.New()
+
+	// Use a multiwriter to write to both the file and the hash at the same time.
+	j.multiw = io.MultiWriter(j.currBatch, j.currHash)
+
 	if truncate {
 		j.currSize = 0
 	} else {
@@ -97,7 +103,7 @@ func (j *fsJournal) newBatch(truncate bool) error {
 	if j.currSize == 0 {
 		// Write the CAR header if the file is new or truncated
 		hdr := &car.CarHeader{Roots: []cid.Cid{}, Version: 1}
-		if err := car.WriteHeader(hdr, j.currBatch); err != nil {
+		if err := car.WriteHeader(hdr, j.multiw); err != nil {
 			return err
 		}
 
@@ -107,35 +113,6 @@ func (j *fsJournal) newBatch(truncate bool) error {
 		}
 
 		j.currSize = int64(hdrSize)
-	}
-
-	j.currHash = sha256.New()
-	if err := j.addLastBytesToHash(j.currSize); err != nil {
-		return fmt.Errorf("adding existing bytes to hash: %w", err)
-	}
-
-	return nil
-}
-
-func (j *fsJournal) addLastBytesToHash(numBytes int64) error {
-	if numBytes <= 0 || numBytes > j.currSize {
-		return fmt.Errorf("invalid number of bytes to hash: %d", numBytes)
-	}
-
-	off, err := j.currBatch.Seek(-numBytes, io.SeekEnd)
-	if err != nil {
-		return fmt.Errorf("rewinding batch file: %w", err)
-	}
-	if off != j.currSize-numBytes {
-		return fmt.Errorf("expected to seek to %d, but got %d", j.currSize-numBytes, off)
-	}
-
-	n, err := io.Copy(j.currHash, j.currBatch)
-	if err != nil {
-		return fmt.Errorf("adding bytes to the hash: %w", err)
-	}
-	if n != numBytes {
-		return fmt.Errorf("expected to copy %d bytes, but got %d", n, numBytes)
 	}
 
 	return nil
@@ -153,8 +130,8 @@ func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 	}
 
 	archiveCID, err := cid.V1Builder{
-		Codec:    uint64(multicodec.Car),
-		MhType:   uint64(multihash.SHA2_256),
+		Codec:  uint64(multicodec.Car),
+		MhType: uint64(multihash.SHA2_256),
 	}.Sum(archiveBytes)
 	if err != nil {
 		return false, cid.Cid{}, fmt.Errorf("creating receipt archive CID: %w", err)
@@ -167,17 +144,12 @@ func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 	defer j.mu.Unlock()
 
 	// append a line in the car file, this is what `Put` is doing internally, but less complicated.
-	if err := carutil.LdWrite(j.currBatch, cidBytes, archiveBytes); err != nil {
+	if err := carutil.LdWrite(j.multiw, cidBytes, archiveBytes); err != nil {
 		return false, cid.Cid{}, err
 	}
 	// record the size of the data written
 	blockSize := int64(carutil.LdSize(cidBytes, archiveBytes))
 	j.currSize += blockSize
-
-	// add to the hash the bytes just written
-	if err := j.addLastBytesToHash(blockSize); err != nil {
-		return false, cid.Cid{}, fmt.Errorf("adding last bytes to hash: %w", err)
-	}
 
 	// rotate the batch if it exceeds the size limit
 	if j.currSize >= j.maxBatchSize {
