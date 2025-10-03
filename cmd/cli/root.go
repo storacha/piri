@@ -13,13 +13,13 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/storacha/piri/cmd/cli/setup"
 
 	"github.com/storacha/piri/cmd/cli/client"
 	"github.com/storacha/piri/cmd/cli/delegate"
 	"github.com/storacha/piri/cmd/cli/identity"
-	"github.com/storacha/piri/cmd/cli/initalize"
 	"github.com/storacha/piri/cmd/cli/serve"
-	"github.com/storacha/piri/cmd/cli/update"
+	"github.com/storacha/piri/cmd/cli/status"
 	"github.com/storacha/piri/cmd/cli/wallet"
 	"github.com/storacha/piri/pkg/build"
 	"github.com/storacha/piri/pkg/telemetry"
@@ -78,9 +78,14 @@ func init() {
 	rootCmd.AddCommand(wallet.Cmd)
 	rootCmd.AddCommand(identity.Cmd)
 	rootCmd.AddCommand(delegate.Cmd)
-	rootCmd.AddCommand(initalize.InitCmd)
 	rootCmd.AddCommand(client.Cmd)
-	rootCmd.AddCommand(update.Cmd)
+	rootCmd.AddCommand(status.Cmd)
+
+	rootCmd.AddCommand(setup.InitCmd)
+	rootCmd.AddCommand(setup.InstallCmd)
+	rootCmd.AddCommand(setup.UninstallCmd)
+	rootCmd.AddCommand(setup.UpdateCmd)
+	rootCmd.AddCommand(setup.InternalUpdateCmd)
 
 }
 
@@ -102,6 +107,13 @@ func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 		cobra.CheckErr(viper.ReadInConfig())
+	} else {
+		// otherwise look for piri-config.toml in current directory
+		viper.SetConfigName("piri-config")
+		viper.SetConfigType("toml")
+		viper.AddConfigPath(".")
+		// Don't error if config file is not found - it's optional
+		_ = viper.ReadInConfig()
 	}
 }
 
