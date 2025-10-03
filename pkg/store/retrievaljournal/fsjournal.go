@@ -158,8 +158,8 @@ func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 	}
 
 	archiveCID, err := cid.V1Builder{
-		Codec:    uint64(multicodec.Car),
-		MhType:   uint64(multihash.SHA2_256),
+		Codec:  uint64(multicodec.Car),
+		MhType: uint64(multihash.SHA2_256),
 	}.Sum(archiveBytes)
 	if err != nil {
 		return false, cid.Cid{}, fmt.Errorf("creating receipt archive CID: %w", err)
