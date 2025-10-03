@@ -103,6 +103,17 @@ func (j *fsJournal) newBatch(truncate bool) error {
 		}
 
 		j.currSize = info.Size()
+
+		// If the file has existing content, hash it to ensure the final hash
+		// includes all data, not just what we append in this session
+		if j.currSize > 0 {
+			if _, err := j.currBatch.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+			if _, err := io.Copy(j.currHash, j.currBatch); err != nil {
+				return err
+			}
+		}
 	}
 
 	if j.currSize == 0 {
