@@ -277,7 +277,23 @@ func (m *MockEgressTrackerServer) egressTrack() ucanserver.Option {
 				m.invocations = append(m.invocations, inv)
 				m.batchCIDs = append(m.batchCIDs, cap.Nb().Receipts.(cidlink.Link).Cid)
 
-				return result.Ok[egress.TrackOk, failure.IPLDBuilderFailure](egress.TrackOk{}), nil, nil
+				// produce space/egress/consolidate effect by invoking on the service itself
+				consolidateInv, err := egress.Consolidate.Invoke(
+					testutil.Service,
+					testutil.Service,
+					testutil.Service.DID().String(),
+					egress.ConsolidateCaveats{
+						Cause: inv.Link(),
+					},
+					delegation.WithNoExpiration(),
+				)
+				if err != nil {
+					return result.Error[egress.TrackOk, failure.IPLDBuilderFailure](egress.NewTrackError(err.Error())), nil, nil
+				}
+
+				effects := fx.NewEffects(fx.WithFork(fx.FromInvocation(consolidateInv)))
+
+				return result.Ok[egress.TrackOk, failure.IPLDBuilderFailure](egress.TrackOk{}), effects, nil
 			},
 		),
 	)
