@@ -19,9 +19,9 @@ import (
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
-var log = logging.Logger("egresstracking")
+var log = logging.Logger("egresstracker")
 
-var Module = fx.Module("egresstracking",
+var Module = fx.Module("egresstracker",
 	fx.Provide(
 		ProvideEgressTrackerQueue,
 		NewEgressTrackerService,
@@ -36,7 +36,7 @@ var Module = fx.Module("egresstracking",
 type QueueParams struct {
 	fx.In
 
-	DB *sql.DB `name:"egress_tracking_db"`
+	DB *sql.DB `name:"egress_tracker_db"`
 }
 
 func ProvideEgressTrackerQueue(lc fx.Lifecycle, params QueueParams) (EgressTrackerQueue, error) {
@@ -46,16 +46,16 @@ func ProvideEgressTrackerQueue(lc fx.Lifecycle, params QueueParams) (EgressTrack
 	maxTimeout := 5 * time.Second
 
 	queue, err := jobqueue.New(
-		"egress-tracking",
+		"egress-tracker",
 		params.DB,
 		&serializer.JSON[cid.Cid]{},
-		jobqueue.WithLogger(log.With("queue", "egress-tracking")),
+		jobqueue.WithLogger(log.With("queue", "egress-tracker")),
 		jobqueue.WithMaxRetries(maxRetries),
 		jobqueue.WithMaxWorkers(maxWorkers),
 		jobqueue.WithMaxTimeout(maxTimeout),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("creating egress-tracking queue: %w", err)
+		return nil, fmt.Errorf("creating egress-tracker queue: %w", err)
 	}
 
 	queueCtx, cancel := context.WithCancel(context.Background())
