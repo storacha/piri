@@ -11,6 +11,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	dssync "github.com/ipfs/go-datastore/sync"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/capabilities/space/egress"
@@ -74,7 +75,7 @@ func TestAddReceipt(t *testing.T) {
 		queue := NewMockEgressTrackerQueue(t)
 
 		// Create consolidation store (in-memory for tests)
-		consolidationStore := consolidationstore.New(datastore.NewMapDatastore())
+		consolidationStore := consolidationstore.New(dssync.MutexWrap(datastore.NewMapDatastore()))
 
 		// Create receipts endpoint (dummy for tests)
 		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
@@ -116,7 +117,7 @@ func TestAddReceipt(t *testing.T) {
 		queue := NewMockEgressTrackerQueue(t)
 
 		// Create consolidation store (in-memory for tests)
-		consolidationStore := consolidationstore.New(datastore.NewMapDatastore())
+		consolidationStore := consolidationstore.New(dssync.MutexWrap(datastore.NewMapDatastore()))
 
 		// Create receipts endpoint (dummy for tests)
 		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")

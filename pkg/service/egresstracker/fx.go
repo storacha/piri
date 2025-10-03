@@ -10,6 +10,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	dssync "github.com/ipfs/go-datastore/sync"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-ucanto/principal"
@@ -89,7 +90,7 @@ func ProvideConsolidationStore(lc fx.Lifecycle, cfg app.AppConfig) (consolidatio
 	if baseDir == "" {
 		// Use memory-based store
 		log.Info("using memory-based consolidation store")
-		ds = datastore.NewMapDatastore()
+		ds = dssync.MutexWrap(datastore.NewMapDatastore())
 	} else {
 		// Use leveldb
 		dsPath := filepath.Join(baseDir, "consolidation")
