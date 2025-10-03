@@ -98,12 +98,12 @@ func init() {
 	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.url", FullCmd.Flags().Lookup("egress-tracker-service-url")))
 
 	FullCmd.Flags().String(
-		"egress-tracking-service-receipts-endpoint",
-		presets.EgressTrackingServiceURL.JoinPath("/receipts").String(),
-		"URL of the egress tracking service receipts endpoint",
+		"egress-tracker-service-receipts-endpoint",
+		presets.EgressTrackerServiceURL.JoinPath("/receipts").String(),
+		"URL of the egress tracker service receipts endpoint",
 	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracking-service-receipts-endpoint"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.receipts_endpoint", FullCmd.Flags().Lookup("egress-tracking-service-receipts-endpoint")))
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-receipts-endpoint"))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.receipts_endpoint", FullCmd.Flags().Lookup("egress-tracker-service-receipts-endpoint")))
 
 	FullCmd.Flags().String(
 		"upload-service-did",

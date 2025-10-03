@@ -71,7 +71,7 @@ func TestAddReceipt(t *testing.T) {
 		tempDir := t.TempDir()
 		journal, err := retrievaljournal.NewFSJournal(tempDir, 100) // 100 bytes batch size
 		require.NoError(t, err)
-		queue := NewMockEgressTrackingQueue(t)
+		queue := NewMockEgressTrackerQueue(t)
 
 		// Create consolidation store (in-memory for tests)
 		consolidationStore := consolidationstore.New(datastore.NewMapDatastore())
@@ -113,7 +113,7 @@ func TestAddReceipt(t *testing.T) {
 		tempDir := t.TempDir()
 		journal, err := retrievaljournal.NewFSJournal(tempDir, 1024)
 		require.NoError(t, err)
-		queue := NewMockEgressTrackingQueue(t)
+		queue := NewMockEgressTrackerQueue(t)
 
 		// Create consolidation store (in-memory for tests)
 		consolidationStore := consolidationstore.New(datastore.NewMapDatastore())
@@ -191,21 +191,21 @@ func createTestReceipt(t *testing.T, client ucan.Signer, node ucan.Signer) recei
 	return retrieveRcpt
 }
 
-type MockEgressTrackingQueue struct {
+type MockEgressTrackerQueue struct {
 	t  *testing.T
 	fn func(ctx context.Context, batchCID cid.Cid) error
 }
 
-func NewMockEgressTrackingQueue(t *testing.T) *MockEgressTrackingQueue {
-	return &MockEgressTrackingQueue{t: t}
+func NewMockEgressTrackerQueue(t *testing.T) *MockEgressTrackerQueue {
+	return &MockEgressTrackerQueue{t: t}
 }
 
-func (m *MockEgressTrackingQueue) Register(fn func(ctx context.Context, batchCID cid.Cid) error) error {
+func (m *MockEgressTrackerQueue) Register(fn func(ctx context.Context, batchCID cid.Cid) error) error {
 	m.fn = fn
 	return nil
 }
 
-func (m *MockEgressTrackingQueue) Enqueue(ctx context.Context, batchCID cid.Cid) error {
+func (m *MockEgressTrackerQueue) Enqueue(ctx context.Context, batchCID cid.Cid) error {
 	if m.fn == nil {
 		m.t.Fatal("no enqueue function registered")
 	}
