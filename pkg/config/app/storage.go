@@ -12,7 +12,7 @@ type StorageConfig struct {
 	Claims           ClaimStorageConfig
 	Publisher        PublisherStorageConfig
 	Receipts         ReceiptStorageConfig
-	EgressTracking   EgressTrackingStorageConfig
+	EgressTracker    EgressTrackerStorageConfig
 	Allocations      AllocationStorageConfig
 	Replicator       ReplicatorStorageConfig
 	KeyStore         KeyStoreConfig
@@ -48,8 +48,8 @@ type ReceiptStorageConfig struct {
 	Dir string
 }
 
-// EgressTrackingStorageConfig contains egress tracking store-specific storage paths
-type EgressTrackingStorageConfig struct {
+// EgressTrackerStorageConfig contains egress tracker store-specific storage paths
+type EgressTrackerStorageConfig struct {
 	Dir          string
 	MaxBatchSize int64
 	DBPath       string

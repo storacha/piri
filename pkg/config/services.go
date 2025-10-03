@@ -18,10 +18,10 @@ import (
 type ServicesConfig struct {
 	ServicePrincipalMapping map[string]string `mapstructure:"principal_mapping" flag:"service-principal-mapping" toml:"principal_mapping,omitempty"`
 
-	Indexer       IndexingServiceConfig       `mapstructure:"indexer" validate:"required" toml:"indexer,omitempty"`
-	EgressTracker EgressTrackingServiceConfig `mapstructure:"etracker" toml:"etracker,omitempty"`
-	Upload        UploadServiceConfig         `mapstructure:"upload" validate:"required" toml:"upload,omitempty"`
-	Publisher     PublisherServiceConfig      `mapstructure:"publisher" validate:"required" toml:"publisher,omitempty"`
+	Indexer       IndexingServiceConfig      `mapstructure:"indexer" validate:"required" toml:"indexer,omitempty"`
+	EgressTracker EgressTrackerServiceConfig `mapstructure:"etracker" toml:"etracker,omitempty"`
+	Upload        UploadServiceConfig        `mapstructure:"upload" validate:"required" toml:"upload,omitempty"`
+	Publisher     PublisherServiceConfig     `mapstructure:"publisher" validate:"required" toml:"publisher,omitempty"`
 }
 
 func (s ServicesConfig) Validate() error {
@@ -44,7 +44,7 @@ func (s ServicesConfig) ToAppConfig(publicURL url.URL) (app.ExternalServicesConf
 	}
 	out.EgressTracker, err = s.EgressTracker.ToAppConfig()
 	if err != nil {
-		return app.ExternalServicesConfig{}, fmt.Errorf("creating egress tracking service app config: %w", err)
+		return app.ExternalServicesConfig{}, fmt.Errorf("creating egress tracker service app config: %w", err)
 	}
 
 	out.Publisher, err = s.Publisher.ToAppConfig(publicURL)
@@ -107,64 +107,64 @@ func (s *IndexingServiceConfig) ToAppConfig() (app.IndexingServiceConfig, error)
 	return out, nil
 }
 
-type EgressTrackingServiceConfig struct {
-	DID              string `mapstructure:"did" flag:"egress-tracking-service-did" toml:"did,omitempty"`
-	URL              string `mapstructure:"url" flag:"egress-tracking-service-url" toml:"url,omitempty"`
-	ReceiptsEndpoint string `mapstructure:"receipts_endpoint" flag:"egress-tracking-service-receipts-endpoint" toml:"receipts_endpoint,omitempty"`
-	Proof            string `mapstructure:"proof" flag:"egress-tracking-service-proof" toml:"proof,omitempty"`
+type EgressTrackerServiceConfig struct {
+	DID              string `mapstructure:"did" flag:"egress-tracker-service-did" toml:"did,omitempty"`
+	URL              string `mapstructure:"url" flag:"egress-tracker-service-url" toml:"url,omitempty"`
+	ReceiptsEndpoint string `mapstructure:"receipts_endpoint" flag:"egress-tracker-service-receipts-endpoint" toml:"receipts_endpoint,omitempty"`
+	Proof            string `mapstructure:"proof" flag:"egress-tracker-service-proof" toml:"proof,omitempty"`
 }
 
-func (c *EgressTrackingServiceConfig) Validate() error {
+func (c *EgressTrackerServiceConfig) Validate() error {
 	return validateConfig(c)
 }
 
-func (c *EgressTrackingServiceConfig) ToAppConfig() (app.EgressTrackingServiceConfig, error) {
+func (c *EgressTrackerServiceConfig) ToAppConfig() (app.EgressTrackerServiceConfig, error) {
 	if c.DID == "" {
-		log.Warn("no egress tracking service DID provided, egress tracking is disabled")
-		return app.EgressTrackingServiceConfig{}, nil
+		log.Warn("no egress tracker service DID provided, egress tracker is disabled")
+		return app.EgressTrackerServiceConfig{}, nil
 	}
 
 	if c.URL == "" {
-		log.Warn("no egress tracking service URL provided, egress tracking is disabled")
-		return app.EgressTrackingServiceConfig{}, nil
+		log.Warn("no egress tracker service URL provided, egress tracker is disabled")
+		return app.EgressTrackerServiceConfig{}, nil
 	}
 
 	sdid, err := did.Parse(c.DID)
 	if err != nil {
-		return app.EgressTrackingServiceConfig{}, fmt.Errorf("parsing egress tracking service DID: %w", err)
+		return app.EgressTrackerServiceConfig{}, fmt.Errorf("parsing egress tracker service DID: %w", err)
 	}
 
 	surl, err := url.Parse(c.URL)
 	if err != nil {
-		return app.EgressTrackingServiceConfig{}, fmt.Errorf("parsing egress tracking service URL: %w", err)
+		return app.EgressTrackerServiceConfig{}, fmt.Errorf("parsing egress tracker service URL: %w", err)
 	}
 
 	schannel := ucanhttp.NewChannel(surl)
 	sconn, err := client.NewConnection(sdid, schannel)
 	if err != nil {
-		return app.EgressTrackingServiceConfig{}, fmt.Errorf("creating egress tracking service connection: %w", err)
+		return app.EgressTrackerServiceConfig{}, fmt.Errorf("creating egress tracker service connection: %w", err)
 	}
 
 	receiptsEndpoint, err := url.Parse(c.ReceiptsEndpoint)
 	if err != nil {
-		return app.EgressTrackingServiceConfig{}, fmt.Errorf("parsing egress tracking service receipts endpoint: %w", err)
+		return app.EgressTrackerServiceConfig{}, fmt.Errorf("parsing egress tracker service receipts endpoint: %w", err)
 	}
 
-	out := app.EgressTrackingServiceConfig{
+	out := app.EgressTrackerServiceConfig{
 		Connection:           sconn,
 		ReceiptsEndpoint:     receiptsEndpoint,
 		CleanupCheckInterval: 1 * time.Hour,
 	}
 
-	// Parse egress tracking service proofs if provided
+	// Parse egress tracker service proofs if provided
 	if c.Proof != "" {
 		dlg, err := delegation.Parse(c.Proof)
 		if err != nil {
-			return app.EgressTrackingServiceConfig{}, fmt.Errorf("parsing egress tracking service proof: %w", err)
+			return app.EgressTrackerServiceConfig{}, fmt.Errorf("parsing egress tracker service proof: %w", err)
 		}
 		out.Proofs = delegation.Proofs{delegation.FromDelegation(dlg)}
 	} else {
-		log.Warn("no egress tracking service proof provided, egress tracking will likely fail, please provide egress tracking proof")
+		log.Warn("no egress tracker service proof provided, egress tracking is disabled")
 	}
 
 	return out, nil

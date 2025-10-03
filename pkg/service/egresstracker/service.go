@@ -1,4 +1,4 @@
-package egresstracking
+package egresstracker
 
 import (
 	"context"
@@ -27,17 +27,16 @@ import (
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
-// EgressTrackingService stores receipts from `space/content/retrieve` invocations and batches them.
-// When batches reaches a certain size, they are sent to the egress tracking service via
-// `space/egress/track` invocations.
-type EgressTrackingService struct {
+// Service stores receipts from `space/content/retrieve` invocations, batches them and sends
+// them to an egress tracking service via `space/egress/track` invocations.
+type Service struct {
 	id                   principal.Signer
 	egressTrackerDID     did.DID
 	egressTrackerProofs  delegation.Proofs
 	egressTrackerConn    client.Connection
 	batchEndpoint        *url.URL
 	journal              retrievaljournal.Journal
-	queue                EgressTrackingQueue
+	queue                EgressTrackerQueue
 	consolidationStore   consolidationstore.Store
 	rcptsClient          *receipts.Client
 	cleanupCheckInterval time.Duration
@@ -52,11 +51,11 @@ func New(
 	batchEndpoint *url.URL,
 	store retrievaljournal.Journal,
 	consolidationStore consolidationstore.Store,
-	queue EgressTrackingQueue,
+	queue EgressTrackerQueue,
 	rcptsClient *receipts.Client,
 	cleanupCheckInterval time.Duration,
-) (*EgressTrackingService, error) {
-	svc := &EgressTrackingService{
+) (*Service, error) {
+	svc := &Service{
 		id:                   id,
 		egressTrackerDID:     egressTrackerConn.ID().DID(),
 		egressTrackerProofs:  egressTrackerProofs,
@@ -77,7 +76,7 @@ func New(
 	return svc, nil
 }
 
-func (s *EgressTrackingService) AddReceipt(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) error {
+func (s *Service) AddReceipt(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) error {
 	batchRotated, rotatedBatchCID, err := s.journal.Append(ctx, rcpt)
 	if err != nil {
 		return fmt.Errorf("adding receipt to store: %w", err)
@@ -92,11 +91,11 @@ func (s *EgressTrackingService) AddReceipt(ctx context.Context, rcpt receipt.Rec
 	return nil
 }
 
-func (s *EgressTrackingService) enqueueEgressTrackTask(ctx context.Context, batchCID cid.Cid) error {
+func (s *Service) enqueueEgressTrackTask(ctx context.Context, batchCID cid.Cid) error {
 	return s.queue.Enqueue(ctx, batchCID)
 }
 
-func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Cid) error {
+func (s *Service) egressTrack(ctx context.Context, batchCID cid.Cid) error {
 	trackInv, err := egress.Track.Invoke(
 		s.id,
 		s.egressTrackerDID,
@@ -168,7 +167,7 @@ func (s *EgressTrackingService) egressTrack(ctx context.Context, batchCID cid.Ci
 
 // StartCleanupTask starts the periodic cleanup task that checks for consolidated batches
 // and removes them from the store.
-func (s *EgressTrackingService) StartCleanupTask(ctx context.Context) error {
+func (s *Service) StartCleanupTask(ctx context.Context) error {
 	if s.cleanupCheckInterval <= 0 {
 		log.Info("cleanup task disabled (interval is 0)")
 		close(s.cleanupDone)
@@ -185,7 +184,7 @@ func (s *EgressTrackingService) StartCleanupTask(ctx context.Context) error {
 }
 
 // StopCleanupTask stops the periodic cleanup task gracefully.
-func (s *EgressTrackingService) StopCleanupTask(ctx context.Context) error {
+func (s *Service) StopCleanupTask(ctx context.Context) error {
 	if s.cleanupCancel != nil {
 		s.cleanupCancel()
 	}
@@ -199,7 +198,7 @@ func (s *EgressTrackingService) StopCleanupTask(ctx context.Context) error {
 	}
 }
 
-func (s *EgressTrackingService) runCleanupTask(ctx context.Context) {
+func (s *Service) runCleanupTask(ctx context.Context) {
 	defer close(s.cleanupDone)
 
 	ticker := time.NewTicker(s.cleanupCheckInterval)
@@ -217,7 +216,7 @@ func (s *EgressTrackingService) runCleanupTask(ctx context.Context) {
 	}
 }
 
-func (s *EgressTrackingService) cleanupConsolidatedBatches(ctx context.Context) error {
+func (s *Service) cleanupConsolidatedBatches(ctx context.Context) error {
 	// List all batches
 	batchCIDs, err := s.journal.List(ctx)
 	if err != nil {
@@ -236,7 +235,7 @@ func (s *EgressTrackingService) cleanupConsolidatedBatches(ctx context.Context) 
 	return nil
 }
 
-func (s *EgressTrackingService) checkAndRemoveConsolidatedBatch(ctx context.Context, batchCID cid.Cid) error {
+func (s *Service) checkAndRemoveConsolidatedBatch(ctx context.Context, batchCID cid.Cid) error {
 	// Get the consolidate invocation CID from the consolidation store
 	consolidateInvCID, err := s.consolidationStore.GetConsolidateInvocationCID(ctx, batchCID)
 	if err != nil {
@@ -283,7 +282,7 @@ func (s *EgressTrackingService) checkAndRemoveConsolidatedBatch(ctx context.Cont
 	return nil
 }
 
-func (s *EgressTrackingService) validateConsolidateReceipt(receipt receipt.AnyReceipt, trackInv invocation.Invocation) error {
+func (s *Service) validateConsolidateReceipt(receipt receipt.AnyReceipt, trackInv invocation.Invocation) error {
 	// TODO: Validate the receipt. This will include checking the receipt matches the original track invocation
 	// and confirming that the consolidated amount of bytes matches our records.
 	return nil

@@ -59,31 +59,31 @@ var Module = fx.Module("filesystem-store",
 
 type Configs struct {
 	fx.Out
-	Aggregator     app.AggregatorStorageConfig
-	Publisher      app.PublisherStorageConfig
-	Allocation     app.AllocationStorageConfig
-	Blob           app.BlobStorageConfig
-	Claim          app.ClaimStorageConfig
-	Receipt        app.ReceiptStorageConfig
-	EgressTracking app.EgressTrackingStorageConfig
-	KeyStore       app.KeyStoreConfig
-	Stash          app.StashStoreConfig
-	PDP            app.PDPStoreConfig
+	Aggregator    app.AggregatorStorageConfig
+	Publisher     app.PublisherStorageConfig
+	Allocation    app.AllocationStorageConfig
+	Blob          app.BlobStorageConfig
+	Claim         app.ClaimStorageConfig
+	Receipt       app.ReceiptStorageConfig
+	EgressTracker app.EgressTrackerStorageConfig
+	KeyStore      app.KeyStoreConfig
+	Stash         app.StashStoreConfig
+	PDP           app.PDPStoreConfig
 }
 
 // ProvideConfigs provides the fields of a storage config
 func ProvideConfigs(cfg app.StorageConfig) Configs {
 	return Configs{
-		Aggregator:     cfg.Aggregator,
-		Publisher:      cfg.Publisher,
-		Allocation:     cfg.Allocations,
-		Blob:           cfg.Blobs,
-		Claim:          cfg.Claims,
-		Receipt:        cfg.Receipts,
-		EgressTracking: cfg.EgressTracking,
-		KeyStore:       cfg.KeyStore,
-		Stash:          cfg.StashStore,
-		PDP:            cfg.PDPStore,
+		Aggregator:    cfg.Aggregator,
+		Publisher:     cfg.Publisher,
+		Allocation:    cfg.Allocations,
+		Blob:          cfg.Blobs,
+		Claim:         cfg.Claims,
+		Receipt:       cfg.Receipts,
+		EgressTracker: cfg.EgressTracker,
+		KeyStore:      cfg.KeyStore,
+		Stash:         cfg.StashStore,
+		PDP:           cfg.PDPStore,
 	}
 }
 
@@ -204,7 +204,7 @@ func NewReceiptStore(cfg app.ReceiptStorageConfig, lc fx.Lifecycle) (receiptstor
 
 }
 
-func NewRetrievalJournal(cfg app.EgressTrackingStorageConfig, lc fx.Lifecycle) (retrievaljournal.Journal, error) {
+func NewRetrievalJournal(cfg app.EgressTrackerStorageConfig, lc fx.Lifecycle) (retrievaljournal.Journal, error) {
 	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for retrieval journal")
 	}

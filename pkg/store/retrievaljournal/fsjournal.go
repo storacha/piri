@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"hash"
 	"io"
 	"iter"
 	"os"
@@ -44,6 +45,7 @@ type fsJournal struct {
 	currBatchPath string
 	currBatch     *os.File
 	currSize      int64
+	currHash      hash.Hash
 	maxBatchSize  int64
 }
 
@@ -112,6 +114,35 @@ func (j *fsJournal) newBatch(truncate bool) error {
 		j.currSize = int64(hdrSize)
 	}
 
+	j.currHash = sha256.New()
+	if err := j.addLastBytesToHash(j.currSize); err != nil {
+		return fmt.Errorf("adding existing bytes to hash: %w", err)
+	}
+
+	return nil
+}
+
+func (j *fsJournal) addLastBytesToHash(numBytes int64) error {
+	if numBytes <= 0 || numBytes > j.currSize {
+		return fmt.Errorf("invalid number of bytes to hash: %d", numBytes)
+	}
+
+	off, err := j.currBatch.Seek(-numBytes, io.SeekEnd)
+	if err != nil {
+		return fmt.Errorf("rewinding batch file: %w", err)
+	}
+	if off != j.currSize-numBytes {
+		return fmt.Errorf("expected to seek to %d, but got %d", j.currSize-numBytes, off)
+	}
+
+	n, err := io.Copy(j.currHash, j.currBatch)
+	if err != nil {
+		return fmt.Errorf("adding bytes to the hash: %w", err)
+	}
+	if n != numBytes {
+		return fmt.Errorf("expected to copy %d bytes, but got %d", n, numBytes)
+	}
+
 	return nil
 }
 
@@ -146,8 +177,13 @@ func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 		return false, cid.Cid{}, err
 	}
 	// record the size of the data written
-	blockSize := carutil.LdSize(cidBytes, archiveBytes)
-	j.currSize += int64(blockSize)
+	blockSize := int64(carutil.LdSize(cidBytes, archiveBytes))
+	j.currSize += blockSize
+
+	// add to the hash the bytes just written
+	if err := j.addLastBytesToHash(blockSize); err != nil {
+		return false, cid.Cid{}, fmt.Errorf("adding last bytes to hash: %w", err)
+	}
 
 	// rotate the batch if it exceeds the size limit
 	if j.currSize >= j.maxBatchSize {
@@ -163,32 +199,14 @@ func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 }
 
 func (j *fsJournal) rotate() (cid.Cid, error) {
-	// Reuse the open file handle to calculate the hash
-	off, err := j.currBatch.Seek(0, io.SeekStart)
-	if err != nil {
-		return cid.Cid{}, fmt.Errorf("seeking to start of batch file: %w", err)
-	}
-	if off != 0 {
-		return cid.Cid{}, fmt.Errorf("failed to seek to start of batch file")
-	}
-
-	// Calculate the CID of the current batch
-	hash := sha256.New()
-	n, err := io.Copy(hash, j.currBatch)
-	if err != nil {
-		return cid.Cid{}, fmt.Errorf("hashing batch file: %w", err)
-	}
-	if n != j.currSize {
-		return cid.Cid{}, fmt.Errorf("expected to copy %d bytes, but got %d", n, j.currSize)
-	}
-
 	// Close the current batch file
 	if err := j.currBatch.Close(); err != nil {
 		return cid.Cid{}, fmt.Errorf("closing current batch file: %w", err)
 	}
 
+	// Compute the CID of the batch
 	// error from Encode can be discarded, it's always nil
-	mhBytes, _ := multihash.Encode(hash.Sum(nil), multihash.SHA2_256)
+	mhBytes, _ := multihash.Encode(j.currHash.Sum(nil), multihash.SHA2_256)
 	mh := multihash.Multihash(mhBytes)
 
 	batchCID := cid.NewCidV1(uint64(multicodec.Car), mh)

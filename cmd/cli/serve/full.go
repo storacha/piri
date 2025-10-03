@@ -75,27 +75,27 @@ func init() {
 	cobra.CheckErr(viper.BindEnv("ucan.services.indexer.url", "PIRI_INDEXING_SERVICE_URL"))
 
 	FullCmd.Flags().String(
-		"egress-tracking-service-proof",
+		"egress-tracker-service-proof",
 		"",
-		"A delegation that allows the node to track egress with the egress tracking service",
+		"A delegation that allows the node to track egress with the egress tracker service",
 	)
-	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.proof", FullCmd.Flags().Lookup("egress-tracking-service-proof")))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.proof", FullCmd.Flags().Lookup("egress-tracker-service-proof")))
 
 	FullCmd.Flags().String(
-		"egress-tracking-service-did",
-		presets.EgressTrackingServiceDID.String(),
-		"DID of the egress tracking service",
+		"egress-tracker-service-did",
+		presets.EgressTrackerServiceDID.String(),
+		"DID of the egress tracker service",
 	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracking-service-did"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.did", FullCmd.Flags().Lookup("egress-tracking-service-did")))
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-did"))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.did", FullCmd.Flags().Lookup("egress-tracker-service-did")))
 
 	FullCmd.Flags().String(
-		"egress-tracking-service-url",
-		presets.EgressTrackingServiceURL.String(),
-		"URL of the egress tracking service",
+		"egress-tracker-service-url",
+		presets.EgressTrackerServiceURL.String(),
+		"URL of the egress tracker service",
 	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracking-service-url"))
-	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.url", FullCmd.Flags().Lookup("egress-tracking-service-url")))
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-url"))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.url", FullCmd.Flags().Lookup("egress-tracker-service-url")))
 
 	FullCmd.Flags().String(
 		"egress-tracking-service-receipts-endpoint",
