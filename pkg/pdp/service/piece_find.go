@@ -17,19 +17,18 @@ func (p *PDPService) FindPiece(ctx context.Context, piece types.Piece) (_ cid.Ci
 			log.Errorw("failed to find piece", "request", piece, "error", retErr)
 		}
 	}()
-	pieceCID, havePieceCid, err := CommP(piece, p.db)
+	pieceCID, havePieceMapping, err := CommP(piece, p.db)
 	if err != nil {
 		return cid.Undef, false, err
 	}
 
-	// upload either not complete or does not exist
-	if !havePieceCid {
+	// we don't have a mapping from the uploaded hash function to the PieceCID,
+	//and the PieceCID we got back isn't defined - we 100% don't have this piece
+	if !havePieceMapping && pieceCID.Equals(cid.Undef) {
 		return cid.Undef, false, nil
 	}
-	// Verify that a 'parked_pieces' entry exists for the given 'piece_cid'
-	// NB: the storacha node currently polls this method until it gets a positive conformation
-	// the piece exists in the parked_piece table, we could alternativly remove the async nature of this task
-	// when we are happy with the overall port of curio.
+	// otherwise, we have a mapping, or the piece was a PieceCIDV2, check if uploaded
+
 	var count int64
 	if err := p.db.WithContext(ctx).Model(&models.ParkedPiece{}).
 		Where("piece_cid = ? AND long_term = ? AND complete = ?", pieceCID.String(), true, true).

@@ -65,7 +65,7 @@ func (p *PDPHandler) handleAddRootToProofSet(c echo.Context) error {
 		"rootCount", len(req.Roots))
 
 	start := time.Now()
-	txHash, err := p.Service.AddRoots(ctx, id, t)
+	txHash, err := p.Service.AddRoots(ctx, id, t, types.ExtraData(req.ExtraData))
 	if err != nil {
 		return middleware.NewError(operation, "failed to add root to proofSet", err, http.StatusInternalServerError).
 			WithContext("proofSetID", id).

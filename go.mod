@@ -18,7 +18,6 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.2
 	github.com/ethereum/go-ethereum v1.16.2
 	github.com/filecoin-project/go-commp-utils v0.1.4
-	github.com/filecoin-project/go-commp-utils/nonffi v0.0.0-20240802040721-2a04ffc8ffe8
 	github.com/filecoin-project/lotus v1.32.0-rc1
 	github.com/getsentry/sentry-go v0.35.1
 	github.com/glebarez/go-sqlite v1.21.2
@@ -246,7 +245,7 @@ require (
 	github.com/filecoin-project/go-address v1.2.0
 	github.com/filecoin-project/go-commp-utils/v2 v2.1.0
 	github.com/filecoin-project/go-data-segment v0.0.1
-	github.com/filecoin-project/go-fil-commcid v0.2.0
+	github.com/filecoin-project/go-fil-commcid v0.3.1
 	github.com/filecoin-project/go-fil-commp-hashhash v0.2.0
 	github.com/filecoin-project/go-state-types v0.16.0-rc1
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -286,7 +285,7 @@ require (
 	github.com/multiformats/go-base32 v0.1.0 // indirect
 	github.com/multiformats/go-base36 v0.2.0 // indirect
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
-	github.com/multiformats/go-multicodec v0.9.1
+	github.com/multiformats/go-multicodec v0.9.2
 	github.com/multiformats/go-multistream v0.6.0 // indirect
 	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/onsi/gomega v1.37.0 // indirect

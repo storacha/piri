@@ -20,13 +20,16 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-ucanto/core/delegation"
-	"github.com/storacha/piri/pkg/store/keystore"
-	"github.com/storacha/piri/pkg/wallet"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/wallet"
+
 	delgclient "github.com/storacha/delegator/client"
+
 	"github.com/storacha/piri/cmd/cli/delegate"
 	"github.com/storacha/piri/pkg/config"
 	appcfg "github.com/storacha/piri/pkg/config/app"
@@ -236,7 +239,15 @@ func setupProofSet(ctx context.Context, cmd *cobra.Command, pdpSvc *service.PDPS
 
 	// Create new proof set
 	cmd.PrintErrln("📝 Creating new proof set...")
-	tx, err := pdpSvc.CreateProofSet(ctx, contractAddress)
+	tx, err := pdpSvc.CreateProofSet(ctx, types.CreateProofSetParams{
+		RecordKeeper: contractAddress,
+		// TODO unsure what data goes here, I think something like this:
+		//  - payer (address): The client who will pay for storage
+		//  - metadataKeys (string[]): Array of metadata keys
+		//  - metadataValues (string[]): Array of metadata values
+		//  - signature (bytes): EIP-712 signature proving the payer authorized the creation
+		ExtraData: "",
+	})
 	if err != nil {
 		return 0, fmt.Errorf("creating proof set: %w", err)
 	}

@@ -30,20 +30,17 @@ func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAl
 	}
 
 	// map pieceCID, if sha256, to filecoin commp cid
-	pieceCid, havePieceCid, err := CommP(allocation.Piece, p.db)
+	pieceCid, havePieceMapping, err := CommP(allocation.Piece, p.db)
 	if err != nil {
 		return nil, err
 	}
 
 	// Variables to hold information outside the transaction
 	var uploadUUID uuid.UUID
-	var created bool
+	var allocated bool
 
-	// TODO if the piece has already been stored, then we should bail early, and not create any new database tables.
-	// currently we create another upload and piece ref entry now since curio (this is based on) allows more than
-	// one service to talk to a node. We do not support that mode of operation.
 	if err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if havePieceCid {
+		if havePieceMapping {
 			// Check if a 'parked_pieces' entry exists for the given 'piece_cid'
 			// Look up existing parked piece with the given pieceCid, long_term = true, complete = true
 			var parkedPiece models.ParkedPiece
@@ -55,49 +52,21 @@ func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAl
 				return fmt.Errorf("failed to query parked_pieces: %w", err)
 			}
 
+			// we already have the piece, bail
 			if err == nil {
-				// Create a new parked_piece_refs entry referencing the existing piece
-				parkedRef := &models.ParkedPieceRef{
-					PieceID:  parkedPiece.ID,
-					LongTerm: true,
-				}
-				if createErr := tx.Create(&parkedRef).Error; createErr != nil {
-					return fmt.Errorf("failed to insert into parked_piece_refs: %w", createErr)
-				}
-
-				// Create the pdp_piece_uploads record pointing to the parked_piece_refs entry
-				uploadUUID = uuid.New()
-				upload := &models.PDPPieceUpload{
-					ID:       uploadUUID.String(),
-					Service:  "storacha",
-					PieceCID: models.Ptr(pieceCid.String()),
-					NotifyURL: func() string {
-						if allocation.Notify == nil {
-							return ""
-						}
-						return allocation.Notify.String()
-					}(),
-					PieceRef:       &parkedRef.RefID,
-					CheckHashCodec: allocation.Piece.Name,
-					CheckHash:      must.One(hex.DecodeString(allocation.Piece.Hash)),
-					CheckSize:      allocation.Piece.Size,
-				}
-				if createErr := tx.Create(&upload).Error; createErr != nil {
-					return fmt.Errorf("failed to insert into pdp_piece_uploads: %w", createErr)
-				}
-
 				// ends transaction
 				return nil
 			}
-		} // else
+		} // else, we got a record not found error looking for the piece, so we don't have it, need to upload
 
 		// Piece does not exist, proceed to create a new upload request
 		uploadUUID = uuid.New()
 
-		// Store the upload request in the database
 		var pieceCidStr *string
-		if p, ok := MaybeStaticCommp(allocation.Piece); ok {
-			ps := p.String()
+		// if the piece we got back from CommP is defined, the upload was done with either PieceCIDV1 or PieceCIDV2,
+		// and we'll know the PieceCID, otherwise we don't have a commp for it and need to calculate at upload
+		if !pieceCid.Equals(cid.Undef) {
+			ps := pieceCid.String()
 			pieceCidStr = &ps
 		}
 		notifyURL := ""
@@ -118,17 +87,17 @@ func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAl
 			return fmt.Errorf("failed to store upload request in database: %w", createErr)
 		}
 
-		created = true
+		allocated = true
 		return nil // Commit the transaction
 
 	}); err != nil {
 		return nil, err
 	}
 
-	if created {
+	if allocated {
 		return &types.AllocatedPiece{
 			Allocated: true,
-			Piece:     cid.Undef,
+			Piece:     pieceCid, // this will either be undefined, or a PieceCIDV2
 			UploadID:  uploadUUID,
 		}, nil
 	}
