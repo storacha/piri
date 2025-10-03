@@ -108,10 +108,6 @@ func (j *fsJournal) newBatch(truncate bool) error {
 			if _, err := io.Copy(j.currHash, j.currBatch); err != nil {
 				return err
 			}
-			// Seek back to end for appending
-			if _, err := j.currBatch.Seek(0, io.SeekEnd); err != nil {
-				return err
-			}
 		}
 	}
 
