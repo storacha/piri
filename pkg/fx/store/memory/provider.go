@@ -18,6 +18,7 @@ import (
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
+	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
@@ -47,6 +48,7 @@ var Module = fx.Module("memory-store",
 		),
 		NewClaimStore,
 		NewReceiptStore,
+		NewRetrievalJournal,
 		NewKeyStore,
 		NewStashStore,
 		NewPDPStore,
@@ -80,6 +82,23 @@ func NewPublisherStore() store.FullStore {
 func NewReceiptStore() (receiptstore.ReceiptStore, error) {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	return receiptstore.NewDsReceiptStore(ds)
+}
+
+// TODO need an in-memory impl of the retrieval journal...
+func NewRetrievalJournal(lc fx.Lifecycle) (retrievaljournal.Journal, error) {
+	tmpDir := filepath.Join(os.TempDir(), "piri-retrieval-journal-tmp")
+	rj, err := retrievaljournal.NewFSJournal(tmpDir, 0)
+	if err != nil {
+		return nil, fmt.Errorf("creating retrieval journal: %w", err)
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return rj.Close()
+		},
+	})
+
+	return rj, nil
 }
 
 func NewKeyStore() (keystore.KeyStore, error) {

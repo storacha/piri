@@ -48,8 +48,8 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92
-	github.com/storacha/go-libstoracha v0.2.6
-	github.com/storacha/go-ucanto v0.6.3
+	github.com/storacha/go-libstoracha v0.2.7
+	github.com/storacha/go-ucanto v0.6.5
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.37.0
@@ -273,7 +273,7 @@ require (
 	github.com/ipfs/go-merkledag v0.11.0 // indirect
 	github.com/ipfs/go-metrics-interface v0.0.1 // indirect
 	github.com/ipfs/go-verifcid v0.0.3 // indirect
-	github.com/ipld/go-car v0.6.2 // indirect
+	github.com/ipld/go-car v0.6.2
 	github.com/ipld/go-codec-dagpb v1.6.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect

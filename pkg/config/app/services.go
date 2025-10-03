@@ -12,7 +12,7 @@ type ExternalServicesConfig struct {
 	PrincipalMapping map[string]string
 
 	Indexer       IndexingServiceConfig
-	EgressTracker EgressTrackingServiceConfig
+	EgressTracker EgressTrackerServiceConfig
 	Upload        UploadServiceConfig
 	Publisher     PublisherServiceConfig
 }
@@ -24,7 +24,7 @@ type IndexingServiceConfig struct {
 	Proofs     delegation.Proofs
 }
 
-type EgressTrackingServiceConfig struct {
+type EgressTrackerServiceConfig struct {
 	Connection client.Connection
 	Proofs     delegation.Proofs
 }
