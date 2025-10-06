@@ -19,7 +19,8 @@ func TestInstaller_GenerateSystemdServices(t *testing.T) {
 	require.NoError(t, err)
 
 	serviceUser := "testuser"
-	services := installer.GenerateSystemdServices(serviceUser)
+	version := "1.0.0"
+	services := installer.GenerateSystemdServices(serviceUser, version)
 
 	// Should generate 3 service files
 	require.Len(t, services, 3)
@@ -48,11 +49,12 @@ func TestInstaller_InstallBinary(t *testing.T) {
 	// Setup test environment with custom config
 	tempDir := t.TempDir()
 	testConfig := &PathConfig{
-		OptDir:         tempDir,
-		BinaryBaseDir:  filepath.Join(tempDir, "bin"),
-		CurrentSymlink: filepath.Join(tempDir, "bin", "current"),
-		SystemDir:      filepath.Join(tempDir, "etc"),
-		SystemdDir:     filepath.Join(tempDir, "systemd"),
+		OptDir:                tempDir,
+		BinaryBaseDir:         filepath.Join(tempDir, "bin"),
+		CurrentSymlink:        filepath.Join(tempDir, "bin", "current"),
+		SystemDir:             filepath.Join(tempDir, "etc"),
+		SystemdBaseDir:        filepath.Join(tempDir, "systemd"),
+		SystemdCurrentSymlink: filepath.Join(tempDir, "systemd", "current"),
 	}
 
 	// Save and override global config
@@ -62,14 +64,16 @@ func TestInstaller_InstallBinary(t *testing.T) {
 	PiriBinaryBaseDir = testConfig.BinaryBaseDir
 	PiriCurrentSymlink = testConfig.CurrentSymlink
 	PiriSystemDir = testConfig.SystemDir
-	PiriSystemdDir = testConfig.SystemdDir
+	PiriSystemdBaseDir = testConfig.SystemdBaseDir
+	PiriSystemdCurrentSymlink = testConfig.SystemdCurrentSymlink
 	defer func() {
 		Config = oldConfig
 		PiriOptDir = Config.OptDir
 		PiriBinaryBaseDir = Config.BinaryBaseDir
 		PiriCurrentSymlink = Config.CurrentSymlink
 		PiriSystemDir = Config.SystemDir
-		PiriSystemdDir = Config.SystemdDir
+		PiriSystemdBaseDir = Config.SystemdBaseDir
+		PiriSystemdCurrentSymlink = Config.SystemdCurrentSymlink
 	}()
 
 	installer, err := NewInstaller()
