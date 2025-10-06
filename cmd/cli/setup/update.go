@@ -78,8 +78,8 @@ func doUpdate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("cannot manually update managed installation")
 	}
 
-	// Check for updates
-	updateInfo, err := checkForUpdate(ctx, cmd)
+	// Check for updates (allow all updates for manual updates)
+	updateInfo, err := checkForUpdate(ctx, cmd, false)
 	if err != nil {
 		return err
 	}

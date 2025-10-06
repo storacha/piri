@@ -344,7 +344,9 @@ type UpdateInfo struct {
 }
 
 // checkForUpdate checks if an update is available
-func checkForUpdate(ctx context.Context, cmd *cobra.Command) (*UpdateInfo, error) {
+// If patchOnly is true, only patch version updates are allowed (for auto-updates)
+// If patchOnly is false, all updates (major, minor, patch) are allowed (for manual updates)
+func checkForUpdate(ctx context.Context, cmd *cobra.Command, patchOnly bool) (*UpdateInfo, error) {
 	currentVersion := build.Version
 	cmd.Printf("Current version: %s\n", currentVersion)
 
@@ -375,6 +377,18 @@ func checkForUpdate(ctx context.Context, cmd *cobra.Command) (*UpdateInfo, error
 	if semver.IsValid(currentVersionClean) && semver.IsValid(latestVersion) {
 		// Only update if latest is greater than current
 		needsUpdate = semver.Compare(latestVersion, currentVersionClean) > 0
+
+		// If patch-only mode (auto-update), restrict to same major.minor version
+		if needsUpdate && patchOnly {
+			currentMajorMinor := semver.MajorMinor(currentVersionClean)
+			latestMajorMinor := semver.MajorMinor(latestVersion)
+
+			if currentMajorMinor != latestMajorMinor {
+				cmd.Printf("Skipping update: major/minor version change detected (%s -> %s), auto-updates restricted to patch releases only\n",
+					currentMajorMinor, latestMajorMinor)
+				needsUpdate = false
+			}
+		}
 	} else {
 		// Fallback to string comparison if versions aren't valid semver
 		cmd.Printf("Warning: Unable to parse versions as semver, using string comparison\n")
