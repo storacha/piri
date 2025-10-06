@@ -6,7 +6,7 @@ The Piri node does not handle TLS directly. For production use, you need a rever
 
 Before setting up TLS, make sure you have:
 - ✅ [Completed system prerequisites](./prerequisites.md) (including domain setup)
-- ✅ [Installed Piri](./installation.md)
+- ✅ [Downloaded Piri](./download.md)
 - ✅ [Generated cryptographic keys](./key-generation.md)
 
 ## Overview
@@ -134,4 +134,4 @@ This should show HTTP status 502 (Bad Gateway) until you start the Piri server.
 ## Next Steps
 
 After setting up TLS, continue to:
-- [Setup Piri Node](../guides/piri-server.md)
+- [Initialize Your Piri Node](./initialization.md)

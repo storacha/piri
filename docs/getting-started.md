@@ -6,18 +6,19 @@ This guide shows you how to set up a Piri node from the beginning. Follow each s
 
 To set up Piri, you need to:
 1. Prepare your system and network
-2. Install Piri
+2. Download Piri
 3. Create your keys and wallet
-4. Set up your node with the Storacha network
-5. Run the Piri server
+4. Initialize your node configuration
+5. Choose and complete your installation method
+6. Validate your setup
 
 ## Complete Setup Guide
 
 ### Step 1: [Prerequisites](./setup/prerequisites.md)
 Set up your system, network, and Filecoin node
 
-### Step 2: [Install Piri](./setup/installation.md)
-Download and install the Piri binary
+### Step 2: [Download Piri](./setup/download.md)
+Download the Piri binary to your local system
 
 ### Step 3: [Generate Keys](./setup/key-generation.md)
 Create your identity key and wallet
@@ -25,16 +26,32 @@ Create your identity key and wallet
 ### Step 4: [Configure TLS](./setup/tls-termination.md)
 Set up secure connections (HTTPS) for your domain
 
-### Step 5: [Setup Piri Node](./guides/piri-server.md)
-Set up and run your Piri node
+### Step 5: [Initialize Configuration](./setup/initialization.md)
+Run `piri init` to create your configuration file
 
-### Step 6: [Validate](./setup/validation.md)
+### Step 6: [Choose Installation Method](./setup/choosing-installation.md)
+**Important decision point:** Choose how to install and run Piri
+
+- **[Service Installation](./setup/service-installation.md)** (Recommended for production)
+  - Automatic updates and reliability
+  - Best for production storage providers
+
+- **[Manual Installation](./setup/manual-installation.md)** (For development/testing)
+  - Full control over updates
+  - Best for temporary setups
+
+### Step 7: [Validate](./setup/validation.md)
 Test that everything works
 
-## Maintenance
+## After Installation
 
-### [Upgrading Piri](./setup/upgrading.md)
-Keep your Piri up to date with new versions
+### For Service Installations
+
+- **[Service Management](./setup/service-management.md)** - Managing your service installation
+
+### For Manual Installations
+
+- **[Updating Piri](./setup/updating.md)** - Manually update your installation
 
 ## Additional Resources
 

@@ -5,7 +5,8 @@ You are now running a Piri node!
 ## Prerequisites
 
 Before testing, make sure you have:
-- ✅ [Set up your Piri Node](../guides/piri-server.md)
+- ✅ Installed Piri using either [Service Installation](./service-installation.md) or [Manual Installation](./manual-installation.md)
+- ✅ Your Piri node is running
 
 ## Validation Steps
 

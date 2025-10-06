@@ -71,6 +71,6 @@ Example output: `t410fzmmaqcn3j6jidbyrqqsvayejt6sskofwash6zoi`
 ## Next Steps
 
 Once you've completed all prerequisites:
-- [Install Piri](./installation.md)
+- [Download Piri](./download.md)
 - [Generate Cryptographic Keys](./key-generation.md)
 - [Configure TLS Termination](./tls-termination.md)

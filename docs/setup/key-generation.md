@@ -5,7 +5,7 @@ The `service.pem` file contains your storage provider's cryptographic identity, 
 ## Prerequisites
 
 Before generating keys, ensure you have:
-- ✅ [Installed Piri](./installation.md)
+- ✅ [Downloaded Piri](./download.md)
 
 ## Key Requirements
 

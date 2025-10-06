@@ -8,7 +8,7 @@ Piri uses a TOML configuration file for all settings. The best way is to create 
 
 ### Generating a Configuration
 
-The configuration file is created when you run `piri init`. See the [Piri Node Setup Guide](../guides/piri-server.md#initialize-your-piri-node) for how to do this.
+The configuration file is created when you run `piri init`. See the [Initialize Your Piri Node](./initialization.md) guide for how to do this.
 
 ### Using a Configuration File
 
