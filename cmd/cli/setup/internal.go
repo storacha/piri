@@ -74,8 +74,8 @@ func doUpdateInternal(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Check for available updates
-	updateInfo, err := checkForUpdate(ctx, cmd)
+	// Check for available updates (restrict to patch releases for auto-updates)
+	updateInfo, err := checkForUpdate(ctx, cmd, true)
 	if err != nil {
 		return err
 	}
