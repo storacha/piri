@@ -171,3 +171,21 @@ type (
 		PieceCID string `json:"piece_cid"`
 	}
 )
+
+// RegisterProvider types
+type (
+	RegisterProviderRequest struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+
+	RegisterProviderResponse struct {
+		TxHash      string `json:"txHash,omitempty"`
+		Address     string `json:"address,omitempty"`
+		Payee       string `json:"payee,omitempty"`
+		ID          uint64 `json:"id,omitempty"`
+		IsActive    bool   `json:"isActive,omitempty"`
+		Name        string `json:"name,omitempty"`
+		Description string `json:"description,omitempty"`
+	}
+)

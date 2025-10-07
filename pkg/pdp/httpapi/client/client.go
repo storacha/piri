@@ -530,6 +530,38 @@ func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.
 	}, nil
 }
 
+func (c *Client) RegisterProvider(ctx context.Context, params types.RegisterProviderParams) (types.RegisterProviderResults, error) {
+	route := c.endpoint.JoinPath(pdpRoutePath, "/provider/register").String()
+	request := httpapi.RegisterProviderRequest{
+		Name:        params.Name,
+		Description: params.Description,
+	}
+
+	res, err := c.postJson(ctx, route, request)
+	if err != nil {
+		return types.RegisterProviderResults{}, err
+	}
+
+	if res.StatusCode != http.StatusCreated {
+		return types.RegisterProviderResults{}, errFromResponse(res)
+	}
+
+	var payload httpapi.RegisterProviderResponse
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return types.RegisterProviderResults{}, fmt.Errorf("failed to decode register provider response: %w", err)
+	}
+
+	return types.RegisterProviderResults{
+		TransactionHash: common.HexToHash(payload.TxHash),
+		Address:         common.HexToAddress(payload.Address),
+		Payee:           common.HexToAddress(payload.Payee),
+		ID:              payload.ID,
+		IsActive:        payload.IsActive,
+		Name:            payload.Name,
+		Description:     payload.Description,
+	}, nil
+}
+
 // detectServerType pings the server to determine if it's a piri server or generic server
 func (c *Client) detectServerType(ctx context.Context) error {
 	route := c.endpoint.JoinPath(pdpRoutePath, pingPath).String()
