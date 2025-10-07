@@ -199,6 +199,9 @@ func (p *PDPService) AddRoots(
 		if err != nil {
 			return common.Hash{}, fmt.Errorf("computing height and padding: %w", err)
 		}
+		// NB: defined here: https://github.com/FilOzone/pdp/blob/main/src/PDPVerifier.sol#L44
+		// as MAX_PIECE_SIZE_LOG2 = 50
+		// TODO: there is an accessor method on the verifier for getting this value, add to interface
 		if height > 50 {
 			return common.Hash{}, fmt.Errorf("invalid height: %d", height)
 		}

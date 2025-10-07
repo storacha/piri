@@ -144,7 +144,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 
 	// Compare the computed piece CID with the expected one from the database
 	if upload.PieceCID != nil && pieceCIDComputed.String() != *upload.PieceCID {
-		return fmt.Errorf("computer piece CID does not match expected piece CID")
+		return fmt.Errorf("computed piece CID does not match expected piece CID")
 	}
 
 	if err := p.db.Transaction(func(tx *gorm.DB) error {
