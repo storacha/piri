@@ -8,6 +8,7 @@ import (
 type (
 	CreateProofSetRequest struct {
 		RecordKeeper string `json:"recordKeeper"`
+		ExtraData    string `json:"extraData"`
 	}
 
 	CreateProofSetResponse struct {
@@ -118,8 +119,8 @@ type (
 // AddRoots types
 type (
 	AddRootsRequest struct {
-		Roots     []Root  `json:"roots"`
-		ExtraData *string `json:"extraData,omitempty"`
+		Roots     []Root `json:"roots"`
+		ExtraData string `json:"extraData,omitempty"`
 	}
 	Root struct {
 		RootCID  string         `json:"rootCid"`

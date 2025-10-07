@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	logging "github.com/ipfs/go-log/v2"
+	"golang.org/x/xerrors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -19,8 +20,8 @@ import (
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 var log = logging.Logger("pdp/tasks")
@@ -33,7 +34,7 @@ var _ scheduler.TaskInterface = &InitProvingPeriodTask{}
 type InitProvingPeriodTask struct {
 	db             *gorm.DB
 	ethClient      bind.ContractBackend
-	contractClient contract.PDP
+	contractClient smartcontracts.PDP
 	sender         ethereum.Sender
 
 	chain ChainAPI
@@ -49,7 +50,7 @@ type ChainAPI interface {
 func NewInitProvingPeriodTask(
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient contract.PDP,
+	contractClient smartcontracts.PDP,
 	chain ChainAPI,
 	chainSched *chainsched.Scheduler,
 	sender ethereum.Sender,
@@ -181,65 +182,60 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 
 	// Get the listener address for this proof set from the PDPVerifier contract
 	lg.Debugw("Getting PDP verifier contract",
-		"verifier_address", contract.Addresses().PDPVerifier.Hex())
-	pdpVerifier, err := ipp.contractClient.NewPDPVerifier(contract.Addresses().PDPVerifier, ipp.ethClient)
+		"verifier_address", smartcontracts.Addresses().PDPVerifier.Hex())
+	pdpVerifier, err := ipp.contractClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, ipp.ethClient)
 	if err != nil {
 		lg.Errorw("Failed to instantiate PDPVerifier contract", "error", err)
 		return false, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
 	}
 
-	lg.Debug("Querying proof set listener address")
-	listenerAddr, err := pdpVerifier.GetProofSetListener(nil, big.NewInt(proofSetID))
+	// Check if the data set has any leaves (pieces) before attempting to initialize proving period
+	leafCount, err := pdpVerifier.GetDataSetLeafCount(nil, big.NewInt(proofSetID))
 	if err != nil {
-		lg.Errorw("Failed to get listener address for proof set", "error", err)
-		return false, fmt.Errorf("failed to get listener address for proof set %d: %w", proofSetID, err)
+		return false, fmt.Errorf("failed to get leaf count for data set %d: %w", proofSetID, err)
+	}
+	if leafCount.Cmp(big.NewInt(0)) == 0 {
+		// No leaves in the data set yet, skip initialization
+		// Return done=false to retry later (the task will be retried by the scheduler)
+		return false, nil
+	}
+
+	lg.Debug("Querying data set listener address")
+	listenerAddr, err := pdpVerifier.GetDataSetListener(nil, big.NewInt(proofSetID))
+	if err != nil {
+		lg.Errorw("Failed to get listener address for data set", "error", err)
+		return false, fmt.Errorf("failed to get listener address for data set %d: %w", proofSetID, err)
 	}
 	lg = lg.With("listener_address", listenerAddr.Hex())
-	lg.Debug("Retrieved proof set listener")
+	lg.Debug("Retrieved data set listener")
 
-	// Determine the next challenge window start by consulting the listener
-	lg.Debug("Creating proving schedule contract binding")
-	provingSchedule, err := ipp.contractClient.NewIPDPProvingSchedule(listenerAddr, ipp.ethClient)
+	// Determine the next challenge window start by consulting the proving schedule provider
+	lg.Debug("Creating proving schedule provider")
+	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, ipp.ethClient, ipp.chain)
 	if err != nil {
-		lg.Errorw("Failed to create proving schedule contract binding", "error", err)
-		return false, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
+		lg.Errorw("Failed to create proving schedule provider", "error", err)
+		return false, fmt.Errorf("failed to create proving schedule provider: %w", err)
 	}
 
-	// ChallengeWindow
-	lg.Debug("Querying challenge window")
-	challengeWindow, err := provingSchedule.ChallengeWindow(&bind.CallOpts{Context: ctx})
+	config, err := provingSchedule.GetPDPConfig(ctx)
 	if err != nil {
-		lg.Errorw("Failed to get challenge window", "error", err)
-		return false, fmt.Errorf("failed to get challenge window: %w", err)
-	}
-	lg = lg.With("challenge_window", challengeWindow.Uint64())
-	lg.Debug("Retrieved challenge window")
-
-	lg.Debug("Querying initial challenge window start")
-	init_prove_at, err := provingSchedule.InitChallengeWindowStart(&bind.CallOpts{Context: ctx})
-	if err != nil {
-		lg.Errorw("Failed to get initial challenge window start", "error", err)
-		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
+		return false, xerrors.Errorf("failed to GetPDPConfig: %w", err)
 	}
 
 	// Give a buffer of 1/2 challenge window epochs so that we are still within challenge window
-	prove_at_epoch := init_prove_at.Add(init_prove_at, challengeWindow.Div(challengeWindow, big.NewInt(2)))
-	lg = lg.With("init_prove_at", init_prove_at.Uint64(), "prove_at_epoch", prove_at_epoch.Uint64())
-	lg.Debug("Calculated proving epoch")
+	initProveAt := config.InitChallengeWindowStart.Add(config.InitChallengeWindowStart, config.ChallengeWindow.Div(config.ChallengeWindow, big.NewInt(2)))
 
 	// Instantiate the PDPVerifier contract
-	pdpContracts := contract.Addresses()
+	pdpContracts := smartcontracts.Addresses()
 	pdpVeriferAddress := pdpContracts.PDPVerifier
 
-	// Prepare the transaction data
-	lg.Debug("Preparing transaction data")
-	abiData, err := contract.PDPVerifierMetaData()
+	abiData, err := smartcontracts.PDPVerifierMetaData()
 	if err != nil {
 		lg.Errorw("Failed to get PDPVerifier ABI", "error", err)
 		return false, fmt.Errorf("failed to get PDPVerifier ABI: %w", err)
 	}
 
-	data, err := abiData.Pack("nextProvingPeriod", big.NewInt(proofSetID), prove_at_epoch, []byte{})
+	data, err := abiData.Pack("nextProvingPeriod", big.NewInt(proofSetID), initProveAt, []byte{})
 	if err != nil {
 		lg.Errorw("Failed to pack transaction data", "error", err)
 		return false, fmt.Errorf("failed to pack data: %w", err)
@@ -255,14 +251,14 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 		data,              // data
 	)
 
-	lg.Debug("Getting proof set owner")
-	fromAddress, _, err := pdpVerifier.GetProofSetOwner(nil, big.NewInt(proofSetID))
+	lg.Debug("Getting data set storage provider")
+	fromAddress, _, err := pdpVerifier.GetDataSetStorageProvider(nil, big.NewInt(proofSetID))
 	if err != nil {
-		lg.Errorw("Failed to get proof set owner address", "error", err)
+		lg.Errorw("Failed to get data set storage provider address", "error", err)
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
 	}
-	lg = lg.With("owner_address", fromAddress.Hex())
-	lg.Debug("Retrieved proof set owner")
+	lg = lg.With("storage_provider_address", fromAddress.Hex())
+	lg.Debug("Retrieved data set storage provider")
 
 	// Get the current tipset
 	lg.Debug("Getting current chain head")
@@ -298,7 +294,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 			Updates(map[string]interface{}{
 				"challenge_request_msg_hash":   txHash.Hex(),
 				"prev_challenge_request_epoch": ts.Height(),
-				"prove_at_epoch":               init_prove_at.Uint64(),
+				"prove_at_epoch":               initProveAt.Uint64(),
 			})
 		if result.Error != nil {
 			lg.Errorw("Failed to update proof set record", "error", result.Error)

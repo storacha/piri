@@ -12,8 +12,8 @@ import (
 	chainyypes "github.com/filecoin-project/lotus/chain/types"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 // Structures to represent database records
@@ -37,7 +37,7 @@ type RootAddEntry struct {
 }
 
 // NewWatcherRootAdd sets up the watcher for proof set root additions
-func NewWatcherRootAdd(db *gorm.DB, pcs *chainsched.Scheduler, contractClient contract.PDP) error {
+func NewWatcherRootAdd(db *gorm.DB, pcs *chainsched.Scheduler, contractClient smartcontracts.PDP) error {
 	if err := pcs.AddHandler(func(ctx context.Context, revert, apply *chainyypes.TipSet) error {
 		err := processPendingProofSetRootAdds(ctx, db, contractClient)
 		if err != nil {
@@ -52,7 +52,7 @@ func NewWatcherRootAdd(db *gorm.DB, pcs *chainsched.Scheduler, contractClient co
 }
 
 // processPendingProofSetRootAdds processes root additions that have been confirmed on-chain
-func processPendingProofSetRootAdds(ctx context.Context, db *gorm.DB, contractClient contract.PDP) error {
+func processPendingProofSetRootAdds(ctx context.Context, db *gorm.DB, contractClient smartcontracts.PDP) error {
 	// Query for pdp_proofset_root_adds entries where add_message_ok = TRUE
 	var rootAdds []models.PDPProofsetRootAdd
 	err := db.WithContext(ctx).
@@ -80,7 +80,7 @@ func processPendingProofSetRootAdds(ctx context.Context, db *gorm.DB, contractCl
 	return nil
 }
 
-func processProofSetRootAdd(ctx context.Context, db *gorm.DB, rootAdd models.PDPProofsetRootAdd, contractClient contract.PDP) error {
+func processProofSetRootAdd(ctx context.Context, db *gorm.DB, rootAdd models.PDPProofsetRootAdd, contractClient smartcontracts.PDP) error {
 	// Retrieve the tx_receipt from message_waits_eth
 	var msgWait models.MessageWaitsEth
 	err := db.WithContext(ctx).
@@ -99,7 +99,7 @@ func processProofSetRootAdd(ctx context.Context, db *gorm.DB, rootAdd models.PDP
 		return xerrors.Errorf("failed to unmarshal tx_receipt for tx %s: %w", rootAdd.AddMessageHash, err)
 	}
 
-	rootIds, err := contractClient.GetRootIdsFromReceipt(&txReceipt)
+	rootIds, err := contractClient.GetPieceIdsFromReceipt(&txReceipt)
 	if err != nil {
 		return err
 	}

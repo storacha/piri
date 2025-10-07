@@ -83,7 +83,7 @@ func (a *CurioFinder) FindPiece(ctx context.Context, digest multihash.Multihash,
 			return nil, fmt.Errorf("finding piece: %w", err)
 		}
 		if found {
-			return piece.FromV1LinkAndSize(cidlink.Link{Cid: pieceCID}, size)
+			return piece.FromLink(cidlink.Link{Cid: pieceCID})
 		}
 		// piece not found, try again
 		attempts++

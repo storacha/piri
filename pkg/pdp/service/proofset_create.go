@@ -2,41 +2,59 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
-	"github.com/storacha/piri/pkg/pdp/service/contract"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Address) (res common.Hash, retErr error) {
-	log.Infow("creating proof set", "recordKeeper", recordKeeper)
+func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (res common.Hash, retErr error) {
+	log.Infow("creating proof set", "recordKeeper", params.RecordKeeper)
 	defer func() {
 		if retErr != nil {
-			log.Errorw("failed to create proof set", "recordKeeper", recordKeeper, "retErr", retErr)
+			log.Errorw("failed to create proof set", "recordKeeper", params.RecordKeeper, "retErr", retErr)
 		} else {
-			log.Infow("created proof set", "recordKeeper", recordKeeper, "tx", res.String())
+			log.Infow("created proof set", "recordKeeper", params.RecordKeeper, "tx", res.String())
 		}
 	}()
-	if len(recordKeeper.Bytes()) == 0 {
+	if len(params.RecordKeeper.Bytes()) == 0 {
 		return common.Hash{}, types.NewError(types.KindInvalidInput, "record keeper is required")
 	}
-	if !common.IsHexAddress(recordKeeper.Hex()) {
-		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "record keeper %s is not a valid address", recordKeeper)
+	if !common.IsHexAddress(params.RecordKeeper.Hex()) {
+		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "record keeper %s is not a valid address", params.RecordKeeper)
+	}
+
+	// Decode extraData if provided
+	var extraDataBytes []byte
+	if params.ExtraData != "" {
+		extraDataHexStr := string(params.ExtraData)
+		decodedBytes, err := hex.DecodeString(strings.TrimPrefix(extraDataHexStr, "0x"))
+		if err != nil {
+			log.Errorf("Failed to decode hex extraData: %v", err)
+			return common.Hash{}, types.WrapError(types.KindInvalidInput,
+				fmt.Sprintf("invalid extraData format: %s (must be hex encoded)", params.ExtraData),
+				err)
+		}
+		extraDataBytes = decodedBytes
 	}
 
 	// Obtain the ABI of the PDPVerifier contract
-	abiData, err := contract.PDPVerifierMetaData()
+	abiData, err := smartcontracts.PDPVerifierMetaData()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to get contract ABI: %w", err)
 	}
 
 	// Pack the method call data
-	data, err := abiData.Pack("createProofSet", recordKeeper, []byte{})
+	// TODO(forrest): we are using an empty address for the record keeper right now, but when we integrate with a service
+	// contract soon, we'll want to use its address instead
+	data, err := abiData.Pack("createDataSet", common.Address{}, extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack create proof set: %w", err)
 	}
@@ -44,8 +62,8 @@ func (p *PDPService) CreateProofSet(ctx context.Context, recordKeeper common.Add
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	tx := ethtypes.NewTransaction(
 		0,
-		contract.Addresses().PDPVerifier,
-		contract.SybilFee(),
+		smartcontracts.Addresses().PDPVerifier,
+		smartcontracts.SybilFee(),
 		0,
 		nil,
 		data,

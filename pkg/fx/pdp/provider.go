@@ -1,7 +1,7 @@
 package pdp
 
 import (
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -97,7 +97,7 @@ type Params struct {
 	Engine          *scheduler.TaskEngine
 	ChainScheduler  *chainsched.Scheduler
 	ChainClient     service.ChainClient
-	ContractClient  contract.PDP
+	ContractClient  smartcontracts.PDP
 	ContractBackend service.EthClient
 }
 

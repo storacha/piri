@@ -4,14 +4,21 @@ DATE=$(shell date -u -Iseconds)
 GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION) -X github.com/storacha/piri/pkg/build.Commit=$(COMMIT) -X github.com/storacha/piri/pkg/build.Date=$(DATE) -X github.com/storacha/piri/pkg/build.BuiltBy=make"
 TAGS?=
 
-.PHONY: all build piri install test clean calibnet mockgen check-docs-links
+.PHONY: all build install test clean calibnet mockgen check-docs-links
 
 all: build
 
 build: piri
 
-piri:
-	go build $(GOFLAGS) $(TAGS) -o ./piri github.com/storacha/piri/cmd
+# piri depends on Go sources - use shell to check if rebuild needed
+piri: FORCE
+	@if [ ! -f piri ] || \
+	   [ -n "$$(find cmd pkg internal -name '*.go' -type f -newer piri 2>/dev/null)" ]; then \
+		echo "Building piri..."; \
+		go build $(GOFLAGS) $(TAGS) -o ./piri github.com/storacha/piri/cmd; \
+	fi
+
+FORCE:
 
 install:
 	go install ./cmd/storage
@@ -30,9 +37,21 @@ mockgen:
 	mockgen -destination=./internal/mocks/sender_eth_client.go -package=mocks github.com/storacha/piri/pkg/pdp/tasks SenderETHClient
 	mockgen -destination=./internal/mocks/message_watcher_eth_client.go -package=mocks github.com/storacha/piri/pkg/pdp/tasks MessageWatcherEthClient
 	mockgen -destination=./internal/mocks/contract_backend.go -package=mocks github.com/ethereum/go-ethereum/accounts/abi/bind ContractBackend
-	mockgen -destination=./internal/mocks/pdp.go -package=mocks github.com/storacha/piri/pkg/pdp/service/contract PDP
-	mockgen -destination=./internal/mocks/pdp_proving_schedule.go -package=mocks github.com/storacha/piri/pkg/pdp/service/contract PDPProvingSchedule
-	mockgen -destination=./internal/mocks/pdp_verifier.go -package=mocks github.com/storacha/piri/pkg/pdp/service/contract PDPVerifier
+	mockgen -source=./pkg/pdp/smartcontracts/contract.go -destination=./pkg/pdp/smartcontracts/mocks/pdp.go -package=mocks
+
+# Contract generation targets
+.PHONY: generate-contracts clean-contracts
+
+generate-contracts:
+	cd pkg/pdp/smartcontracts && ./generate.sh
+
+clean-contracts:
+	rm -rf pkg/pdp/smartcontracts/abis
+	rm -rf pkg/pdp/smartcontracts/bindings
+	rm -f pkg/pdp/smartcontracts/mocks/*.go
+
+mockgen-contracts: generate-contracts
+	mockgen -source=./pkg/pdp/smartcontracts/contract.go -destination=./pkg/pdp/smartcontracts/mocks/pdp.go -package=mocks
 
 
 # special target that sets the calibnet tag and invokes build

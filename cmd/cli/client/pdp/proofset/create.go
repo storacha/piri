@@ -60,7 +60,15 @@ func doCreate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("record keeper address (%s) is invalid", recordKeeper)
 	}
 
-	txHash, err := pdpClient.CreateProofSet(ctx, common.HexToAddress(recordKeeper))
+	txHash, err := pdpClient.CreateProofSet(ctx, types.CreateProofSetParams{
+		RecordKeeper: common.HexToAddress(recordKeeper),
+		// TODO unsure what data goes here, I think something like this:
+		//  - payer (address): The client who will pay for storage
+		//  - metadataKeys (string[]): Array of metadata keys
+		//  - metadataValues (string[]): Array of metadata values
+		//  - signature (bytes): EIP-712 signature proving the payer authorized the creation
+		ExtraData: "",
+	})
 	if err != nil {
 		return fmt.Errorf("creating proofset: %w", err)
 	}

@@ -9,7 +9,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
@@ -31,7 +31,7 @@ type PDPService struct {
 	storage         stashstore.Stash
 	sender          ethereum.Sender
 	chainClient     ChainClient
-	contractClient  contract.PDP
+	contractClient  smartcontracts.PDP
 	contractBackend bind.ContractBackend
 
 	db   *gorm.DB
@@ -62,7 +62,7 @@ func New(
 	engine *scheduler.TaskEngine,
 	chainScheduler *chainsched.Scheduler,
 	chainClient ChainClient,
-	contractClient contract.PDP,
+	contractClient smartcontracts.PDP,
 	contractBackend EthClient,
 ) (*PDPService, error) {
 	return &PDPService{

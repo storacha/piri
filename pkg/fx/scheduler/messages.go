@@ -11,7 +11,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
-	"github.com/storacha/piri/pkg/pdp/service/contract"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/wallet"
 )
@@ -103,7 +103,8 @@ type WatcherCreateParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
 	Client    service.EthClient
-	Contract  contract.PDP
+	Contract  smartcontracts.PDP
+	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 }
 
@@ -112,6 +113,7 @@ func StartWatcherCreate(params WatcherCreateParams) error {
 		params.DB,
 		params.Client,
 		params.Contract,
+		params.Chain,
 		params.Scheduler,
 	)
 }
@@ -119,7 +121,7 @@ func StartWatcherCreate(params WatcherCreateParams) error {
 type WatcherRootAddParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
-	Contract  contract.PDP
+	Contract  smartcontracts.PDP
 	Scheduler *chainsched.Scheduler
 }
 
