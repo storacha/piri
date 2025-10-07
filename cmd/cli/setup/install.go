@@ -30,8 +30,9 @@ Requirements:
 
 Automatic updates check for new releases every 30 minutes and apply them when
 safe to do so (not during proof generation or active transfers).`,
-	Args: cobra.NoArgs,
-	RunE: runInstall,
+	Args:   cobra.NoArgs,
+	RunE:   runInstall,
+	Hidden: true,
 }
 
 func init() {
