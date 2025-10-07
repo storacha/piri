@@ -25,8 +25,9 @@ To completely remove piri, manually delete /opt/piri after uninstalling.
 Requirements:
   - Linux operating system with systemd
   - Root privileges (run with sudo)`,
-	Args: cobra.NoArgs,
-	RunE: runUninstall,
+	Args:   cobra.NoArgs,
+	RunE:   runUninstall,
+	Hidden: true,
 }
 
 func init() {
