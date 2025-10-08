@@ -77,7 +77,7 @@ func TestFindPiece_RetryThenSuccess(t *testing.T) {
 
 	res, err := finder.FindPiece(ctx, expectedMh, expectedSize)
 	require.NoError(t, err)
-	require.Equal(t, expectedPiece.V1Link().String(), res.V1Link().String())
+	require.Equal(t, expectedPiece.Link().String(), res.Link().String())
 }
 
 func TestFindPiece_ExceedMaxRetries(t *testing.T) {
@@ -177,7 +177,7 @@ func TestURLForPiece(t *testing.T) {
 
 	ref, err := pa.URLForPiece(ctx, expectedPiece)
 	require.NoError(t, err)
-	require.Equal(t, expectedURL.JoinPath("piece", expectedPiece.V1Link().String()).String(), ref.String())
+	require.Equal(t, expectedURL.JoinPath("piece", expectedPiece.Link().String()).String(), ref.String())
 
 }
 
