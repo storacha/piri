@@ -47,7 +47,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92
-	github.com/storacha/go-libstoracha v0.2.9-0.20251008151233-960851635656
+	github.com/storacha/go-libstoracha v0.3.0
 	github.com/storacha/go-ucanto v0.6.5
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.39.0
