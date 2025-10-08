@@ -21,7 +21,7 @@ type RanLinkIndex interface {
 }
 
 type receiptStore struct {
-	store        store.Store
+	store        store.SimpleStore
 	ranLinkIndex RanLinkIndex
 }
 
@@ -87,6 +87,6 @@ func (rs *receiptStore) GetByRan(ctx context.Context, ran datamodel.Link) (recei
 var _ ReceiptStore = (*receiptStore)(nil)
 
 // NewDsDelegationStore creates a [DelegationStore] backed by an IPFS datastore.
-func NewReceiptStore(store store.Store, ranLinkIndex RanLinkIndex) (ReceiptStore, error) {
+func NewReceiptStore(store store.SimpleStore, ranLinkIndex RanLinkIndex) (ReceiptStore, error) {
 	return &receiptStore{store, ranLinkIndex}, nil
 }

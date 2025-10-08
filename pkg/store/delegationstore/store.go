@@ -12,7 +12,7 @@ import (
 )
 
 type delegationStore struct {
-	data store.Store
+	data store.SimpleStore
 }
 
 func (d *delegationStore) Put(ctx context.Context, dlg delegation.Delegation) error {
@@ -47,6 +47,6 @@ func (d *delegationStore) Get(ctx context.Context, root ucan.Link) (delegation.D
 }
 
 // NewDelegationStore creates a [DelegationStore] backed by a simple store interface
-func NewDelegationStore(store store.Store) (DelegationStore, error) {
+func NewDelegationStore(store store.SimpleStore) (DelegationStore, error) {
 	return &delegationStore{store}, nil
 }

@@ -34,6 +34,8 @@ import (
 
 var log = logging.Logger("publisher")
 
+const maxPublishAttempts = 5
+
 type PublisherService struct {
 	id                    principal.Signer
 	store                 store.PublisherStore
@@ -104,13 +106,22 @@ func PublishLocationCommitment(
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	adlink, err := publisher.Publish(ctx, provider, string(contextid), slices.Values(digests), meta)
-	if err != nil {
-		if errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
-			log.Warnf("Skipping previously published claim")
-			return nil
+	var adlink ipld.Link
+	attempts := 0
+	for {
+		adlink, err = publisher.Publish(ctx, provider, string(contextid), slices.Values(digests), meta)
+		if err != nil {
+			if errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
+				log.Warnf("Skipping previously published claim")
+				return nil
+			}
+			if attempts < maxPublishAttempts {
+				attempts++
+				continue // try again
+			}
+			return fmt.Errorf("publishing claim: %w", err)
 		}
-		return fmt.Errorf("publishing claim: %w", err)
+		break
 	}
 
 	log.Infof("Published advertisement: %s", adlink)
