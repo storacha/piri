@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
@@ -15,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
+	"github.com/storacha/go-libstoracha/advertisement"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/claim"
 	ipnipub "github.com/storacha/go-libstoracha/ipnipublisher/publisher"
@@ -28,8 +30,6 @@ import (
 	"github.com/storacha/go-ucanto/core/result/ok"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/piri/lib"
-
-	"github.com/storacha/go-libstoracha/advertisement"
 )
 
 var log = logging.Logger("publisher")
@@ -106,22 +106,19 @@ func PublishLocationCommitment(
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	var adlink ipld.Link
-	attempts := 0
-	for {
-		adlink, err = publisher.Publish(ctx, provider, string(contextid), slices.Values(digests), meta)
-		if err != nil {
-			if errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
-				log.Warnf("Skipping previously published claim")
-				return nil
-			}
-			if attempts < maxPublishAttempts {
-				attempts++
-				continue // try again
-			}
-			return fmt.Errorf("publishing claim: %w", err)
+	adlink, err := backoff.Retry(ctx, func() (ipld.Link, error) {
+		l, err := publisher.Publish(ctx, provider, string(contextid), slices.Values(digests), meta)
+		if err != nil && errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
+			return nil, backoff.Permanent(err)
 		}
-		break
+		return l, nil
+	}, backoff.WithMaxTries(maxPublishAttempts))
+	if err != nil {
+		if errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
+			log.Warnf("Skipping previously published claim")
+			return nil
+		}
+		return fmt.Errorf("publishing claim: %w", err)
 	}
 
 	log.Infof("Published advertisement: %s", adlink)

@@ -69,7 +69,7 @@ func (s *S3Store) Replace(ctx context.Context, key string, old io.Reader, length
 			return err
 		}
 		md5hash := md5.Sum(b)
-		etag := fmt.Sprintf(`"%s"`, hex.EncodeToString(md5hash[:]))
+		etag := fmt.Sprintf("%q", hex.EncodeToString(md5hash[:]))
 		input.IfMatch = aws.String(etag)
 	}
 
