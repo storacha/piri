@@ -100,5 +100,5 @@ func (a *CurioFinder) FindPiece(ctx context.Context, digest multihash.Multihash,
 }
 
 func (a *CurioFinder) URLForPiece(ctx context.Context, p piece.PieceLink) (url.URL, error) {
-	return *a.endpoint.JoinPath(p.V1Link().String()), nil
+	return *a.endpoint.JoinPath(p.Link().String()), nil
 }

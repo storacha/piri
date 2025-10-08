@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	cid "github.com/ipfs/go-cid"
+	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/go-libstoracha/piece/piece"
@@ -27,7 +27,7 @@ func TestBlobGetterAdapter(t *testing.T) {
 		digest := testutil.MultihashFromBytes(t, data)
 		digestStr := digestutil.Format(digest)
 		pieceLink := testutil.RandomPiece(t, int64(len(data)))
-		pieceLinkStr := pieceLink.V1Link().String()
+		pieceLinkStr := pieceLink.Link().String()
 
 		finder := mockPieceFinder{map[string]piece.PieceLink{digestStr: pieceLink}}
 		reader := mockPieceReader{map[string][]byte{pieceLinkStr: data}}
@@ -46,7 +46,7 @@ func TestBlobGetterAdapter(t *testing.T) {
 		digest := testutil.MultihashFromBytes(t, data)
 		digestStr := digestutil.Format(digest)
 		pieceLink := testutil.RandomPiece(t, int64(len(data)))
-		pieceLinkStr := pieceLink.V1Link().String()
+		pieceLinkStr := pieceLink.Link().String()
 
 		finder := mockPieceFinder{map[string]piece.PieceLink{digestStr: pieceLink}}
 		reader := mockPieceReader{map[string][]byte{pieceLinkStr: data}}
