@@ -9,19 +9,19 @@ Before installing, ensure you have:
 
 ## Download Pre-compiled Binary
 
-Download the latest release from [v0.0.16](https://github.com/storacha/piri/releases/tag/v0.0.16):
+Download the latest release from [v0.0.17](https://github.com/storacha/piri/releases/tag/v0.0.17):
 
 ### For Linux AMD64
 ```bash
-wget https://github.com/storacha/piri/releases/download/v0.0.16/piri_0.0.16_linux_amd64.tar.gz
-tar -xzf piri_0.0.16_linux_amd64.tar.gz
+wget https://github.com/storacha/piri/releases/download/v0.0.17/piri_0.0.17_linux_amd64.tar.gz
+tar -xzf piri_0.0.17_linux_amd64.tar.gz
 sudo mv piri /usr/local/bin/piri
 ```
 
 ### For Linux ARM64
 ```bash
-wget https://github.com/storacha/piri/releases/download/v0.0.16/piri_0.0.16_linux_arm64.tar.gz
-tar -xzf piri_0.0.16_linux_arm64.tar.gz
+wget https://github.com/storacha/piri/releases/download/v0.0.17/piri_0.0.17_linux_arm64.tar.gz
+tar -xzf piri_0.0.17_linux_arm64.tar.gz
 sudo mv piri /usr/local/bin/piri
 ```
 
