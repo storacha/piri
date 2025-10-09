@@ -47,7 +47,7 @@ func (i *inProgressWorkSpace) PutBuffer(ctx context.Context, buffer fns.Buffer) 
 	return i.store.Put(ctx, bufferKey{}, buffer)
 }
 
-func NewInProgressWorkspace(store store.Store) InProgressWorkspace {
+func NewInProgressWorkspace(store store.SimpleStore) InProgressWorkspace {
 	return &inProgressWorkSpace{
 		ipldstore.IPLDStore[bufferKey, fns.Buffer](store, fns.BufferType(), captypes.Converters...),
 	}

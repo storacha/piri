@@ -18,7 +18,7 @@ type KVStore[K, V any] interface {
 }
 
 type ipldStore[K fmt.Stringer, V any] struct {
-	ds   store.Store
+	ds   store.SimpleStore
 	typ  schema.Type
 	opts []bindnode.Option
 }
@@ -50,7 +50,7 @@ func (i *ipldStore[K, V]) Put(ctx context.Context, key K, value V) error {
 	return i.ds.Put(ctx, key.String(), uint64(len(data)), bytes.NewReader(data))
 }
 
-func IPLDStore[K fmt.Stringer, V any](ds store.Store, typ schema.Type, opts ...bindnode.Option) KVStore[K, V] {
+func IPLDStore[K fmt.Stringer, V any](ds store.SimpleStore, typ schema.Type, opts ...bindnode.Option) KVStore[K, V] {
 	return &ipldStore[K, V]{
 		ds:   ds,
 		typ:  typ,
