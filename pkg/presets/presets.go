@@ -4,9 +4,12 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
 	"github.com/storacha/go-ucanto/did"
 )
+
+var StorachaUSDFCAddress = common.HexToAddress("0x8d3d7cE4F43607C9d0ac01f695c7A9caC135f9AD")
 
 var (
 	IPNIAnnounceURLs        []url.URL

@@ -71,10 +71,19 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *ty
 			Data:  tx.Data(),
 		}
 
+		fmt.Printf("DEBUG EstimateGas: About to estimate gas with:\n")
+		fmt.Printf("  From: %s\n", msg.From.Hex())
+		fmt.Printf("  To: %s\n", msg.To.Hex())
+		fmt.Printf("  Value: %s FIL\n", msg.Value.String())
+		fmt.Printf("  Data length: %d bytes\n", len(msg.Data))
+		fmt.Printf("  Data (hex): 0x%x\n", msg.Data)
+
 		gasLimit, err := s.client.EstimateGas(ctx, msg)
 		if err != nil {
+			fmt.Printf("DEBUG EstimateGas: FAILED with error: %v\n", err)
 			return common.Hash{}, fmt.Errorf("failed to estimate gas: %w", err)
 		}
+		fmt.Printf("DEBUG EstimateGas: SUCCESS, estimated gas limit: %d\n", gasLimit)
 		if gasLimit == 0 {
 			return common.Hash{}, fmt.Errorf("estimated gas limit is zero")
 		}

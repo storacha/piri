@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -16,6 +17,22 @@ type AuthSignature struct {
 	S          common.Hash    `json:"s"`
 	SignedData []byte         `json:"signedData"`
 	Signer     common.Address `json:"signer"`
+}
+
+// Marshal returns the signature as bytes in the format expected by the smart contract
+// The format is: R (32 bytes) + S (32 bytes) + V (1 byte)
+func (a *AuthSignature) Marshal() ([]byte, error) {
+	if len(a.Signature) == 65 {
+		// If we already have the full signature, return it
+		return a.Signature, nil
+	}
+
+	// Otherwise construct it from R, S, V
+	sig := make([]byte, 65)
+	copy(sig[0:32], a.R[:])
+	copy(sig[32:64], a.S[:])
+	sig[64] = a.V
+	return sig, nil
 }
 
 type Signer struct {
@@ -51,11 +68,51 @@ func (s *Signer) SignCreateDataSet(clientDataSetId *big.Int, payee common.Addres
 
 	message := map[string]interface{}{
 		"clientDataSetId": clientDataSetId,
-		"payee":           payee.Hex(),
+		"payee":           strings.ToLower(payee.Hex()),
 		"metadata":        metadataArray,
 	}
 
 	return s.signTypedData("CreateDataSet", message)
+}
+
+// RecoverCreateDataSetSigner recovers the signer address from a CreateDataSet signature
+func (s *Signer) RecoverCreateDataSetSigner(clientDataSetId *big.Int, payee common.Address, metadata []MetadataEntry, signature *AuthSignature) (common.Address, error) {
+	// Convert metadata to the format expected by apitypes
+	metadataArray := make([]map[string]interface{}, len(metadata))
+	for i, entry := range metadata {
+		metadataArray[i] = map[string]interface{}{
+			"key":   entry.Key,
+			"value": entry.Value,
+		}
+	}
+
+	message := map[string]interface{}{
+		"clientDataSetId": clientDataSetId,
+		"payee":           strings.ToLower(payee.Hex()),
+		"metadata":        metadataArray,
+	}
+
+	domain := GetDomain(s.chainId, s.verifyingContract)
+	hash, err := GetMessageHash(domain, "CreateDataSet", message)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to get message hash: %w", err)
+	}
+
+	// crypto.SigToPub expects v to be 0 or 1, but signature has v as 27 or 28
+	// Create a copy with adjusted v for recovery
+	recoverySignature := make([]byte, 65)
+	copy(recoverySignature, signature.Signature)
+	if recoverySignature[64] >= 27 {
+		recoverySignature[64] -= 27
+	}
+
+	// Recover the public key from the signature
+	pubKey, err := crypto.SigToPub(hash, recoverySignature)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to recover public key: %w", err)
+	}
+
+	return crypto.PubkeyToAddress(*pubKey), nil
 }
 
 func (s *Signer) SignAddPieces(clientDataSetId, firstAdded *big.Int, pieceData [][]byte, metadata [][]MetadataEntry) (*AuthSignature, error) {
@@ -113,11 +170,17 @@ func (s *Signer) SignDeleteDataSet(clientDataSetId *big.Int) (*AuthSignature, er
 func (s *Signer) signTypedData(primaryType string, message map[string]interface{}) (*AuthSignature, error) {
 	domain := GetDomain(s.chainId, s.verifyingContract)
 
+	fmt.Printf("DEBUG signTypedData: domain verifyingContract = %s\n", s.verifyingContract.Hex())
+	fmt.Printf("DEBUG signTypedData: primaryType = %s\n", primaryType)
+	fmt.Printf("DEBUG signTypedData: message = %+v\n", message)
+
 	// Get the EIP-712 hash to sign
 	hash, err := GetMessageHash(domain, primaryType, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get message hash: %w", err)
 	}
+
+	fmt.Printf("DEBUG signTypedData: hash = 0x%x\n", hash)
 
 	// Sign the hash
 	signature, err := crypto.Sign(hash, s.privateKey)
