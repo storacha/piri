@@ -5,6 +5,9 @@ import (
 	"net/url"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/samber/lo"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/piri/pkg/presets"
 
 	"github.com/storacha/piri/pkg/config/app"
 )
@@ -45,5 +48,12 @@ func (p PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		OwnerAddress:    common.HexToAddress(p.OwnerAddress),
 		ContractAddress: common.HexToAddress(p.ContractAddress),
 		LotusEndpoint:   lotusEndpoint,
+		SigningService: app.SigningServiceConfig{
+			Enabled:                true,
+			Endpoint:               lo.Must(url.Parse("http://localhost:8080")),
+			PayerAddress:           presets.StorachaUSDFCAddress,
+			ServiceContractAddress: smartcontracts.Addresses().PDPService,
+			ChainID:                314159,
+		},
 	}, nil
 }

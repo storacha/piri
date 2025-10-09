@@ -49,6 +49,8 @@ require (
 	github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92
 	github.com/storacha/go-libstoracha v0.3.0
 	github.com/storacha/go-ucanto v0.6.5
+	github.com/storacha/piri/tools/service-operator v0.0.0
+	github.com/storacha/piri/tools/signing-service v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.39.0
 	github.com/testcontainers/testcontainers-go/modules/minio v0.39.0
@@ -317,4 +319,8 @@ require (
 	lukechampine.com/blake3 v1.4.0 // indirect
 )
 
-replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20240617180043-68d350f18fd4
+replace (
+	github.com/storacha/piri/tools/service-operator => ./tools/service-operator
+	github.com/storacha/piri/tools/signing-service => ./tools/signing-service
+	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20240617180043-68d350f18fd4
+)

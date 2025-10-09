@@ -2,7 +2,7 @@
 set -e
 
 # Configuration - update these versions as needed
-PDP_VERSION="${PDP_VERSION:-v2.1.0}"
+PDP_VERSION="${PDP_VERSION:-v2.2.1}"
 STORACHA_SERVICES_BRANCH="${STORACHA_SERVICES_BRANCH:-main}"
 
 # macOS uses BSD sed while Ubuntu uses GNU sed.
@@ -46,21 +46,23 @@ curl -fsSL "https://github.com/FilOzone/pdp/releases/download/$PDP_VERSION/PDPVe
 curl -fsSL "https://github.com/FilOzone/pdp/releases/download/$PDP_VERSION/IPDPProvingSchedule.abi.json" -o abis/IPDPProvingSchedule.abi.json
 
 echo
-echo "Step 2: Downloading Storacha Services contract ABIs from storacha/filecoin-services $STORACHA_SERVICES_BRANCH..."
-BASE_URL="https://raw.githubusercontent.com/storacha/filecoin-services/$STORACHA_SERVICES_BRANCH/service_contracts/abi"
-curl -fsSL "$BASE_URL/FilecoinWarmStorageService.abi.json" -o abis/FilecoinWarmStorageService.abi.json
-# Skip StateLibrary and StateView - they're Solidity libraries used internally by the main contract
-# curl -fsSL "$BASE_URL/FilecoinWarmStorageServiceStateLibrary.abi.json" -o abis/FilecoinWarmStorageServiceStateLibrary.abi.json
-# curl -fsSL "$BASE_URL/FilecoinWarmStorageServiceStateView.abi.json" -o abis/FilecoinWarmStorageServiceStateView.abi.json
-curl -fsSL "$BASE_URL/Payments.abi.json" -o abis/Payments.abi.json
-curl -fsSL "$BASE_URL/ServiceProviderRegistry.abi.json" -o abis/ServiceProviderRegistry.abi.json
-curl -fsSL "$BASE_URL/SessionKeyRegistry.abi.json" -o abis/SessionKeyRegistry.abi.json
+echo "Step 2: Copying Storacha Services contract ABIs from local filecoin-services repository..."
+SERVICES_DIR="/Users/frrist/Workspace/src/github.com/storacha/filecoin-services/service_contracts"
+
+# Extract ABIs from forge build output
+jq '.abi' "$SERVICES_DIR/out/FilecoinWarmStorageService.sol/FilecoinWarmStorageService.json" > abis/FilecoinWarmStorageService.abi.json
+# StateView is needed for querying clientDataSetIds and other view functions
+jq '.abi' "$SERVICES_DIR/out/FilecoinWarmStorageServiceStateView.sol/FilecoinWarmStorageServiceStateView.json" > abis/FilecoinWarmStorageServiceStateView.abi.json
+jq '.abi' "$SERVICES_DIR/out/Payments.sol/Payments.json" > abis/Payments.abi.json
+jq '.abi' "$SERVICES_DIR/out/ServiceProviderRegistry.sol/ServiceProviderRegistry.json" > abis/ServiceProviderRegistry.abi.json
+jq '.abi' "$SERVICES_DIR/out/SessionKeyRegistry.sol/SessionKeyRegistry.json" > abis/SessionKeyRegistry.abi.json
 
 echo
 echo "Step 3: Extracting ABIs from JSON artifacts..."
 jq -r '.' abis/PDPVerifier.abi.json > abis/PDPVerifier.abi
 jq -r '.' abis/IPDPProvingSchedule.abi.json > abis/IPDPProvingSchedule.abi
 jq -r '.' abis/FilecoinWarmStorageService.abi.json > abis/FilecoinWarmStorageService.abi
+jq -r '.' abis/FilecoinWarmStorageServiceStateView.abi.json > abis/FilecoinWarmStorageServiceStateView.abi
 jq -r '.' abis/Payments.abi.json > abis/Payments.abi
 jq -r '.' abis/ServiceProviderRegistry.abi.json > abis/ServiceProviderRegistry.abi
 jq -r '.' abis/SessionKeyRegistry.abi.json > abis/SessionKeyRegistry.abi
@@ -126,8 +128,15 @@ abigen --abi abis/FilecoinWarmStorageService.abi \
 sedi '/^type CidsCid struct {$/,/^}$/d' bindings/filecoin_warm_storage_service_temp.go
 mv bindings/filecoin_warm_storage_service_temp.go bindings/filecoin_warm_storage_service.go
 
-# Skip StateLibrary and StateView - they're Solidity libraries that reference the main contract types
-# This would require cross-contract type resolution which abigen doesn't support well
+echo "Generating FilecoinWarmStorageServiceStateView bindings..."
+abigen --abi abis/FilecoinWarmStorageServiceStateView.abi \
+       --pkg bindings \
+       --type FilecoinWarmStorageServiceStateView \
+       --out bindings/filecoin_warm_storage_service_state_view_temp.go
+
+# Remove duplicate types from StateView
+sedi '/^type CidsCid struct {$/,/^}$/d' bindings/filecoin_warm_storage_service_state_view_temp.go
+mv bindings/filecoin_warm_storage_service_state_view_temp.go bindings/filecoin_warm_storage_service_state_view.go
 
 echo "Generating Payments bindings..."
 abigen --abi abis/Payments.abi \
@@ -150,6 +159,6 @@ abigen --abi abis/SessionKeyRegistry.abi \
 echo
 echo "✅ Contract generation complete!"
 echo "Generated files in: bindings/"
-echo "ABIs downloaded from:"
-echo "  - FilOzone/pdp: $PDP_VERSION"
-echo "  - storacha/filecoin-services: $STORACHA_SERVICES_BRANCH"
+echo "ABIs sourced from:"
+echo "  - FilOzone/pdp: $PDP_VERSION (downloaded)"
+echo "  - storacha/filecoin-services: local repository at commit 7b28dece8236f63bcdeb7b4359e1062038c9da98"

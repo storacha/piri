@@ -1,7 +1,18 @@
 package pdp
 
 import (
+	"encoding/hex"
+	"fmt"
+	"math/big"
+	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/piri/tools/service-operator/eip712"
+	"github.com/storacha/piri/tools/signing-service/client"
+	"github.com/storacha/piri/tools/signing-service/inprocess"
+	sstypes "github.com/storacha/piri/tools/signing-service/types"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -102,6 +113,53 @@ type Params struct {
 }
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
+	// Initialize signing service if configured
+	var signingService sstypes.SigningService
+	var payerAddress common.Address
+	var serviceContractAddress common.Address
+
+	if params.Config.SigningService.Enabled {
+		cfg := params.Config.SigningService
+		payerAddress = cfg.PayerAddress
+		serviceContractAddress = cfg.ServiceContractAddress
+
+		// Choose between HTTP client and in-process signer
+		if cfg.Endpoint != nil {
+			// Use HTTP client for remote signing service
+			signingService = client.New(cfg.Endpoint.String())
+		} else if cfg.PrivateKey != "" {
+			// Use in-process signer with provided private key
+			privateKeyHex := strings.TrimPrefix(cfg.PrivateKey, "0x")
+			privateKeyBytes, err := hex.DecodeString(privateKeyHex)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode private key: %w", err)
+			}
+
+			privateKey, err := crypto.ToECDSA(privateKeyBytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse private key: %w", err)
+			}
+
+			// Create in-process signer
+			fmt.Printf("DEBUG: Creating signer with:\n")
+			fmt.Printf("  ChainID: %d\n", cfg.ChainID)
+			fmt.Printf("  ServiceContractAddress (verifying contract): %s\n", serviceContractAddress.Hex())
+			fmt.Printf("  PayerAddress: %s\n", payerAddress.Hex())
+			fmt.Printf("  OwnerAddress (service provider/payee): %s\n", params.Config.OwnerAddress.Hex())
+
+			signer := eip712.NewSigner(
+				privateKey,
+				big.NewInt(cfg.ChainID),
+				serviceContractAddress,
+			)
+
+			fmt.Printf("  Signer address (from private key): %s\n", signer.GetAddress().Hex())
+			signingService = inprocess.New(signer)
+		} else {
+			return nil, fmt.Errorf("signing service enabled but no endpoint or private key configured")
+		}
+	}
+
 	return service.New(
 		params.DB,
 		params.Config.OwnerAddress,
@@ -113,6 +171,9 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.ChainClient,
 		params.ContractClient,
 		params.ContractBackend,
+		signingService,
+		payerAddress,
+		serviceContractAddress,
 	)
 }
 

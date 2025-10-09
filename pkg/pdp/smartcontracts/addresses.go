@@ -15,16 +15,16 @@ type PDPContracts struct {
 }
 
 func Addresses() PDPContracts {
-	// addresses here based on https://github.com/FilOzone/pdp/?tab=readme-ov-file#contracts
-	// NB(forrest): For now, until we are ready to launch a production network we return
-	// the PDP Service address of the calibration contract, defined at URL above.
+	// Fresh deployment on 2025-10-09 for EIP-712 signature testing
+	// Deployed from commit 7b28dece8236f63bcdeb7b4359e1062038c9da98
+	// See DEPLOYMENT_LOG.md for full details
 	return PDPContracts{
-		// PDPVerifier contract address
-		PDPVerifier: common.HexToAddress("0x445238Eca6c6aB8Dff1Aa6087d9c05734D22f137"),
-		// This contract and its address are owned by storacha
-		ProviderRegistry: common.HexToAddress("0x0aD6636eE10682232320356bc904ab07f8837bB1"),
-		// This contract and its address are owned by storacha, and uses ProviderRegistry for membership
-		PDPService: common.HexToAddress("0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91"),
+		// PDPVerifier proxy contract address (PDP v2.2.1)
+		PDPVerifier: common.HexToAddress("0xa31Dc22286442B733B52ac102461A0685Cc5D36f"),
+		// ServiceProviderRegistry proxy address - owned by storacha
+		ProviderRegistry: common.HexToAddress("0x7F603F206015A4d608a6aBbb275F306fC925D6bD"),
+		// FilecoinWarmStorageService proxy address - owned by storacha
+		PDPService: common.HexToAddress("0x60F412Fd67908a38A5E05C54905daB923413EEA6"),
 	}
 }
 

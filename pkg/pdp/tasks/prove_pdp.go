@@ -236,7 +236,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	if pdpVerifierImpl, ok := pdpVerifier.(*bindings.PDPVerifier); ok {
 		pdpVerifierRaw := bindings.PDPVerifierRaw{Contract: pdpVerifierImpl}
 		calcProofFeeResult := make([]any, 0)
-		err = pdpVerifierRaw.Call(callOpts, &calcProofFeeResult, "calculateProofFee", big.NewInt(proofSetID), gasFee)
+		err = pdpVerifierRaw.Call(callOpts, &calcProofFeeResult, "calculateProofFee", big.NewInt(proofSetID))
 		if err != nil {
 			return false, xerrors.Errorf("failed to calculate proof fee: %w", err)
 		}
@@ -253,7 +253,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		proofFee = calcProofFeeResult[0].(*big.Int)
 	} else {
 		// this condition would be during testing
-		proofFee, err = pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID), gasFee)
+		proofFee, err = pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID))
 		if err != nil {
 			return false, fmt.Errorf("failed to calculate proof fee: %w", err)
 		}
