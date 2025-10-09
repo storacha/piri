@@ -20,6 +20,13 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: Environment
+        options: 
+        - staging
+        - production
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -57,7 +64,7 @@ jobs:
 
   # deploy to prod on new releases
   production:
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production') }}
     uses: ./.github/workflows/terraform.yml
     with:
       env: production
