@@ -21,7 +21,7 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      name:
+      environment:
         type: choice
         description: Environment
         options: 
