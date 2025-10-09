@@ -27,6 +27,12 @@ locals {
       pdponly   = true
       nopdponly = false
     }
+    postad = {
+      name      = "POSTad"
+      pdponly   = false
+      nopdponly = false
+      route     = "POST /ad"
+    }
     postroot = {
       name      = "POSTroot"
       pdponly   = false
