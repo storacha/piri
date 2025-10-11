@@ -236,7 +236,8 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	if pdpVerifierImpl, ok := pdpVerifier.(*bindings.PDPVerifier); ok {
 		pdpVerifierRaw := bindings.PDPVerifierRaw{Contract: pdpVerifierImpl}
 		calcProofFeeResult := make([]any, 0)
-		err = pdpVerifierRaw.Call(callOpts, &calcProofFeeResult, "calculateProofFee", big.NewInt(proofSetID))
+		// Use 0 for estimatedGasFee to get maximum fee
+		err = pdpVerifierRaw.Call(callOpts, &calcProofFeeResult, "calculateProofFee", big.NewInt(proofSetID), gasFee)
 		if err != nil {
 			return false, xerrors.Errorf("failed to calculate proof fee: %w", err)
 		}
@@ -252,8 +253,8 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		}
 		proofFee = calcProofFeeResult[0].(*big.Int)
 	} else {
-		// this condition would be during testing
-		proofFee, err = pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID))
+		// this condition would be during testing (use 0 for estimatedGasFee to get maximum fee)
+		proofFee, err = pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID), big.NewInt(0))
 		if err != nil {
 			return false, fmt.Errorf("failed to calculate proof fee: %w", err)
 		}
@@ -426,7 +427,6 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 		return nil, fmt.Errorf("subroot size exceeds maximum: %d", subrootSize)
 	}
 
-	// TODO everything below here is probably wrong with respect to size's
 	sr, err := p.bs.Get(ctx, subrootCidObj.Hash())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subroot reader: %w", err)
@@ -434,11 +434,14 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 
 	var r io.Reader = sr.Body()
 
-	if sr.Size() > int64(subrootSize) {
-		return nil, fmt.Errorf("subroot size mismatch: %d > %d", sr.Size(), subrootSize)
-	} else if sr.Size() < int64(subrootSize) {
-		// pad with zeros
-		r = io.MultiReader(r, nullreader.NewNullReader(abi.UnpaddedPieceSize(int64(subrootSize)-sr.Size())))
+	// Blobstore stores raw (unpadded) data, so compare against unpadded size
+	unpaddedSize := int64(subrootSize.Unpadded())
+	if sr.Size() > unpaddedSize {
+		return nil, fmt.Errorf("subroot size mismatch: %d > %d", sr.Size(), unpaddedSize)
+	} else if sr.Size() < unpaddedSize {
+		// pad with zeros to reach the expected unpadded size
+		paddingBytes := unpaddedSize - sr.Size()
+		r = io.MultiReader(r, nullreader.NewNullReader(abi.UnpaddedPieceSize(paddingBytes)))
 	}
 
 	return proof.BuildSha254Memtree(r, subrootSize.Unpadded())

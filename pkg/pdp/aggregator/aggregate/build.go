@@ -9,10 +9,13 @@ import (
 
 	"github.com/filecoin-project/go-commp-utils/v2/zerocomm"
 	"github.com/filecoin-project/go-data-segment/merkletree"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-libstoracha/piece/digest"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-libstoracha/piece/size"
 )
+
+var log = logging.Logger("aggregate")
 
 // This code is adapted from
 // https://github.com/filecoin-project/go-commp-utils/blob/master/commd.go
@@ -108,6 +111,70 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 	if err != nil {
 		return Aggregate{}, err
 	}
+	/*
+		The Problem (from claude): I don't trust this yet, but leaving here for now.
+
+		  1. stack[0].size is the padded aggregate size (power-of-2 bytes)
+		  2. size.MaxDataSize() converts padded to unpadded using paddedSize * 127/128
+		  3. But this assumes a full, balanced tree with no internal padding!
+
+		  When you aggregate multiple pieces (e.g., 64MB + 32MB + 16MB), the algorithm pads them into the next power-of-2 (128MB). Then:
+
+		  stack[0].size = 128MB (padded, with zero-padding)
+		  size.MaxDataSize(128MB) = 128MB * 127/128 ≈ 127MB
+
+		  But actual unpadded data = sum of individual piece unpadded sizes
+		                            = 64MB * 127/128 + 32MB * 127/128 + 16MB * 127/128
+		                            = ~62.75MB + ~31.38MB + ~15.69MB
+		                            = ~109.82MB
+
+		  Wrong size: 127MB vs actual: 109.82MB
+		  Wrong height: log2(127MB/32) ≈ 22 vs correct: log2(109.82MB/32) ≈ 21
+
+		  This mismatch causes the PDPVerifier contract to calculate a massive leafCount!
+
+		  The Fix
+
+		  In build.go, track the actual sum of unpadded piece sizes:
+
+		  func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
+		      // ... existing code ...
+
+		      // NEW: Track actual unpadded data size
+		      var totalUnpaddedSize uint64
+		      for _, p := range pieceLinks {
+		          totalUnpaddedSize += size.MaxDataSize(p.PaddedSize())
+		      }
+
+		      // ... build tree (existing code) ...
+
+		      // Line 111: Use actual unpadded size, not MaxDataSize of padded aggregate
+		      digest, err := digest.FromCommitmentAndSize(
+		          stack[0].commP,
+		          totalUnpaddedSize,  // ← Use sum of actual unpadded sizes!
+		      )
+
+		  This ensures the PieceCIDv2 has the correct height based on the actual data, not the padded tree structure.
+
+	*/
+
+	// Debug: Calculate both ways to compare and log
+	aggregatePaddedSize := stack[0].size
+	calculatedUnpadded := size.MaxDataSize(aggregatePaddedSize)
+
+	var actualTotalUnpadded uint64
+	for _, p := range pieceLinks {
+		actualTotalUnpadded += size.MaxDataSize(p.PaddedSize())
+	}
+
+	// Log comparison to help debug size calculation
+	log.Infow("Aggregate CIDv2 size calculation",
+		"aggregatePaddedSize", aggregatePaddedSize,
+		"calculatedUnpadded_MaxDataSize", calculatedUnpadded,
+		"actualTotalUnpadded_sumOfPieces", actualTotalUnpadded,
+		"difference", int64(calculatedUnpadded)-int64(actualTotalUnpadded),
+		"pieceCount", len(pieceLinks))
+
 	digest, err := digest.FromCommitmentAndSize(stack[0].commP, size.MaxDataSize(stack[0].size))
 	if err != nil {
 		return Aggregate{}, fmt.Errorf("error building aggregate link: %w", err)

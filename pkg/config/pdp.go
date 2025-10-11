@@ -5,10 +5,6 @@ import (
 	"net/url"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/samber/lo"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/presets"
-
 	"github.com/storacha/piri/pkg/config/app"
 )
 
@@ -24,13 +20,22 @@ func (c PDPServerConfig) Validate() error {
 }
 
 type PDPServiceConfig struct {
-	OwnerAddress    string `mapstructure:"owner_address" validate:"required" flag:"owner-address" toml:"owner_address"`
-	ContractAddress string `mapstructure:"contract_address" validate:"required" flag:"contract-address" toml:"contract_address"`
-	LotusEndpoint   string `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
+	OwnerAddress    string         `mapstructure:"owner_address" validate:"required" flag:"owner-address" toml:"owner_address"`
+	ContractAddress string         `mapstructure:"contract_address" validate:"required" flag:"contract-address" toml:"contract_address"`
+	LotusEndpoint   string         `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
+	Signer          SigningService `mapstructure:"signing_service" validate:"required" toml:"signing_service"`
 }
 
-func (c PDPServiceConfig) Validate() error {
-	return validateConfig(c)
+type SigningService struct {
+	Enabled                bool   `mapstructure:"enabled"`
+	PrivateKey             string `mapstructure:"private_key" validate:"required" flag:"private_key" toml:"private_key"`
+	PayerAddress           string `mapstructure:"payer_address" validate:"required" flag:"payer-address" toml:"payer_address"`
+	ServiceContractAddress string `mapstructure:"service_contract_address" validate:"required" flag:"service-contract-address" toml:"service_contract_address"`
+	ChainID                int    `mapstructure:"chain_id" validate:"required" flag:"chain-id" toml:"chain_id"`
+}
+
+func (p PDPServiceConfig) Validate() error {
+	return validateConfig(p)
 }
 
 func (p PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
@@ -49,11 +54,14 @@ func (p PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		ContractAddress: common.HexToAddress(p.ContractAddress),
 		LotusEndpoint:   lotusEndpoint,
 		SigningService: app.SigningServiceConfig{
-			Enabled:                true,
-			Endpoint:               lo.Must(url.Parse("http://localhost:8080")),
-			PayerAddress:           presets.StorachaUSDFCAddress,
-			ServiceContractAddress: smartcontracts.Addresses().PDPService,
-			ChainID:                314159,
+			Enabled: p.Signer.Enabled,
+			// TODO deploy a signing service and us the URL here, though this
+			// can also operate with the contract owners private key inprocess for testing
+			//Endpoint:               lo.Must(url.Parse("http://localhost:8080")),
+			PrivateKey:             p.Signer.PrivateKey,
+			PayerAddress:           common.HexToAddress(p.Signer.PayerAddress),
+			ServiceContractAddress: common.HexToAddress(p.Signer.ServiceContractAddress),
+			ChainID:                int64(p.Signer.ChainID),
 		},
 	}, nil
 }

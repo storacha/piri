@@ -41,13 +41,16 @@ rm -rf abis bindings
 mkdir -p abis bindings
 
 echo
-echo "Step 1: Downloading PDP contract ABIs from FilOzone/pdp $PDP_VERSION..."
-curl -fsSL "https://github.com/FilOzone/pdp/releases/download/$PDP_VERSION/PDPVerifier.abi.json" -o abis/PDPVerifier.abi.json
-curl -fsSL "https://github.com/FilOzone/pdp/releases/download/$PDP_VERSION/IPDPProvingSchedule.abi.json" -o abis/IPDPProvingSchedule.abi.json
+echo "Step 1: Copying PDP contract ABIs from local filecoin-services PDP submodule..."
+SERVICES_DIR="/Users/frrist/Workspace/src/github.com/storacha/filecoin-services/service_contracts"
+PDP_DIR="$SERVICES_DIR/lib/pdp"
+
+# Extract ABIs from forge build output in the PDP submodule
+jq '.abi' "$PDP_DIR/out/PDPVerifier.sol/PDPVerifier.json" > abis/PDPVerifier.abi.json
+jq '.abi' "$PDP_DIR/out/IPDPProvingSchedule.sol/IPDPProvingSchedule.json" > abis/IPDPProvingSchedule.abi.json
 
 echo
 echo "Step 2: Copying Storacha Services contract ABIs from local filecoin-services repository..."
-SERVICES_DIR="/Users/frrist/Workspace/src/github.com/storacha/filecoin-services/service_contracts"
 
 # Extract ABIs from forge build output
 jq '.abi' "$SERVICES_DIR/out/FilecoinWarmStorageService.sol/FilecoinWarmStorageService.json" > abis/FilecoinWarmStorageService.abi.json
@@ -160,5 +163,11 @@ echo
 echo "✅ Contract generation complete!"
 echo "Generated files in: bindings/"
 echo "ABIs sourced from:"
-echo "  - FilOzone/pdp: $PDP_VERSION (downloaded)"
-echo "  - storacha/filecoin-services: local repository at commit 7b28dece8236f63bcdeb7b4359e1062038c9da98"
+echo "  - FilOzone/pdp: local submodule at $PDP_DIR"
+echo "  - storacha/filecoin-services: local repository at $SERVICES_DIR"
+
+# Optional: Regenerate error bindings from Errors.sol
+# Uncomment the following lines to automatically regenerate error bindings after contract generation
+# echo
+# echo "Regenerating error bindings from Errors.sol..."
+# ./gen-error-bindings.sh

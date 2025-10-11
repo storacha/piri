@@ -6,17 +6,14 @@ import (
 )
 
 // GetProvingScheduleFromListener creates a ProvingScheduleProvider for calculating proving periods.
-// Currently returns a hardcoded implementation that uses fixed proving period values.
-//
-// TODO: When the FilecoinWarmStorageService contract is integrated, check if listenerAddr
-// is non-zero and return ContractProvingSchedule instead:
-//
-//	if listenerAddr != (common.Address{}) {
-//	    return NewContractProvingSchedule(listenerAddr, backend)
-//	}
-//
-// For now, always uses hardcoded values: 60 epoch period, 30 epoch window.
+// If listenerAddr is non-zero, returns a ContractProvingSchedule that queries the actual service contract.
+// Otherwise, returns a HardcodedProvingSchedule with fixed values.
 func GetProvingScheduleFromListener(listenerAddr common.Address, backend bind.ContractBackend, chain ChainAPI) (ProvingScheduleProvider, error) {
-	// Always use hardcoded schedule for now
+	// If listener address is set, use the contract-based proving schedule
+	if listenerAddr != (common.Address{}) {
+		return NewContractProvingSchedule(listenerAddr, backend)
+	}
+
+	// Otherwise fall back to hardcoded schedule
 	return NewHardcodedProvingSchedule(chain), nil
 }

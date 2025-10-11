@@ -44,7 +44,8 @@ type PDPVerifier interface {
 	GetChallengeRange(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 	GetScheduledRemovals(opts *bind.CallOpts, setId *big.Int) ([]*big.Int, error)
 	FindPieceIds(opts *bind.CallOpts, setId *big.Int, leafIndexs []*big.Int) ([]bindings.IPDPTypesPieceIdAndOffset, error)
+	GetNextPieceId(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
 
-	// CalculateProofFee returns the required proof fee based on the dataset size
-	CalculateProofFee(opts *bind.CallOpts, setId *big.Int) (*big.Int, error)
+	// CalculateProofFee returns the required proof fee based on the dataset size and estimated gas fee
+	CalculateProofFee(opts *bind.CallOpts, setId *big.Int, estimatedGasFee *big.Int) (*big.Int, error)
 }
