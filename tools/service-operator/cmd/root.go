@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/storacha/piri/tools/service-operator/internal/config"
 
 	"github.com/storacha/piri/tools/service-operator/cmd/payments"
 	"github.com/storacha/piri/tools/service-operator/cmd/provider"
@@ -26,11 +25,10 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./service-operator.yaml)")
 
-	rootCmd.PersistentFlags().String("rpc-url", config.DefaultRpcUrl, "Ethereum RPC endpoint URL")
-	rootCmd.PersistentFlags().String("contract-address", config.DefaultContractAddress, "FilecoinWarmStorageService contract address")
-	rootCmd.PersistentFlags().String("payments-address", config.DefaultPaymentAddress, "Payments contract address")
-	rootCmd.PersistentFlags().String("token-address", config.DefaultTokenAddress, "ERC20 token contract address (must support EIP-2612)")
-	rootCmd.PersistentFlags().String("network", config.DefaultNetwork, "Network preset (calibration or mainnet)")
+	rootCmd.PersistentFlags().String("rpc-url", "", "Ethereum RPC endpoint URL (required)")
+	rootCmd.PersistentFlags().String("contract-address", "", "FilecoinWarmStorageService contract address (required for most commands)")
+	rootCmd.PersistentFlags().String("payments-address", "", "Payments contract address (required for payment commands)")
+	rootCmd.PersistentFlags().String("token-address", "", "ERC20 token contract address (required for payment commands, must support EIP-2612)")
 	rootCmd.PersistentFlags().String("private-key", "", "Path to private key file")
 	rootCmd.PersistentFlags().String("keystore", "", "Path to keystore file (alternative to private-key)")
 	rootCmd.PersistentFlags().String("keystore-password", "", "Keystore password")
@@ -42,7 +40,6 @@ func init() {
 	cobra.CheckErr(viper.BindPFlag("private_key", rootCmd.PersistentFlags().Lookup("private-key")))
 	cobra.CheckErr(viper.BindPFlag("keystore", rootCmd.PersistentFlags().Lookup("keystore")))
 	cobra.CheckErr(viper.BindPFlag("keystore_password", rootCmd.PersistentFlags().Lookup("keystore-password")))
-	cobra.CheckErr(viper.BindPFlag("network", rootCmd.PersistentFlags().Lookup("network")))
 
 	rootCmd.AddCommand(provider.Cmd)
 	rootCmd.AddCommand(payments.Cmd)

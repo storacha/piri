@@ -16,4 +16,7 @@ func init() {
 	Cmd.AddCommand(approveServiceCmd)
 	Cmd.AddCommand(statusCmd)
 	Cmd.AddCommand(balanceCmd)
+	Cmd.AddCommand(accountCmd)
+	Cmd.AddCommand(settleCmd)
+	Cmd.AddCommand(withdrawCmd)
 }

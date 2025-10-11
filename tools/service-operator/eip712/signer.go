@@ -170,6 +170,7 @@ func (s *Signer) SignDeleteDataSet(clientDataSetId *big.Int) (*AuthSignature, er
 func (s *Signer) signTypedData(primaryType string, message map[string]interface{}) (*AuthSignature, error) {
 	domain := GetDomain(s.chainId, s.verifyingContract)
 
+	fmt.Printf("DEBUG signTypedData: chainId = %s\n", s.chainId.String())
 	fmt.Printf("DEBUG signTypedData: domain verifyingContract = %s\n", s.verifyingContract.Hex())
 	fmt.Printf("DEBUG signTypedData: primaryType = %s\n", primaryType)
 	fmt.Printf("DEBUG signTypedData: message = %+v\n", message)
@@ -186,6 +187,18 @@ func (s *Signer) signTypedData(primaryType string, message map[string]interface{
 	signature, err := crypto.Sign(hash, s.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign: %w", err)
+	}
+
+	// Verify we can recover the correct signer
+	pubKey, err := crypto.SigToPub(hash, signature)
+	if err != nil {
+		return nil, fmt.Errorf("failed to recover public key: %w", err)
+	}
+	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
+	fmt.Printf("DEBUG signTypedData: signer address = %s\n", s.address.Hex())
+	fmt.Printf("DEBUG signTypedData: recovered address = %s\n", recoveredAddr.Hex())
+	if recoveredAddr != s.address {
+		return nil, fmt.Errorf("signature verification failed: expected %s, recovered %s", s.address.Hex(), recoveredAddr.Hex())
 	}
 
 	// Transform V from recovery ID to Ethereum signature standard

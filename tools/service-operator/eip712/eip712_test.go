@@ -2,7 +2,6 @@ package eip712
 
 import (
 	"encoding/hex"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -68,11 +67,6 @@ func TestSignCreateDataSet(t *testing.T) {
 	assert.NotEqual(t, common.Hash{}, authSig.R)
 	assert.NotEqual(t, common.Hash{}, authSig.S)
 	assert.Equal(t, signer.GetAddress(), authSig.Signer)
-
-	// Verify signature can be recovered
-	recoveredAddr, err := recoverAddress(authSig.SignedData, authSig.Signature)
-	require.NoError(t, err)
-	assert.Equal(t, signer.GetAddress(), recoveredAddr)
 }
 
 func TestEncodeExtraData(t *testing.T) {
@@ -149,29 +143,4 @@ func TestSignAddPieces(t *testing.T) {
 	assert.NotEqual(t, common.Hash{}, authSig.R)
 	assert.NotEqual(t, common.Hash{}, authSig.S)
 	assert.Equal(t, signer.GetAddress(), authSig.Signer)
-}
-
-// Helper function to recover address from signature
-func recoverAddress(hash []byte, signature []byte) (common.Address, error) {
-	if len(signature) != 65 {
-		return common.Address{}, fmt.Errorf("invalid signature length: %d", len(signature))
-	}
-
-	// Convert Ethereum signature format (v=27/28) back to recovery ID (v=0/1)
-	v := signature[64]
-	if v >= 27 {
-		v -= 27
-	}
-
-	// Create signature with recovery ID for crypto.SigToPub
-	sig := make([]byte, 65)
-	copy(sig[:64], signature[:64])
-	sig[64] = v
-
-	pubKey, err := crypto.SigToPub(hash, sig)
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	return crypto.PubkeyToAddress(*pubKey), nil
 }

@@ -26,6 +26,7 @@ Only the contract owner can approve providers.`,
 // TODO: room for improvement here, this method will return success even if:
 // 1. the provider is already approved
 // 2. the provider doesn't exist
+// we should modify the contract to allow inspection of approved operators
 func runApprove(cobraCmd *cobra.Command, args []string) error {
 	ctx := cobraCmd.Context()
 
