@@ -123,8 +123,8 @@ func (p *PDPService) getContractState(ctx context.Context, id *big.Int) (types.P
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve challenge range: %w", err)
 	}
 
-	// Calculate proof fee
-	proofFee, err := pdpVerifier.CalculateProofFee(bindCtx, id)
+	// Calculate proof fee (use 0 for estimatedGasFee to get maximum fee)
+	proofFee, err := pdpVerifier.CalculateProofFee(bindCtx, id, big.NewInt(0))
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to calculate proof fee: %w", err)
 	}

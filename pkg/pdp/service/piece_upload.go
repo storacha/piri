@@ -133,6 +133,21 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		return fmt.Errorf("failed to compute v2 piece: %w", err)
 	}
 
+	// Debug logging to verify CIDv2 creation
+	cidRawSize := func() uint64 {
+		_, rs, err := commcid.PieceCidV1FromV2(pieceCIDV2)
+		if err != nil {
+			return 0
+		}
+		return rs
+	}()
+	log.Infow("Created PieceCIDv2",
+		"pieceCIDv2", pieceCIDV2.String(),
+		"checkSize_unpadded", upload.CheckSize,
+		"paddedPieceSize", paddedPieceSize,
+		"cidEmbeddedRawSize", cidRawSize,
+		"sizeMatch", uint64(upload.CheckSize) == cidRawSize)
+
 	// TODO seems these will never be equal since the pieceCIDV2 size is padded
 	_ = paddedSize
 	/*

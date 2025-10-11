@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 	"gorm.io/gorm"
@@ -17,6 +19,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts/evmerrors"
 	"github.com/storacha/piri/pkg/wallet"
 )
 
@@ -73,6 +76,17 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *ty
 
 		gasLimit, err := s.client.EstimateGas(ctx, msg)
 		if err != nil {
+			// Try to parse contract revert error
+			// otherwise we get a bunch of hex and glhf trying to read that
+			var dataErr rpc.DataError
+			if errors.As(err, &dataErr) {
+				if parsedErr, parseErr := evmerrors.ParseRevert(dataErr.ErrorData().(string)); parseErr == nil {
+					log.Infow("parsed contract revert during gas estimation", "error", parsedErr)
+					return common.Hash{}, fmt.Errorf("contract reverted: %s", parsedErr)
+				} else {
+					log.Warnw("failed to parse revert during gas estimation", "parse_error", parseErr, "original_error", err)
+				}
+			}
 			return common.Hash{}, fmt.Errorf("failed to estimate gas: %w", err)
 		}
 		if gasLimit == 0 {

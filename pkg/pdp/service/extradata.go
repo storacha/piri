@@ -78,6 +78,11 @@ func (e *ExtraDataEncoder) EncodeAddPiecesExtraData(
 		return nil, fmt.Errorf("failed to marshal signature: %w", err)
 	}
 
+	// Debug: log signature details
+	fmt.Printf("DEBUG EncodeAddPiecesExtraData: signature length = %d\n", len(signatureBytes))
+	fmt.Printf("DEBUG EncodeAddPiecesExtraData: signature bytes = 0x%x\n", signatureBytes)
+	fmt.Printf("DEBUG EncodeAddPiecesExtraData: v = %d, r = 0x%x, s = 0x%x\n", signature.V, signature.R, signature.S)
+
 	// Split metadata into keys and values arrays
 	keysArray := make([][]string, len(metadata))
 	valuesArray := make([][]string, len(metadata))
