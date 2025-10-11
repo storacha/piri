@@ -9,25 +9,18 @@ import (
 
 // Constants from the payment rate specification
 const (
-	// Storage price per TiB per month (from contract's STORAGE_PRICE_PER_TIB_PER_MONTH)
-	// Note: This is in base token units. For USDFC with 6 decimals, 5 USDFC = 5_000_000 base units
-	PricePerTiBPerMonth = 5_000_000 // 5 USDFC with 6 decimals
-
-	// Token decimals (USDFC uses 6 decimals like USDC)
-	TokenDecimals = 6
-
 	// Size constants
 	TiBInBytes = 1_099_511_627_776 // 1024^4
 	GiBInBytes = 1_073_741_824     // 1024^3
 	MiBInBytes = 1_048_576         // 1024^2
 
 	// Epoch constants
-	EpochsPerDay   = 2_880
-	EpochsPerMonth = 86_400 // 30 days * 2,880 epochs/day
+	EpochsPerDay = 2_880
 
 	// Default values
-	DefaultLockupDays            = 10
-	DefaultMaxLockupPeriodEpochs = EpochsPerMonth // 30 days
+	DefaultLockupDays = 10
+	// DefaultMaxLockupPeriodEpochs is 30 days (will be calculated as 30 * EpochsPerDay)
+	DefaultMaxLockupPeriodDays = 30
 )
 
 // AllowanceCalculation holds the calculated allowance values
@@ -65,10 +58,17 @@ func ParseSize(sizeStr string) (*big.Int, error) {
 // based on the dataset size and lockup parameters.
 //
 // Formula from https://filecoinproject.slack.com/archives/C07CGTXHHT4/p1759276539956319
-//   rateAllowance = (sizeInBytes × pricePerTiBPerMonth) / (TiB_IN_BYTES × EPOCHS_PER_MONTH)
+//   rateAllowance = (sizeInBytes × pricePerTiBPerMonth) / (TiB_IN_BYTES × epochsPerMonth)
 //   lockupAllowance = ratePerEpoch × lockupPeriodInEpochs
-//   maxLockupPeriod = EPOCHS_PER_MONTH (30 days)
-func CalculateAllowances(sizeInBytes *big.Int, lockupDays int, maxLockupPeriodDays int) (*AllowanceCalculation, error) {
+//   maxLockupPeriod = maxLockupPeriodDays × EpochsPerDay
+//
+// Parameters:
+//   - sizeInBytes: The dataset size in bytes
+//   - lockupDays: The lockup period in days
+//   - maxLockupPeriodDays: The maximum lockup period in days
+//   - pricePerTiBPerMonth: The price per TiB per month in base token units (queried from contract)
+//   - epochsPerMonth: The number of epochs per month (queried from contract)
+func CalculateAllowances(sizeInBytes *big.Int, lockupDays int, maxLockupPeriodDays int, pricePerTiBPerMonth *big.Int, epochsPerMonth uint64) (*AllowanceCalculation, error) {
 	if sizeInBytes == nil || sizeInBytes.Sign() <= 0 {
 		return nil, fmt.Errorf("size must be greater than 0")
 	}
@@ -78,13 +78,19 @@ func CalculateAllowances(sizeInBytes *big.Int, lockupDays int, maxLockupPeriodDa
 	if maxLockupPeriodDays <= 0 {
 		return nil, fmt.Errorf("max lockup period days must be greater than 0")
 	}
+	if pricePerTiBPerMonth == nil || pricePerTiBPerMonth.Sign() <= 0 {
+		return nil, fmt.Errorf("price per TiB per month must be greater than 0")
+	}
+	if epochsPerMonth == 0 {
+		return nil, fmt.Errorf("epochs per month must be greater than 0")
+	}
 
 	// Calculate rate per epoch
-	// rateAllowance = (sizeInBytes × pricePerTiBPerMonth) / (TiB_IN_BYTES × EPOCHS_PER_MONTH)
+	// rateAllowance = (sizeInBytes × pricePerTiBPerMonth) / (TiB_IN_BYTES × epochsPerMonth)
 	// Use ceiling division to ensure small datasets get at least 1 base unit per epoch
 
-	numerator := new(big.Int).Mul(sizeInBytes, big.NewInt(PricePerTiBPerMonth))
-	denominator := new(big.Int).Mul(big.NewInt(TiBInBytes), big.NewInt(EpochsPerMonth))
+	numerator := new(big.Int).Mul(sizeInBytes, pricePerTiBPerMonth)
+	denominator := new(big.Int).Mul(big.NewInt(TiBInBytes), big.NewInt(int64(epochsPerMonth)))
 
 	ratePerEpoch := new(big.Int)
 	remainder := new(big.Int)
@@ -153,7 +159,7 @@ func FormatTokenAmount(baseUnits *big.Int, decimals uint8) string {
 	val, _ := usd.Float64()
 	if val < 0.01 {
 		// For very small amounts, show more precision
-		return fmt.Sprintf("$%.6f", val)
+		return fmt.Sprintf("$%.18f", val)
 	}
-	return fmt.Sprintf("$%.2f", val)
+	return fmt.Sprintf("$%.18f", val)
 }

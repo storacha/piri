@@ -12,7 +12,6 @@ import (
 
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
-	"github.com/storacha/piri/tools/service-operator/internal/config"
 )
 
 var (
@@ -66,15 +65,7 @@ func runList(cobraCmd *cobra.Command, args []string) error {
 
 	// For list command, we only need RPC URL (read-only operation)
 	if cfg.RPCUrl == "" {
-		if cfg.Network != "" {
-			defaultRPC, _, _, _, err := config.NetworkDefaults(cfg.Network)
-			if err != nil {
-				return err
-			}
-			cfg.RPCUrl = defaultRPC
-		} else {
-			return fmt.Errorf("rpc-url or network must be specified")
-		}
+		return fmt.Errorf("--rpc-url is required")
 	}
 
 	if listFormat != "table" && listFormat != "json" {
