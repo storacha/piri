@@ -2,9 +2,7 @@ package service
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -13,6 +11,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/tools/service-operator/eip712"
 )
 
 func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (res common.Hash, retErr error) {
@@ -31,18 +30,39 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "record keeper %s is not a valid address", params.RecordKeeper)
 	}
 
-	// Decode extraData if provided
-	var extraDataBytes []byte
-	if params.ExtraData != "" {
-		extraDataHexStr := string(params.ExtraData)
-		decodedBytes, err := hex.DecodeString(strings.TrimPrefix(extraDataHexStr, "0x"))
-		if err != nil {
-			log.Errorf("Failed to decode hex extraData: %v", err)
-			return common.Hash{}, types.WrapError(types.KindInvalidInput,
-				fmt.Sprintf("invalid extraData format: %s (must be hex encoded)", params.ExtraData),
-				err)
-		}
-		extraDataBytes = decodedBytes
+	// TODO we can remove these eventually, node should never be built without them
+	if p.signingService == nil || p.viewContract == nil {
+		return common.Hash{}, types.NewError(types.KindInternal, "signing service and view contract are required")
+	}
+
+	// Get the next client dataset ID for this payer, each payer has their own ID, which is different from the data set ID
+	nextClientDataSetId, err := p.viewContract.GetNextClientDataSetId(p.payerAddress)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to get next client dataset ID: %w", err)
+	}
+	log.Infof("Next client dataset ID for payer %s: %s", p.payerAddress.Hex(), nextClientDataSetId.String())
+
+	// TODO: limit, or remove the extra data that can be provided to this method
+	// the caller of this will be the operator, we could encode a did here or something
+	var metadataEntries []eip712.MetadataEntry
+	// request a signature for creating the dataset from the signing service
+	signature, err := p.signingService.SignCreateDataSet(ctx,
+		nextClientDataSetId,
+		p.address, // Use the nodes address as the address receiving payment for storage
+		metadataEntries,
+	)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to sign CreateDataSet: %w", err)
+	}
+
+	// Encode the extraData with payer, metadata, and signature
+	extraDataBytes, err := p.extraDataHelper.EncodeCreateDataSetExtraData(
+		p.payerAddress,
+		metadataEntries,
+		signature,
+	)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to encode extraData: %w", err)
 	}
 
 	// Obtain the ABI of the PDPVerifier contract
@@ -51,10 +71,8 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 		return common.Hash{}, fmt.Errorf("failed to get contract ABI: %w", err)
 	}
 
-	// Pack the method call data
-	// TODO(forrest): we are using an empty address for the record keeper right now, but when we integrate with a service
-	// contract soon, we'll want to use its address instead
-	data, err := abiData.Pack("createDataSet", common.Address{}, extraDataBytes)
+	// Pack the method call data with listener address and extraData
+	data, err := abiData.Pack("createDataSet", smartcontracts.Addresses().PDPService, extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack create proof set: %w", err)
 	}
@@ -72,6 +90,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 	reason := "pdp-mkproofset"
 	txHash, err := p.sender.Send(ctx, p.address, tx, reason)
 	if err != nil {
+		fmt.Println(err.Error())
 		return common.Hash{}, fmt.Errorf("failed to send transaction: %w", err)
 	}
 
@@ -87,7 +106,6 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 		proofsetCreate := models.PDPProofsetCreate{
 			CreateMessageHash: txHash.Hex(),
 			Service:           p.name,
-			// ProofsetCreated defaults to false, and Ok is nil by default.
 		}
 		if err := tx.Create(&proofsetCreate).Error; err != nil {
 			return fmt.Errorf("failed to insert into %s: %w", proofsetCreate.TableName(), err)

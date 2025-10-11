@@ -2,8 +2,8 @@
 set -e
 
 # Configuration - update these versions as needed
-PDP_VERSION="${PDP_VERSION:-v2.1.0}"
-#FILECOIN_SERVICES_VERSION="${FILECOIN_SERVICES_VERSION:-latest}"
+PDP_VERSION="${PDP_VERSION:-v2.2.1}"
+STORACHA_SERVICES_BRANCH="${STORACHA_SERVICES_BRANCH:-main}"
 
 # macOS uses BSD sed while Ubuntu uses GNU sed.
 # we need this script to work on both OSs.
@@ -31,7 +31,7 @@ fi
 echo "=== Contract Generation Script ==="
 echo "Downloading ABIs from releases and generating Go bindings..."
 echo "PDP version: $PDP_VERSION"
-#echo "Filecoin Services version: $FILECOIN_SERVICES_VERSION"
+echo "Storacha Services branch: $STORACHA_SERVICES_BRANCH"
 
 # Change to script directory
 cd "$(dirname "$0")"
@@ -41,35 +41,37 @@ rm -rf abis bindings
 mkdir -p abis bindings
 
 echo
-echo "Step 1: Downloading PDP contract ABIs from FilOzone/pdp $PDP_VERSION..."
-curl -fsSL "https://github.com/FilOzone/pdp/releases/download/$PDP_VERSION/PDPVerifier.abi.json" -o abis/PDPVerifier.abi.json
-curl -fsSL "https://github.com/FilOzone/pdp/releases/download/$PDP_VERSION/IPDPProvingSchedule.abi.json" -o abis/IPDPProvingSchedule.abi.json
+echo "Step 1: Copying PDP contract ABIs from local filecoin-services PDP submodule..."
+SERVICES_DIR="/Users/frrist/Workspace/src/github.com/storacha/filecoin-services/service_contracts"
+PDP_DIR="$SERVICES_DIR/lib/pdp"
 
-#echo
-#echo "Step 2: Downloading Filecoin Services contract ABIs..."
-#if [ "$FILECOIN_SERVICES_VERSION" = "latest" ]; then
-    # Get the latest release tag
-#    FILECOIN_SERVICES_VERSION=$(curl -fsSL https://api.github.com/repos/FilOzone/filecoin-services/releases/latest | jq -r '.tag_name')
-#    if [ "$FILECOIN_SERVICES_VERSION" = "null" ] || [ -z "$FILECOIN_SERVICES_VERSION" ]; then
-#        echo "Error: No releases found for FilOzone/filecoin-services"
-#        echo "Please set FILECOIN_SERVICES_VERSION environment variable to a specific release tag"
-#        exit 1
-#    fi
-#    echo "Found latest release: $FILECOIN_SERVICES_VERSION"
-#fi
-
-#curl -fsSL "https://github.com/FilOzone/filecoin-services/releases/download/$FILECOIN_SERVICES_VERSION/FilecoinWarmStorageService.abi.json" -o abis/FilecoinWarmStorageService.abi.json
-#curl -fsSL "https://github.com/FilOzone/filecoin-services/releases/download/$FILECOIN_SERVICES_VERSION/ServiceProviderRegistry.abi.json" -o abis/ServiceProviderRegistry.abi.json
+# Extract ABIs from forge build output in the PDP submodule
+jq '.abi' "$PDP_DIR/out/PDPVerifier.sol/PDPVerifier.json" > abis/PDPVerifier.abi.json
+jq '.abi' "$PDP_DIR/out/IPDPProvingSchedule.sol/IPDPProvingSchedule.json" > abis/IPDPProvingSchedule.abi.json
 
 echo
-echo "Step 2: Extracting ABIs from JSON artifacts..."
+echo "Step 2: Copying Storacha Services contract ABIs from local filecoin-services repository..."
+
+# Extract ABIs from forge build output
+jq '.abi' "$SERVICES_DIR/out/FilecoinWarmStorageService.sol/FilecoinWarmStorageService.json" > abis/FilecoinWarmStorageService.abi.json
+# StateView is needed for querying clientDataSetIds and other view functions
+jq '.abi' "$SERVICES_DIR/out/FilecoinWarmStorageServiceStateView.sol/FilecoinWarmStorageServiceStateView.json" > abis/FilecoinWarmStorageServiceStateView.abi.json
+jq '.abi' "$SERVICES_DIR/out/Payments.sol/Payments.json" > abis/Payments.abi.json
+jq '.abi' "$SERVICES_DIR/out/ServiceProviderRegistry.sol/ServiceProviderRegistry.json" > abis/ServiceProviderRegistry.abi.json
+jq '.abi' "$SERVICES_DIR/out/SessionKeyRegistry.sol/SessionKeyRegistry.json" > abis/SessionKeyRegistry.abi.json
+
+echo
+echo "Step 3: Extracting ABIs from JSON artifacts..."
 jq -r '.' abis/PDPVerifier.abi.json > abis/PDPVerifier.abi
 jq -r '.' abis/IPDPProvingSchedule.abi.json > abis/IPDPProvingSchedule.abi
-#jq -r '.' abis/FilecoinWarmStorageService.abi.json > abis/FilecoinWarmStorageService.abi
-#jq -r '.' abis/ServiceProviderRegistry.abi.json > abis/ServiceProviderRegistry.abi
+jq -r '.' abis/FilecoinWarmStorageService.abi.json > abis/FilecoinWarmStorageService.abi
+jq -r '.' abis/FilecoinWarmStorageServiceStateView.abi.json > abis/FilecoinWarmStorageServiceStateView.abi
+jq -r '.' abis/Payments.abi.json > abis/Payments.abi
+jq -r '.' abis/ServiceProviderRegistry.abi.json > abis/ServiceProviderRegistry.abi
+jq -r '.' abis/SessionKeyRegistry.abi.json > abis/SessionKeyRegistry.abi
 
 echo
-echo "Step 3: Generating Go bindings..."
+echo "Step 4: Generating Go bindings..."
 
 # Generate a common types file first, needed since contracts define these independently, without this we get duplicate types.
 echo "Creating common types file..."
@@ -118,26 +120,54 @@ abigen --abi abis/IPDPProvingSchedule.abi \
        --type PDPProvingSchedule \
        --out bindings/pdp_proving_schedule.go
 
-# Generate bindings from Filecoin services
-#echo "Generating FilecoinWarmStorageService bindings..."
-#abigen --abi abis/FilecoinWarmStorageService.abi \
-#       --pkg bindings \
-#       --type FilecoinWarmStorageService \
-#       --out bindings/filecoin_warm_storage_service_temp.go
+# Generate bindings from Storacha services
+echo "Generating FilecoinWarmStorageService bindings..."
+abigen --abi abis/FilecoinWarmStorageService.abi \
+       --pkg bindings \
+       --type FilecoinWarmStorageService \
+       --out bindings/filecoin_warm_storage_service_temp.go
 
 # Remove duplicate types
-#sedi '/^type CidsCid struct {$/,/^}$/d' bindings/filecoin_warm_storage_service_temp.go
-#mv bindings/filecoin_warm_storage_service_temp.go bindings/filecoin_warm_storage_service.go
+sedi '/^type CidsCid struct {$/,/^}$/d' bindings/filecoin_warm_storage_service_temp.go
+mv bindings/filecoin_warm_storage_service_temp.go bindings/filecoin_warm_storage_service.go
 
-#echo "Generating ServiceProviderRegistry bindings..."
-#abigen --abi abis/ServiceProviderRegistry.abi \
-#       --pkg bindings \
-#       --type ServiceProviderRegistry \
-#       --out bindings/service_provider_registry.go
+echo "Generating FilecoinWarmStorageServiceStateView bindings..."
+abigen --abi abis/FilecoinWarmStorageServiceStateView.abi \
+       --pkg bindings \
+       --type FilecoinWarmStorageServiceStateView \
+       --out bindings/filecoin_warm_storage_service_state_view_temp.go
+
+# Remove duplicate types from StateView
+sedi '/^type CidsCid struct {$/,/^}$/d' bindings/filecoin_warm_storage_service_state_view_temp.go
+mv bindings/filecoin_warm_storage_service_state_view_temp.go bindings/filecoin_warm_storage_service_state_view.go
+
+echo "Generating Payments bindings..."
+abigen --abi abis/Payments.abi \
+       --pkg bindings \
+       --type Payments \
+       --out bindings/payments.go
+
+echo "Generating ServiceProviderRegistry bindings..."
+abigen --abi abis/ServiceProviderRegistry.abi \
+       --pkg bindings \
+       --type ServiceProviderRegistry \
+       --out bindings/service_provider_registry.go
+
+echo "Generating SessionKeyRegistry bindings..."
+abigen --abi abis/SessionKeyRegistry.abi \
+       --pkg bindings \
+       --type SessionKeyRegistry \
+       --out bindings/session_key_registry.go
 
 echo
 echo "✅ Contract generation complete!"
 echo "Generated files in: bindings/"
-echo "ABIs downloaded from:"
-echo "  - FilOzone/pdp: $PDP_VERSION"
-#echo "  - FilOzone/filecoin-services: $FILECOIN_SERVICES_VERSION"
+echo "ABIs sourced from:"
+echo "  - FilOzone/pdp: local submodule at $PDP_DIR"
+echo "  - storacha/filecoin-services: local repository at $SERVICES_DIR"
+
+# Optional: Regenerate error bindings from Errors.sol
+# Uncomment the following lines to automatically regenerate error bindings after contract generation
+# echo
+# echo "Regenerating error bindings from Errors.sol..."
+# ./gen-error-bindings.sh

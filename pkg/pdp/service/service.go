@@ -5,11 +5,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	sstypes "github.com/storacha/piri/tools/signing-service/types"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
@@ -39,6 +41,11 @@ type PDPService struct {
 
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
+
+	signingService  sstypes.SigningService
+	viewContract    *smartcontracts.ViewContractHelper
+	extraDataHelper *ExtraDataEncoder
+	payerAddress    common.Address // The address that pays for storage
 }
 
 type ChainClient interface {
@@ -64,7 +71,25 @@ func New(
 	chainClient ChainClient,
 	contractClient smartcontracts.PDP,
 	contractBackend EthClient,
+	signingService sstypes.SigningService,
+	payerAddress common.Address,
+	serviceContractAddress common.Address,
 ) (*PDPService, error) {
+	// Initialize view contract helper if service contract address is provided
+	var viewContract *smartcontracts.ViewContractHelper
+	if serviceContractAddress != (common.Address{}) {
+		// Assuming contractBackend implements the needed interface for ethclient
+		if ethClient, ok := contractBackend.(*ethclient.Client); ok {
+			vc, err := smartcontracts.NewViewContractHelper(ethClient, serviceContractAddress)
+			if err != nil {
+				log.Warnf("Failed to initialize view contract helper: %v", err)
+				// Not fatal - continue without view contract
+			} else {
+				viewContract = vc
+			}
+		}
+	}
+
 	return &PDPService{
 		address:         address,
 		db:              db,
@@ -77,5 +102,9 @@ func New(
 		chainClient:     chainClient,
 		contractClient:  contractClient,
 		contractBackend: contractBackend,
+		signingService:  signingService,
+		viewContract:    viewContract,
+		extraDataHelper: NewExtraDataEncoder(),
+		payerAddress:    payerAddress,
 	}, nil
 }

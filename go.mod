@@ -16,6 +16,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.5
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/cenkalti/backoff/v5 v5.0.2
+	github.com/dustin/go-humanize v1.0.1
 	github.com/ethereum/go-ethereum v1.16.2
 	github.com/filecoin-project/go-commp-utils v0.1.4
 	github.com/filecoin-project/lotus v1.32.0-rc1
@@ -90,7 +91,6 @@ require (
 	github.com/docker/docker v28.0.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.0 // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect

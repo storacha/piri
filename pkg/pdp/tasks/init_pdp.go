@@ -194,6 +194,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	if err != nil {
 		return false, fmt.Errorf("failed to get leaf count for data set %d: %w", proofSetID, err)
 	}
+	// TODO I think we can query pdp_proofset_roots in the AddHandler method above, once roots are added then we can init
 	if leafCount.Cmp(big.NewInt(0)) == 0 {
 		// No leaves in the data set yet, skip initialization
 		// Return done=false to retry later (the task will be retried by the scheduler)
@@ -226,8 +227,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	initProveAt := config.InitChallengeWindowStart.Add(config.InitChallengeWindowStart, config.ChallengeWindow.Div(config.ChallengeWindow, big.NewInt(2)))
 
 	// Instantiate the PDPVerifier contract
-	pdpContracts := smartcontracts.Addresses()
-	pdpVeriferAddress := pdpContracts.PDPVerifier
+	pdpVerifierAddress := smartcontracts.Addresses().PDPVerifier
 
 	abiData, err := smartcontracts.PDPVerifierMetaData()
 	if err != nil {
@@ -243,12 +243,12 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 
 	// Prepare the transaction
 	txEth := types.NewTransaction(
-		0,                 // nonce (will be set by sender)
-		pdpVeriferAddress, // to
-		big.NewInt(0),     // value
-		0,                 // gasLimit (to be estimated)
-		nil,               // gasPrice (to be set by sender)
-		data,              // data
+		0,                  // nonce (will be set by sender)
+		pdpVerifierAddress, // to
+		big.NewInt(0),      // value
+		0,                  // gasLimit (to be estimated)
+		nil,                // gasPrice (to be set by sender)
+		data,               // data
 	)
 
 	lg.Debug("Getting data set storage provider")
@@ -273,7 +273,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	// Send the transaction
 	reason := "pdp-proving-init"
 	lg.Infow("Sending nextProvingPeriod transaction",
-		"to_address", pdpVeriferAddress.Hex(),
+		"to_address", pdpVerifierAddress.Hex(),
 		"reason", reason)
 
 	txHash, err := ipp.sender.Send(ctx, fromAddress, txEth, reason)
