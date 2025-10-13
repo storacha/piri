@@ -1,6 +1,6 @@
 # Service Operator CLI
 
-A command-line tool for managing FilecoinWarmStorageService smart contracts.
+Command-line tool for managing FilecoinWarmStorageService smart contracts, handling provider approvals and payment operations.
 
 ## Installation
 
@@ -11,373 +11,326 @@ go build -o service-operator
 
 ## Configuration
 
-The tool can be configured using command-line flags, environment variables, or a configuration file.
+Configure via command-line flags, environment variables, or YAML config file (`./service-operator.yaml`).
 
 ### Environment Variables
 
-- `SERVICE_OPERATOR_RPC_URL` - Ethereum RPC endpoint URL
-- `SERVICE_OPERATOR_CONTRACT_ADDRESS` - FilecoinWarmStorageService contract address
-- `SERVICE_OPERATOR_PAYMENTS_ADDRESS` - Payments contract address
-- `SERVICE_OPERATOR_TOKEN_ADDRESS` - ERC20 token contract address (must support EIP-2612)
-- `SERVICE_OPERATOR_PRIVATE_KEY` - Path to private key file
-- `SERVICE_OPERATOR_KEYSTORE` - Path to keystore file (alternative to private key)
-- `SERVICE_OPERATOR_KEYSTORE_PASSWORD` - Keystore password
-- `SERVICE_OPERATOR_NETWORK` - Network preset (calibration or mainnet)
+Prefix all variables with `SERVICE_OPERATOR_`:
 
-### Network Presets
+```bash
+SERVICE_OPERATOR_RPC_URL                # Ethereum RPC endpoint (required)
+SERVICE_OPERATOR_CONTRACT_ADDRESS       # FilecoinWarmStorageService contract address
+SERVICE_OPERATOR_PAYMENTS_ADDRESS       # Payments contract address
+SERVICE_OPERATOR_TOKEN_ADDRESS          # ERC20 token contract (must support EIP-2612)
+SERVICE_OPERATOR_PRIVATE_KEY            # Path to private key file
+SERVICE_OPERATOR_KEYSTORE               # Path to keystore file (alternative to private key)
+SERVICE_OPERATOR_KEYSTORE_PASSWORD      # Keystore password
+```
 
-The `--network` flag provides convenient presets for known networks:
+### Private Key Formats
 
-- `calibration` - Filecoin Calibration testnet
-- `mainnet` - Filecoin Mainnet (not yet supported)
+Supports:
+- Hex-encoded file (with or without `0x` prefix)
+- Raw bytes file
+- Encrypted keystore (requires password)
 
-When using a network preset, the RPC URL and contract address are automatically configured. You can override these with explicit flags if needed.
+### Example Config File
 
-## Commands
+```yaml
+# service-operator.yaml
+rpc_url: "https://api.calibration.node.glif.io/rpc/v1"
+contract_address: "0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91"
+payments_address: "0x6dB198201F900c17e86D267d7Df82567FB03df5E"
+token_address: "0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0"
+keystore: "./my-keystore"
+keystore_password: "password"
+```
+
+## Provider Commands
 
 ### List Providers
 
-List service providers registered in the ServiceProviderRegistry.
+List registered service providers from ServiceProviderRegistry.
 
 ```bash
 service-operator provider list [flags]
 ```
 
 **Flags:**
-- `--limit <number>` - Maximum number of providers to display (default: 50)
-- `--offset <number>` - Starting offset for pagination (default: 0)
-- `--show-inactive` - Include inactive providers (default: only active)
-- `--format <table|json>` - Output format (default: table)
+- `--limit <n>` - Max providers to display (default: 50)
+- `--offset <n>` - Pagination offset (default: 0)
+- `--show-inactive` - Include inactive providers
+- `--format <table|json>` - Output format
 
-**Note:** This is a read-only operation and does not require authentication. Only the RPC URL is needed.
+**Note:** Read-only operation; only RPC URL required.
 
-#### Examples
-
-List providers on calibration network:
+**Example:**
 ```bash
-service-operator provider list --network calibration
+service-operator provider list \
+  --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
+  --format json --limit 100
 ```
 
-List with pagination:
-```bash
-service-operator provider list --network calibration --limit 20 --offset 40
-```
+### Approve Provider
 
-Include inactive providers:
-```bash
-service-operator provider list --network calibration --show-inactive
-```
-
-JSON output for scripting:
-```bash
-service-operator provider list --network calibration --format json
-```
-
-Using explicit RPC URL:
-```bash
-service-operator provider list --rpc-url https://api.calibration.node.glif.io/rpc/v1
-```
-
-### Provider Approval
-
-Approve a provider to create datasets in the FilecoinWarmStorageService.
+Approve a provider to create datasets in FilecoinWarmStorageService.
 
 ```bash
 service-operator provider approve <provider-id>
 ```
 
-**Requirements:**
-- The provider must already be registered in the ServiceProviderRegistry
-- You must be the contract owner
-- You must have enough FIL for gas fees
+**Requirements:** Contract owner credentials, sufficient FIL for gas.
 
-#### Examples
-
-Using network preset (recommended):
+**Example:**
 ```bash
 export SERVICE_OPERATOR_PRIVATE_KEY="./owner-key.hex"
-service-operator provider approve 123 --network calibration
-```
-
-Using environment variables:
-```bash
 export SERVICE_OPERATOR_RPC_URL="https://api.calibration.node.glif.io/rpc/v1"
 export SERVICE_OPERATOR_CONTRACT_ADDRESS="0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91"
-export SERVICE_OPERATOR_PRIVATE_KEY="./owner-key.hex"
 
 service-operator provider approve 123
 ```
 
-Using command-line flags:
-```bash
-service-operator provider approve 123 \
-  --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
-  --contract-address 0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91 \
-  --private-key ./owner-key.hex
-```
-
-Using keystore instead of private key:
-```bash
-service-operator provider approve 123 \
-  --network calibration \
-  --keystore ./owner.keystore \
-  --keystore-password mypassword
-```
-
-## Payments Commands
-
-The payments commands manage interactions with the Payments contract, including calculating allowances, depositing tokens, and approving operators.
-
-### Workflow Overview
-
-There are three main workflows for using the Payments contract:
-
-**Option 1: Deposit and Approve Together (Single Transaction)**
-```bash
-# Calculate allowances → Deposit + Approve in one step
-service-operator payments calculate --size 1TiB
-service-operator payments approve-service --deposit --amount 10000000 \
-  --rate-allowance 57 --lockup-allowance 1641600 --max-lockup-period 86400
-```
-
-**Option 2: Deposit First, Then Approve Separately**
-```bash
-# Calculate allowances → Deposit → Approve
-service-operator payments calculate --size 1TiB
-service-operator payments deposit --amount 10000000
-service-operator payments approve-service \
-  --rate-allowance 57 --lockup-allowance 1641600 --max-lockup-period 86400
-```
-
-**Option 3: Approve First, Deposit Later**
-```bash
-# Calculate allowances → Approve → Deposit
-service-operator payments calculate --size 1TiB
-service-operator payments approve-service \
-  --rate-allowance 57 --lockup-allowance 1641600 --max-lockup-period 86400
-service-operator payments deposit --amount 10000000
-```
-
-All three workflows achieve the same result: funds in the Payments contract with the FilecoinWarmStorageService approved as an operator.
-
----
+## Payment Commands
 
 ### Calculate Allowances
 
-Calculate the rate allowance, lockup allowance, and max lockup period values needed for approving the service operator.
+Calculate rate allowance, lockup allowance, and max lockup period for operator approval.
 
 ```bash
 service-operator payments calculate --size <size> [flags]
 ```
 
-**Required Flags:**
-- `--size <size>` - Dataset size (e.g., 1TiB, 500GiB, 2.5TiB)
-
-**Optional Flags:**
+**Flags:**
+- `--size <size>` - Dataset size (e.g., 1TiB, 500GiB, 2.5TiB) **[required]**
 - `--lockup-days <days>` - Lockup period in days (default: 10)
-- `--max-lockup-period-days <days>` - Maximum lockup period in days (default: 30)
-- `--format <format>` - Output format: `human`, `shell`, or `flags` (default: human)
+- `--max-lockup-period-days <days>` - Max lockup period in days (default: 30)
+- `--format <human|shell|flags>` - Output format (default: human)
 
-#### Examples
-
-Calculate for 1 TiB with default 10 day lockup:
-
+**Example:**
 ```bash
-service-operator payments calculate --size 1TiB
-```
-
-Output:
-```
-Operator Approval Allowance Calculation
-========================================
-
-Input Parameters:
-  Dataset size:           1.0 TiB (1099511627776 bytes)
-  Lockup period:          10 days (28800 epochs)
-  Max lockup period:      30 days (86400 epochs)
-  Storage price:          $5.00 USD per TiB/month
-
-Calculated Allowances:
-  Rate allowance:         57 base units/epoch ($0.000057 per epoch)
-  Lockup allowance:       1641600 base units ($1.64 for 10 days)
-  Max lockup period:      86400 epochs (30 days)
-
-Usage with approve-service:
-  Copy these exact base unit values to the command:
-
-  service-operator payments approve-service \
-    --rate-allowance 57 \
-    --lockup-allowance 1641600 \
-    --max-lockup-period 86400
-```
-
-Shell-friendly output for scripting:
-
-```bash
-# Export as environment variables
+# Calculate for 1 TiB, export as env vars
 eval $(service-operator payments calculate --size 1TiB --format shell)
 
-# Use in commands
+# Use calculated values
 service-operator payments approve-service \
   --rate-allowance $RATE_ALLOWANCE \
   --lockup-allowance $LOCKUP_ALLOWANCE \
   --max-lockup-period $MAX_LOCKUP_PERIOD
 ```
 
----
+### Balance
 
-### Deposit Tokens
+Display USDFC token balance in your wallet (not in Payments contract).
 
-Deposit ERC20 tokens into your account in the Payments contract using EIP-2612 permit.
+```bash
+service-operator payments balance
+```
+
+Shows funds available to deposit into the Payments contract.
+
+**Example:**
+```bash
+service-operator payments balance \
+  --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
+  --token-address 0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0 \
+  --private-key ./wallet-key.hex
+```
+
+### Account
+
+Display account balance in the Payments contract.
+
+```bash
+service-operator payments account [flags]
+```
+
+**Flags:**
+- `--address <addr>` - Address to check (defaults to keystore address)
+
+Shows total funds, locked funds, and available funds that can be withdrawn. Useful for storage providers checking settlement earnings.
+
+**Example:**
+```bash
+# Check your own balance
+service-operator payments account --keystore ./my-keystore
+
+# Check any address (read-only)
+service-operator payments account \
+  --address 0x7469B47e006D0660aB92AE560b27A1075EEcF97F \
+  --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
+  --payments-address 0x6dB198201F900c17e86D267d7Df82567FB03df5E \
+  --token-address 0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0
+```
+
+### Status
+
+Comprehensive view of account balance, operator approval status, and active payment rails.
+
+```bash
+service-operator payments status
+```
+
+Displays:
+- Account balance (funds/lockup)
+- Operator approval (allowances/usage)
+- Available capacity for new rails
+- Active payment rails with IDs
+
+**Example:**
+```bash
+service-operator payments status \
+  --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
+  --payments-address 0x6dB198201F900c17e86D267d7Df82567FB03df5E \
+  --token-address 0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0 \
+  --contract-address 0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91 \
+  --private-key ./wallet-key.hex
+```
+
+### Deposit
+
+Deposit ERC20 tokens into Payments contract using EIP-2612 permit.
 
 ```bash
 service-operator payments deposit --amount <amount> [flags]
 ```
 
-**Required Flags:**
-- `--amount <amount>` - Amount to deposit in base token units
+**Flags:**
+- `--amount <amount>` - Amount in base token units **[required]**
+- `--to <address>` - Address to credit (default: your address)
+- `--permit-deadline <timestamp>` - Permit expiration (default: 1 hour from now)
 
-**Optional Flags:**
-- `--to <address>` - Address to credit the deposit (default: your address)
-- `--permit-deadline <timestamp>` - Unix timestamp for permit expiration (default: 1 hour from now)
+**Requirements:** Tokens in wallet, EIP-2612 support, sufficient FIL for gas.
 
-**Requirements:**
-- You must have the tokens in your wallet
-- Token contract must support EIP-2612 permit functionality
-- The EIP-2612 permit signature is generated internally using your private key
+**Note:** Does NOT automatically approve operators. Use `approve-service` separately.
 
-#### Examples
-
-Deposit 10 USDFC (10,000,000 base units with 6 decimals) to your account:
-
+**Example:**
 ```bash
-export SERVICE_OPERATOR_PRIVATE_KEY="./wallet-key.hex"
+# Deposit 10 USDFC (10,000,000 base units with 6 decimals)
 export SERVICE_OPERATOR_TOKEN_ADDRESS="0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0"
+export SERVICE_OPERATOR_PRIVATE_KEY="./wallet-key.hex"
 
 service-operator payments deposit \
-  --network calibration \
+  --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
+  --payments-address 0x6dB198201F900c17e86D267d7Df82567FB03df5E \
   --amount 10000000
 ```
 
-Deposit to a specific address:
+### Approve Service
 
-```bash
-service-operator payments deposit \
-  --amount 10000000 \
-  --to 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-```
-
-**Note:** Depositing does NOT automatically approve any operators. After depositing, you must separately approve the FilecoinWarmStorageService contract using `approve-service`.
-
----
-
-### Approve Service as Operator
-
-Approve the FilecoinWarmStorageService contract to operate on your behalf in the Payments contract. This allows the service contract to manage payment rails for your datasets.
+Approve FilecoinWarmStorageService contract as operator in Payments contract.
 
 ```bash
 service-operator payments approve-service [flags]
 ```
 
 **Required Flags:**
-- `--rate-allowance <amount>` - Maximum rate (tokens per second) the operator can commit
-- `--lockup-allowance <amount>` - Maximum amount the operator can lock up across all rails
-- `--max-lockup-period <seconds>` - Maximum lockup period the operator can use
+- `--rate-allowance <amount>` - Max rate (tokens/second) operator can commit
+- `--lockup-allowance <amount>` - Max total lockup across all rails
+- `--max-lockup-period <seconds>` - Max lockup period duration
 
 **Optional Flags:**
-- `--deposit` - Include a token deposit with the approval (requires permit signature)
-- `--amount <amount>` - Amount to deposit (required if --deposit=true)
-- `--permit-deadline <timestamp>` - Unix timestamp for permit expiration (default: 1 hour from now)
+- `--deposit` - Include token deposit with approval
+- `--amount <amount>` - Deposit amount (required if `--deposit`)
+- `--permit-deadline <timestamp>` - Permit expiration
 
-**Requirements:**
-- You must have the required tokens in your wallet (if depositing)
-- Token contract must support EIP-2612 permit functionality
-- You must have enough FIL for gas fees
-- The EIP-2612 permit signature is generated internally using your private key
+**Understanding Allowances:**
+- **Rate Allowance**: Max tokens/second across all rails
+- **Lockup Allowance**: Max total locked amount across all rails
+- **Max Lockup Period**: Max duration (seconds) for locking funds
 
-#### Operator Approval Only (No Deposit)
+**Examples:**
 
-Approve the service contract without depositing tokens:
-
-```bash
-export SERVICE_OPERATOR_PRIVATE_KEY="./wallet-key.hex"
-export SERVICE_OPERATOR_TOKEN_ADDRESS="0x..." # Your token contract address
-
-service-operator payments approve-service \
-  --network calibration \
-  --rate-allowance 1000000 \
-  --lockup-allowance 5000000 \
-  --max-lockup-period 2592000
-```
-
-#### Deposit and Approve in One Transaction
-
-Deposit tokens and approve the operator in a single gasless transaction using EIP-2612 permit:
-
-```bash
-export SERVICE_OPERATOR_PRIVATE_KEY="./wallet-key.hex"
-export SERVICE_OPERATOR_TOKEN_ADDRESS="0x..." # Your token contract address
-
-service-operator payments approve-service \
-  --network calibration \
-  --deposit \
-  --amount 10000000 \
-  --rate-allowance 1000000 \
-  --lockup-allowance 5000000 \
-  --max-lockup-period 2592000
-```
-
-Using explicit contract addresses:
-
+Approve only (no deposit):
 ```bash
 service-operator payments approve-service \
   --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
+  --payments-address 0x6dB198201F900c17e86D267d7Df82567FB03df5E \
   --contract-address 0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91 \
-  --payments-address 0x0E690D3e60B0576D01352AB03b258115eb84A047 \
-  --token-address 0x... \
+  --token-address 0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0 \
+  --private-key ./wallet-key.hex \
+  --rate-allowance 57 \
+  --lockup-allowance 1641600 \
+  --max-lockup-period 86400
+```
+
+Deposit and approve in one transaction:
+```bash
+service-operator payments approve-service \
+  --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
+  --payments-address 0x6dB198201F900c17e86D267d7Df82567FB03df5E \
+  --contract-address 0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91 \
+  --token-address 0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0 \
   --private-key ./wallet-key.hex \
   --deposit \
   --amount 10000000 \
-  --rate-allowance 1000000 \
-  --lockup-allowance 5000000 \
-  --max-lockup-period 2592000
+  --rate-allowance 57 \
+  --lockup-allowance 1641600 \
+  --max-lockup-period 86400
 ```
 
-**Understanding Allowances:**
+### Settle
 
-- **Rate Allowance**: The maximum rate (tokens per second) the operator can commit across all payment rails. For example, 1000000 tokens per second means the operator can create rails with combined rates up to this limit.
+Settle payment rails to transfer locked funds from payer to payee.
 
-- **Lockup Allowance**: The maximum total amount the operator can lock up across all payment rails. This limits the total exposure to the operator.
+```bash
+service-operator payments settle [flags]
+```
 
-- **Max Lockup Period**: The maximum duration (in seconds) the operator can lock up funds. For example, 2592000 seconds = 30 days.
+**Flags:**
+- `--rail-id <id>` - Specific rail to settle
+- `--all` - Settle all rails for service provider
+- `--until-epoch <epoch>` - Settle up to epoch (default: current block)
 
-## Private Key Formats
+Settlement triggers FilecoinWarmStorageService to validate PDP proofs and pay only for proven epochs.
 
-The tool supports multiple private key formats:
+**Network Fee:** Requires 0.0013 FIL as network fee.
 
-1. **Hex-encoded file** - A file containing the private key in hexadecimal format (with or without `0x` prefix)
-2. **Raw bytes file** - A file containing the raw private key bytes
-3. **Encrypted keystore** - An encrypted keystore file (requires password)
+**Examples:**
+```bash
+# Settle specific rail
+service-operator payments settle --rail-id 1
+
+# Settle specific rail up to epoch
+service-operator payments settle --rail-id 1 --until-epoch 1000000
+
+# Settle all rails
+service-operator payments settle --all
+```
+
+### Withdraw
+
+Withdraw available funds from Payments contract to wallet or another address.
+
+```bash
+service-operator payments withdraw --amount <amount> [flags]
+```
+
+**Flags:**
+- `--amount <amount>` - Amount in base units **[required]**
+- `--to <address>` - Destination address (default: your address)
+
+Only non-locked funds can be withdrawn. Typically used by storage providers to withdraw settlement earnings.
+
+**Examples:**
+```bash
+# Withdraw to own address using keystore
+service-operator payments withdraw \
+  --amount 1329414936966 \
+  --keystore ./my-keystore \
+  --keystore-password password
+
+# Withdraw to specific address
+service-operator payments withdraw \
+  --amount 1329414936966 \
+  --to 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0 \
+  --private-key ./wallet-key.hex
+```
 
 ## Help
 
-Get help on any command:
-
 ```bash
 service-operator --help
-service-operator provider --help
-service-operator provider list --help
-service-operator provider approve --help
-service-operator payments --help
-service-operator payments calculate --help
-service-operator payments deposit --help
-service-operator payments approve-service --help
+service-operator [command] --help
+service-operator payments [subcommand] --help
+service-operator provider [subcommand] --help
 ```
-
-## Future Commands
-
-The CLI is designed to be extensible. Future commands will include:
-
-- `service-operator provider remove <provider-id> <index>` - Remove approved provider
-- `service-operator config set-commission <bps>` - Update service commission
-- `service-operator config set-proving-period <period> <window>` - Configure proving period
