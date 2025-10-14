@@ -111,7 +111,7 @@ func PublishLocationCommitment(
 		if err != nil && errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
 			return nil, backoff.Permanent(err)
 		}
-		return l, nil
+		return l, err
 	}, backoff.WithMaxTries(maxPublishAttempts))
 	if err != nil {
 		if errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
