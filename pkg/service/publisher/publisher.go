@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/ipfs/go-cid"
@@ -33,8 +34,6 @@ import (
 )
 
 var log = logging.Logger("publisher")
-
-const maxPublishAttempts = 5
 
 type PublisherService struct {
 	id                    principal.Signer
@@ -106,13 +105,23 @@ func PublishLocationCommitment(
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	adlink, err := backoff.Retry(ctx, func() (ipld.Link, error) {
-		l, err := publisher.Publish(ctx, provider, string(contextid), slices.Values(digests), meta)
-		if err != nil && errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
-			return nil, backoff.Permanent(err)
-		}
-		return l, err
-	}, backoff.WithMaxTries(maxPublishAttempts))
+	adlink, err := backoff.Retry(
+		ctx,
+		func() (ipld.Link, error) {
+			l, err := publisher.Publish(ctx, provider, string(contextid), slices.Values(digests), meta)
+			if err != nil && errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
+				return nil, backoff.Permanent(err)
+			}
+			return l, err
+		},
+		backoff.WithMaxElapsedTime(30*time.Second),
+		backoff.WithBackOff(&backoff.ExponentialBackOff{
+			InitialInterval:     100 * time.Millisecond,
+			RandomizationFactor: 0.25,
+			Multiplier:          1.25,
+			MaxInterval:         5 * time.Second,
+		}),
+	)
 	if err != nil {
 		if errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
 			log.Warnf("Skipping previously published claim")
