@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/cobra"
 
@@ -46,6 +47,7 @@ type ProviderInfo struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	IsActive    bool   `json:"isActive"`
+	IsApproved  bool   `json:"isApproved"`
 }
 
 type ListResult struct {
@@ -112,6 +114,18 @@ func runList(cobraCmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting provider details: %w", err)
 	}
 
+	// Try to connect to view contract to check approval status
+	// This is optional - if contract address is not provided or view contract is not available,
+	// we'll show approval status as false
+	var viewHelper *smartcontracts.ViewContractHelper
+	if cfg.ContractAddress != "" {
+		viewHelper, err = smartcontracts.NewViewContractHelper(client, common.HexToAddress(cfg.ContractAddress))
+		if err != nil {
+			// Log warning but continue without approval status
+			fmt.Fprintf(cobraCmd.ErrOrStderr(), "Warning: Could not connect to view contract (approval status will not be shown): %v\n", err)
+		}
+	}
+
 	// Convert to display format
 	providers := make([]ProviderInfo, 0)
 	for i, providerView := range providersResult.ProviderInfos {
@@ -124,6 +138,18 @@ func runList(cobraCmd *cobra.Command, args []string) error {
 			continue
 		}
 
+		// Check approval status if view contract is available
+		isApproved := false
+		if viewHelper != nil {
+			approved, err := viewHelper.IsProviderApproved(providerView.ProviderId)
+			if err != nil {
+				// Log warning but continue with false
+				fmt.Fprintf(cobraCmd.ErrOrStderr(), "Warning: Could not check approval for provider %d: %v\n", providerView.ProviderId.Uint64(), err)
+			} else {
+				isApproved = approved
+			}
+		}
+
 		providers = append(providers, ProviderInfo{
 			ID:          providerView.ProviderId.Uint64(),
 			Address:     providerView.Info.ServiceProvider.Hex(),
@@ -131,6 +157,7 @@ func runList(cobraCmd *cobra.Command, args []string) error {
 			Name:        providerView.Info.Name,
 			Description: providerView.Info.Description,
 			IsActive:    providerView.Info.IsActive,
+			IsApproved:  isApproved,
 		})
 	}
 
@@ -195,21 +222,31 @@ func displayTable(providers []ProviderInfo, hasMore bool) {
 	}
 
 	// Print header
-	fmt.Printf("%-*s  %-*s  %-*s  %-*s  %-*s  %s\n",
+	fmt.Printf("%-*s  %-*s  %-*s  %-*s  %-*s  %-8s  %-8s\n",
 		maxID, "ID",
 		maxAddress, "Address",
 		maxPayee, "Payee",
 		maxName, "Name",
 		maxDesc, "Description",
-		"Active")
+		"Active",
+		"Approved")
 
-	fmt.Println(strings.Repeat("-", maxID+maxAddress+maxPayee+maxName+maxDesc+18))
+	fmt.Println(strings.Repeat("-", maxID+maxAddress+maxPayee+maxName+maxDesc+28))
 
+	const (
+		TrueSymbol  = "✅"
+		FalseSymbol = "❌"
+	)
 	// Print rows
 	for _, p := range providers {
-		activeSymbol := "✗"
+		activeSymbol := FalseSymbol
 		if p.IsActive {
-			activeSymbol = "✓"
+			activeSymbol = TrueSymbol
+		}
+
+		approvedSymbol := FalseSymbol
+		if p.IsApproved {
+			approvedSymbol = TrueSymbol
 		}
 
 		name := p.Name
@@ -222,13 +259,14 @@ func displayTable(providers []ProviderInfo, hasMore bool) {
 			desc = desc[:maxDesc-3] + "..."
 		}
 
-		fmt.Printf("%-*d  %-*s  %-*s  %-*s  %-*s  %s\n",
+		fmt.Printf("%-*d  %-*s  %-*s  %-*s  %-*s  %-8s  %s\n",
 			maxID, p.ID,
 			maxAddress, p.Address,
 			maxPayee, p.Payee,
 			maxName, name,
 			maxDesc, desc,
-			activeSymbol)
+			activeSymbol,
+			approvedSymbol)
 	}
 
 	fmt.Println()

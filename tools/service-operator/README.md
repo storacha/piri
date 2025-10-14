@@ -50,7 +50,7 @@ keystore_password: "password"
 
 ### List Providers
 
-List registered service providers from ServiceProviderRegistry.
+List registered service providers from ServiceProviderRegistry with their approval status.
 
 ```bash
 service-operator provider list [flags]
@@ -61,14 +61,26 @@ service-operator provider list [flags]
 - `--offset <n>` - Pagination offset (default: 0)
 - `--show-inactive` - Include inactive providers
 - `--format <table|json>` - Output format
+- `--contract-address <addr>` - FilecoinWarmStorageService address (optional, enables approval status display)
 
-**Note:** Read-only operation; only RPC URL required.
+**Note:** Read-only operation; only RPC URL required. Providing `--contract-address` enables the "Approved" column.
 
 **Example:**
 ```bash
+# List providers with approval status
 service-operator provider list \
   --rpc-url https://api.calibration.node.glif.io/rpc/v1 \
-  --format json --limit 100
+  --contract-address 0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91 \
+  --format table --limit 100
+```
+
+**Example output:**
+```
+ID  Address                                     Payee                                       Name     Description      Active  Approved
+-----------------------------------------------------------------------------------------------------------------------------------------
+1   0x7469B47e006D0660aB92AE560b27A1075EEcF97F  0x7469B47e006D0660aB92AE560b27A1075EEcF97F  forrest  forrest testing  ✓       ✓
+
+Showing 1 provider(s)
 ```
 
 ### Approve Provider
