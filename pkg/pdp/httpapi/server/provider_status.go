@@ -30,8 +30,9 @@ func (p *PDPHandler) handleGetProviderStatus(c echo.Context) error {
 		Name:               result.Name,
 		Description:        result.Description,
 		RegistrationStatus: result.RegistrationStatus,
+		IsApproved:         result.IsApproved,
 	}
 
-	log.Infow("Successfully processed provider status request", "isRegistered", result.IsRegistered, "status", result.RegistrationStatus)
+	log.Infow("Successfully processed provider status request", "isRegistered", result.IsRegistered, "status", result.RegistrationStatus, "approved", result.IsApproved)
 	return c.JSON(http.StatusOK, resp)
 }

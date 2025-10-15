@@ -579,6 +579,7 @@ func (c *Client) GetProviderStatus(ctx context.Context) (types.GetProviderStatus
 		Name:               resp.Name,
 		Description:        resp.Description,
 		RegistrationStatus: resp.RegistrationStatus,
+		IsApproved:         resp.IsApproved,
 	}, nil
 }
 

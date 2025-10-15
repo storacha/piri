@@ -49,17 +49,13 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.21.0
 	github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92
-	github.com/storacha/go-libstoracha v0.3.0
-	github.com/storacha/go-ucanto v0.6.5
-	github.com/stretchr/testify v1.10.0
-	github.com/testcontainers/testcontainers-go v0.39.0
-	github.com/testcontainers/testcontainers-go/modules/minio v0.39.0
 	github.com/storacha/filecoin-services/go v0.0.0-20251015032234-b905ece55fb2
-	github.com/storacha/go-libstoracha v0.2.7
+	github.com/storacha/go-libstoracha v0.3.0
 	github.com/storacha/go-ucanto v0.6.5
 	github.com/storacha/piri-signing-service v0.0.0-20251015000423-80b50236e763
 	github.com/stretchr/testify v1.11.1
-	github.com/testcontainers/testcontainers-go v0.37.0
+	github.com/testcontainers/testcontainers-go v0.39.0
+	github.com/testcontainers/testcontainers-go/modules/minio v0.39.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.37.0
 	go.opentelemetry.io/otel/sdk v1.37.0
 	go.opentelemetry.io/otel/sdk/metric v1.37.0
@@ -103,8 +99,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
-	github.com/ethereum/c-kzg-4844/v2 v2.1.0 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.3 // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

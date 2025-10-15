@@ -9,9 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
 
+	"github.com/storacha/filecoin-services/go/bindings"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
@@ -39,6 +39,10 @@ func (p *PDPService) GetProviderStatus(ctx context.Context) (types.GetProviderSt
 			return types.GetProviderStatusResults{}, fmt.Errorf("failed to get provider by address: %w", err)
 		}
 
+		approved, err := p.viewContract.IsProviderApproved(providerInfoView.ProviderId)
+		if err != nil {
+			return types.GetProviderStatusResults{}, fmt.Errorf("failed to check if provider is approved: %w", err)
+		}
 		result.ID = providerInfoView.ProviderId.Uint64()
 		result.Payee = providerInfoView.Info.Payee
 		result.IsRegistered = true
@@ -46,6 +50,7 @@ func (p *PDPService) GetProviderStatus(ctx context.Context) (types.GetProviderSt
 		result.Name = providerInfoView.Info.Name
 		result.Description = providerInfoView.Info.Description
 		result.RegistrationStatus = "registered"
+		result.IsApproved = approved
 
 		return result, nil
 	}

@@ -11,10 +11,10 @@ import (
 
 	chainyypes "github.com/filecoin-project/lotus/chain/types"
 
+	"github.com/storacha/filecoin-services/go/bindings"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 )
 
 // NewWatcherProviderRegister sets up the watcher for provider registrations

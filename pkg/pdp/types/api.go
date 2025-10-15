@@ -178,6 +178,8 @@ type GetProviderStatusResults struct {
 	Description string
 	// Registration status: "not_registered", "pending", or "registered"
 	RegistrationStatus string
+	// Approval status: true if the provider is approved to accept data, false otherwise
+	IsApproved bool
 }
 
 const (
