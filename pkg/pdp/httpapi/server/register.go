@@ -55,4 +55,5 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 
 	// /pdp/provider
 	e.POST(path.Join(PDPRoutePath, "/provider/register"), p.handleRegisterProvider)
+	e.GET(path.Join(PDPRoutePath, "/provider/status"), p.handleGetProviderStatus)
 }

@@ -38,6 +38,9 @@ func NewEcho() *echo.Echo {
 	e.HideBanner = true
 	e.HidePort = true
 
+	// Set custom error handler
+	e.HTTPErrorHandler = pirimiddleware.CustomHTTPErrorHandler
+
 	// Add default middleware
 	e.Use(pirimiddleware.RequestLogger(log))
 	e.Use(middleware.Recover())

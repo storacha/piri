@@ -237,6 +237,23 @@ func (PDPProofsetRootAdd) TableName() string {
 	return "pdp_proofset_root_adds"
 }
 
+// pdp_provider_registrations
+type PDPProviderRegistration struct {
+	RegisterMessageHash string           `gorm:"primaryKey"` // references message_waits_eth(signed_tx_hash)
+	MessageWait         *MessageWaitsEth `gorm:"foreignKey:RegisterMessageHash;references:SignedTxHash;constraint:OnDelete:CASCADE"`
+
+	Ok                 *bool  // NULL / TRUE / FALSE
+	ProviderRegistered bool   `gorm:"default:false;not null"`
+	ProviderID         *int64 // The provider ID assigned after registration
+	Service            string `gorm:"not null"` // references pdp_services(service_label)
+
+	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP;not null"`
+}
+
+func (PDPProviderRegistration) TableName() string {
+	return "pdp_provider_registrations"
+}
+
 // MessageSendsEth represents the message_sends_eth table.
 type MessageSendsEth struct {
 	FromAddress  string     `gorm:"not null;column:from_address"`
@@ -306,6 +323,7 @@ func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
 			&PDPProofsetRoot{},
 			&PDPProofsetRootAdd{},
 			&PDPPieceMHToCommp{},
+			&PDPProviderRegistration{},
 
 			&MessageSendsEth{},
 			&MessageSendEthLock{},
