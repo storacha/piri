@@ -48,6 +48,7 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 
 				log := log.With(
 					"client", inv.Issuer().DID().String(),
+					"ability", content.RetrieveAbility,
 					"space", space.String(),
 					"digest", digestStr,
 					"range", fmt.Sprintf("%d-%d", start, end),

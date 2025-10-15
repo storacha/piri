@@ -52,7 +52,11 @@ func (bga *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihas
 	if err != nil {
 		return nil, fmt.Errorf("finding piece link for %s: %w", digestutil.Format(digest), err)
 	}
-	res, err := bga.pieceReader.ReadPiece(ctx, pieceLink.Link().(cidlink.Link).Cid, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
+	readOptions := []types.ReadPieceOption{}
+	if cfg.ByteRange.Start > 0 || cfg.ByteRange.End != nil {
+		readOptions = append(readOptions, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
+	}
+	res, err := bga.pieceReader.ReadPiece(ctx, pieceLink.Link().(cidlink.Link).Cid, readOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("reading piece: %w", err)
 	}

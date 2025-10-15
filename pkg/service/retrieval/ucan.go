@@ -9,6 +9,7 @@ import (
 func NewUCANServer(retrievalService Service, options ...retrieval.Option) (server.ServerView[retrieval.Service], error) {
 	options = append(
 		options,
+		ucan.BlobRetrieve(retrievalService),
 		ucan.SpaceContentRetrieve(retrievalService),
 	)
 
