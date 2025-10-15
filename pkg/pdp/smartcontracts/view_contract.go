@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
+	"github.com/storacha/filecoin-services/go/bindings"
 )
 
 // ViewContractHelper provides helper functions for interacting with FilecoinWarmStorageServiceStateView
@@ -50,12 +50,41 @@ func NewViewContractHelper(client *ethclient.Client, serviceContractAddress comm
 
 // GetNextClientDataSetId returns the next client dataset ID that will be assigned
 // This is the value that needs to be signed for CreateDataSet operations
+// TODO this is a "dumb" implementation - see PR #265 in FilOzone/filecoin-services repo for context
 func (v *ViewContractHelper) GetNextClientDataSetId(payerAddress common.Address) (*big.Int, error) {
-	// The view contract exposes clientDataSetIDs mapping as a public getter
-	nextId, err := v.viewContract.ClientDataSetIDs(&bind.CallOpts{}, payerAddress)
+	// Get all datasets for this payer
+	// NOTE: This is inefficient - it fetches ALL datasets for the payer and then iterates through
+	// each one individually to find the highest ID.
+	//
+	// Context: As of PR #265 (commit dc2c8ab), the contract switched from sequential to
+	// non-sequential client dataset IDs to enable concurrent dataset creation without conflicts.
+	// Clients can now choose any unused ID, rather than getting the next sequential number.
+	datasets, err := v.GetClientDataSets(payerAddress)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get next client dataset ID for %s: %w", payerAddress.Hex(), err)
+		return nil, fmt.Errorf("failed to get client datasets for %s: %w", payerAddress.Hex(), err)
 	}
+
+	// If no datasets exist, start with ID 1
+	if len(datasets) == 0 {
+		return big.NewInt(1), nil
+	}
+
+	// Find the highest clientDataSetId
+	// This is O(n) where n is the number of datasets, and each GetDataSet call is a separate RPC call
+	var maxId *big.Int = big.NewInt(0)
+	for _, dataSetId := range datasets {
+		info, err := v.GetDataSet(dataSetId)
+		if err != nil {
+			continue // Skip datasets we can't read
+		}
+		if info.ClientDataSetId != nil && info.ClientDataSetId.Cmp(maxId) > 0 {
+			maxId = info.ClientDataSetId
+		}
+	}
+
+	// Return the next ID (max + 1)
+	// Note: This is just a suggestion - clients can use any unused ID they prefer
+	nextId := new(big.Int).Add(maxId, big.NewInt(1))
 	return nextId, nil
 }
 

@@ -11,9 +11,9 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 	"gorm.io/gorm"
 
+	"github.com/storacha/filecoin-services/go/bindings"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 )
 
 func (p *PDPService) RegisterProvider(ctx context.Context, params types.RegisterProviderParams) (types.RegisterProviderResults, error) {

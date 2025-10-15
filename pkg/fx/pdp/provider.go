@@ -8,11 +8,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/storacha/piri-signing-service/pkg/client"
+	"github.com/storacha/piri-signing-service/pkg/inprocess"
+	"github.com/storacha/piri-signing-service/pkg/signer"
+	sstypes "github.com/storacha/piri-signing-service/pkg/types"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/tools/service-operator/eip712"
-	"github.com/storacha/piri/tools/signing-service/client"
-	"github.com/storacha/piri/tools/signing-service/inprocess"
-	sstypes "github.com/storacha/piri/tools/signing-service/types"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -147,14 +147,14 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 			fmt.Printf("  PayerAddress: %s\n", payerAddress.Hex())
 			fmt.Printf("  OwnerAddress (service provider/payee): %s\n", params.Config.OwnerAddress.Hex())
 
-			signer := eip712.NewSigner(
+			s := signer.NewSigner(
 				privateKey,
 				big.NewInt(cfg.ChainID),
 				serviceContractAddress,
 			)
 
-			fmt.Printf("  Signer address (from private key): %s\n", signer.GetAddress().Hex())
-			signingService = inprocess.New(signer)
+			fmt.Printf("  Signer address (from private key): %s\n", s.GetAddress().Hex())
+			signingService = inprocess.New(s)
 		} else {
 			return nil, fmt.Errorf("signing service enabled but no endpoint or private key configured")
 		}

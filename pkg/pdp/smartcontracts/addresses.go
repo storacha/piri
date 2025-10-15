@@ -15,16 +15,14 @@ type PDPContracts struct {
 }
 
 func Addresses() PDPContracts {
-	// Fresh deployment on 2025-10-09 for EIP-712 signature testing
-	// Deployed from commit 7b28dece8236f63bcdeb7b4359e1062038c9da98
-	// See DEPLOYMENT_LOG.md for full details
+	// deployed at: https://github.com/storacha/filecoin-services/pull/3
 	return PDPContracts{
 		// PDPVerifier proxy contract address (PDP v2.2.1)
-		PDPVerifier: common.HexToAddress("0xa31Dc22286442B733B52ac102461A0685Cc5D36f"),
+		PDPVerifier: common.HexToAddress("0xB020524bdE8926cD430A4F79B2AaccFd2694793b"),
 		// ServiceProviderRegistry proxy address - owned by storacha
-		ProviderRegistry: common.HexToAddress("0x7F603F206015A4d608a6aBbb275F306fC925D6bD"),
+		ProviderRegistry: common.HexToAddress("0x8D0560F93022414e7787207682a8D562de02D62f"),
 		// FilecoinWarmStorageService proxy address - owned by storacha
-		PDPService: common.HexToAddress("0x60F412Fd67908a38A5E05C54905daB923413EEA6"),
+		PDPService: common.HexToAddress("0xB9753937D3Bc1416f7d741d75b1671A1edb3e10A"),
 	}
 }
 

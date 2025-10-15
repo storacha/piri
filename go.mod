@@ -1,6 +1,8 @@
 module github.com/storacha/piri
 
-go 1.24.4
+go 1.24.6
+
+toolchain go1.24.9
 
 require (
 	github.com/BurntSushi/toml v1.4.0
@@ -16,8 +18,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.5
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/cenkalti/backoff/v5 v5.0.2
-	github.com/dustin/go-humanize v1.0.1
-	github.com/ethereum/go-ethereum v1.16.2
+	github.com/ethereum/go-ethereum v1.16.4
 	github.com/filecoin-project/go-commp-utils v0.1.4
 	github.com/filecoin-project/lotus v1.32.0-rc1
 	github.com/getsentry/sentry-go v0.35.1
@@ -46,13 +47,19 @@ require (
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb
 	github.com/spf13/cobra v1.9.1
-	github.com/spf13/viper v1.20.1
+	github.com/spf13/viper v1.21.0
 	github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92
 	github.com/storacha/go-libstoracha v0.3.0
 	github.com/storacha/go-ucanto v0.6.5
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.39.0
 	github.com/testcontainers/testcontainers-go/modules/minio v0.39.0
+	github.com/storacha/filecoin-services/go v0.0.0-20251015032234-b905ece55fb2
+	github.com/storacha/go-libstoracha v0.2.7
+	github.com/storacha/go-ucanto v0.6.5
+	github.com/storacha/piri-signing-service v0.0.0-20251015000423-80b50236e763
+	github.com/stretchr/testify v1.11.1
+	github.com/testcontainers/testcontainers-go v0.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.37.0
 	go.opentelemetry.io/otel/sdk v1.37.0
 	go.opentelemetry.io/otel/sdk/metric v1.37.0
@@ -87,7 +94,7 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
-	github.com/crate-crypto/go-eth-kzg v1.3.0 // indirect
+	github.com/crate-crypto/go-eth-kzg v1.4.0 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20240724233137-53bbb0ceb27a // indirect
 	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
@@ -97,6 +104,8 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.0 // indirect
+	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ethereum/c-kzg-4844/v2 v2.1.3 // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/filecoin-project/go-amt-ipld/v2 v2.1.0 // indirect
@@ -118,7 +127,7 @@ require (
 	github.com/filecoin-project/specs-actors/v5 v5.0.6 // indirect
 	github.com/filecoin-project/specs-actors/v6 v6.0.2 // indirect
 	github.com/filecoin-project/specs-actors/v7 v7.0.1 // indirect
-	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.4 // indirect
 	github.com/gbrlsnchs/jwt/v3 v3.0.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -165,7 +174,7 @@ require (
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
+	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/petar/GoLLRB v0.0.0-20210522233825-ae3b015fd3e9 // indirect
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/pion/dtls/v3 v3.0.7 // indirect
@@ -185,16 +194,16 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/xid v1.6.0 // indirect
-	github.com/sagikazarmark/locafero v0.7.0 // indirect
+	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/sourcegraph/conc v0.3.0 // indirect
-	github.com/spf13/afero v1.12.0 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
+	github.com/spf13/afero v1.15.0 // indirect
+	github.com/spf13/cast v1.10.0 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/supranational/blst v0.3.14 // indirect
+	github.com/supranational/blst v0.3.16-0.20250831170142-f48500c1fdbe // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
@@ -212,6 +221,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect

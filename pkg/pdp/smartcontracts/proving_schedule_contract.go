@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
+	"github.com/storacha/filecoin-services/go/bindings"
 )
 
 // ContractProvingSchedule implements ProvingScheduleProvider using a real service contract.

@@ -8,13 +8,22 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
+	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
-	"github.com/storacha/piri/tools/service-operator/eip712"
 )
 
 func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (res common.Hash, retErr error) {
+	// TODO there are severl things we should do here as a sanity check to avoid having a really bad time "debugging" shit:
+	// 1. Check if the provider attempting to create a proof is a. register and b. approved
+	// 2. Check that the payer has deposited funds in the contract, this might be hard...
+	// In order for this operation to succeed the following must be true:
+	// 1. This node has registered with the contract
+	// 2. the contract owner has approved this node
+	// 3. the payer has authorized the service contract to act on its behalf
+	// 4. the payer has deposited funds into the payment channel for the service contract to use
+	// without these we get really unhelpful errors back *sobs*
 	log.Infow("creating proof set", "recordKeeper", params.RecordKeeper)
 	defer func() {
 		if retErr != nil {
@@ -58,6 +67,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 	// Encode the extraData with payer, metadata, and signature
 	extraDataBytes, err := p.extraDataHelper.EncodeCreateDataSetExtraData(
 		p.payerAddress,
+		nextClientDataSetId,
 		metadataEntries,
 		signature,
 	)

@@ -16,10 +16,10 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/storacha/filecoin-services/go/evmerrors"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/evmerrors"
 	"github.com/storacha/piri/pkg/wallet"
 )
 

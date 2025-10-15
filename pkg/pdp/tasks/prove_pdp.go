@@ -31,6 +31,7 @@ import (
 
 	pool "github.com/libp2p/go-buffer-pool"
 
+	"github.com/storacha/filecoin-services/go/bindings"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
@@ -38,7 +39,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
@@ -237,7 +237,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		pdpVerifierRaw := bindings.PDPVerifierRaw{Contract: pdpVerifierImpl}
 		calcProofFeeResult := make([]any, 0)
 		// Use 0 for estimatedGasFee to get maximum fee
-		err = pdpVerifierRaw.Call(callOpts, &calcProofFeeResult, "calculateProofFee", big.NewInt(proofSetID), gasFee)
+		err = pdpVerifierRaw.Call(callOpts, &calcProofFeeResult, "calculateProofFee", big.NewInt(proofSetID))
 		if err != nil {
 			return false, xerrors.Errorf("failed to calculate proof fee: %w", err)
 		}
@@ -254,7 +254,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		proofFee = calcProofFeeResult[0].(*big.Int)
 	} else {
 		// this condition would be during testing (use 0 for estimatedGasFee to get maximum fee)
-		proofFee, err = pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID), big.NewInt(0))
+		proofFee, err = pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID))
 		if err != nil {
 			return false, fmt.Errorf("failed to calculate proof fee: %w", err)
 		}

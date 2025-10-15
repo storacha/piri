@@ -10,13 +10,14 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	sstypes "github.com/storacha/piri/tools/signing-service/types"
+	"github.com/storacha/filecoin-services/go/eip712"
+	sstypes "github.com/storacha/piri-signing-service/pkg/types"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
@@ -44,7 +45,7 @@ type PDPService struct {
 
 	signingService  sstypes.SigningService
 	viewContract    *smartcontracts.ViewContractHelper
-	extraDataHelper *ExtraDataEncoder
+	extraDataHelper *eip712.ExtraDataEncoder
 	payerAddress    common.Address // The address that pays for storage
 }
 
@@ -104,7 +105,7 @@ func New(
 		contractBackend: contractBackend,
 		signingService:  signingService,
 		viewContract:    viewContract,
-		extraDataHelper: NewExtraDataEncoder(),
+		extraDataHelper: eip712.NewExtraDataEncoder(),
 		payerAddress:    payerAddress,
 	}, nil
 }

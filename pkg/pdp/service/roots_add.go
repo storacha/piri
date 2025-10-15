@@ -18,10 +18,10 @@ import (
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 
+	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
-	"github.com/storacha/piri/tools/service-operator/eip712"
 )
 
 // REVIEW(forrest): this method assumes the cids in the request are PieceCIDV2
@@ -368,7 +368,8 @@ func (p *PDPService) AddRoots(
 		"firstPieceCID", hex.EncodeToString(pieceDataArray[0].Data),
 		"firstPieceSignedCID",
 		hex.EncodeToString(pieceDataBytes[0]))
-	data, err := abiData.Pack("addPieces", proofSetID, pieceDataArray, extraDataBytes)
+	// listener must be empty address for datasets that already exist, thus 3rd argument.
+	data, err := abiData.Pack("addPieces", proofSetID, common.Address{}, pieceDataArray, extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack addRoots: %w", err)
 	}
