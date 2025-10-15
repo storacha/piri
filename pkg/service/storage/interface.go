@@ -25,8 +25,8 @@ type Service interface {
 	Receipts() receiptstore.ReceiptStore
 	// Replicator provides access to the replication service
 	Replicator() replicator.Replicator
-	// UploadService provides access to an upload service connection
+	// UploadConnection provides the connection details to an upload service
 	UploadConnection() client.Connection
-	// ValidationContext provides the context required for validating UCANs.
-	ValidationContext() validator.ClaimContext
+	// ClaimValidationContext provides the context required for validating UCANs.
+	ClaimValidationContext() validator.ClaimContext
 }

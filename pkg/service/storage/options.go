@@ -47,7 +47,7 @@ type config struct {
 	indexingServiceProofs delegation.Proofs
 	uploadService         client.Connection
 	replicatorDB          *sql.DB
-	validationContext     validator.ClaimContext
+	claimCtx              validator.ClaimContext
 
 	// to be used exclusively
 	pdpCfg  *pdp.Config
@@ -285,11 +285,11 @@ func WithReplicatorDB(db *sql.DB) Option {
 	}
 }
 
-// WithValidationContext configures the validation context for use when
+// WithClaimValidationContext configures the validation context for use when
 // validating UCANs.
-func WithValidationContext(ctx validator.ClaimContext) Option {
+func WithClaimValidationContext(ctx validator.ClaimContext) Option {
 	return func(c *config) error {
-		c.validationContext = ctx
+		c.claimCtx = ctx
 		return nil
 	}
 }

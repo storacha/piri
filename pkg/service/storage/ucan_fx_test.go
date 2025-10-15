@@ -437,7 +437,7 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 
 			appConfig := piritestutil.NewTestConfig(t,
 				piritestutil.WithSigner(testutil.Alice),
-				piritestutil.WithUploadServiceURL(uploadServiceURL),
+				piritestutil.WithUploadServiceConfig(testutil.Service.DID(), uploadServiceURL),
 			)
 
 			testApp := fxtest.New(t,

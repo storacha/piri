@@ -5,6 +5,7 @@ import (
 
 	"github.com/storacha/piri/pkg/fx/blobs"
 	"github.com/storacha/piri/pkg/fx/claims"
+	"github.com/storacha/piri/pkg/fx/claimvalidation"
 	"github.com/storacha/piri/pkg/fx/presigner"
 	"github.com/storacha/piri/pkg/fx/principalresolver"
 	"github.com/storacha/piri/pkg/fx/publisher"
@@ -22,6 +23,7 @@ var UCANModule = fx.Module("ucan",
 	root.Module,              // Provides root http handler
 	blobs.Module,             // Provides blob service and handler
 	claims.Module,            // Provides claims service and handler
+	claimvalidation.Module,   // Provides context for validating UCANs
 	publisher.Module,         // Provides publisher service and handler
 	egresstracker.Module,     // Provides egress tracker service
 	replicator.Module,        // Provides replicator service (works with or without PDP)

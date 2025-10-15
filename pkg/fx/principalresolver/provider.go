@@ -2,6 +2,7 @@ package principalresolver
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/storacha/go-ucanto/did"
@@ -27,10 +28,14 @@ var Module = fx.Module("principalresolver",
 func NewPrincipalResolver(cfg app.AppConfig) (validator.PrincipalResolver, error) {
 	services := make([]did.DID, 0, 2)
 	if idxSvc := cfg.UCANService.Services.Indexer.Connection; idxSvc != nil {
-		services = append(services, idxSvc.ID().DID())
+		if strings.HasPrefix(idxSvc.ID().DID().String(), "did:web:") {
+			services = append(services, idxSvc.ID().DID())
+		}
 	}
 	if uplSvc := cfg.UCANService.Services.Upload.Connection; uplSvc != nil {
-		services = append(services, uplSvc.ID().DID())
+		if strings.HasPrefix(uplSvc.ID().DID().String(), "did:web:") {
+			services = append(services, uplSvc.ID().DID())
+		}
 	}
 	hr, err := principalresolver.NewHTTPResolver(services)
 	if err != nil {

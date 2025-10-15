@@ -9,6 +9,10 @@ import (
 var Module = fx.Module("storage/ucan/handlers",
 	fx.Provide(
 		fx.Annotate(
+			ucan.AccessGrant,
+			fx.ResultTags(`group:"ucan_options"`),
+		),
+		fx.Annotate(
 			ucan.BlobAllocate,
 			fx.ResultTags(`group:"ucan_options"`),
 		),

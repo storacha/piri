@@ -8,6 +8,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/go-ucanto/client"
+	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/stretchr/testify/require"
@@ -75,20 +76,15 @@ func WithSigner(signer principal.Signer) TestConfigOption {
 	}
 }
 
-// WithUploadServiceURL sets the upload service URL
-func WithUploadServiceURL(uploadURL *url.URL) TestConfigOption {
+// WithUploadServiceConfig sets the upload service configuration
+func WithUploadServiceConfig(id did.DID, url *url.URL) TestConfigOption {
 	return func(t *testing.T, cfg *app.AppConfig) {
-		if uploadURL != nil {
-			// Create a new connection with the provided URL
-			did := presets.UploadServiceDID
-			if did.String() == "" {
-				// Use Alice as a fallback for tests
-				did = testutil.Alice.DID()
-			}
-			cfg.UCANService.Services.Upload.Connection = testutil.Must(client.NewConnection(
-				did,
-				ucanhttp.NewChannel(uploadURL),
-			))(t)
+		if id == did.Undef {
+			// Use Alice as a fallback for tests
+			id = testutil.Alice.DID()
 		}
+		cfg.UCANService.Services.Upload.Connection = testutil.Must(
+			client.NewConnection(id, ucanhttp.NewChannel(url)),
+		)(t)
 	}
 }

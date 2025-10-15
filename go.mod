@@ -49,7 +49,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92
 	github.com/storacha/go-libstoracha v0.3.0
-	github.com/storacha/go-ucanto v0.6.6-0.20251015090037-08805828d1d1
+	github.com/storacha/go-ucanto v0.6.6
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.39.0
 	github.com/testcontainers/testcontainers-go/modules/minio v0.39.0
