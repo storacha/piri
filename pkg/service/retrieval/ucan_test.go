@@ -18,6 +18,7 @@ import (
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/ucan"
+	piritutil "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/storacha/piri/pkg/server"
@@ -38,10 +39,11 @@ func TestSpaceContentRetrieve(t *testing.T) {
 
 	retrievalSvc := retrieval.New(testutil.Alice, storageSvc.Blobs().Store(), storageSvc.Blobs().Allocations())
 
+	port := piritutil.GetFreePort(t)
 	srvMux, err := server.NewServer(storageSvc, retrievalSvc)
 	require.NoError(t, err)
 	srv := &http.Server{
-		Addr:    "localhost:8080",
+		Addr:    fmt.Sprintf("localhost:%d", port),
 		Handler: srvMux,
 	}
 	go func() {
@@ -53,7 +55,7 @@ func TestSpaceContentRetrieve(t *testing.T) {
 	t.Cleanup(func() {
 		srv.Close()
 	})
-	publicURL := testutil.Must(url.Parse("http://localhost:8080"))(t)
+	publicURL := testutil.Must(url.Parse(fmt.Sprintf("http://localhost:%d", port)))(t)
 
 	t.Run("space/content/retrieve", func(t *testing.T) {
 		space := testutil.RandomSigner(t)
