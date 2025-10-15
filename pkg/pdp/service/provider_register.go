@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -16,12 +17,19 @@ import (
 )
 
 func (p *PDPService) RegisterProvider(ctx context.Context, params types.RegisterProviderParams) (types.RegisterProviderResults, error) {
-	// TODO(forrest): remove this once confident in the code
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovered in RegisterProvider", r)
-		}
-	}()
+	// Check for pending registration in database
+	var pendingReg models.PDPProviderRegistration
+	err := p.db.WithContext(ctx).
+		Where("service = ? AND provider_registered = ?", p.name, false).
+		First(&pendingReg).Error
+
+	if err == nil {
+		// Found a pending registration
+		return types.RegisterProviderResults{}, types.NewError(types.KindConflict, fmt.Sprintf("provider registration already in progress (tx: %s)", pendingReg.RegisterMessageHash))
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return types.RegisterProviderResults{}, fmt.Errorf("failed to check for pending registration: %w", err)
+	}
+
 	bindCtx := &bind.CallOpts{Context: ctx}
 	registry, err := bindings.NewServiceProviderRegistry(smartcontracts.Addresses().ProviderRegistry, p.contractBackend)
 	if err != nil {
@@ -34,12 +42,11 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 	}
 
 	if isRegistered {
-		// TODO we can move this to a separate method for query provider, doing this here because its easy and I lazy.
 		providerInfoView, err := registry.GetProviderByAddress(bindCtx, p.address)
 		if err != nil {
 			return types.RegisterProviderResults{}, fmt.Errorf("failed to get provider by address for registered provider: %w", err)
 		}
-		log.Errorf("service provider %s is already registered with address %s", providerInfoView.ProviderId, p.address)
+		log.Infof("service provider %s is already registered with address %s", providerInfoView.ProviderId, p.address)
 		return types.RegisterProviderResults{
 			Address:     providerInfoView.Info.ServiceProvider,
 			Payee:       providerInfoView.Info.Payee,
@@ -56,58 +63,21 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 		return types.RegisterProviderResults{}, fmt.Errorf("failed to get ABI: %w", err)
 	}
 
-	/*
-	 /// @notice Register as a new service provider with a specific product type
-	    /// @param payee Address that will receive payments (cannot be changed after registration)
-	    /// @param name Provider name (optional, max 128 chars)
-	    /// @param description Provider description (max 256 chars)
-	    /// @param productType The type of product to register
-	    /// @param productData The encoded product configuration data
-	    /// @param capabilityKeys Array of capability keys
-	    /// @param capabilityValues Array of capability values
-	    /// @return providerId The unique ID assigned to the provider
-	    function registerProvider(
-	        address payee,
-	        string calldata name,
-	        string calldata description,
-	        ProductType productType,
-	        bytes calldata productData,
-	        string[] calldata capabilityKeys,
-	        string[] calldata capabilityValues
-	    ) external payable returns (uint256 providerId) {
-	*/
-
-	/*
-		The PDPOffering data (serviceURL, minPieceSizeInBytes,
-		  maxPieceSizeInBytes, storagePricePerTibPerMonth, etc.) is completely
-		  ignored.
-		  Instead, FilecoinWarmStorageService uses its own:
-		  - Fixed pricing: 5 USDFC per TiB/month (line 302)
-		  - Fixed proving periods: Set during initialization (lines 345-346)
-		  - No piece size restrictions from PDPOffering
-		  So, the PDPOffering is just stored in the
-		  registry for discovery/informational purposes. It's not used
-		  operationally by the FilecoinWarmStorageService contract.
-		  This makes sense architecturally because:
-		  1. The registry acts as a "yellow pages" where providers advertise their
-		  capabilities
-		  2. The actual service contract (FilecoinWarmStorageService) enforces its
-		  own standardized terms
-		  3. Clients might use PDPOffering data to discover providers, but the
-		  actual service operates on fixed terms
-	*/
 	productData, err := registry.EncodePDPOffering(bindCtx, bindings.ServiceProviderRegistryStoragePDPOffering{
-		// so I don't think any of these fields matter, see above comment
-		// TODO validate this assumption, I don't think it's used, but need to verify
-		ServiceURL:                 "http://example.com",
-		MinPieceSizeInBytes:        big.NewInt(1),
-		MaxPieceSizeInBytes:        big.NewInt(2),
+		// None of these fields except PaymentTokenAddress are used by the service contract, they simply serve as an
+		// unused on-chain registy of data.
+		// TODO: later, we way want to allow node providers to pick these themselves, unsure what value that adds currently
+		// but this does represent information that are advertising on chain.
+		ServiceURL:                 "https://storacha.network",
+		MinPieceSizeInBytes:        big.NewInt(0),
+		MaxPieceSizeInBytes:        big.NewInt(0),
 		IpniPiece:                  false,
 		IpniIpfs:                   false,
-		StoragePricePerTibPerMonth: big.NewInt(2),
-		MinProvingPeriodInEpochs:   big.NewInt(30),
+		StoragePricePerTibPerMonth: big.NewInt(0),
+		MinProvingPeriodInEpochs:   big.NewInt(0),
 		Location:                   "earth",
-		PaymentTokenAddress:        p.address,
+		// This field DOES matter as it's the address payment will be issued to by the contract.
+		PaymentTokenAddress: p.address,
 	})
 	if err != nil {
 		return types.RegisterProviderResults{}, fmt.Errorf("failed to encode product data: %w", err)
@@ -134,12 +104,6 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 		return types.RegisterProviderResults{}, fmt.Errorf("failed to send transaction: %w", err)
 	}
 
-	// NB(forrest): we could define a new database model and task, e.g. watch_providerregister.go that listens
-	// for successful messages, parses the receipts, and stores the provider ID in the database.
-	// But that's a lot of work for something that will really only happen once in a providers' lifetime.
-	// so instead, at the top of this function we just check if the provider is registered, and if they are return the
-	// providerID, allowing this method to be called repeatedly until an ID is returned, which is lazy...so
-	// TODO: evaluate this comment, and complete it or delete the comment and TODO
 	if err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		msgWait := models.MessageWaitsEth{
 			SignedTxHash: txHash.Hex(),
@@ -147,6 +111,16 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 		}
 		if err := tx.Create(&msgWait).Error; err != nil {
 			return fmt.Errorf("failed to insert into %s: %w", msgWait.TableName(), err)
+		}
+
+		// Insert into pdp_provider_registrations
+		providerReg := models.PDPProviderRegistration{
+			RegisterMessageHash: txHash.Hex(),
+			Service:             p.name,
+			ProviderRegistered:  false,
+		}
+		if err := tx.Create(&providerReg).Error; err != nil {
+			return fmt.Errorf("failed to insert into %s: %w", providerReg.TableName(), err)
 		}
 
 		// Return nil to commit the transaction.

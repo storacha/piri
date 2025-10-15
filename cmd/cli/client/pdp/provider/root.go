@@ -13,4 +13,5 @@ var (
 
 func init() {
 	Cmd.AddCommand(RegisterCmd)
+	Cmd.AddCommand(StatusCmd)
 }

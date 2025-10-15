@@ -189,3 +189,17 @@ type (
 		Description string `json:"description,omitempty"`
 	}
 )
+
+// GetProviderStatus types
+type (
+	GetProviderStatusResponse struct {
+		ID                 uint64 `json:"id"`
+		Address            string `json:"address"`
+		Payee              string `json:"payee"`
+		IsRegistered       bool   `json:"isRegistered"`
+		IsActive           bool   `json:"isActive"`
+		Name               string `json:"name"`
+		Description        string `json:"description"`
+		RegistrationStatus string `json:"registrationStatus"`
+	}
+)

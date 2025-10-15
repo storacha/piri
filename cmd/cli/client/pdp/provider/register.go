@@ -24,13 +24,13 @@ func init() {
 	RegisterCmd.Flags().String(
 		"name",
 		"",
-		"Provider name (optional, max 128 chars)",
+		"Provider name (recommend using DID; max 128 chars)",
 	)
 
 	RegisterCmd.Flags().String(
 		"description",
 		"",
-		"Provider description (optional, max 256 chars)",
+		"Provider description (recommend using DIDI; max 256 chars)",
 	)
 	cobra.CheckErr(RegisterCmd.MarkFlagRequired("name"))
 	cobra.CheckErr(RegisterCmd.MarkFlagRequired("description"))

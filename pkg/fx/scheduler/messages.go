@@ -40,6 +40,7 @@ var MessageModule = fx.Module("scheduler-messages",
 		StartWatcherMessageEth,
 		StartWatcherCreate,
 		StartWatcherRootAdd,
+		StartWatcherProviderRegister,
 	),
 )
 
@@ -130,5 +131,18 @@ func StartWatcherRootAdd(params WatcherRootAddParams) error {
 		params.DB,
 		params.Scheduler,
 		params.Contract,
+	)
+}
+
+type WatcherProviderRegisterParams struct {
+	fx.In
+	DB        *gorm.DB `name:"engine_db"`
+	Scheduler *chainsched.Scheduler
+}
+
+func StartWatcherProviderRegister(params WatcherProviderRegisterParams) error {
+	return tasks.NewWatcherProviderRegister(
+		params.DB,
+		params.Scheduler,
 	)
 }

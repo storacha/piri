@@ -94,6 +94,17 @@ func (e *PDPError) WithPublicMessage(message string) *PDPError {
 	return e
 }
 
+// CustomHTTPErrorHandler is a centralized error handler for all Echo routes
+// Set this as Echo's HTTPErrorHandler to automatically handle all errors
+func CustomHTTPErrorHandler(err error, c echo.Context) {
+	// Don't handle if response already started
+	if c.Response().Committed {
+		return
+	}
+
+	HandleError(err, c)
+}
+
 // HandleError converts any error to an HTTP response
 // It's especially helpful for handling our custom ContextualError
 func HandleError(err error, c echo.Context) {
@@ -128,12 +139,12 @@ func HandleError(err error, c echo.Context) {
 		case types.KindUnauthorized:
 			_ = c.String(http.StatusUnauthorized, tErr.Error())
 			return
+		case types.KindConflict:
+			_ = c.String(http.StatusConflict, tErr.Error())
+			return
 		default:
 			_ = c.String(http.StatusInternalServerError, tErr.Error())
 			return
 		}
 	}
-
-	// Generic error handling
-	_ = c.String(http.StatusInternalServerError, "Internal server error")
 }

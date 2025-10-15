@@ -27,7 +27,7 @@ func (p *PDPHandler) handleRegisterProvider(c echo.Context) error {
 		Description: req.Description,
 	})
 	if err != nil {
-		return middleware.NewError(operation, "Failed to register provider", err, http.StatusInternalServerError)
+		return err
 	}
 
 	resp := httpapi.RegisterProviderResponse{

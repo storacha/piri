@@ -161,6 +161,25 @@ type RegisterProviderResults struct {
 	Description string
 }
 
+type GetProviderStatusResults struct {
+	// ID of provider (0 if not registered)
+	ID uint64
+	// address of the provider
+	Address common.Address
+	// address the provider will receive payment on
+	Payee common.Address
+	// True if the provider is registered in the registry
+	IsRegistered bool
+	// True if the provider is active
+	IsActive bool
+	// Optional name chosen by provider
+	Name string
+	// Optional description chosen by provider
+	Description string
+	// Registration status: "not_registered", "pending", or "registered"
+	RegistrationStatus string
+}
+
 const (
 	ProductTypePDP uint8 = 0
 	// TODO we need to generate type for this from the contract ABI
@@ -210,4 +229,5 @@ type PieceAPI interface {
 
 type ProviderAPI interface {
 	RegisterProvider(ctx context.Context, params RegisterProviderParams) (RegisterProviderResults, error)
+	GetProviderStatus(ctx context.Context) (GetProviderStatusResults, error)
 }

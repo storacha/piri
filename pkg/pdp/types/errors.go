@@ -13,6 +13,7 @@ const (
 	KindInvalidInput
 	KindUnauthorized
 	KindInternal
+	KindConflict
 )
 
 // Error represents a service error with a kind

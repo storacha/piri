@@ -562,6 +562,26 @@ func (c *Client) RegisterProvider(ctx context.Context, params types.RegisterProv
 	}, nil
 }
 
+func (c *Client) GetProviderStatus(ctx context.Context) (types.GetProviderStatusResults, error) {
+	route := c.endpoint.JoinPath(pdpRoutePath, "/provider/status").String()
+	var resp httpapi.GetProviderStatusResponse
+	err := c.getJsonResponse(ctx, route, &resp)
+	if err != nil {
+		return types.GetProviderStatusResults{}, err
+	}
+
+	return types.GetProviderStatusResults{
+		ID:                 resp.ID,
+		Address:            common.HexToAddress(resp.Address),
+		Payee:              common.HexToAddress(resp.Payee),
+		IsRegistered:       resp.IsRegistered,
+		IsActive:           resp.IsActive,
+		Name:               resp.Name,
+		Description:        resp.Description,
+		RegistrationStatus: resp.RegistrationStatus,
+	}, nil
+}
+
 // detectServerType pings the server to determine if it's a piri server or generic server
 func (c *Client) detectServerType(ctx context.Context) error {
 	route := c.endpoint.JoinPath(pdpRoutePath, pingPath).String()
