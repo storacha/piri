@@ -15,7 +15,9 @@ import (
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/principal"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
+	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
+	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp"
@@ -32,15 +34,16 @@ import (
 )
 
 type StorageService struct {
-	id            principal.Signer
-	blobs         blobs.Blobs
-	claims        claims.Claims
-	pdp           pdp.PDP
-	receiptStore  receiptstore.ReceiptStore
-	replicator    replicator.Replicator
-	uploadService client.Connection
-	startFuncs    []func(ctx context.Context) error
-	closeFuncs    []func(ctx context.Context) error
+	id                principal.Signer
+	blobs             blobs.Blobs
+	claims            claims.Claims
+	pdp               pdp.PDP
+	receiptStore      receiptstore.ReceiptStore
+	replicator        replicator.Replicator
+	uploadService     client.Connection
+	validationContext validator.ClaimContext
+	startFuncs        []func(ctx context.Context) error
+	closeFuncs        []func(ctx context.Context) error
 	io.Closer
 }
 
@@ -88,6 +91,10 @@ func (s *StorageService) Close(ctx context.Context) error {
 	}
 	s.closeFuncs = []func(context.Context) error{}
 	return err
+}
+
+func (s *StorageService) ValidationContext() validator.ClaimContext {
+	return s.validationContext
 }
 
 var _ Service = (*StorageService)(nil)
@@ -293,15 +300,30 @@ func New(opts ...Option) (*StorageService, error) {
 		return replicationQueue.Stop(ctx)
 	})
 
+	validationContext := c.validationContext
+	if c.validationContext == nil {
+		validationContext = validator.NewClaimContext(
+			id.Verifier(),
+			validator.IsSelfIssued,
+			func(context.Context, validator.Authorization[any]) validator.Revoked {
+				return nil
+			},
+			validator.ProofUnavailable,
+			edverifier.Parse,
+			validator.FailDIDKeyResolution,
+		)
+	}
+
 	return &StorageService{
-		id:            c.id,
-		blobs:         blobs,
-		claims:        claims,
-		closeFuncs:    closeFuncs,
-		startFuncs:    startFuncs,
-		receiptStore:  receiptStore,
-		pdp:           pdpImpl,
-		replicator:    repl,
-		uploadService: uploadServiceConnection,
+		id:                c.id,
+		blobs:             blobs,
+		claims:            claims,
+		closeFuncs:        closeFuncs,
+		startFuncs:        startFuncs,
+		receiptStore:      receiptStore,
+		pdp:               pdpImpl,
+		replicator:        repl,
+		uploadService:     uploadServiceConnection,
+		validationContext: validationContext,
 	}, nil
 }

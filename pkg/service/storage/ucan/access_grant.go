@@ -23,6 +23,7 @@ import (
 
 type AccessGrantService interface {
 	ID() principal.Signer
+	ValidationContext() validator.ClaimContext
 }
 
 func AccessGrant(storageService AccessGrantService) server.Option {
@@ -46,7 +47,7 @@ func AccessGrant(storageService AccessGrantService) server.Option {
 
 				delegations := map[string]delegation.Delegation{}
 				for _, cap := range cap.Nb().Att {
-					res, err := grantAbility(ctx, storageService.ID(), cap.Can, cause)
+					res, err := grantAbility(ctx, storageService.ValidationContext(), storageService.ID(), cap.Can, cause)
 					if err != nil {
 						return nil, nil, err
 					}
@@ -76,10 +77,10 @@ func AccessGrant(storageService AccessGrantService) server.Option {
 	)
 }
 
-func grantAbility(ctx context.Context, id ucan.Signer, ability ucan.Ability, cause invocation.Invocation) (result.Result[delegation.Delegation, access.GrantError], error) {
+func grantAbility(ctx context.Context, claimctx validator.ClaimContext, id principal.Signer, ability ucan.Ability, cause invocation.Invocation) (result.Result[delegation.Delegation, access.GrantError], error) {
 	switch ability {
 	case blob.RetrieveAbility:
-		return grantBlobRetrieve(ctx, id, cause)
+		return grantBlobRetrieve(ctx, claimctx, id, cause)
 	default:
 		return result.Error[delegation.Delegation](
 			access.GrantError{
@@ -90,7 +91,7 @@ func grantAbility(ctx context.Context, id ucan.Signer, ability ucan.Ability, cau
 	}
 }
 
-func grantBlobRetrieve(ctx context.Context, id ucan.Signer, cause invocation.Invocation) (result.Result[delegation.Delegation, access.GrantError], error) {
+func grantBlobRetrieve(ctx context.Context, claimctx validator.ClaimContext, id principal.Signer, cause invocation.Invocation) (result.Result[delegation.Delegation, access.GrantError], error) {
 	// Grant blob retrieve for the following:
 	// 1. if the cause is an `assert/index` issued by an indexing service
 	// 2. if the cause is a `blob/replica/allocate` issued by an upload service
@@ -112,9 +113,14 @@ func grantBlobRetrieve(ctx context.Context, id ucan.Signer, cause invocation.Inv
 	switch cause.Capabilities()[0].Can() {
 	case replica.AllocateAbility:
 		vctx := validator.NewValidationContext(
-			id,
+			id.Verifier(),
 			replica.Allocate,
-			validator.IsSelfIssued,
+			claimctx.CanIssue,
+			claimctx.ValidateAuthorization,
+			claimctx.ResolveProof,
+			claimctx.ParsePrincipal,
+			claimctx.ResolveDIDKey,
+			claimctx.AuthorityProofs()...,
 		)
 		_, validationErr = validator.Access(ctx, cause, vctx)
 	case assert.IndexAbility:

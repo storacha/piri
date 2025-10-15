@@ -1688,6 +1688,8 @@ github.com/storacha/go-libstoracha v0.3.0 h1:PfwgulLb/3xyrwnNdS4cW/iYWOGIb789kB1
 github.com/storacha/go-libstoracha v0.3.0/go.mod h1:nkVcVfEVeeGH1dA7SYpvYC6ip1hmoL1k6z/x+QTynXQ=
 github.com/storacha/go-ucanto v0.6.5 h1:mxy1UkJDqszAGe6SkoT0N2SG9YJ62YX7fzU1Pg9lxnA=
 github.com/storacha/go-ucanto v0.6.5/go.mod h1:O35Ze4x18EWtz3ftRXXd/mTZ+b8OQVjYYrnadJ/xNjg=
+github.com/storacha/go-ucanto v0.6.6-0.20251015090037-08805828d1d1 h1:nEqaqliF/70wZpooEqBgrgaBrvwo6kcTvUae9wTiqBI=
+github.com/storacha/go-ucanto v0.6.6-0.20251015090037-08805828d1d1/go.mod h1:O35Ze4x18EWtz3ftRXXd/mTZ+b8OQVjYYrnadJ/xNjg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=

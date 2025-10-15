@@ -3,6 +3,7 @@ package storage
 import (
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/principal"
+	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
@@ -26,4 +27,6 @@ type Service interface {
 	Replicator() replicator.Replicator
 	// UploadService provides access to an upload service connection
 	UploadConnection() client.Connection
+	// ValidationContext provides the context required for validating UCANs.
+	ValidationContext() validator.ClaimContext
 }
