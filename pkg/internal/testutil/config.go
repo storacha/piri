@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"fmt"
+	"net"
 	"net/url"
 	"testing"
 
@@ -23,8 +25,11 @@ type TestConfigOption func(*testing.T, *app.AppConfig)
 func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 	t.Helper()
 
-	publicURL, err := url.Parse("http://localhost:8080")
+	// Get an OS-assigned port to avoid conflicts in parallel tests
+	port := GetFreePort(t)
+	publicURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", port))
 	require.NoError(t, err)
+
 	// Start with sensible defaults for testing
 	cfg := app.AppConfig{
 		Identity: app.IdentityConfig{
@@ -32,7 +37,7 @@ func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 		},
 		Server: app.ServerConfig{
 			Host:      "localhost",
-			Port:      8080,
+			Port:      uint(port),
 			PublicURL: *publicURL,
 		},
 		Storage: app.StorageConfig{
@@ -46,8 +51,8 @@ func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 					Connection: testutil.Must(client.NewConnection(presets.UploadServiceDID, ucanhttp.NewChannel(presets.UploadServiceURL)))(t),
 				},
 				Publisher: app.PublisherServiceConfig{
-					PublicMaddr:   testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
-					AnnounceMaddr: testutil.Must(multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/8080/http"))(t),
+					PublicMaddr:   testutil.Must(multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/http", port)))(t),
+					AnnounceMaddr: testutil.Must(multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/http", port)))(t),
 					AnnounceURLs:  []url.URL{}, // Empty by default for tests
 				},
 			},
@@ -87,4 +92,20 @@ func WithUploadServiceURL(uploadURL *url.URL) TestConfigOption {
 			))(t)
 		}
 	}
+}
+
+// GetFreePort asks the OS for a free port that can be used for testing.
+// This helps avoid port conflicts when running tests in parallel.
+func GetFreePort(t *testing.T) int {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err, "failed to get free port")
+
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	// Close the listener so the port becomes available for the actual server
+	require.NoError(t, listener.Close())
+
+	return port
 }

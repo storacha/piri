@@ -33,6 +33,7 @@ import (
 	"github.com/storacha/go-ucanto/core/result/ok"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/ucan"
+	testutil2 "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/storacha/go-libstoracha/testutil"
@@ -343,7 +344,7 @@ func TestServer(t *testing.T) {
 
 // TestReplicaAllocateTransfer validates the full replica allocation flow in the UCAN server,
 // ensuring that invocations are correctly constructed and executed, and that the simulated endpoints
-// interact as expected. A lightweight HTTP server (on port 8080) is used to simulate external endpoints:
+// interact as expected. A lightweight HTTP server (on port picked by OS) is used to simulate external endpoints:
 //   - "/get": Represents the source node that returns the original blob data.
 //   - "/put": Emulates the replica node that accepts and stores the blob.
 //   - "/upload-service": Acts as the upload service by decoding a CAR payload and triggering a transfer receipt.
@@ -392,7 +393,8 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 				multihash.Sum(expectedData, multihash.SHA2_256, -1),
 			)(t)
 			replicas := uint(1)
-			serverAddr := ":8080"
+			port := testutil2.GetFreePort(t)
+			serverAddr := fmt.Sprintf(":%d", port)
 			sourcePath, sinkPath, uploadServicePath := "get", "put", "upload-service"
 
 			// Spin up storage service, using injected values for testing.

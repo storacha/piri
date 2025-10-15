@@ -21,7 +21,7 @@ import (
 )
 
 func TestS3StoreReplace(t *testing.T) {
-	if os.Getenv("CI") != "" && runtime.GOOS != "linux" {
+	if os.Getenv("CI") != "" || runtime.GOOS != "linux" {
 		t.SkipNow()
 	}
 

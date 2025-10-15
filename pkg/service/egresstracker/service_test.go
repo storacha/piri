@@ -2,6 +2,7 @@ package egresstracker
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,7 @@ import (
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
 	"github.com/storacha/piri/pkg/client/receipts"
+	piritutil "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/store/consolidationstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/stretchr/testify/require"
@@ -78,9 +80,9 @@ func TestAddReceipt(t *testing.T) {
 		consolidationStore := consolidationstore.New(dssync.MutexWrap(datastore.NewMapDatastore()))
 
 		// Create receipts endpoint (dummy for tests)
-		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
+		port := piritutil.GetFreePort(t)
+		receiptsEndpoint := testutil.Must(url.Parse(fmt.Sprintf("http://localhost:%d/receipts", port)))(t)
 		rcptsClient := receipts.NewClient(receiptsEndpoint)
-		require.NoError(t, err)
 
 		// Create service
 		service, err := New(
@@ -120,7 +122,8 @@ func TestAddReceipt(t *testing.T) {
 		consolidationStore := consolidationstore.New(dssync.MutexWrap(datastore.NewMapDatastore()))
 
 		// Create receipts endpoint (dummy for tests)
-		receiptsEndpoint, err := url.Parse("http://localhost:8080/receipts")
+		port := piritutil.GetFreePort(t)
+		receiptsEndpoint := testutil.Must(url.Parse(fmt.Sprintf("http://localhost:%d/receipts", port)))(t)
 		rcptsClient := receipts.NewClient(receiptsEndpoint)
 		require.NoError(t, err)
 
