@@ -9,6 +9,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
+	signer "github.com/storacha/piri-signing-service/pkg/types"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
 
@@ -25,6 +26,18 @@ var log = logging.Logger("pdp/service")
 
 var _ types.API = (*PDPService)(nil)
 
+type ChainClient interface {
+	ChainHead(ctx context.Context) (*filtypes.TipSet, error)
+	ChainNotify(ctx context.Context) (<-chan []*api.HeadChange, error)
+	StateGetRandomnessDigestFromBeacon(ctx context.Context, randEpoch abi.ChainEpoch, tsk filtypes.TipSetKey) (abi.Randomness, error)
+}
+
+type EthClient interface {
+	tasks.SenderETHClient
+	tasks.MessageWatcherEthClient
+	bind.ContractBackend
+}
+
 type PDPService struct {
 	address         common.Address
 	blobstore       blobstore.Blobstore
@@ -39,18 +52,7 @@ type PDPService struct {
 
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
-}
-
-type ChainClient interface {
-	ChainHead(ctx context.Context) (*filtypes.TipSet, error)
-	ChainNotify(ctx context.Context) (<-chan []*api.HeadChange, error)
-	StateGetRandomnessDigestFromBeacon(ctx context.Context, randEpoch abi.ChainEpoch, tsk filtypes.TipSetKey) (abi.Randomness, error)
-}
-
-type EthClient interface {
-	tasks.SenderETHClient
-	tasks.MessageWatcherEthClient
-	bind.ContractBackend
+	signingService signer.SigningService
 }
 
 func New(
@@ -64,6 +66,7 @@ func New(
 	chainClient ChainClient,
 	contractClient smartcontracts.PDP,
 	contractBackend EthClient,
+	signingService signer.SigningService,
 ) (*PDPService, error) {
 	return &PDPService{
 		address:         address,
@@ -77,5 +80,6 @@ func New(
 		chainClient:     chainClient,
 		contractClient:  contractClient,
 		contractBackend: contractBackend,
+		signingService:  signingService,
 	}, nil
 }
