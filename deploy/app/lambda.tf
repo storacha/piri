@@ -27,6 +27,12 @@ locals {
       pdponly   = true
       nopdponly = false
     }
+    publisher = {
+      name        = "publisher"
+      pdponly     = false
+      nopdponly   = false
+      concurrency = 1
+    }
     postad = {
       name      = "POSTad"
       pdponly   = false
@@ -105,6 +111,8 @@ resource "aws_lambda_function" "lambda" {
       PIECE_AGGREGATOR_QUEUE_URL          = var.use_pdp ? aws_sqs_queue.piece_aggregator[0].id : ""
       AGGREGATE_SUBMITTER_QUEUE_URL       = var.use_pdp ? aws_sqs_queue.aggregate_submitter[0].id : ""
       PIECE_ACCEPTER_QUEUE_URL            = var.use_pdp ? aws_sqs_queue.piece_accepter[0].id : ""
+      IPNI_PUBLISHER_QUEUE_ID             = aws_sqs_queue.ipni_publisher.id
+      IPNI_PUBLISHER_BUCKET_NAME          = aws_s3_bucket.ipni_publisher.bucket
       PDP_PROOFSET                        = var.pdp_proofset,
       CURIO_URL                           = var.curio_url,
       PRINCIPAL_MAPPING                   = var.principal_mapping,
@@ -330,5 +338,12 @@ resource "aws_lambda_event_source_mapping" "aggregate_submitter_source_mapping" 
   event_source_arn = aws_sqs_queue.aggregate_submitter[0].arn
   enabled          = true
   function_name    = aws_lambda_function.lambda["aggregatesubmitter"].arn
+  batch_size       = terraform.workspace == "prod" ? 10 : 1
+}
+
+resource "aws_lambda_event_source_mapping" "ipni_publisher_source_mapping" {
+  event_source_arn = aws_sqs_queue.ipni_publisher.arn
+  enabled          = true
+  function_name    = aws_lambda_function.lambda["publisher"].arn
   batch_size       = terraform.workspace == "prod" ? 10 : 1
 }

@@ -37,6 +37,7 @@ func New(id principal.Signer, claimStore claimstore.ClaimStore, publisherStore s
 		id,
 		publisherStore,
 		publicAddr,
+		publisher.WithAsyncPublisher(o.asyncPublisher),
 		publisher.WithDirectAnnounce(o.announceURLs...),
 		publisher.WithIndexingService(o.indexingService),
 		publisher.WithIndexingServiceProof(o.indexingServiceProofs...),

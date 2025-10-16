@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 	"sync"
-	"time"
 
-	"github.com/cenkalti/backoff/v5"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	ipnimeta "github.com/ipni/go-libipni/metadata"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -33,16 +33,26 @@ import (
 	"github.com/storacha/piri/lib"
 )
 
+type threadSafeAsyncPublisher struct {
+	ipnipub.AsyncPublisher
+	mu sync.Mutex
+}
+
+func (p *threadSafeAsyncPublisher) Publish(ctx context.Context, pi peer.AddrInfo, contextID string, digests iter.Seq[multihash.Multihash], meta ipnimeta.Metadata) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.AsyncPublisher.Publish(ctx, pi, contextID, digests, meta)
+}
+
 var log = logging.Logger("publisher")
 
 type PublisherService struct {
 	id                    principal.Signer
 	store                 store.PublisherStore
-	publisher             ipnipub.Publisher
+	asyncPublisher        ipnipub.AsyncPublisher
 	provider              peer.AddrInfo
 	indexingService       client.Connection
 	indexingServiceProofs delegation.Proofs
-	mutex                 sync.Mutex
 }
 
 func (pub *PublisherService) Store() store.PublisherStore {
@@ -53,7 +63,7 @@ func (pub *PublisherService) Publish(ctx context.Context, claim delegation.Deleg
 	ability := claim.Capabilities()[0].Can()
 	switch ability {
 	case assert.LocationAbility:
-		err := PublishLocationCommitment(ctx, &pub.mutex, pub.publisher, pub.provider, claim)
+		err := PublishLocationCommitment(ctx, pub.asyncPublisher, pub.provider, claim)
 		if err != nil {
 			return err
 		}
@@ -65,8 +75,7 @@ func (pub *PublisherService) Publish(ctx context.Context, claim delegation.Deleg
 
 func PublishLocationCommitment(
 	ctx context.Context,
-	mutex *sync.Mutex,
-	publisher ipnipub.Publisher,
+	asyncPublisher ipnipub.AsyncPublisher,
 	provider peer.AddrInfo,
 	locationCommitment delegation.Delegation,
 ) error {
@@ -102,26 +111,7 @@ func PublishLocationCommitment(
 		},
 	)
 
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	adlink, err := backoff.Retry(
-		ctx,
-		func() (ipld.Link, error) {
-			l, err := publisher.Publish(ctx, provider, string(contextid), slices.Values(digests), meta)
-			if err != nil && errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
-				return nil, backoff.Permanent(err)
-			}
-			return l, err
-		},
-		backoff.WithMaxElapsedTime(30*time.Second),
-		backoff.WithBackOff(&backoff.ExponentialBackOff{
-			InitialInterval:     100 * time.Millisecond,
-			RandomizationFactor: 0.25,
-			Multiplier:          1.25,
-			MaxInterval:         5 * time.Second,
-		}),
-	)
+	err = asyncPublisher.Publish(ctx, provider, string(contextid), slices.Values(digests), meta)
 	if err != nil {
 		if errors.Is(err, ipnipub.ErrAlreadyAdvertised) {
 			log.Warnf("Skipping previously published claim")
@@ -130,7 +120,6 @@ func PublishLocationCommitment(
 		return fmt.Errorf("publishing claim: %w", err)
 	}
 
-	log.Infof("Published advertisement: %s", adlink)
 	return nil
 }
 
@@ -248,25 +237,30 @@ func New(
 			return nil, err
 		}
 	}
-
 	priv, err := crypto.UnmarshalEd25519PrivateKey(id.Raw())
 	if err != nil {
 		return nil, fmt.Errorf("unmarshaling private key: %w", err)
 	}
 
-	announceAddr := o.announceAddr
-	if announceAddr == nil {
-		announceAddr = publicAddr
-	}
+	asyncPublisher := o.asyncPublisher
+	if asyncPublisher == nil {
 
-	ipnipubOpts := []ipnipub.Option{ipnipub.WithAnnounceAddrs(announceAddr.String())}
-	for _, u := range o.announceURLs {
-		log.Infof("Announcing new IPNI adverts to: %s", u.String())
-		ipnipubOpts = append(ipnipubOpts, ipnipub.WithDirectAnnounce(u.String()))
-	}
-	publisher, err := ipnipub.New(priv, publisherStore, ipnipubOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("creating IPNI publisher instance: %w", err)
+		announceAddr := o.announceAddr
+		if announceAddr == nil {
+			announceAddr = publicAddr
+		}
+
+		ipnipubOpts := []ipnipub.Option{ipnipub.WithAnnounceAddrs(announceAddr.String())}
+		for _, u := range o.announceURLs {
+			log.Infof("Announcing new IPNI adverts to: %s", u.String())
+			ipnipubOpts = append(ipnipubOpts, ipnipub.WithDirectAnnounce(u.String()))
+		}
+		ipniPublisher, err := ipnipub.New(priv, publisherStore, ipnipubOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("creating IPNI publisher instance: %w", err)
+		}
+
+		asyncPublisher = &threadSafeAsyncPublisher{AsyncPublisher: ipnipub.AsyncFrom(ipniPublisher)}
 	}
 
 	found := false
@@ -296,7 +290,7 @@ func New(
 	return &PublisherService{
 		id:                    id,
 		store:                 publisherStore,
-		publisher:             publisher,
+		asyncPublisher:        asyncPublisher,
 		provider:              provInfo,
 		indexingService:       o.indexingService,
 		indexingServiceProofs: o.indexingServiceProofs,

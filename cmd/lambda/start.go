@@ -2,6 +2,7 @@ package lambda
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -41,6 +42,38 @@ func instrumentSQSEventHandler(handler SQSEventHandler) SQSEventHandler {
 		}
 
 		return err
+	}
+}
+
+// SQSBatchEventHandler is a function that handles SQS events, suitable to use as a lambda handler.
+type SQSBatchEventHandler func(context.Context, events.SQSEvent) []events.SQSBatchItemFailure
+
+// SQSBatchEventHandlerBuilder is a function that creates a SQSBatchEventHandler from a config.
+type SQSBatchEventHandlerBuilder func(aws.Config) (SQSBatchEventHandler, error)
+
+// StartBatchSQSEventHandler starts a lambda handler that processes SQS events.
+func StartBatchSQSEventHandler(makeHandler SQSBatchEventHandlerBuilder) {
+	ctx := context.Background()
+	cfg := aws.FromEnv(ctx)
+	telemetry.SetupErrorReporting(cfg.SentryDSN, cfg.SentryEnvironment)
+
+	handler, err := makeHandler(cfg)
+	if err != nil {
+		telemetry.ReportError(ctx, err)
+		panic(err)
+	}
+
+	lambda.StartWithOptions(instrumentSQSBatchEventHandler(handler), lambda.WithContext(ctx))
+}
+
+// instrumentSQSBatchEventHandler wraps a SQSBatchEventHandler with error reporting.
+func instrumentSQSBatchEventHandler(handler SQSBatchEventHandler) SQSBatchEventHandler {
+	return func(ctx context.Context, sqsEvent events.SQSEvent) []events.SQSBatchItemFailure {
+		failures := handler(ctx, sqsEvent)
+		if len(failures) > 0 {
+			telemetry.ReportError(ctx, fmt.Errorf("handling batch SQS event failed: %v", failures))
+		}
+		return failures
 	}
 }
 

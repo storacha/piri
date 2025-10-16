@@ -246,6 +246,7 @@ func New(opts ...Option) (*StorageService, error) {
 		claimStore,
 		publisherStore,
 		peerAddr,
+		claims.WithAsyncPublisher(c.asyncPublisher),
 		claims.WithPublisherDirectAnnounce(c.announceURLs...),
 		claims.WithPublisherAnnounceAddress(c.publisherAnnouceAddr),
 		claims.WithPublisherBlobAddress(c.publisherBlobAddress),
