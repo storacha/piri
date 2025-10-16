@@ -144,7 +144,7 @@ func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLin
 		aggregates = append(aggregates, aggregate)
 	}
 	if err := fns.SubmitAggregates(ctx, as.client, proofSetID, aggregates); err != nil {
-		return fmt.Errorf("submitting aggregates to Curio: %w", err)
+		return fmt.Errorf("submitting aggregates to PDP Service: %w", err)
 	}
 	for _, aggregateLink := range aggregateLinks {
 		err := as.queue.Enqueue(ctx, PieceAcceptTask, aggregateLink)

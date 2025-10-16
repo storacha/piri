@@ -38,7 +38,7 @@ func (p *PDPHandler) handleCreateProofSet(c echo.Context) error {
 		ExtraData:    types.ExtraData(req.ExtraData),
 	})
 	if err != nil {
-		return middleware.NewError(operation, "Failed to create proof set", err, http.StatusInternalServerError)
+		return err
 	}
 
 	location := path.Join("/pdp/proof-sets/created", txHash.Hex())

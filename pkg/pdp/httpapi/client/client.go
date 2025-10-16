@@ -326,8 +326,7 @@ func (c *Client) ListProofSet(ctx context.Context) ([]types.ProofSet, error) {
 	return out, nil
 }
 
-func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.RootAdd,
-	extraData types.ExtraData) (common.Hash, error) {
+func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.RootAdd) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, "/", strconv.FormatUint(proofSetID, 10), rootsPath).String()
 
 	addRoots := make([]httpapi.Root, 0, len(roots))
@@ -343,7 +342,7 @@ func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.
 			Subroots: subRoots,
 		})
 	}
-	payload := httpapi.AddRootsRequest{Roots: addRoots, ExtraData: string(extraData)}
+	payload := httpapi.AddRootsRequest{Roots: addRoots}
 	if !c.isPiriServer() {
 		return common.Hash{}, c.verifySuccess(c.postJson(ctx, route, payload))
 	}

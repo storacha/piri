@@ -291,6 +291,84 @@ func TestSetup(t *testing.T) {
 	})
 }
 
+func TestQueue_MoveToDeadLetter(t *testing.T) {
+	t.Run("moves a message to the dead letter queue", func(t *testing.T) {
+		db := testing2.NewInMemoryDB(t)
+		q, err := queue.New(queue.NewOpts{DB: db, Name: "test"})
+		require.NoError(t, err)
+
+		// Send a message
+		m := queue.Message{Body: []byte("test message")}
+		id, err := q.SendAndGetID(t.Context(), m)
+		require.NoError(t, err)
+
+		// Receive it to get the full message
+		received, err := q.Receive(t.Context())
+		require.NoError(t, err)
+		require.NotNil(t, received)
+
+		// Move to dead letter queue
+		err = q.MoveToDeadLetter(t.Context(), received.ID, "test-job", "permanent_error", "test error")
+		require.NoError(t, err)
+
+		// Verify it's no longer in the main queue
+		m2, err := q.Receive(t.Context())
+		require.NoError(t, err)
+		require.Nil(t, m2)
+
+		// Verify it's in the dead letter queue
+		var count int
+		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE id = ?", id).Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
+
+		// Verify the metadata
+		var jobName, failureReason, errorMessage string
+		err = db.QueryRowContext(t.Context(),
+			"SELECT job_name, failure_reason, error_message FROM jobqueue_dead WHERE id = ?",
+			id).Scan(&jobName, &failureReason, &errorMessage)
+		require.NoError(t, err)
+		require.Equal(t, "test-job", jobName)
+		require.Equal(t, "permanent_error", failureReason)
+		require.Equal(t, "test error", errorMessage)
+	})
+
+	t.Run("errors if message does not exist", func(t *testing.T) {
+		q := newQ(t, queue.NewOpts{})
+
+		err := q.MoveToDeadLetter(t.Context(), "non-existent-id", "test-job", "permanent_error", "test error")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("handles max_retries failure reason", func(t *testing.T) {
+		db := testing2.NewInMemoryDB(t)
+		q, err := queue.New(queue.NewOpts{DB: db, Name: "test"})
+		require.NoError(t, err)
+
+		// Send and receive a message
+		m := queue.Message{Body: []byte("test message")}
+		id, err := q.SendAndGetID(t.Context(), m)
+		require.NoError(t, err)
+
+		received, err := q.Receive(t.Context())
+		require.NoError(t, err)
+		require.NotNil(t, received)
+
+		// Move to dead letter queue with max_retries reason
+		err = q.MoveToDeadLetter(t.Context(), received.ID, "test-job", "max_retries", "failed after 3 attempts")
+		require.NoError(t, err)
+
+		// Verify the failure reason
+		var failureReason string
+		err = db.QueryRowContext(t.Context(),
+			"SELECT failure_reason FROM jobqueue_dead WHERE id = ?",
+			id).Scan(&failureReason)
+		require.NoError(t, err)
+		require.Equal(t, "max_retries", failureReason)
+	})
+}
+
 func BenchmarkQueue(b *testing.B) {
 	b.Run("send, receive, delete", func(b *testing.B) {
 		q := newQ(b, queue.NewOpts{})

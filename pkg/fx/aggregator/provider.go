@@ -112,7 +112,11 @@ func RegisterLinkQueueJobs(lq *jobqueue.JobQueue[datamodel.Link], pa *aggregator
 	}
 
 	if err := lq.Register(aggregator.PieceSubmitTask, func(ctx context.Context, msg datamodel.Link) error {
-		return as.SubmitAggregates(ctx, []datamodel.Link{msg})
+		// failing to submit an aggregate that results in an error cannot be retried
+		if err := as.SubmitAggregates(ctx, []datamodel.Link{msg}); err != nil {
+			return jobqueue.NewPermanentError(err)
+		}
+		return nil
 	}); err != nil {
 		return fmt.Errorf("registering %s task: %w", aggregator.PieceSubmitTask, err)
 	}

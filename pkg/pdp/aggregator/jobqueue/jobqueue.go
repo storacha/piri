@@ -212,3 +212,7 @@ func (j *JobQueue[T]) Stop(ctx context.Context) error {
 func WithOnFailure[T any](onFailure worker.OnFailureFn[T]) worker.JobOption[T] {
 	return worker.WithOnFailure[T](onFailure)
 }
+
+func NewPermanentError(err error) error {
+	return worker.Permanent(err)
+}

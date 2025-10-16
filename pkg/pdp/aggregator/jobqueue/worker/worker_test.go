@@ -174,6 +174,141 @@ func TestOnFailure(t *testing.T) {
 	})
 }
 
+func TestDeadLetterQueue(t *testing.T) {
+	t.Run("moves job to dead letter queue on PermanentError", func(t *testing.T) {
+		db := internaltesting.NewInMemoryDB(t)
+		q := internaltesting.NewQ(t, queue.NewOpts{
+			DB:         db,
+			MaxReceive: 3,
+			Timeout:    10 * time.Millisecond,
+		})
+		r := worker.New[[]byte](
+			q,
+			&PassThroughSerializer[[]byte]{},
+			worker.WithLimit(10),
+		)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		defer cancel()
+
+		// Register a job that returns a permanent error
+		err := r.Register("permanent-error-job", func(ctx context.Context, m []byte) error {
+			cancel()
+			return worker.Permanent(fmt.Errorf("this is a permanent error"))
+		})
+		require.NoError(t, err)
+
+		// Enqueue the job
+		err = r.Enqueue(ctx, "permanent-error-job", []byte("test-message"))
+		require.NoError(t, err)
+
+		// Start the worker
+		r.Start(ctx)
+
+		// Verify the job is in the dead letter queue
+		var count int
+		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = ? AND failure_reason = ?",
+			"permanent-error-job", "permanent_error").Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 1, count, "Job should be in dead letter queue")
+
+		// Verify the job is not in the main queue
+		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue WHERE queue = ?", "test").Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 0, count, "Job should not be in main queue")
+	})
+
+	t.Run("moves job to dead letter queue after max retries", func(t *testing.T) {
+		db := internaltesting.NewInMemoryDB(t)
+		q := internaltesting.NewQ(t, queue.NewOpts{
+			DB:         db,
+			MaxReceive: 3, // Max 3 attempts
+			Timeout:    10 * time.Millisecond,
+		})
+		r := worker.New[[]byte](
+			q,
+			&PassThroughSerializer[[]byte]{},
+			worker.WithLimit(10),
+		)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		defer cancel()
+
+		// Register a job that always fails
+		err := r.Register("max-retries-job", func(ctx context.Context, m []byte) error {
+			return fmt.Errorf("job failed")
+		})
+		require.NoError(t, err)
+
+		// Enqueue the job
+		err = r.Enqueue(ctx, "max-retries-job", []byte("test-message"))
+		require.NoError(t, err)
+
+		// Start the worker
+		r.Start(ctx)
+
+		// Verify the job is in the dead letter queue
+		var count int
+		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = ? AND failure_reason = ?",
+			"max-retries-job", "max_retries").Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 1, count, "Job should be in dead letter queue after max retries")
+
+		// Verify the job is not in the main queue
+		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue WHERE queue = ?", "test").Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 0, count, "Job should not be in main queue")
+	})
+
+	t.Run("calls OnFailure before moving to dead letter queue", func(t *testing.T) {
+		db := internaltesting.NewInMemoryDB(t)
+		q := internaltesting.NewQ(t, queue.NewOpts{
+			DB:         db,
+			MaxReceive: 3,
+			Timeout:    10 * time.Millisecond,
+		})
+		r := worker.New[[]byte](
+			q,
+			&PassThroughSerializer[[]byte]{},
+			worker.WithLimit(10),
+		)
+
+		var onFailureCalled bool
+
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		defer cancel()
+
+		// Register a job that fails with OnFailure callback
+		err := r.Register("failing-job-with-callback",
+			func(ctx context.Context, m []byte) error {
+				return fmt.Errorf("job failed")
+			},
+			worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
+				onFailureCalled = true
+				return nil
+			}),
+		)
+		require.NoError(t, err)
+
+		// Enqueue the job
+		err = r.Enqueue(ctx, "failing-job-with-callback", []byte("test-message"))
+		require.NoError(t, err)
+
+		// Start the worker
+		r.Start(ctx)
+
+		// Verify OnFailure was called
+		require.True(t, onFailureCalled, "OnFailure should have been called before moving to DLQ")
+
+		// Verify the job is in the dead letter queue
+		var count int
+		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = ?",
+			"failing-job-with-callback").Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 1, count, "Job should be in dead letter queue after OnFailure")
+	})
+}
+
 func TestRunner_Start(t *testing.T) {
 	t.Run("can run a named job", func(t *testing.T) {
 		_, r := newRunner(t)

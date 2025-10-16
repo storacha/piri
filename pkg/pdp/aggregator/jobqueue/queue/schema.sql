@@ -20,3 +20,21 @@ create trigger if not exists jobqueue_updated_timestamp after update on jobqueue
 end;
 
 create index if not exists jobqueue_queue_created_idx on jobqueue (queue, created);
+
+-- Dead letter queue for permanently failed jobs
+create table if not exists jobqueue_dead (
+  id text primary key,
+  created text not null,
+  updated text not null,
+  queue text not null,
+  body blob not null,
+  timeout text not null,
+  received integer not null,
+  job_name text not null,
+  failure_reason text not null,
+  error_message text not null,
+  moved_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ'))
+) strict;
+
+create index if not exists jobqueue_dead_queue_moved_at_idx on jobqueue_dead (queue, moved_at);
+create index if not exists jobqueue_dead_failure_reason_idx on jobqueue_dead (failure_reason);

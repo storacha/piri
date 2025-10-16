@@ -25,13 +25,8 @@ import (
 )
 
 // REVIEW(forrest): this method assumes the cids in the request are PieceCIDV2
-func (p *PDPService) AddRoots(
-	ctx context.Context,
-	id uint64,
-	request []types.RootAdd,
-	extraData types.ExtraData,
-) (res common.Hash,
-	retErr error) {
+// TODO we need to define non-retryable errors for the add root method, like lack of auth, and lack of dataset else this retries forever.
+func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (res common.Hash, retErr error) {
 	log.Infow("adding roots", "id", id, "request", request)
 	defer func() {
 		if retErr != nil {
@@ -40,6 +35,22 @@ func (p *PDPService) AddRoots(
 			log.Infow("added roots", "id", id, "request", request, "response", res)
 		}
 	}()
+
+	// Check if the provider is both registered and approved
+	if err := p.RequireProviderApproved(ctx); err != nil {
+		return common.Hash{}, err
+	}
+
+	// Check if the proof set exists
+	var proofSet models.PDPProofSet
+	if err := p.db.WithContext(ctx).Where("id = ?", id).First(&proofSet).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return common.Hash{}, types.NewErrorf(types.KindNotFound,
+				"proof set %d does not exist. Please create a proof set first using CreateProofSet before adding roots", id)
+		}
+		return common.Hash{}, fmt.Errorf("failed to check if proof set exists: %w", err)
+	}
+
 	if len(request) == 0 {
 		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "must provide at least one root")
 	}

@@ -105,6 +105,12 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 	HandleError(err, c)
 }
 
+// ErrorResponse represents the JSON structure for error responses
+type ErrorResponse struct {
+	Error   string                 `json:"error"`
+	Context map[string]interface{} `json:"context,omitempty"`
+}
+
 // HandleError converts any error to an HTTP response
 // It's especially helpful for handling our custom ContextualError
 func HandleError(err error, c echo.Context) {
@@ -115,8 +121,14 @@ func HandleError(err error, c echo.Context) {
 	// Check if it's our custom error type
 	var cErr ContextualError
 	if errors.As(err, &cErr) {
-		// Return the appropriate status code and message
-		_ = c.String(cErr.StatusCode(), cErr.PublicMessage())
+		// Build response with message and context
+		response := ErrorResponse{
+			Error:   cErr.PublicMessage(),
+			Context: cErr.LogContext(),
+		}
+
+		// Return JSON response with contextual information
+		_ = c.JSON(cErr.StatusCode(), response)
 		return
 	}
 

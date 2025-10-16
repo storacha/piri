@@ -24,6 +24,11 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 	// 3. the payer has authorized the service contract to act on its behalf
 	// 4. the payer has deposited funds into the payment channel for the service contract to use
 	// without these we get really unhelpful errors back *sobs*
+
+	// Check if the provider is both registered and approved
+	if err := p.RequireProviderApproved(ctx); err != nil {
+		return common.Hash{}, err
+	}
 	log.Infow("creating proof set", "recordKeeper", params.RecordKeeper)
 	defer func() {
 		if retErr != nil {

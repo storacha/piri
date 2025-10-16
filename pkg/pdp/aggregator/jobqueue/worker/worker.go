@@ -263,7 +263,19 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 		r.log.Infow("Running job", "name", jm.Name, "attempt", m.Received)
 		before := time.Now()
 		if err := jobReg.fn(jobCtx, jobInput); err != nil {
-			if m.Received == r.queue.MaxReceive() {
+			var permanent *PermanentError
+			if errors.As(err, &permanent) {
+				r.log.Errorw("Failed to run job, PermanentError occurred", "error", permanent, "name", jm.Name)
+				// Move to dead letter queue
+				dlqCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				if dlqErr := r.queue.MoveToDeadLetter(dlqCtx, m.ID, jm.Name, "permanent_error", err.Error()); dlqErr != nil {
+					r.log.Errorw("Error moving job to dead letter queue", "error", dlqErr, "original_error", err)
+				} else {
+					r.log.Infow("Moved job to dead letter queue", "name", jm.Name, "reason", "permanent_error")
+				}
+				return
+			} else if m.Received == r.queue.MaxReceive() {
 				r.log.Errorw("Failed to run job, max retries reached, will not retry",
 					"name", jm.Name,
 					"attempt", m.Received,
@@ -274,11 +286,20 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 				// Invoke OnFailure callback if configured
 				if jobReg.onFailure != nil {
 					r.log.Infow("Invoking OnFailure callback", "name", jm.Name)
-					if err := jobReg.onFailure(jobCtx, jobInput, err); err != nil {
+					if onFailErr := jobReg.onFailure(jobCtx, jobInput, err); onFailErr != nil {
 						// this is a VERY critical error
-						r.log.Errorw("Error invoking OnFailure callback", "name", jm.Name, "error", err)
+						r.log.Errorw("Error invoking OnFailure callback", "name", jm.Name, "error", onFailErr)
 					}
 				}
+				// Move to dead letter queue
+				dlqCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				if dlqErr := r.queue.MoveToDeadLetter(dlqCtx, m.ID, jm.Name, "max_retries", err.Error()); dlqErr != nil {
+					r.log.Errorw("Error moving job to dead letter queue", "error", dlqErr, "original_error", err)
+				} else {
+					r.log.Infow("Moved job to dead letter queue", "name", jm.Name, "reason", "max_retries")
+				}
+				return
 			} else {
 				r.log.Warnw("Error running job, retrying",
 					"name", jm.Name,
@@ -286,8 +307,9 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 					"max_attempts", r.queue.MaxReceive(),
 					"error", err,
 				)
+				// Return early for retryable errors - message will be retried
+				return
 			}
-			return
 		}
 		duration := time.Since(before)
 		r.log.Infow("Ran job", "name", jm.Name, "duration", duration, "attempt", m.Received)
