@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"fmt"
-	"net"
 	"net/url"
 	"testing"
 
@@ -92,20 +91,4 @@ func WithUploadServiceURL(uploadURL *url.URL) TestConfigOption {
 			))(t)
 		}
 	}
-}
-
-// GetFreePort asks the OS for a free port that can be used for testing.
-// This helps avoid port conflicts when running tests in parallel.
-func GetFreePort(t *testing.T) int {
-	t.Helper()
-
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err, "failed to get free port")
-
-	port := listener.Addr().(*net.TCPAddr).Port
-
-	// Close the listener so the port becomes available for the actual server
-	require.NoError(t, listener.Close())
-
-	return port
 }

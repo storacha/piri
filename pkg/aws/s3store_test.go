@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"net/url"
-	"os"
 	"runtime"
 	"testing"
 
@@ -15,13 +14,21 @@ import (
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/testutil"
 	paws "github.com/storacha/piri/pkg/aws"
+	piritutil "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/minio"
 )
 
 func TestS3StoreReplace(t *testing.T) {
-	if os.Getenv("CI") != "" || runtime.GOOS != "linux" {
+	// This test expects docker to be running in linux CI environments and fails if it's not
+	if piritutil.IsRunningInCI(t) && runtime.GOOS == "linux" {
+		if !piritutil.IsDockerAvailable(t) {
+			t.Fatalf("docker is expected in CI linux testing environments, but wasn't found")
+		}
+	}
+	// otherwise this test is running locally, skip it if docker isn't available
+	if !piritutil.IsDockerAvailable(t) {
 		t.SkipNow()
 	}
 
