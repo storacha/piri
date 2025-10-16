@@ -26,9 +26,14 @@ func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...ty
 		}
 	}()
 
+	var getOptions []blobstore.GetOption
+	if cfg.ByteRange.Start > 0 || cfg.ByteRange.End != nil {
+		getOptions = append(getOptions, blobstore.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
+	}
+
 	// TODO(forrest): Nice to have in follow on is attempting to map the `piece` arg to a PieceCIDV2, then
 	// performing the query to blobstore with that CID. allowing the read pieces with the cid they allocated them using
-	obj, err := p.blobstore.Get(ctx, piece.Hash(), blobstore.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
+	obj, err := p.blobstore.Get(ctx, piece.Hash(), getOptions...)
 
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {

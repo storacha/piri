@@ -16,6 +16,7 @@ var Module = fx.Module("retrieval",
 	fx.Provide(
 		fx.Annotate(
 			NewRetrievalService,
+			fx.As(new(ucan.BlobRetrievalService)),
 			fx.As(new(ucan.SpaceContentRetrievalService)),
 		),
 	),
