@@ -110,7 +110,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 						return nil, nil, fmt.Errorf("iterating replica allocate invocation blocks: %w", err)
 					}
 					if err := trnsfInv.Attach(block); err != nil {
-						return nil, nil, fmt.Errorf("failed to replica allocate invocation block (%s) to transfer invocation: %w", block.Link().String(), err)
+						return nil, nil, fmt.Errorf("failed to attach replica allocate invocation block (%s) to transfer invocation: %w", block.Link().String(), err)
 					}
 				}
 				// iff we didn't allocate space for the data, and didn't provide an address, then it means we have
@@ -128,7 +128,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 				if err := storageService.Replicator().Replicate(ctx, &replicahandler.TransferRequest{
 					Space:  cap.Nb().Space,
 					Blob:   cap.Nb().Blob,
-					Source: replicaAddress,
+					Source: replicahandler.TransferSource{ID: claim.Issuer(), URL: replicaAddress},
 					Sink:   sink,
 					Cause:  trnsfInv,
 				}); err != nil {
