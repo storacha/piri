@@ -13,7 +13,7 @@ sudo apt-get install -y git build-essential
 # Install Go if not present
 if ! command -v go &> /dev/null; then
     echo "Installing Go..."
-    curl -L https://go.dev/dl/go1.21.5.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
+    curl -L https://go.dev/dl/go1.25.3.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
 fi
 
 # Set up Go environment
