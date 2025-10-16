@@ -8,6 +8,10 @@ import (
 	"github.com/snadrus/must"
 )
 
+// TODO this will either be mainnet or calibnet, currnet ID is calibnet
+// we could also pull this from the lotus clinet piri is configued with
+var ChainID = big.NewInt(314159)
+
 type PDPContracts struct {
 	PDPVerifier      common.Address
 	ProviderRegistry common.Address

@@ -134,7 +134,9 @@ type ExtraData string
 
 type CreateProofSetParams struct {
 	RecordKeeper common.Address
-	ExtraData    ExtraData
+	// TODO remove
+	// Deprecated: delete me
+	ExtraData ExtraData
 }
 
 type RegisterProviderParams struct {
