@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/alanshaw/ucantone/ucan"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/printer"
 	"github.com/storacha/go-libstoracha/capabilities/access"
@@ -20,6 +19,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	ucan_cap "github.com/storacha/go-libstoracha/capabilities/ucan"
 	"github.com/storacha/go-ucanto/client"
+	rclient "github.com/storacha/go-ucanto/client/retrieval"
 	"github.com/storacha/go-ucanto/core/dag/blockstore"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
@@ -31,6 +31,8 @@ import (
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 	ucan_http "github.com/storacha/go-ucanto/transport/http"
+	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/validator"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -56,13 +58,25 @@ type TransferService interface {
 	UploadConnection() client.Connection
 }
 
+type TransferSource struct {
+	// Identity of the node to transfer from.
+	ID ucan.Principal
+	// URL the blob may be requested from.
+	URL url.URL
+}
+
+type transferSourceModel struct {
+	ID  string `json:"id"`
+	URL string `json:"url"`
+}
+
 type TransferRequest struct {
 	// Space is the space to associate with blob.
 	Space did.DID
 	// Blob is the blob in question.
 	Blob types.Blob
 	// Source is the location to replicate the blob from.
-	Source url.URL
+	Source TransferSource
 	// Sink is the location to replicate the blob to.
 	Sink *url.URL
 	// Cause is the invocation responsible for spawning this replication
@@ -70,17 +84,22 @@ type TransferRequest struct {
 	Cause invocation.Invocation
 }
 
+type transferRequestModel struct {
+	Space  string              `json:"space"`
+	Blob   types.Blob          `json:"blob"`
+	Source transferSourceModel `json:"source"`
+	Sink   *string             `json:"sink,omitempty"`
+	Cause  []byte              `json:"cause"`
+}
+
 func (t *TransferRequest) MarshalJSON() ([]byte, error) {
-	aux := struct {
-		Space  string     `json:"space"`
-		Blob   types.Blob `json:"blob"`
-		Source string     `json:"source"`
-		Sink   *string    `json:"sink,omitempty"`
-		Cause  []byte     `json:"cause"`
-	}{
-		Space:  t.Space.String(),
-		Blob:   t.Blob,
-		Source: t.Source.String(),
+	aux := transferRequestModel{
+		Space: t.Space.String(),
+		Blob:  t.Blob,
+		Source: transferSourceModel{
+			ID:  t.Source.ID.DID().String(),
+			URL: t.Source.URL.String(),
+		},
 	}
 
 	if t.Sink != nil {
@@ -98,14 +117,7 @@ func (t *TransferRequest) MarshalJSON() ([]byte, error) {
 }
 
 func (t *TransferRequest) UnmarshalJSON(b []byte) error {
-	aux := struct {
-		Space  string     `json:"space"`
-		Blob   types.Blob `json:"blob"`
-		Source string     `json:"source"`
-		Sink   *string    `json:"sink,omitempty"`
-		Cause  []byte     `json:"cause"`
-	}{}
-
+	aux := transferRequestModel{}
 	if err := json.Unmarshal(b, &aux); err != nil {
 		return fmt.Errorf("unmarshaling TransferRequest: %w", err)
 	}
@@ -118,11 +130,16 @@ func (t *TransferRequest) UnmarshalJSON(b []byte) error {
 
 	t.Blob = aux.Blob
 
-	sourceURL, err := url.Parse(aux.Source)
+	sourceID, err := did.Parse(aux.Source.ID)
+	if err != nil {
+		return fmt.Errorf("parsing source DID: %w", err)
+	}
+	t.Source.ID = sourceID
+	sourceURL, err := url.Parse(aux.Source.URL)
 	if err != nil {
 		return fmt.Errorf("parsing source URL: %w", err)
 	}
-	t.Source = *sourceURL
+	t.Source.URL = *sourceURL
 
 	if aux.Sink != nil {
 		sinkURL, err := url.Parse(*aux.Sink)
@@ -232,39 +249,76 @@ func checkBlobExists(ctx context.Context, service TransferService, blob types.Bl
 
 // transferBlobFromSource fetches blob from source and PUTs it to sink
 func transferBlobFromSource(ctx context.Context, service TransferService, request *TransferRequest) (*blobhandler.AcceptResponse, error) {
-	blocks, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(request.Cause.Blocks()))
+	allocInv, err := extractReplicaAllocateInvocation(request.Cause)
 	if err != nil {
-		return nil, fmt.Errorf("reading blocks: %w", err)
-	}
-	allocInv, err := invocation.NewInvocationView(request.Cause.Link(), blocks)
-	if err != nil {
-		return nil, fmt.Errorf("reading blocks: %w", err)
+		return nil, fmt.Errorf("extracting %s invocation: %w", replica.AllocateAbility, err)
 	}
 
-	// Fetch from source
-	replicaResp, err := http.Get(request.Source.String())
+	dlg, err := requestBlobRetrieveDelegation(ctx, request.Source.URL, service.ID(), request.Source.ID, allocInv)
 	if err != nil {
-		return nil, fmt.Errorf("http get replication source (%s) failed: %w", request.Source.String(), err)
+		return nil, fmt.Errorf("requesting %s delegation: %w", blob.RetrieveAbility, err)
 	}
-	defer replicaResp.Body.Close()
+
+	// perform authorized retrieval from source using the delegation
+	inv, err := blob.Retrieve.Invoke(
+		service.ID(),
+		request.Source.ID,
+		request.Source.ID.DID().String(),
+		blob.RetrieveCaveats{Blob: blob.Blob{Digest: request.Blob.Digest}},
+		delegation.WithProof(delegation.FromDelegation(dlg)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating %s invocation: %w", blob.RetrieveAbility, err)
+	}
+
+	conn, err := rclient.NewConnection(request.Source.ID, &request.Source.URL)
+	if err != nil {
+		return nil, fmt.Errorf("creating connection to %s: %w", request.Source.ID.DID(), err)
+	}
+
+	replicaExecResp, replicaResp, err := rclient.Execute(ctx, inv, conn)
+	if err != nil {
+		return nil, fmt.Errorf("executing %s invocation: %w", blob.RetrieveAbility, err)
+	}
+	defer replicaResp.Body().Close()
+
+	rcptLink, ok := replicaExecResp.Get(inv.Link())
+	if !ok {
+		return nil, fmt.Errorf("missing %s receipt: %s", blob.RetrieveAbility, inv.Link())
+	}
+
+	rcptReader, err := blob.NewRetrieveReceiptReader()
+	if err != nil {
+		return nil, err
+	}
+
+	rcpt, err := rcptReader.Read(rcptLink, replicaExecResp.Blocks())
+	if err != nil {
+		return nil, fmt.Errorf("reading %s receipt: %w", blob.RetrieveAbility, err)
+	}
+
+	_, x := result.Unwrap(rcpt.Out())
+	if x == (blob.RetrieveError{}) {
+		return nil, fmt.Errorf("replication source (%s) returned failure in receipt: %w", request.Source.URL.String(), x)
+	}
 
 	// Verify status from source
-	if replicaResp.StatusCode >= 300 || replicaResp.StatusCode < 200 {
-		return nil, fmt.Errorf("replication source (%s) returned unexpected status code %d", request.Source.String(), replicaResp.StatusCode)
+	if replicaResp.Status() >= 300 || replicaResp.Status() < 200 {
+		return nil, fmt.Errorf("replication source (%s) returned unexpected status: %d", request.Source.URL.String(), replicaResp.Status())
 	}
 
 	// Stream source to sink
-	req, err := http.NewRequest(http.MethodPut, request.Sink.String(), replicaResp.Body)
+	req, err := http.NewRequest(http.MethodPut, request.Sink.String(), replicaResp.Body())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create replication sink request: %w", err)
 	}
-	req.Header = replicaResp.Header
+	req.Header = replicaResp.Headers()
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed http PUT to replicate blob %s from %s to %s failed: %w",
 			request.Blob.Digest,
-			request.Source.String(),
+			request.Source.URL.String(),
 			request.Sink.String(),
 			err,
 		)
@@ -276,7 +330,7 @@ func transferBlobFromSource(ctx context.Context, service TransferService, reques
 		topErr := fmt.Errorf(
 			"unsuccessful http PUT to replicate blob %s from %s to %s status code %d",
 			request.Blob.Digest,
-			request.Source.String(),
+			request.Source.URL.String(),
 			request.Sink.String(),
 			res.StatusCode,
 		)
@@ -300,40 +354,88 @@ func transferBlobFromSource(ctx context.Context, service TransferService, reques
 	})
 }
 
+// extractReplicaAllocateInvocation extracts the `blob/replica/allocate`
+// invocation which is expected to be attached to the `blob/transfer` invocation
+func extractReplicaAllocateInvocation(trnsfInv invocation.Invocation) (invocation.Invocation, error) {
+	var err error
+	match, err := replica.Transfer.Match(validator.NewSource(trnsfInv.Capabilities()[0], trnsfInv))
+	if err != nil {
+		return nil, fmt.Errorf("matching %s invocation: %w", replica.TransferAbility, err)
+	}
+	blocks, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(trnsfInv.Blocks()))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s invocation blocks: %w", replica.TransferAbility, err)
+	}
+	return invocation.NewInvocationView(match.Value().Nb().Cause, blocks)
+}
+
+// requestBlobRetrieveDelegation obtains a delegation for `blob/retrieve` from a
+// node by invoking `access/grant`, using the `blob/replica/allocate` invocation
+// as evidence that the delegation should be granted.
 func requestBlobRetrieveDelegation(
 	ctx context.Context,
-	endpoint *url.URL,
+	endpoint url.URL,
 	issuer ucan.Signer,
 	audience ucan.Principal,
-	cause invocation.Invocation, // the blob/replica/allocate invocation
+	cause invocation.Invocation, // the `blob/replica/allocate` invocation
 ) (delegation.Delegation, error) {
 	inv, err := access.Grant.Invoke(
 		issuer,
 		audience,
-		issuer.DID().Sting(),
+		issuer.DID().String(),
 		access.GrantCaveats{
 			Att:   []access.CapabilityRequest{{Can: blob.Retrieve.Can()}},
 			Cause: cause.Link(),
 		},
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating %s invocation: %w", access.GrantAbility, err)
 	}
 	for b, err := range cause.Export() {
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("exporting %s blocks: %w", replica.AllocateAbility, err)
 		}
 		if err = inv.Attach(b); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("attaching %s blocks: %w", replica.AllocateAbility, err)
 		}
 	}
 
-	ch := ucan_http.NewChannel(endpoint)
+	ch := ucan_http.NewChannel(&endpoint)
 	conn, err := client.NewConnection(audience, ch)
+	if err != nil {
+		return nil, fmt.Errorf("creating connection to %s: %w", audience.DID(), err)
+	}
+
+	resp, err := client.Execute(ctx, []invocation.Invocation{inv}, conn)
+	if err != nil {
+		return nil, fmt.Errorf("executing %s invocation: %w", access.GrantAbility, err)
+	}
+
+	rcptLink, ok := resp.Get(inv.Link())
+	if !ok {
+		return nil, fmt.Errorf("missing %s receipt: %s", access.GrantAbility, inv.Link())
+	}
+
+	rcptReader, err := access.NewGrantReceiptReader()
 	if err != nil {
 		return nil, err
 	}
 
+	rcpt, err := rcptReader.Read(rcptLink, resp.Blocks())
+	if err != nil {
+		return nil, fmt.Errorf("reading %s receipt: %w", access.GrantAbility, err)
+	}
+
+	return result.MatchResultR2(
+		rcpt.Out(),
+		func(o access.GrantOk) (delegation.Delegation, error) {
+			dlgBytes := o.Delegations.Values[o.Delegations.Keys[0]]
+			return delegation.Extract(dlgBytes)
+		},
+		func(x access.GrantError) (delegation.Delegation, error) {
+			return nil, x
+		},
+	)
 }
 
 // createLocationAssertion creates a location assertion for an existing blob
