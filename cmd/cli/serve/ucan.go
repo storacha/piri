@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -14,8 +15,10 @@ import (
 	"github.com/spf13/viper"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
+	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanretrieval "github.com/storacha/go-ucanto/server/retrieval"
+	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/lib"
@@ -294,6 +297,26 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID})
+	if err != nil {
+		return fmt.Errorf("creating http principal resolver: %w", err)
+	}
+	cachedpresolv, err := principalresolver.NewCachedResolver(presolv, 24*time.Hour)
+	if err != nil {
+		return fmt.Errorf("creating cached principal resolver: %w", err)
+	}
+
+	claimValidationCtx := validator.NewClaimContext(
+		id.Verifier(),
+		validator.IsSelfIssued,
+		func(context.Context, validator.Authorization[any]) validator.Revoked {
+			return nil
+		},
+		validator.ProofUnavailable,
+		edverifier.Parse,
+		cachedpresolv.ResolveDIDKey,
+	)
+
 	storageOpts = append(storageOpts,
 		storage.WithIdentity(id),
 		storage.WithBlobstore(blobStore),
@@ -305,6 +328,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		storage.WithUploadServiceConfig(uploadServiceDID, *uploadServiceURL),
 		storage.WithPublisherIndexingServiceConfig(indexingServiceDID, *indexingServiceURL),
 		storage.WithReceiptDatastore(receiptDs),
+		storage.WithClaimValidationContext(claimValidationCtx),
 	)
 
 	if pdpConfig != nil {
@@ -358,15 +382,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	}()
 
 	defer storageSvc.Close(ctx)
-
-	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID})
-	if err != nil {
-		return fmt.Errorf("creating http principal resolver: %w", err)
-	}
-	cachedpresolv, err := principalresolver.NewCachedResolver(presolv, 24*time.Hour)
-	if err != nil {
-		return fmt.Errorf("creating cached principal resolver: %w", err)
-	}
 
 	telemetry.RecordServerInfo(ctx, "ucan",
 		telemetry.StringAttr("did", id.DID().String()),

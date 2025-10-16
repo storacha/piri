@@ -3,6 +3,7 @@ package storage
 import (
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/principal"
+	"github.com/storacha/go-ucanto/validator"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
@@ -20,6 +21,7 @@ var Module = fx.Module("storage",
 		fx.Annotate(
 			NewStorageService,
 			fx.As(new(storage.Service)),
+			fx.As(new(ucan.AccessGrantService)),
 			fx.As(new(ucan.BlobAllocateService)),
 			fx.As(new(ucan.BlobAcceptService)),
 			fx.As(new(ucan.PDPInfoService)),
@@ -32,13 +34,14 @@ var Module = fx.Module("storage",
 type StorageServiceParams struct {
 	fx.In
 
-	Config       app.AppConfig
-	ID           principal.Signer
-	Blobs        blobs.Blobs
-	Claims       claims.Claims
-	PDP          pdp.PDP `optional:"true"`
-	ReceiptStore receiptstore.ReceiptStore
-	Replicator   replicator.Replicator
+	Config                 app.AppConfig
+	ID                     principal.Signer
+	Blobs                  blobs.Blobs
+	Claims                 claims.Claims
+	PDP                    pdp.PDP `optional:"true"`
+	ReceiptStore           receiptstore.ReceiptStore
+	Replicator             replicator.Replicator
+	ClaimValidationContext validator.ClaimContext
 }
 
 // storageServiceWrapper wraps the storage service to implement the storage.Service interface
@@ -50,6 +53,7 @@ type storageServiceWrapper struct {
 	receiptStore receiptstore.ReceiptStore
 	replicator   replicator.Replicator
 	uploadConn   client.Connection
+	claimCtx     validator.ClaimContext
 }
 
 // NewStorageService creates a new storage service
@@ -62,6 +66,7 @@ func NewStorageService(params StorageServiceParams) (storage.Service, error) {
 		receiptStore: params.ReceiptStore,
 		replicator:   params.Replicator,
 		uploadConn:   params.Config.UCANService.Services.Upload.Connection,
+		claimCtx:     params.ClaimValidationContext,
 	}
 
 	return svc, nil
@@ -94,4 +99,8 @@ func (s *storageServiceWrapper) Replicator() replicator.Replicator {
 
 func (s *storageServiceWrapper) UploadConnection() client.Connection {
 	return s.uploadConn
+}
+
+func (s *storageServiceWrapper) ClaimValidationContext() validator.ClaimContext {
+	return s.claimCtx
 }

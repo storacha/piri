@@ -15,7 +15,9 @@ import (
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/principal"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
+	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
+	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp"
@@ -39,6 +41,7 @@ type StorageService struct {
 	receiptStore  receiptstore.ReceiptStore
 	replicator    replicator.Replicator
 	uploadService client.Connection
+	claimCtx      validator.ClaimContext
 	startFuncs    []func(ctx context.Context) error
 	closeFuncs    []func(ctx context.Context) error
 	io.Closer
@@ -88,6 +91,10 @@ func (s *StorageService) Close(ctx context.Context) error {
 	}
 	s.closeFuncs = []func(context.Context) error{}
 	return err
+}
+
+func (s *StorageService) ClaimValidationContext() validator.ClaimContext {
+	return s.claimCtx
 }
 
 var _ Service = (*StorageService)(nil)
@@ -293,6 +300,21 @@ func New(opts ...Option) (*StorageService, error) {
 		return replicationQueue.Stop(ctx)
 	})
 
+	claimCtx := c.claimCtx
+	if claimCtx == nil {
+		log.Warn("Claim validation context not configured - this may cause runtime issues")
+		claimCtx = validator.NewClaimContext(
+			id.Verifier(),
+			validator.IsSelfIssued,
+			func(context.Context, validator.Authorization[any]) validator.Revoked {
+				return nil
+			},
+			validator.ProofUnavailable,
+			edverifier.Parse,
+			validator.FailDIDKeyResolution,
+		)
+	}
+
 	return &StorageService{
 		id:            c.id,
 		blobs:         blobs,
@@ -303,5 +325,6 @@ func New(opts ...Option) (*StorageService, error) {
 		pdp:           pdpImpl,
 		replicator:    repl,
 		uploadService: uploadServiceConnection,
+		claimCtx:      claimCtx,
 	}, nil
 }

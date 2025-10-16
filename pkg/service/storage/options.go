@@ -14,6 +14,7 @@ import (
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/pkg/access"
 	"github.com/storacha/piri/pkg/pdp"
@@ -46,6 +47,7 @@ type config struct {
 	indexingServiceProofs delegation.Proofs
 	uploadService         client.Connection
 	replicatorDB          *sql.DB
+	claimCtx              validator.ClaimContext
 
 	// to be used exclusively
 	pdpCfg  *pdp.Config
@@ -279,6 +281,15 @@ func WithPDPImpl(pdpImpl pdp.PDP) Option {
 func WithReplicatorDB(db *sql.DB) Option {
 	return func(c *config) error {
 		c.replicatorDB = db
+		return nil
+	}
+}
+
+// WithClaimValidationContext configures the validation context for use when
+// validating UCANs.
+func WithClaimValidationContext(ctx validator.ClaimContext) Option {
+	return func(c *config) error {
+		c.claimCtx = ctx
 		return nil
 	}
 }

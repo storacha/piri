@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -25,7 +26,9 @@ import (
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
+	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
 	"github.com/storacha/go-ucanto/principal/signer"
+	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 
@@ -38,6 +41,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/presets"
+	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
@@ -370,6 +374,26 @@ func Construct(cfg Config) (storage.Service, error) {
 		return nil, fmt.Errorf("parsing announce multiaddr: %w", err)
 	}
 
+	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID})
+	if err != nil {
+		return nil, fmt.Errorf("creating http principal resolver: %w", err)
+	}
+	cachedpresolv, err := principalresolver.NewCachedResolver(presolv, 24*time.Hour)
+	if err != nil {
+		return nil, fmt.Errorf("creating cached principal resolver: %w", err)
+	}
+
+	claimValidationCtx := validator.NewClaimContext(
+		cfg.Signer.Verifier(),
+		validator.IsSelfIssued,
+		func(context.Context, validator.Authorization[any]) validator.Revoked {
+			return nil
+		},
+		validator.ProofUnavailable,
+		edverifier.Parse,
+		cachedpresolv.ResolveDIDKey,
+	)
+
 	opts := []storage.Option{
 		storage.WithIdentity(cfg.Signer),
 		storage.WithBlobstore(blobStore),
@@ -384,6 +408,7 @@ func Construct(cfg Config) (storage.Service, error) {
 		storage.WithReceiptStore(receiptStore),
 		storage.WithBlobsPublicURL(*blobsPublicURL),
 		storage.WithBlobsPresigner(blobStore.PresignClient()),
+		storage.WithClaimValidationContext(claimValidationCtx),
 	}
 
 	var blobAddr multiaddr.Multiaddr
