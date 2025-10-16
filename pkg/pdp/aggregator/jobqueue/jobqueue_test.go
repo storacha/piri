@@ -13,6 +13,7 @@ import (
 	internaltesting "github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/internal/testing"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
+	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/worker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -480,6 +481,126 @@ func TestJobQueue_WithOnFailure(t *testing.T) {
 		// Verify the task was attempted the correct number of times
 		// With MaxRetries=2, it appears to be total attempts, not additional retries
 		require.GreaterOrEqual(t, failureCount.Load(), int32(2), "Task should have been attempted at least 2 times")
+
+		// Clean up
+		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		require.NoError(t, jq.Stop(stopCtx))
+	})
+}
+
+func TestJobQueue_PermanentError(t *testing.T) {
+	t.Run("does not retry tasks that fail with PermanentError", func(t *testing.T) {
+		// Create job queue with retries enabled to verify they're skipped for PermanentError
+		jq := newTestJobQueue(t, nil,
+			jobqueue.WithMaxRetries(5),
+			jobqueue.WithMaxTimeout(100*time.Millisecond))
+
+		var (
+			attemptCount    atomic.Int32
+			onFailureCalled atomic.Bool
+			capturedErr     error
+			capturedMsg     TestMessage
+			mu              sync.Mutex
+		)
+
+		// Register a task that fails with PermanentError
+		err := jq.Register("permanent-failure-task",
+			func(ctx context.Context, msg TestMessage) error {
+				attemptCount.Add(1)
+				return worker.Permanent(errors.New("permanent failure"))
+			},
+			jobqueue.WithOnFailure(func(ctx context.Context, msg TestMessage, err error) error {
+				onFailureCalled.Store(true)
+				mu.Lock()
+				capturedErr = err
+				capturedMsg = msg
+				mu.Unlock()
+				return nil
+			}),
+		)
+		require.NoError(t, err)
+
+		// Start the queue
+		ctx := context.Background()
+		require.NoError(t, jq.Start(ctx))
+
+		// Enqueue a task that will fail permanently
+		testMsg := TestMessage{ID: "permanent-fail", Payload: "should not retry"}
+		err = jq.Enqueue(ctx, "permanent-failure-task", testMsg)
+		require.NoError(t, err)
+
+		// Wait for OnFailure callback to be triggered
+		require.Eventually(t, func() bool {
+			return onFailureCalled.Load()
+		}, 15*time.Second, 250*time.Millisecond, "OnFailure callback should have been triggered")
+
+		// Verify the callback received the correct error and message
+		mu.Lock()
+		require.Error(t, capturedErr)
+		require.Contains(t, capturedErr.Error(), "permanent failure")
+		require.Equal(t, testMsg.ID, capturedMsg.ID)
+		require.Equal(t, testMsg.Payload, capturedMsg.Payload)
+		mu.Unlock()
+
+		// Critical assertion: task should have been attempted only ONCE
+		// PermanentError should skip retries entirely
+		require.Equal(t, int32(1), attemptCount.Load(), "Task with PermanentError should be attempted exactly once (no retries)")
+
+		// Clean up
+		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		require.NoError(t, jq.Stop(stopCtx))
+	})
+
+	t.Run("unwraps PermanentError correctly", func(t *testing.T) {
+		jq := newTestJobQueue(t, nil,
+			jobqueue.WithMaxRetries(3),
+			jobqueue.WithMaxTimeout(100*time.Millisecond))
+
+		var (
+			capturedErr error
+			mu          sync.Mutex
+		)
+
+		originalErr := errors.New("original error message")
+
+		// Register a task that fails with a wrapped PermanentError
+		err := jq.Register("wrapped-permanent-error",
+			func(ctx context.Context, msg TestMessage) error {
+				return worker.Permanent(originalErr)
+			},
+			jobqueue.WithOnFailure(func(ctx context.Context, msg TestMessage, err error) error {
+				mu.Lock()
+				capturedErr = err
+				mu.Unlock()
+				return nil
+			}),
+		)
+		require.NoError(t, err)
+
+		// Start the queue
+		ctx := context.Background()
+		require.NoError(t, jq.Start(ctx))
+
+		// Enqueue a task
+		testMsg := TestMessage{ID: "unwrap-test", Payload: "test unwrap"}
+		err = jq.Enqueue(ctx, "wrapped-permanent-error", testMsg)
+		require.NoError(t, err)
+
+		// Wait for OnFailure callback
+		require.Eventually(t, func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return capturedErr != nil
+		}, 15*time.Second, 250*time.Millisecond, "OnFailure callback should have been triggered")
+
+		// Verify the error can be unwrapped
+		mu.Lock()
+		require.Error(t, capturedErr)
+		require.Contains(t, capturedErr.Error(), "original error message")
+		require.ErrorIs(t, capturedErr, originalErr, "Should be able to unwrap PermanentError to get original error")
+		mu.Unlock()
 
 		// Clean up
 		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
