@@ -1,9 +1,15 @@
 package pdp
 
 import (
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"fmt"
+
 	"go.uber.org/fx"
 	"gorm.io/gorm"
+
+	signerclient "github.com/storacha/piri-signing-service/pkg/client"
+	signerimpl "github.com/storacha/piri-signing-service/pkg/inprocess"
+	signingservice "github.com/storacha/piri-signing-service/pkg/signer"
+	signer "github.com/storacha/piri-signing-service/pkg/types"
 
 	"github.com/storacha/piri/pkg/config/app"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
@@ -17,6 +23,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/stashstore"
@@ -24,6 +31,7 @@ import (
 
 var Module = fx.Module("pdp-service",
 	fx.Provide(
+		ProviderSigningService,
 		fx.Annotate(
 			ProvidePDPService,
 			fx.As(fx.Self()),      // provide service as concrete type
@@ -99,6 +107,7 @@ type Params struct {
 	ChainClient     service.ChainClient
 	ContractClient  smartcontracts.PDP
 	ContractBackend service.EthClient
+	SigningService  signer.SigningService
 }
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
@@ -113,9 +122,25 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.ChainClient,
 		params.ContractClient,
 		params.ContractBackend,
+		params.SigningService,
 	)
 }
 
 func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (*aggregator.ConfiguredProofSetProvider, error) {
 	return &aggregator.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
+}
+
+func ProviderSigningService(cfg app.SigningServiceConfig) (signer.SigningService, error) {
+	if cfg.Endpoint != nil {
+		return signerclient.New(cfg.Endpoint.String()), nil
+	} else if cfg.PrivateKey != nil {
+		s := signingservice.NewSigner(
+			cfg.PrivateKey,
+			smartcontracts.ChainID,
+			smartcontracts.Addresses().PDPService,
+		)
+		return signerimpl.New(s), nil
+	}
+
+	return nil, fmt.Errorf("no signer configured")
 }

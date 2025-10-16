@@ -22,6 +22,7 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 		fx.Supply(cfg.UCANService),
 		fx.Supply(cfg.PDPService),
 		fx.Supply(cfg.Replicator),
+		fx.Supply(cfg.PDPService.SigningServiceConfig),
 
 		identity.Module, // Provides principal.Signer
 		echo.Module,     // Provides Echo server with route registration
