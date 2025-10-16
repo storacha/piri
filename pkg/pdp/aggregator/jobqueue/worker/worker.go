@@ -33,13 +33,13 @@ import (
 // JobFn is the job function to run.
 type JobFn[T any] = func(ctx context.Context, msg T) error
 
-// OnFailureFn is the function that runs if the job never completes successfully after all retries.
+// OnFailureFn is the function that runs if the job never completes successfully after all retries or returns a PermanentError.
 type OnFailureFn[T any] = func(ctx context.Context, msg T, err error) error
 
 // jobRegistration holds a job function and its optional OnFailure callback
 type jobRegistration[T any] struct {
 	fn        JobFn[T]
-	onFailure OnFailureFn[T] // Called only when max retries exhausted
+	onFailure OnFailureFn[T] // Called when max retries exhausted or PermanentError occurs
 }
 
 type Worker[T any] struct {
@@ -124,7 +124,7 @@ func (r *Worker[T]) Start(ctx context.Context) {
 // JobOption configures a job registration
 type JobOption[T any] func(*jobRegistration[T])
 
-// WithOnFailure sets a callback to be invoked only when the job fails after max retries
+// WithOnFailure sets a callback to be invoked when the job fails after max retries or returns a PermanentError
 // The Worker only supports a single OnFailure callback for a job, multiple OnFailure options must not be provided.
 func WithOnFailure[T any](onFailure OnFailureFn[T]) JobOption[T] {
 	return func(jr *jobRegistration[T]) {
@@ -176,24 +176,23 @@ func (r *Worker[T]) EnqueueTx(ctx context.Context, tx *sql.Tx, name string, msg 
 }
 
 func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
+	// Check if we've reached the worker limit
 	r.jobCountLock.RLock()
 	if r.jobCount == r.jobCountLimit {
 		r.jobCountLock.RUnlock()
-		// This is to avoid a busy loop
-		time.Sleep(r.pollInterval)
+		time.Sleep(r.pollInterval) // Avoid busy loop
 		return
-	} else {
-		r.jobCountLock.RUnlock()
 	}
+	r.jobCountLock.RUnlock()
 
+	// Receive a message from the queue
 	m, err := r.queue.ReceiveAndWait(ctx, r.pollInterval)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			return
 		}
 		r.log.Errorw("Error receiving job", "error", err)
-		// Sleep a bit to not hammer the queue if there's an error with it
-		time.Sleep(time.Second)
+		time.Sleep(time.Second) // Avoid hammering the queue on errors
 		return
 	}
 
@@ -201,102 +200,178 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 		return
 	}
 
-	var jm message
-	if err := json.NewDecoder(bytes.NewReader(m.Body)).Decode(&jm); err != nil {
-		r.log.Errorw("Error decoding job message body", "error", err)
-		return
-	}
-
-	jobInput, err := r.serializer.Deserialize(jm.Message)
+	// Decode and deserialize the message
+	jm, jobInput, err := r.decodeMessage(m.Body)
 	if err != nil {
-		r.log.Errorw("Error deserializing job message", "error", err)
-		return
+		return // Error already logged
 	}
 
-	r.log.Debugw("Dequeue -> %s: %v", jm.Name, jobInput)
+	// Get the job registration
 	jobReg, ok := r.jobs[jm.Name]
 	if !ok {
 		panic(fmt.Sprintf(`job "%v" not registered`, jm.Name))
 	}
 
+	// Increment job count and run the job asynchronously
 	r.jobCountLock.Lock()
 	r.jobCount++
 	r.jobCountLock.Unlock()
 
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	go r.runJob(ctx, wg, m, jm, jobInput, jobReg)
+}
 
-		defer func() {
-			r.jobCountLock.Lock()
-			r.jobCount--
-			r.jobCountLock.Unlock()
-		}()
+// decodeMessage decodes and deserializes a message body
+func (r *Worker[T]) decodeMessage(body []byte) (message, T, error) {
+	var jm message
+	var zero T
 
-		defer func() {
-			if rec := recover(); rec != nil {
-				r.log.Errorw("Recovered from panic in job", "error", rec)
-			}
-		}()
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&jm); err != nil {
+		r.log.Errorw("Error decoding job message body", "error", err)
+		return jm, zero, err
+	}
 
-		jobCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
+	jobInput, err := r.serializer.Deserialize(jm.Message)
+	if err != nil {
+		r.log.Errorw("Error deserializing job message", "error", err)
+		return jm, zero, err
+	}
 
-		// Extend the job message while the job is running
-		go func() {
-			// Start by sleeping so we don't extend immediately
-			time.Sleep(r.extend - r.extend/5)
-			for {
-				select {
-				case <-jobCtx.Done():
-					return
-				default:
-					r.log.Infow("Extending message timeout", "name", jm.Name)
-					if err := r.queue.Extend(jobCtx, m.ID, r.extend); err != nil {
-						r.log.Errorw("Error extending message timeout", "error", err)
-					}
-					time.Sleep(r.extend - r.extend/5)
-				}
-			}
-		}()
+	r.log.Debugw("Dequeue -> %s: %v", jm.Name, jobInput)
+	return jm, jobInput, nil
+}
 
-		r.log.Infow("Running job", "name", jm.Name, "attempt", m.Received)
-		before := time.Now()
-		if err := jobReg.fn(jobCtx, jobInput); err != nil {
-			if m.Received == r.queue.MaxReceive() {
-				r.log.Errorw("Failed to run job, max retries reached, will not retry",
-					"name", jm.Name,
-					"attempt", m.Received,
-					"next_attempt", r.queue.Timeout(),
-					"max_attempts", r.queue.MaxReceive(),
-					"error", err,
-				)
-				// Invoke OnFailure callback if configured
-				if jobReg.onFailure != nil {
-					r.log.Infow("Invoking OnFailure callback", "name", jm.Name)
-					if err := jobReg.onFailure(jobCtx, jobInput, err); err != nil {
-						// this is a VERY critical error
-						r.log.Errorw("Error invoking OnFailure callback", "name", jm.Name, "error", err)
-					}
-				}
-			} else {
-				r.log.Warnw("Error running job, retrying",
-					"name", jm.Name,
-					"attempt", m.Received,
-					"max_attempts", r.queue.MaxReceive(),
-					"error", err,
-				)
-			}
-			return
-		}
-		duration := time.Since(before)
-		r.log.Infow("Ran job", "name", jm.Name, "duration", duration, "attempt", m.Received)
-
-		deleteCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		// TODO(forrest): we don't want to retry failures here if delete fails, this should be rare, but worth fixing.
-		if err := r.queue.Delete(deleteCtx, m.ID); err != nil {
-			r.log.Errorw("Error deleting job from queue, it will be retried", "error", err)
+// runJob executes a job in a separate goroutine with timeout extension
+func (r *Worker[T]) runJob(ctx context.Context, wg *sync.WaitGroup, m *queue.Message, jm message, jobInput T, jobReg *jobRegistration[T]) {
+	defer wg.Done()
+	defer func() {
+		r.jobCountLock.Lock()
+		r.jobCount--
+		r.jobCountLock.Unlock()
+	}()
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.log.Errorw("Recovered from panic in job", "error", rec)
 		}
 	}()
+
+	jobCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Start timeout extension goroutine
+	go r.extendMessageTimeout(jobCtx, m.ID, jm.Name)
+
+	// Execute the job
+	r.log.Infow("Running job", "name", jm.Name, "attempt", m.Received)
+	before := time.Now()
+	if err := jobReg.fn(jobCtx, jobInput); err != nil {
+		r.handleJobError(jobCtx, m, jm.Name, jobInput, jobReg, err)
+		return
+	}
+
+	// Job succeeded
+	duration := time.Since(before)
+	r.log.Infow("Ran job", "name", jm.Name, "duration", duration, "attempt", m.Received)
+	r.deleteMessage(m.ID)
+}
+
+// extendMessageTimeout periodically extends the message timeout while the job is running
+func (r *Worker[T]) extendMessageTimeout(ctx context.Context, messageID queue.ID, jobName string) {
+	time.Sleep(r.extend - r.extend/5) // Initial sleep
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			r.log.Infow("Extending message timeout", "name", jobName)
+			if err := r.queue.Extend(ctx, messageID, r.extend); err != nil {
+				r.log.Errorw("Error extending message timeout", "error", err)
+			}
+			time.Sleep(r.extend - r.extend/5)
+		}
+	}
+}
+
+// handleJobError handles different types of job errors: permanent, max retries, and retryable
+func (r *Worker[T]) handleJobError(ctx context.Context, m *queue.Message, jobName string, jobInput T, jobReg *jobRegistration[T], err error) {
+	var permanent *PermanentError
+	if errors.As(err, &permanent) {
+		r.handlePermanentError(ctx, m.ID, jobName, jobInput, jobReg, err)
+		return
+	}
+
+	if m.Received == r.queue.MaxReceive() {
+		r.handleMaxRetriesExceeded(ctx, m.ID, jobName, jobInput, jobReg, err, m.Received)
+		return
+	}
+
+	// Retryable error
+	r.log.Warnw("Error running job, retrying",
+		"name", jobName,
+		"attempt", m.Received,
+		"max_attempts", r.queue.MaxReceive(),
+		"error", err,
+	)
+}
+
+// handlePermanentError handles errors that should not be retried
+func (r *Worker[T]) handlePermanentError(ctx context.Context, messageID queue.ID, jobName string, jobInput T, jobReg *jobRegistration[T], err error) {
+	r.log.Errorw("Failed to run job, PermanentError occurred", "error", err, "name", jobName)
+
+	// Invoke OnFailure callback if configured
+	if jobReg.onFailure != nil {
+		r.invokeOnFailure(ctx, jobName, jobInput, jobReg.onFailure, err)
+	}
+
+	// Move to dead letter queue
+	r.moveToDeadLetter(messageID, jobName, "permanent_error", err)
+}
+
+// handleMaxRetriesExceeded handles errors after all retries have been exhausted
+func (r *Worker[T]) handleMaxRetriesExceeded(ctx context.Context, messageID queue.ID, jobName string, jobInput T, jobReg *jobRegistration[T], err error, attempt int) {
+	r.log.Errorw("Failed to run job, max retries reached, will not retry",
+		"name", jobName,
+		"attempt", attempt,
+		"next_attempt", r.queue.Timeout(),
+		"max_attempts", r.queue.MaxReceive(),
+		"error", err,
+	)
+
+	// Invoke OnFailure callback if configured
+	if jobReg.onFailure != nil {
+		r.invokeOnFailure(ctx, jobName, jobInput, jobReg.onFailure, err)
+	}
+
+	// Move to dead letter queue
+	r.moveToDeadLetter(messageID, jobName, "max_retries", err)
+}
+
+// invokeOnFailure calls the OnFailure callback and logs any errors
+func (r *Worker[T]) invokeOnFailure(ctx context.Context, jobName string, jobInput T, onFailure OnFailureFn[T], err error) {
+	r.log.Infow("Invoking OnFailure callback", "name", jobName)
+	if onFailErr := onFailure(ctx, jobInput, err); onFailErr != nil {
+		r.log.Errorw("Error invoking OnFailure callback", "name", jobName, "error", onFailErr)
+	}
+}
+
+// moveToDeadLetter moves a message to the dead letter queue
+func (r *Worker[T]) moveToDeadLetter(messageID queue.ID, jobName string, reason string, err error) {
+	dlqCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if dlqErr := r.queue.MoveToDeadLetter(dlqCtx, messageID, jobName, reason, err.Error()); dlqErr != nil {
+		r.log.Errorw("Error moving job to dead letter queue", "error", dlqErr, "original_error", err)
+	} else {
+		r.log.Infow("Moved job to dead letter queue", "name", jobName, "reason", reason)
+	}
+}
+
+// deleteMessage deletes a successfully processed message from the queue
+func (r *Worker[T]) deleteMessage(messageID queue.ID) {
+	deleteCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := r.queue.Delete(deleteCtx, messageID); err != nil {
+		r.log.Errorw("Error deleting job from queue, it will be retried", "error", err)
+	}
 }

@@ -212,3 +212,8 @@ func (j *JobQueue[T]) Stop(ctx context.Context) error {
 func WithOnFailure[T any](onFailure worker.OnFailureFn[T]) worker.JobOption[T] {
 	return worker.WithOnFailure[T](onFailure)
 }
+
+// NewPermanentError creates an error that will prevent the job queue from retrying the job
+func NewPermanentError(err error) error {
+	return worker.Permanent(err)
+}

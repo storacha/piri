@@ -233,6 +233,47 @@ func (q *Queue) deleteTx(ctx context.Context, tx *sql.Tx, id ID) error {
 	return err
 }
 
+// MoveToDeadLetter moves a message from the main queue to the dead letter queue.
+// This is used for jobs that fail permanently or exceed max retries.
+func (q *Queue) MoveToDeadLetter(ctx context.Context, id ID, jobName, failureReason, errorMsg string) error {
+	return internalsql.InTx(q.db, func(tx *sql.Tx) error {
+		return q.moveToDeadLetterTx(ctx, tx, id, jobName, failureReason, errorMsg)
+	})
+}
+
+// moveToDeadLetterTx is like MoveToDeadLetter, but within an existing transaction.
+func (q *Queue) moveToDeadLetterTx(ctx context.Context, tx *sql.Tx, id ID, jobName, failureReason, errorMsg string) error {
+	movedAt := time.Now().Format(rfc3339Milli)
+
+	// First, copy the message to the dead letter queue
+	insertQuery := `
+		insert into jobqueue_dead (id, created, updated, queue, body, timeout, received, job_name, failure_reason, error_message, moved_at)
+		select id, created, updated, queue, body, timeout, received, ?, ?, ?, ?
+		from jobqueue
+		where queue = ? and id = ?`
+
+	result, err := tx.ExecContext(ctx, insertQuery, jobName, failureReason, errorMsg, movedAt, q.name, id)
+	if err != nil {
+		return fmt.Errorf("inserting into dead letter queue: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("message %s not found in queue %s", id, q.name)
+	}
+
+	// Then delete from the main queue
+	if err := q.deleteTx(ctx, tx, id); err != nil {
+		return fmt.Errorf("deleting from main queue: %w", err)
+	}
+
+	return nil
+}
+
 // Setup the queue in the database.
 func Setup(ctx context.Context, db *sql.DB) error {
 	_, err := db.ExecContext(ctx, schema)
