@@ -9,14 +9,16 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/alanshaw/ucantone/ucan"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/printer"
+	"github.com/storacha/go-libstoracha/capabilities/access"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	pdp_cap "github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/capabilities/types"
-	"github.com/storacha/go-libstoracha/capabilities/ucan"
+	ucan_cap "github.com/storacha/go-libstoracha/capabilities/ucan"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/dag/blockstore"
 	"github.com/storacha/go-ucanto/core/delegation"
@@ -28,6 +30,7 @@ import (
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
+	ucan_http "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -229,6 +232,15 @@ func checkBlobExists(ctx context.Context, service TransferService, blob types.Bl
 
 // transferBlobFromSource fetches blob from source and PUTs it to sink
 func transferBlobFromSource(ctx context.Context, service TransferService, request *TransferRequest) (*blobhandler.AcceptResponse, error) {
+	blocks, err := blockstore.NewBlockReader(blockstore.WithBlocksIterator(request.Cause.Blocks()))
+	if err != nil {
+		return nil, fmt.Errorf("reading blocks: %w", err)
+	}
+	allocInv, err := invocation.NewInvocationView(request.Cause.Link(), blocks)
+	if err != nil {
+		return nil, fmt.Errorf("reading blocks: %w", err)
+	}
+
 	// Fetch from source
 	replicaResp, err := http.Get(request.Source.String())
 	if err != nil {
@@ -286,6 +298,42 @@ func transferBlobFromSource(ctx context.Context, service TransferService, reques
 			},
 		},
 	})
+}
+
+func requestBlobRetrieveDelegation(
+	ctx context.Context,
+	endpoint *url.URL,
+	issuer ucan.Signer,
+	audience ucan.Principal,
+	cause invocation.Invocation, // the blob/replica/allocate invocation
+) (delegation.Delegation, error) {
+	inv, err := access.Grant.Invoke(
+		issuer,
+		audience,
+		issuer.DID().Sting(),
+		access.GrantCaveats{
+			Att:   []access.CapabilityRequest{{Can: blob.Retrieve.Can()}},
+			Cause: cause.Link(),
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	for b, err := range cause.Export() {
+		if err != nil {
+			return nil, err
+		}
+		if err = inv.Attach(b); err != nil {
+			return nil, err
+		}
+	}
+
+	ch := ucan_http.NewChannel(endpoint)
+	conn, err := client.NewConnection(audience, ch)
+	if err != nil {
+		return nil, err
+	}
+
 }
 
 // createLocationAssertion creates a location assertion for an existing blob
@@ -379,11 +427,11 @@ func issueTransferReceipt(ctx context.Context, service TransferService, request 
 
 // sendMessageToUploadService sends the message containing invocations and receipts to the upload service
 func sendMessageToUploadService(ctx context.Context, service TransferService, rcpt receipt.AnyReceipt) error {
-	concludeInv, err := ucan.Conclude.Invoke(
+	concludeInv, err := ucan_cap.Conclude.Invoke(
 		service.ID(),
 		service.UploadConnection().ID().DID(),
 		service.ID().DID().String(),
-		ucan.ConcludeCaveats{
+		ucan_cap.ConcludeCaveats{
 			Receipt: rcpt.Root().Link(),
 		},
 	)
