@@ -43,7 +43,9 @@ import (
 	"github.com/storacha/go-ucanto/transport/headercar"
 	ucan_http "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/go-ucanto/validator"
 	appconfig "github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -442,7 +444,7 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 
 			appConfig := piritestutil.NewTestConfig(t,
 				piritestutil.WithSigner(testutil.Alice),
-				piritestutil.WithUploadServiceConfig(testutil.Service.DID(), uploadServiceURL),
+				piritestutil.WithUploadServiceConfig(testutil.WebService.DID(), uploadServiceURL),
 			)
 
 			testApp := fxtest.New(t,
@@ -451,6 +453,12 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 				// replace the RequestPresigner with our fake one.
 				fx.Decorate(func() presigner.RequestPresigner {
 					return fakeBlobPresigner
+				}),
+				// use the map resolver so no network calls are made that would fail anyway
+				fx.Decorate(func() validator.PrincipalResolver {
+					return testutil.Must(principalresolver.NewMapResolver(map[string]string{
+						testutil.WebService.DID().String(): testutil.WebService.Unwrap().DID().String(),
+					}))(t)
 				}),
 				// replace the default replicator config with one that causes failures to happen faster
 				fx.Replace(appconfig.ReplicatorConfig{

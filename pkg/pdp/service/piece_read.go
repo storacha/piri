@@ -26,7 +26,7 @@ func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...ty
 		}
 	}()
 
-	getOptions := []blobstore.GetOption{}
+	var getOptions []blobstore.GetOption
 	if cfg.ByteRange.Start > 0 || cfg.ByteRange.End != nil {
 		getOptions = append(getOptions, blobstore.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	}

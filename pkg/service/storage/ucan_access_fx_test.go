@@ -20,6 +20,7 @@ import (
 	"github.com/storacha/go-ucanto/validator"
 	"github.com/storacha/piri/pkg/fx/app"
 	piritestutil "github.com/storacha/piri/pkg/internal/testutil"
+	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/service/storage"
 	strucan "github.com/storacha/piri/pkg/service/storage/ucan"
 	"github.com/stretchr/testify/require"
@@ -31,14 +32,24 @@ func TestFXAccessGrant(t *testing.T) {
 	var svc storage.Service
 
 	granter := testutil.Alice
+	strnde := testutil.Bob
+	idxsvc := testutil.Mallory
+	upsvc := testutil.WebService
+
 	appConfig := piritestutil.NewTestConfig(
 		t,
 		piritestutil.WithSigner(granter),
-		piritestutil.WithUploadServiceConfig(testutil.Service.DID(), testutil.TestURL),
+		piritestutil.WithUploadServiceConfig(upsvc.DID(), testutil.TestURL),
 	)
 	testApp := fxtest.New(t,
 		app.CommonModules(appConfig),
 		app.UCANModule,
+		// use the map resolver so no network calls are made that would fail anyway
+		fx.Decorate(func() validator.PrincipalResolver {
+			return testutil.Must(principalresolver.NewMapResolver(map[string]string{
+				upsvc.DID().String(): upsvc.Unwrap().DID().String(),
+			}))(t)
+		}),
 		fx.Populate(&svc),
 	)
 
@@ -48,10 +59,6 @@ func TestFXAccessGrant(t *testing.T) {
 	channel := http.NewChannel(&appConfig.Server.PublicURL)
 	conn, err := client.NewConnection(granter, channel)
 	require.NoError(t, err)
-
-	strnde := testutil.Bob
-	idxsvc := testutil.Mallory
-	upsvc := testutil.Service
 
 	cid := testutil.RandomCID(t)
 	digest := testutil.RandomMultihash(t)
