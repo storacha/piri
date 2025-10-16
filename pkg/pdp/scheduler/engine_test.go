@@ -159,24 +159,28 @@ func TestTaskEngineBasicExecution(t *testing.T) {
 		})
 	}
 
-	// within 5 seconds we expect all tasks to execute, or we fail, query every 500ms
+	// Wait for all tasks to be executed and recorded in history
 	assert.Eventually(t, func() bool {
-		var count int64
-		if err := db.Model(&models.TaskHistory{}).Count(&count).Error; err != nil {
+		return len(mockTask.GetAllExecutedTasks()) == numTasks
+	}, 50*time.Second, 500*time.Millisecond, "All tasks should be executed")
+
+	// Wait for all executed tasks to be removed from the task table
+	assert.Eventually(t, func() bool {
+		var taskCount int64
+		if err := db.Model(&models.Task{}).Count(&taskCount).Error; err != nil {
 			return false
 		}
-		return int(count) == len(mockTask.GetAllExecutedTasks())
-	}, 50*time.Second, 500*time.Millisecond)
+		return taskCount == 0
+	}, 5*time.Second, 100*time.Millisecond, fmt.Sprintf("All %d tasks should have been deleted from the database", numTasks))
 
-	// assert that all executed tasks have been removed from the task table
-	taskCount := int64(0)
-	require.NoError(t, db.Model(&models.Task{}).Count(&taskCount).Error)
-	assert.Zero(t, taskCount, fmt.Sprintf("All %d tasks should have been deleted from the database, instead found: %d", numTasks, taskCount))
-
-	// assert that each executed task has an entry in task history
-	historyCount := int64(0)
-	require.NoError(t, db.Model(&models.TaskHistory{}).Count(&historyCount).Error)
-	assert.EqualValuesf(t, numTasks, historyCount, fmt.Sprintf("All %d tasks should have an entry in TaskHistory", numTasks))
+	// Wait for each executed task to have an entry in task history
+	assert.Eventually(t, func() bool {
+		var historyCount int64
+		if err := db.Model(&models.TaskHistory{}).Count(&historyCount).Error; err != nil {
+			return false
+		}
+		return int(historyCount) == numTasks
+	}, 5*time.Second, 100*time.Millisecond, fmt.Sprintf("All %d tasks should have an entry in TaskHistory", numTasks))
 }
 
 func TestTaskEngineResume(t *testing.T) {
