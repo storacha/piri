@@ -357,6 +357,9 @@ func transferBlobFromSource(ctx context.Context, service TransferService, reques
 // extractReplicaAllocateInvocation extracts the `blob/replica/allocate`
 // invocation which is expected to be attached to the `blob/transfer` invocation
 func extractReplicaAllocateInvocation(trnsfInv invocation.Invocation) (invocation.Invocation, error) {
+	if len(trnsfInv.Capabilities()) != 1 {
+		return nil, fmt.Errorf("invalid %s invocation", replica.TransferAbility)
+	}
 	var err error
 	match, err := replica.Transfer.Match(validator.NewSource(trnsfInv.Capabilities()[0], trnsfInv))
 	if err != nil {
