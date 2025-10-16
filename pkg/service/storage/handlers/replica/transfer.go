@@ -298,7 +298,7 @@ func transferBlobFromSource(ctx context.Context, service TransferService, reques
 	}
 
 	_, x := result.Unwrap(rcpt.Out())
-	if x == (blob.RetrieveError{}) {
+	if x != (blob.RetrieveError{}) {
 		return nil, fmt.Errorf("replication source (%s) returned failure in receipt: %w", request.Source.URL.String(), x)
 	}
 

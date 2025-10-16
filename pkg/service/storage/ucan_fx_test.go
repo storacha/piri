@@ -15,10 +15,12 @@ import (
 	"github.com/ipfs/go-cid"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/multiformats/go-multihash"
+	"github.com/storacha/go-libstoracha/capabilities/access"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	blob2 "github.com/storacha/go-libstoracha/capabilities/space/blob"
+	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	ucancap "github.com/storacha/go-libstoracha/capabilities/ucan"
 	"github.com/storacha/go-libstoracha/testutil"
@@ -37,6 +39,9 @@ import (
 	"github.com/storacha/go-ucanto/core/result/ok"
 	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
+	ucan_car "github.com/storacha/go-ucanto/transport/car"
+	"github.com/storacha/go-ucanto/transport/headercar"
+	ucan_http "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
 	appconfig "github.com/storacha/piri/pkg/config/app"
 	"github.com/stretchr/testify/require"
@@ -893,7 +898,7 @@ func startTestHTTPServer(
 	var sinkPutCount int32
 	var uploadServiceAttempts int32
 
-	// Endpoint to serve data.
+	// Endpoint to serve data (UCAN authorized).
 	mux.HandleFunc(fmt.Sprintf("/%s", sourcePath), func(w http.ResponseWriter, r *http.Request) {
 		if simulateFailure {
 			t.Logf("Upload service failing permenantly")
@@ -901,8 +906,67 @@ func startTestHTTPServer(
 			_, _ = w.Write([]byte("permanent upload service failure"))
 			return
 		}
-		atomic.AddInt32(&sourceGetCount, 1)
-		_, _ = w.Write(serveData)
+		req := ucan_http.NewRequest(r.Body, r.Header)
+		switch r.Method {
+		case http.MethodGet: // UCAN authorized retrieval for a blob
+			codec := headercar.NewInboundCodec()
+			accept := testutil.Must(codec.Accept(req))(t)
+			msg := testutil.Must(accept.Decoder().Decode(req))(t)
+			bs := testutil.Must(blockstore.NewBlockReader(blockstore.WithBlocksIterator(msg.Blocks())))(t)
+			inv := testutil.Must(invocation.NewInvocationView(msg.Invocations()[0], bs))(t)
+			// this also works for blob/retrieve since result is empty obj
+			out := result.Ok[content.RetrieveOk, ipld.Builder](content.RetrieveOk{})
+			// alice is hard coded in the location claim so it is also hard coded here
+			rcpt := testutil.Must(receipt.Issue(testutil.Alice, out, ran.FromInvocation(inv)))(t)
+			msg = testutil.Must(message.Build(nil, []receipt.AnyReceipt{rcpt}))(t)
+			resp := testutil.Must(accept.Encoder().Encode(msg))(t)
+			for key, values := range resp.Headers() {
+				for _, val := range values {
+					w.Header().Add(key, val)
+				}
+			}
+			atomic.AddInt32(&sourceGetCount, 1)
+			_, _ = w.Write(serveData)
+		case http.MethodPost: // UCAN invocation for access/grant
+			codec := ucan_car.NewInboundCodec()
+			accept := testutil.Must(codec.Accept(req))(t)
+			msg := testutil.Must(accept.Decoder().Decode(req))(t)
+			bs := testutil.Must(blockstore.NewBlockReader(blockstore.WithBlocksIterator(msg.Blocks())))(t)
+			inv := testutil.Must(invocation.NewInvocationView(msg.Invocations()[0], bs))(t)
+			cap := inv.Capabilities()[0]
+			if cap.Can() != access.GrantAbility {
+				t.Fatal("unexpected invocation")
+			}
+			dlg := testutil.Must(delegation.Delegate(
+				testutil.Alice,
+				inv.Issuer(),
+				[]ucan.Capability[ucan.NoCaveats]{
+					ucan.NewCapability("*", testutil.Alice.DID().String(), ucan.NoCaveats{}),
+				},
+			))(t)
+			dlgsModel := access.DelegationsModel{
+				Keys: []string{dlg.Link().String()},
+				Values: map[string][]byte{
+					dlg.Link().String(): testutil.Must(io.ReadAll(dlg.Archive()))(t),
+				},
+			}
+			out := result.Ok[access.GrantOk, ipld.Builder](access.GrantOk{Delegations: dlgsModel})
+			// alice is hard coded in the location claim so it is also hard coded here
+			rcpt, err := receipt.Issue(testutil.Alice, out, ran.FromInvocation(inv))
+			require.NoError(t, err)
+			msg, err = message.Build(nil, []receipt.AnyReceipt{rcpt})
+			require.NoError(t, err)
+			resp, err := accept.Encoder().Encode(msg)
+			require.NoError(t, err)
+			for key, values := range resp.Headers() {
+				for _, val := range values {
+					w.Header().Add(key, val)
+				}
+			}
+			_ = testutil.Must(io.Copy(w, resp.Body()))(t)
+		default:
+			t.Fatal("unexpected invocation")
+		}
 	})
 	// Endpoint to store data on the replica.
 	mux.HandleFunc(fmt.Sprintf("/%s", sinkPath), func(w http.ResponseWriter, r *http.Request) {
