@@ -24,6 +24,61 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
+/*
+ Race Condition in Parallel AddRoots Operations
+
+  Contract Behavior
+
+  Piece ID Assignment Mechanism
+
+  The PDPVerifier contract maintains a nextPieceId counter for each dataset that:
+  - Starts at 0 when a dataset is created
+  - Increments for each piece added
+  - Serves as the firstAdded parameter for signature validation
+
+  Signature Validation Flow
+
+  1. Client reads nextPieceId from contract (e.g., returns 7 after 7 pieces added)
+  2. Client signs message with firstAdded = 7
+  3. Client submits transaction with signed data
+  4. Contract validates signature expects firstAdded = nextPieceId
+  5. Contract assigns piece IDs starting from firstAdded
+  6. Contract increments nextPieceId for each piece added
+
+  The Problem
+
+  Race Condition in Parallel Execution
+
+  When multiple AddRoots calls execute simultaneously:
+
+  Time | Thread A              | Thread B              | Contract State
+  -----|----------------------|----------------------|----------------
+  T1   | GetNextPieceId() → 7 |                      | nextPieceId = 7
+  T2   |                      | GetNextPieceId() → 7 | nextPieceId = 7
+  T3   | Sign(firstAdded=7)   | Sign(firstAdded=7)   | nextPieceId = 7
+  T4   | Submit TX            |                      | nextPieceId = 7
+  T5   |                      | Submit TX            | nextPieceId = 8+
+  T6   | ✓ Success           | ✗ Fails              | (A's TX lands first)
+
+  Impact
+
+  - Signature Mismatch: Second transaction fails because contract now expects firstAdded ≥ 8
+  - Wasted Gas: Failed transactions still consume gas
+  - Non-deterministic: Success depends on transaction ordering
+
+  Root Cause
+
+  No atomicity between reading nextPieceId and committing the transaction that updates it.
+
+  Common Solutions
+
+  1. Pessimistic Locking: Serialize all AddRoots calls at the application level
+  2. Optimistic Retry: Detect failures and retry with fresh nextPieceId
+  3. Pre-allocation: Reserve piece ID ranges in advance
+  4. Queue-based: Process additions sequentially through a queue
+
+*/
+
 // REVIEW(forrest): this method assumes the cids in the request are PieceCIDV2
 // TODO we need to define non-retryable errors for the add root method, like lack of auth, and lack of dataset else this retries forever.
 func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (res common.Hash, retErr error) {
@@ -402,7 +457,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 			return err
 		}
 
-		// Update proof set for initialization upon first add
+		// Update proof set for initialization upon first add TODO this is idempotent query, but can be avoided if we are sure the proofset is already ready we should also wait to say its ready until the root has landed on chain
 		if err := tx.WithContext(ctx).
 			Model(&models.PDPProofSet{}).
 			Where("id = ? AND prev_challenge_request_epoch IS NULL AND challenge_request_msg_hash IS NULL AND prove_at_epoch IS NULL", proofSetID.Int64()).
