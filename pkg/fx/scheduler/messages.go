@@ -102,27 +102,25 @@ func StartWatcherMessageEth(
 
 type WatcherCreateParams struct {
 	fx.In
-	DB        *gorm.DB `name:"engine_db"`
-	Client    service.EthClient
-	Contract  smartcontracts.PDP
-	Chain     service.ChainClient
-	Scheduler *chainsched.Scheduler
+	DB          *gorm.DB `name:"engine_db"`
+	Verifier    smartcontracts.Verifier
+	Scheduler   *chainsched.Scheduler
+	ServiceView smartcontracts.Service
 }
 
 func StartWatcherCreate(params WatcherCreateParams) error {
 	return tasks.NewWatcherCreate(
 		params.DB,
-		params.Client,
-		params.Contract,
-		params.Chain,
+		params.Verifier,
 		params.Scheduler,
+		params.ServiceView,
 	)
 }
 
 type WatcherRootAddParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
-	Contract  smartcontracts.PDP
+	Verifier  smartcontracts.Verifier
 	Scheduler *chainsched.Scheduler
 }
 
@@ -130,7 +128,7 @@ func StartWatcherRootAdd(params WatcherRootAddParams) error {
 	return tasks.NewWatcherRootAdd(
 		params.DB,
 		params.Scheduler,
-		params.Contract,
+		params.Verifier,
 	)
 }
 

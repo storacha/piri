@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"gorm.io/gorm"
 
+	"github.com/storacha/filecoin-services/go/bindings"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 )
 
 func (p *PDPService) RegisterProvider(ctx context.Context, params types.RegisterProviderParams) (types.RegisterProviderResults, error) {
@@ -30,31 +29,13 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 		return types.RegisterProviderResults{}, fmt.Errorf("failed to check for pending registration: %w", err)
 	}
 
-	bindCtx := &bind.CallOpts{Context: ctx}
-	registry, err := bindings.NewServiceProviderRegistry(smartcontracts.Addresses().ProviderRegistry, p.contractBackend)
-	if err != nil {
-		return types.RegisterProviderResults{}, fmt.Errorf("failed to create service registry binding: %w", err)
-	}
-
-	isRegistered, err := registry.IsRegisteredProvider(bindCtx, p.address)
+	isRegistered, err := p.registryContract.IsRegisteredProvider(ctx, p.address)
 	if err != nil {
 		return types.RegisterProviderResults{}, fmt.Errorf("failed to check if service provider is registered: %w", err)
 	}
 
 	if isRegistered {
-		providerInfoView, err := registry.GetProviderByAddress(bindCtx, p.address)
-		if err != nil {
-			return types.RegisterProviderResults{}, fmt.Errorf("failed to get provider by address for registered provider: %w", err)
-		}
-		log.Infof("service provider %s is already registered with address %s", providerInfoView.ProviderId, p.address)
-		return types.RegisterProviderResults{
-			Address:     providerInfoView.Info.ServiceProvider,
-			Payee:       providerInfoView.Info.Payee,
-			ID:          providerInfoView.ProviderId.Uint64(),
-			IsActive:    providerInfoView.Info.IsActive,
-			Name:        providerInfoView.Info.Name,
-			Description: providerInfoView.Info.Description,
-		}, nil
+		return types.RegisterProviderResults{}, types.NewError(types.KindConflict, "Provider is already registered")
 	}
 
 	// not registered, lets do this
@@ -63,7 +44,7 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 		return types.RegisterProviderResults{}, fmt.Errorf("failed to get ABI: %w", err)
 	}
 
-	productData, err := registry.EncodePDPOffering(bindCtx, bindings.ServiceProviderRegistryStoragePDPOffering{
+	productData, err := p.registryContract.EncodePDPOffering(ctx, smartcontracts.ServiceProviderRegistryStoragePDPOffering{
 		// None of these fields except PaymentTokenAddress are used by the service contract, they simply serve as an
 		// unused on-chain registy of data.
 		// TODO: later, we way want to allow node providers to pick these themselves, unsure what value that adds currently

@@ -37,9 +37,9 @@ type RootAddEntry struct {
 }
 
 // NewWatcherRootAdd sets up the watcher for proof set root additions
-func NewWatcherRootAdd(db *gorm.DB, pcs *chainsched.Scheduler, contractClient smartcontracts.PDP) error {
+func NewWatcherRootAdd(db *gorm.DB, pcs *chainsched.Scheduler, verifier smartcontracts.Verifier) error {
 	if err := pcs.AddHandler(func(ctx context.Context, revert, apply *chainyypes.TipSet) error {
-		err := processPendingProofSetRootAdds(ctx, db, contractClient)
+		err := processPendingProofSetRootAdds(ctx, db, verifier)
 		if err != nil {
 			log.Errorf("Failed to process pending proof set root adds: %v", err)
 		}
@@ -52,7 +52,7 @@ func NewWatcherRootAdd(db *gorm.DB, pcs *chainsched.Scheduler, contractClient sm
 }
 
 // processPendingProofSetRootAdds processes root additions that have been confirmed on-chain
-func processPendingProofSetRootAdds(ctx context.Context, db *gorm.DB, contractClient smartcontracts.PDP) error {
+func processPendingProofSetRootAdds(ctx context.Context, db *gorm.DB, verifier smartcontracts.Verifier) error {
 	// Query for pdp_proofset_root_adds entries where add_message_ok = TRUE
 	var rootAdds []models.PDPProofsetRootAdd
 	err := db.WithContext(ctx).
@@ -70,7 +70,7 @@ func processPendingProofSetRootAdds(ctx context.Context, db *gorm.DB, contractCl
 
 	// Process each root addition
 	for _, rootAdd := range rootAdds {
-		err := processProofSetRootAdd(ctx, db, rootAdd, contractClient)
+		err := processProofSetRootAdd(ctx, db, rootAdd, verifier)
 		if err != nil {
 			log.Warnf("Failed to process root add for tx %s: %v", rootAdd.AddMessageHash, err)
 			continue
@@ -80,7 +80,7 @@ func processPendingProofSetRootAdds(ctx context.Context, db *gorm.DB, contractCl
 	return nil
 }
 
-func processProofSetRootAdd(ctx context.Context, db *gorm.DB, rootAdd models.PDPProofsetRootAdd, contractClient smartcontracts.PDP) error {
+func processProofSetRootAdd(ctx context.Context, db *gorm.DB, rootAdd models.PDPProofsetRootAdd, verifier smartcontracts.Verifier) error {
 	// Retrieve the tx_receipt from message_waits_eth
 	var msgWait models.MessageWaitsEth
 	err := db.WithContext(ctx).
@@ -99,7 +99,7 @@ func processProofSetRootAdd(ctx context.Context, db *gorm.DB, rootAdd models.PDP
 		return xerrors.Errorf("failed to unmarshal tx_receipt for tx %s: %w", rootAdd.AddMessageHash, err)
 	}
 
-	rootIds, err := contractClient.GetPieceIdsFromReceipt(&txReceipt)
+	rootIds, err := verifier.GetPieceIdsFromReceipt(&txReceipt)
 	if err != nil {
 		return err
 	}

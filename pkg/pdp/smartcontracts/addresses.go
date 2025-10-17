@@ -12,10 +12,14 @@ import (
 // we could also pull this from the lotus clinet piri is configued with
 var ChainID = big.NewInt(314159)
 
+// PayerAddress is the Storacha Owned address that pays SPs
+var PayerAddress = common.HexToAddress("0x8d3d7cE4F43607C9d0ac01f695c7A9caC135f9AD")
+
 type PDPContracts struct {
-	PDPVerifier      common.Address
+	Verifier         common.Address
 	ProviderRegistry common.Address
-	PDPService       common.Address
+	Service          common.Address
+	ServiceView      common.Address
 }
 
 func Addresses() PDPContracts {
@@ -24,11 +28,12 @@ func Addresses() PDPContracts {
 	// the PDP Service address of the calibration contract, defined at URL above.
 	return PDPContracts{
 		// PDPVerifier contract address
-		PDPVerifier: common.HexToAddress("0x445238Eca6c6aB8Dff1Aa6087d9c05734D22f137"),
+		Verifier: common.HexToAddress("0xB020524bdE8926cD430A4F79B2AaccFd2694793b"),
 		// This contract and its address are owned by storacha
-		ProviderRegistry: common.HexToAddress("0x0aD6636eE10682232320356bc904ab07f8837bB1"),
+		ProviderRegistry: common.HexToAddress("0x8D0560F93022414e7787207682a8D562de02D62f"),
 		// This contract and its address are owned by storacha, and uses ProviderRegistry for membership
-		PDPService: common.HexToAddress("0x8b7aa0a68f5717e400F1C4D37F7a28f84f76dF91"),
+		Service:     common.HexToAddress("0xB9753937D3Bc1416f7d741d75b1671A1edb3e10A"),
+		ServiceView: common.HexToAddress("0xb2eC3e67753F1c05e8B318298Bd0eD89046a3031"),
 	}
 }
 

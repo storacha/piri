@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
-
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/types"
@@ -100,43 +97,30 @@ func (p *PDPService) GetProofSetState(ctx context.Context, id uint64) (res types
 }
 
 func (p *PDPService) getContractState(ctx context.Context, id *big.Int) (types.ProofSetContractState, error) {
-	bindCtx := &bind.CallOpts{Context: ctx}
-
-	// Get the listener address for this proof set from the PDPVerifier contract
-	pdpVerifier, err := p.contractClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, p.contractBackend)
-	if err != nil {
-		return types.ProofSetContractState{}, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
-	}
-
-	ownerAddr1, ownerAddre2, err := pdpVerifier.GetDataSetStorageProvider(bindCtx, id)
+	ownerAddr1, ownerAddr2, err := p.verifierContract.GetDataSetStorageProvider(ctx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve owner address: %w", err)
 	}
 
-	nextChallengeEpoch, err := pdpVerifier.GetNextChallengeEpoch(bindCtx, id)
+	nextChallengeEpoch, err := p.verifierContract.GetNextChallengeEpoch(ctx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve next challenge epoch: %w", err)
 	}
 
-	challengeRange, err := pdpVerifier.GetChallengeRange(bindCtx, id)
+	challengeRange, err := p.verifierContract.GetChallengeRange(ctx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve challenge range: %w", err)
 	}
 
 	// If gas used is 0 fee is maximized
-	proofFee, err := pdpVerifier.CalculateProofFee(bindCtx, id, big.NewInt(0))
+	proofFee, err := p.verifierContract.CalculateProofFee(ctx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to calculate proof fee: %w", err)
 	}
 	// Add 2x buffer for certainty (as is done in the prove task)
 	proofFeeBuffer := new(big.Int).Mul(proofFee, big.NewInt(3))
 
-	listenerAddr, err := pdpVerifier.GetDataSetListener(bindCtx, id)
-	if err != nil {
-		return types.ProofSetContractState{}, fmt.Errorf("failed to get listener address for proof set %d: %w", id, err)
-	}
-
-	scheduledRemovals, err := pdpVerifier.GetScheduledRemovals(bindCtx, id)
+	scheduledRemovals, err := p.verifierContract.GetScheduledRemovals(ctx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to retrieve scheduled removals: %w", err)
 	}
@@ -146,22 +130,17 @@ func (p *PDPService) getContractState(ctx context.Context, id *big.Int) (types.P
 		removeIdx[i] = idx.Uint64()
 	}
 
-	// Determine the next challenge window start by consulting the listener
-	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, p.contractBackend, p.chainClient)
-	if err != nil {
-		return types.ProofSetContractState{}, fmt.Errorf("failed to create proving schedule binding, check that listener has proving schedule methods: %w", err)
-	}
-	nextChallengeWindowStart, err := provingSchedule.NextPDPChallengeWindowStart(ctx, id)
+	nextChallengeWindowStart, err := p.serviceContract.NextPDPChallengeWindowStart(ctx, id)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
-	pdpConfig, err := provingSchedule.GetPDPConfig(ctx)
+	pdpConfig, err := p.serviceContract.PDPConfig(ctx)
 	if err != nil {
 		return types.ProofSetContractState{}, fmt.Errorf("failed to get max proving period: %w", err)
 	}
 
 	return types.ProofSetContractState{
-		Owners:                   []common.Address{ownerAddr1, ownerAddre2},
+		Owners:                   []common.Address{ownerAddr1, ownerAddr2},
 		NextChallengeWindowStart: nextChallengeWindowStart.Uint64(),
 		NextChallengeEpoch:       nextChallengeEpoch.Uint64(),
 		MaxProvingPeriod:         pdpConfig.MaxProvingPeriod,
