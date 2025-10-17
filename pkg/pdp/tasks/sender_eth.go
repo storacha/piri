@@ -82,11 +82,13 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *et
 			var dataErr rpc.DataError
 			if errors.As(err, &dataErr) {
 				// TODO this will panic if ErrorData is empty, meaning there was no vm error and just a straight revert
-				if parsedErr, failure := evmerrors.ParseRevert(dataErr.ErrorData().(string)); failure == nil {
-					log.Errorw("parsed contract revert during gas estimation", "error", parsedErr)
-					return common.Hash{}, types.NewError(types.KindInvalidInput, parsedErr.Error())
-				} else {
-					log.Warnw("failed to parse revert during gas estimation", "parse_error", failure, "original_error", err)
+				if dataErr.ErrorData() != nil {
+					if parsedErr, failure := evmerrors.ParseRevert(dataErr.ErrorData().(string)); failure == nil {
+						log.Errorw("parsed contract revert during gas estimation", "error", parsedErr)
+						return common.Hash{}, types.NewError(types.KindInvalidInput, parsedErr.Error())
+					} else {
+						log.Warnw("failed to parse revert during gas estimation", "parse_error", failure, "original_error", err)
+					}
 				}
 			}
 			return common.Hash{}, fmt.Errorf("failed to estimate gas: %w", err)
