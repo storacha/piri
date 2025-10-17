@@ -12,13 +12,6 @@ import (
 	"sort"
 	"sync/atomic"
 
-	"github.com/minio/sha256-simd"
-	"github.com/samber/lo"
-	"golang.org/x/crypto/sha3"
-	"golang.org/x/xerrors"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/filecoin-project/go-commp-utils/zerocomm"
@@ -26,10 +19,13 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/storage/pipeline/lib/nullreader"
-
 	"github.com/ipfs/go-cid"
-
 	pool "github.com/libp2p/go-buffer-pool"
+	"github.com/minio/sha256-simd"
+	"github.com/samber/lo"
+	"golang.org/x/crypto/sha3"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
@@ -38,7 +34,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
@@ -47,12 +42,12 @@ var _ scheduler.TaskInterface = &ProveTask{}
 const LeafSize = proof.NODE_SIZE
 
 type ProveTask struct {
-	db             *gorm.DB
-	ethClient      bind.ContractBackend
-	contractClient smartcontracts.PDP
-	sender         ethereum.Sender
-	bs             blobstore.Blobstore
-	api            ChainAPI
+	db        *gorm.DB
+	ethClient bind.ContractBackend
+	verifier  smartcontracts.Verifier
+	sender    ethereum.Sender
+	bs        blobstore.Blobstore
+	api       ChainAPI
 
 	head atomic.Pointer[chaintypes.TipSet]
 
@@ -63,18 +58,18 @@ func NewProveTask(
 	chainSched *chainsched.Scheduler,
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient smartcontracts.PDP,
+	verifier smartcontracts.Verifier,
 	api ChainAPI,
 	sender ethereum.Sender,
 	bs blobstore.Blobstore,
 ) (*ProveTask, error) {
 	pt := &ProveTask{
-		db:             db,
-		ethClient:      ethClient,
-		contractClient: contractClient,
-		sender:         sender,
-		api:            api,
-		bs:             bs,
+		db:        db,
+		ethClient: ethClient,
+		verifier:  verifier,
+		sender:    sender,
+		api:       api,
+		bs:        bs,
 	}
 
 	// ProveTasks are created on pdp_proof_sets entries where
@@ -168,20 +163,8 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	}
 	proofSetID := proveTask.ProofsetID
 
-	pdpContracts := smartcontracts.Addresses()
-	pdpVerifierAddress := pdpContracts.PDPVerifier
-
-	pdpVerifier, err := p.contractClient.NewPDPVerifier(pdpVerifierAddress, p.ethClient)
-	if err != nil {
-		return false, fmt.Errorf("failed to instantiate PDPVerifier contract at %s: %w", pdpVerifierAddress.Hex(), err)
-	}
-
-	callOpts := &bind.CallOpts{
-		Context: ctx,
-	}
-
 	// Proof parameters
-	challengeEpoch, err := pdpVerifier.GetNextChallengeEpoch(callOpts, big.NewInt(proofSetID))
+	challengeEpoch, err := p.verifier.GetNextChallengeEpoch(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get next challenge epoch: %w", err)
 	}
@@ -191,12 +174,12 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		return false, fmt.Errorf("failed to get chain randomness from beacon for pdp prove: %w", err)
 	}
 
-	proofs, err := p.GenerateProofs(ctx, pdpVerifier, proofSetID, seed, smartcontracts.NumChallenges)
+	proofs, err := p.GenerateProofs(ctx, proofSetID, seed, smartcontracts.NumChallenges)
 	if err != nil {
 		return false, fmt.Errorf("failed to generate proofs: %w", err)
 	}
 
-	abiData, err := smartcontracts.PDPVerifierMetaData()
+	abiData, err := p.verifier.GetABI()
 	if err != nil {
 		return false, fmt.Errorf("failed to get PDPVerifier ABI: %w", err)
 	}
@@ -206,65 +189,15 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		return false, fmt.Errorf("failed to pack data: %w", err)
 	}
 
-	// [ ["0x559e581f022bb4e4ec6e719e563bf0e026ad6de42e56c18714a2c692b1b88d7e", ["0x559e581f022bb4e4ec6e719e563bf0e026ad6de42e56c18714a2c692b1b88d7e"]] ]
-
-	/* {
-		// format proofs for logging
-		var proofStr string = "[ [\"0x"
-		proofStr += hex.EncodeToString(proofs[0].Leaf[:])
-		proofStr += "\", ["
-		for i, proof := range proofs[0].Proof {
-			if i > 0 {
-				proofStr += ", "
-			}
-			proofStr += "\"0x"
-			proofStr += hex.EncodeToString(proof[:])
-			proofStr += "\""
-		}
-
-		proofStr += "] ] ]"
-
-		log.Infof("PDP Prove Task: proofSetID: %d, taskID: %d, proofs: %s", proofSetID, taskID, proofStr)
-	} */
-
-	// If gas used is 0 fee is maximized
-	gasFee := big.NewInt(0)
-	var proofFee *big.Int
-
-	// this case will be true in production, false in testing with a mocked contract
-	// context: https://filecoinproject.slack.com/archives/C07CGTXHHT4/p1755606117712229 (and curio PR #600)
-	if pdpVerifierImpl, ok := pdpVerifier.(*bindings.PDPVerifier); ok {
-		pdpVerifierRaw := bindings.PDPVerifierRaw{Contract: pdpVerifierImpl}
-		calcProofFeeResult := make([]any, 0)
-		err = pdpVerifierRaw.Call(callOpts, &calcProofFeeResult, "calculateProofFee", big.NewInt(proofSetID), gasFee)
-		if err != nil {
-			return false, xerrors.Errorf("failed to calculate proof fee: %w", err)
-		}
-
-		if len(calcProofFeeResult) == 0 {
-			return false, xerrors.Errorf("failed to calculate proof fee: wrong number of return values")
-		}
-		if calcProofFeeResult[0] == nil {
-			return false, xerrors.Errorf("failed to calculate proof fee: nil return value")
-		}
-		if calcProofFeeResult[0].(*big.Int) == nil {
-			return false, xerrors.Errorf("failed to calculate proof fee: nil *big.Int return value")
-		}
-		proofFee = calcProofFeeResult[0].(*big.Int)
-	} else {
-		// this condition would be during testing
-		proofFee, err = pdpVerifier.CalculateProofFee(callOpts, big.NewInt(proofSetID), gasFee)
-		if err != nil {
-			return false, fmt.Errorf("failed to calculate proof fee: %w", err)
-		}
+	proofFee, err := p.verifier.CalculateProofFee(ctx, big.NewInt(proofSetID))
+	if err != nil {
+		return false, fmt.Errorf("failed to calculate proof fee: %w", err)
 	}
 
 	// Add 2x buffer for certainty
 	proofFee = new(big.Int).Mul(proofFee, big.NewInt(3))
 
-	// TODO need to validate this is okay, previously in curio this was pulled form the DB, though I think
-	// this is the same address
-	fromAddress, _, err := pdpVerifier.GetDataSetStorageProvider(nil, big.NewInt(proofSetID))
+	fromAddress, _, err := p.verifier.GetDataSetStorageProvider(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
 	}
@@ -272,7 +205,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	txEth := types.NewTransaction(
 		0,
-		pdpVerifierAddress,
+		smartcontracts.Addresses().Verifier,
 		proofFee,
 		0,
 		nil,
@@ -302,7 +235,6 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		"task_id", taskID,
 		"proofs", proofLogs,
 		"data", hex.EncodeToString(data),
-		"gas_fee_estimate", gasFee,
 		"proof_fee initial", proofFee.Div(proofFee, big.NewInt(3)),
 		"proof_fee 3x", proofFee,
 		"tx_eth", txEth,
@@ -315,7 +247,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	}
 
 	// Remove the roots previously scheduled for deletion
-	err = p.cleanupDeletedRoots(ctx, proofSetID, pdpVerifier)
+	err = p.cleanupDeletedRoots(ctx, proofSetID)
 	if err != nil {
 		return false, fmt.Errorf("failed to cleanup deleted roots: %w", err)
 	}
@@ -326,14 +258,10 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	return true, nil
 }
 
-func (p *ProveTask) GenerateProofs(ctx context.Context, pdpService smartcontracts.PDPVerifier, proofSetID int64, seed abi.Randomness, numChallenges int) ([]smartcontracts.IPDPTypesProof, error) {
+func (p *ProveTask) GenerateProofs(ctx context.Context, proofSetID int64, seed abi.Randomness, numChallenges int) ([]smartcontracts.IPDPTypesProof, error) {
 	proofs := make([]smartcontracts.IPDPTypesProof, numChallenges)
 
-	callOpts := &bind.CallOpts{
-		Context: ctx,
-	}
-
-	totalLeafCount, err := pdpService.GetChallengeRange(callOpts, big.NewInt(proofSetID))
+	totalLeafCount, err := p.verifier.GetChallengeRange(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get proof set leaf count: %w", err)
 	}
@@ -343,7 +271,7 @@ func (p *ProveTask) GenerateProofs(ctx context.Context, pdpService smartcontract
 		return generateChallengeIndex(seed, proofSetID, i, totalLeaves)
 	})
 
-	pieceIds, err := pdpService.FindPieceIds(callOpts, big.NewInt(proofSetID), lo.Map(challenges, func(i int64, _ int) *big.Int { return big.NewInt(i) }))
+	pieceIds, err := p.verifier.FindPieceIds(ctx, big.NewInt(proofSetID), lo.Map(challenges, func(i int64, _ int) *big.Int { return big.NewInt(i) }))
 	if err != nil {
 		return nil, fmt.Errorf("failed to find piece IDs: %w", err)
 	}
@@ -673,8 +601,8 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 	return out, nil
 }
 
-func (p *ProveTask) cleanupDeletedRoots(ctx context.Context, proofSetID int64, pdpVerifier smartcontracts.PDPVerifier) error {
-	removals, err := pdpVerifier.GetScheduledRemovals(nil, big.NewInt(proofSetID))
+func (p *ProveTask) cleanupDeletedRoots(ctx context.Context, proofSetID int64) error {
+	removals, err := p.verifier.GetScheduledRemovals(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return fmt.Errorf("failed to get scheduled removals: %w", err)
 	}

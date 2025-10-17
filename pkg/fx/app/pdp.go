@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
@@ -15,20 +17,15 @@ import (
 	"github.com/storacha/piri/pkg/fx/scheduler"
 	"github.com/storacha/piri/pkg/fx/wallet"
 	"github.com/storacha/piri/pkg/pdp/service"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 var PDPModule = fx.Module("pdp",
 	fx.Provide(
 		fx.Annotate(
-			ProvideContractClient,
-			// provide the contract as it's interface
-			fx.As(new(smartcontracts.PDP)),
-		),
-		fx.Annotate(
 			ProvideEthClient,
 			// provide as interface required by service(s)
 			fx.As(new(service.EthClient)),
+			fx.As(new(bind.ContractBackend)),
 		),
 		fx.Annotate(
 			ProvideLotusClient,
@@ -36,15 +33,12 @@ var PDPModule = fx.Module("pdp",
 			fx.As(new(service.ChainClient)),
 		),
 	),
+	smartcontracts.Module,
 	aggregator.Module,
 	scheduler.Module,
 	pdp.Module,
 	wallet.Module,
 )
-
-func ProvideContractClient() *smartcontracts.PDPContract {
-	return new(smartcontracts.PDPContract)
-}
 
 func ProvideEthClient(lc fx.Lifecycle, cfg app.AppConfig) (*ethclient.Client, error) {
 	ethAPI, err := ethclient.Dial(cfg.PDPService.LotusEndpoint.String())

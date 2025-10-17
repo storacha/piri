@@ -201,5 +201,6 @@ type (
 		Name               string `json:"name"`
 		Description        string `json:"description"`
 		RegistrationStatus string `json:"registrationStatus"`
+		IsApproved         bool   `json:"isApproved"`
 	}
 )

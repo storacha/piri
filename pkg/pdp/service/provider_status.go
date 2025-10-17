@@ -5,25 +5,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts/bindings"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 func (p *PDPService) GetProviderStatus(ctx context.Context) (types.GetProviderStatusResults, error) {
-	bindCtx := &bind.CallOpts{Context: ctx}
-	registry, err := bindings.NewServiceProviderRegistry(smartcontracts.Addresses().ProviderRegistry, p.contractBackend)
-	if err != nil {
-		return types.GetProviderStatusResults{}, fmt.Errorf("failed to create service registry binding: %w", err)
-	}
-
 	// Check if provider is registered on-chain
-	isRegistered, err := registry.IsRegisteredProvider(bindCtx, p.address)
+	isRegistered, err := p.registryContract.IsRegisteredProvider(ctx, p.address)
 	if err != nil {
 		return types.GetProviderStatusResults{}, fmt.Errorf("failed to check if service provider is registered: %w", err)
 	}
@@ -34,18 +25,27 @@ func (p *PDPService) GetProviderStatus(ctx context.Context) (types.GetProviderSt
 
 	if isRegistered {
 		// Provider is registered, get full info
-		providerInfoView, err := registry.GetProviderByAddress(bindCtx, p.address)
+		providerInfoView, err := p.registryContract.GetProviderByAddress(ctx, p.address)
 		if err != nil {
 			return types.GetProviderStatusResults{}, fmt.Errorf("failed to get provider by address: %w", err)
 		}
+		approved, err := p.serviceContract.IsProviderApproved(ctx, providerInfoView.ID)
+		if err != nil {
+			return types.GetProviderStatusResults{}, fmt.Errorf("failed to check if provider is approved: %w", err)
+		}
+		status := "registered"
+		if approved {
+			status = "approved"
+		}
 
-		result.ID = providerInfoView.ProviderId.Uint64()
-		result.Payee = providerInfoView.Info.Payee
-		result.IsRegistered = true
-		result.IsActive = providerInfoView.Info.IsActive
-		result.Name = providerInfoView.Info.Name
-		result.Description = providerInfoView.Info.Description
-		result.RegistrationStatus = "registered"
+		result.ID = providerInfoView.ID.Uint64()
+		result.Payee = providerInfoView.Payee
+		result.IsRegistered = isRegistered
+		result.IsActive = providerInfoView.IsActive
+		result.Name = providerInfoView.Name
+		result.Description = providerInfoView.Description
+		result.RegistrationStatus = status
+		result.IsApproved = approved
 
 		return result, nil
 	}
@@ -72,4 +72,20 @@ func (p *PDPService) GetProviderStatus(ctx context.Context) (types.GetProviderSt
 	result.Payee = common.Address{}
 
 	return result, nil
+}
+
+// RequireProviderApproved checks if the provider is both registered and approved.
+// Returns a rich contextual error if authorization fails.
+func (p *PDPService) RequireProviderApproved(ctx context.Context) error {
+	regStatus, err := p.GetProviderStatus(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check registration status: %w", err)
+	}
+
+	// If the provider is both registered and approved, authorization succeeds
+	if regStatus.IsRegistered && regStatus.IsApproved {
+		return nil
+	}
+
+	return fmt.Errorf("provider is not approved")
 }
