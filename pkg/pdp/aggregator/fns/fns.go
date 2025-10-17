@@ -144,7 +144,7 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 			SubRoots: subRoots,
 		})
 	}
-	_, err := client.AddRoots(ctx, proofSet, newRoots)
+	_, err := client.AddRootsWithCoordinator(ctx, proofSet, newRoots)
 	if err != nil {
 		return fmt.Errorf("failed to submit aggregates: %w", err)
 	}

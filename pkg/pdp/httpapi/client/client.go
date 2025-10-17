@@ -52,6 +52,11 @@ type Client struct {
 	serverType EndpointType
 }
 
+func (c *Client) AddRootsWithCoordinator(ctx context.Context, id uint64, request []types.RootAdd) (common.Hash, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 type Option func(c *Client) error
 
 func WithHTTPClient(client *http.Client) Option {

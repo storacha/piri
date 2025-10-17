@@ -58,6 +58,9 @@ type PDPService struct {
 	verifierContract smartcontracts.Verifier
 	serviceContract  smartcontracts.Service
 	registryContract smartcontracts.Registry
+
+	// Coordinator system for high-throughput AddRoots operations
+	coordinatorRegistry *CoordinatorRegistry
 }
 
 func New(
@@ -76,7 +79,7 @@ func New(
 	serviceContract smartcontracts.Service,
 	registryContract smartcontracts.Registry,
 ) (*PDPService, error) {
-	return &PDPService{
+	service := &PDPService{
 		address:          address,
 		db:               db,
 		name:             "storacha",
@@ -92,5 +95,10 @@ func New(
 		verifierContract: verifier,
 		serviceContract:  serviceContract,
 		registryContract: registryContract,
-	}, nil
+	}
+
+	// Initialize coordinator registry with default configuration
+	service.coordinatorRegistry = NewCoordinatorRegistry(service, DefaultCoordinatorConfig())
+
+	return service, nil
 }

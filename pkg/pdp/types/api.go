@@ -198,6 +198,7 @@ type ProofSetAPI interface {
 	GetProofSetStatus(ctx context.Context, txHash common.Hash) (*ProofSetStatus, error)
 	GetProofSet(ctx context.Context, proofSetID uint64) (*ProofSet, error)
 	AddRoots(ctx context.Context, proofSetID uint64, roots []RootAdd) (common.Hash, error)
+	AddRootsWithCoordinator(ctx context.Context, id uint64, request []RootAdd) (common.Hash, error)
 	RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (common.Hash, error)
 }
 
