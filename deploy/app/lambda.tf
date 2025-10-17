@@ -203,6 +203,7 @@ data "aws_iam_policy_document" "lambda_s3_put_get_document" {
       "${aws_s3_bucket.ipni_store_bucket.arn}/*",
       "${aws_s3_bucket.receipt_store_bucket.arn}/*",
       "${aws_s3_bucket.claim_store_bucket.arn}/*",
+      "${aws_s3_bucket.ipni_publisher.arn}/*",
     ]
   }
 
@@ -215,6 +216,7 @@ data "aws_iam_policy_document" "lambda_s3_put_get_document" {
       aws_s3_bucket.ipni_store_bucket.arn,
       aws_s3_bucket.receipt_store_bucket.arn,
       aws_s3_bucket.claim_store_bucket.arn,
+      aws_s3_bucket.ipni_publisher.arn,
     ]
   }
 }
@@ -297,7 +299,8 @@ data "aws_iam_policy_document" "lambda_sqs_document" {
     resources = [
       aws_sqs_queue.aggregate_submitter[0].arn,
       aws_sqs_queue.piece_accepter[0].arn,
-      aws_sqs_queue.piece_aggregator[0].arn
+      aws_sqs_queue.piece_aggregator[0].arn,
+      aws_sqs_queue.ipni_publisher.arn,
     ]
   }
 }
