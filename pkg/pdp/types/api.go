@@ -132,7 +132,9 @@ type PieceReader struct {
 
 type ExtraData string
 
+// Deprecated: delete me
 type CreateProofSetParams struct {
+	// Deprecated: delete me
 	RecordKeeper common.Address
 	// TODO remove
 	// Deprecated: delete me
@@ -180,6 +182,8 @@ type GetProviderStatusResults struct {
 	Description string
 	// Registration status: "not_registered", "pending", or "registered"
 	RegistrationStatus string
+	// True if contract operator approved provider to operate
+	IsApproved bool
 }
 
 const (
@@ -193,7 +197,7 @@ type ProofSetAPI interface {
 	CreateProofSet(ctx context.Context, params CreateProofSetParams) (common.Hash, error)
 	GetProofSetStatus(ctx context.Context, txHash common.Hash) (*ProofSetStatus, error)
 	GetProofSet(ctx context.Context, proofSetID uint64) (*ProofSet, error)
-	AddRoots(ctx context.Context, proofSetID uint64, roots []RootAdd, extraData ExtraData) (common.Hash, error)
+	AddRoots(ctx context.Context, proofSetID uint64, roots []RootAdd) (common.Hash, error)
 	RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (common.Hash, error)
 }
 

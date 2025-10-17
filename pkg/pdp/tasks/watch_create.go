@@ -4,15 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"gorm.io/gorm"
-
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
+	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/service/models"
@@ -26,15 +22,14 @@ type ProofSetCreate struct {
 
 func NewWatcherCreate(
 	db *gorm.DB,
-	ethClient bind.ContractBackend,
-	contractClient smartcontracts.PDP,
-	chain ChainAPI,
+	verifier smartcontracts.Verifier,
 	pcs *chainsched.Scheduler,
+	serviceContract smartcontracts.Service,
 ) error {
 	log.Infow("Initializing proof set creation watcher")
 	if err := pcs.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
 		log.Debugw("Chain update triggered proof set creation check", "tipset_height", apply.Height())
-		err := processPendingProofSetCreates(ctx, db, ethClient, contractClient, chain)
+		err := processPendingProofSetCreates(ctx, db, verifier, serviceContract)
 		if err != nil {
 			log.Warnw("Failed to process pending proof set creates", "error", err, "tipset_height", apply.Height())
 		}
@@ -50,9 +45,8 @@ func NewWatcherCreate(
 func processPendingProofSetCreates(
 	ctx context.Context,
 	db *gorm.DB,
-	ethClient bind.ContractBackend,
-	contractClient smartcontracts.PDP,
-	chain ChainAPI,
+	verifier smartcontracts.Verifier,
+	serviceView smartcontracts.Service,
 ) error {
 	log.Debugw("Querying for pending proof set creations", "query_conditions", "ok=true AND proofset_created=false")
 	// Query for pdp_proofset_creates entries where ok = TRUE and proofset_created = FALSE
@@ -80,7 +74,7 @@ func processPendingProofSetCreates(
 			"tx_hash", psc.CreateMessageHash,
 			"service", psc.Service)
 
-		err := processProofSetCreate(ctx, db, psc, ethClient, contractClient, chain)
+		err := processProofSetCreate(ctx, db, psc, verifier, serviceView)
 		if err != nil {
 			log.Errorw("Failed to process proof set create",
 				"tx_hash", psc.CreateMessageHash,
@@ -101,14 +95,13 @@ func processProofSetCreate(
 	ctx context.Context,
 	db *gorm.DB,
 	psc models.PDPProofsetCreate,
-	ethClient bind.ContractBackend,
-	contactClient smartcontracts.PDP,
-	chain ChainAPI,
+	verifier smartcontracts.Verifier,
+	serviceView smartcontracts.Service,
 ) error {
 	txHash := psc.CreateMessageHash
 	service := psc.Service
 
-	lg := log.With("tx_hash", txHash, "owner", service, "verifier_address", smartcontracts.Addresses().PDPVerifier.String())
+	lg := log.With("tx_hash", txHash, "owner", service, "verifier_address", smartcontracts.Addresses().Verifier.String())
 
 	// Retrieve the tx_receipt from message_waits_eth
 	lg.Debug("Retrieving transaction receipt")
@@ -134,7 +127,7 @@ func processProofSetCreate(
 
 	// Parse the logs to extract the proofSetId
 	lg.Debug("Extracting proof set ID from transaction receipt")
-	proofSetId, err := contactClient.GetDataSetIdFromReceipt(&txReceipt)
+	proofSetId, err := verifier.GetDataSetIdFromReceipt(&txReceipt)
 	if err != nil {
 		lg.Errorw("Failed to extract proof set ID from receipt",
 			"tx_hash", txHash,
@@ -144,27 +137,10 @@ func processProofSetCreate(
 	lg = lg.With("proof_set_id", proofSetId)
 	lg.Debug("Extracted proof set ID")
 
-	// Get the listener address for this proof set from the PDPVerifier contract
-	lg.Debug("Getting PDP verifier contract")
-	pdpVerifier, err := contactClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, ethClient)
-	if err != nil {
-		lg.Errorw("Failed to instantiate PDPVerifier contract", "error", err)
-		return fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
-	}
-
-	lg.Debug("Querying proof set listener address")
-	listenerAddr, err := pdpVerifier.GetDataSetListener(nil, big.NewInt(int64(proofSetId)))
-	if err != nil {
-		lg.Errorw("Failed to get listener address for proof set", "error", err)
-		return fmt.Errorf("failed to get listener address for proof set %d: %w", proofSetId, err)
-	}
-	lg = lg.With("listener_addr", listenerAddr.String())
-	lg.Debug("Retrieved proof set listener")
-
 	// Get the proving period from the listener
 	// Assumption: listener is a PDP Service with proving window informational methods
 	lg.Debug("Fetching proving period and challenge window")
-	provingPeriod, challengeWindow, err := getProvingPeriodChallengeWindow(ctx, ethClient, listenerAddr, contactClient, chain)
+	provingPeriod, challengeWindow, err := getProvingPeriodChallengeWindow(ctx, serviceView)
 	if err != nil {
 		lg.Errorw("Failed to get proving period parameters", "error", err)
 		return fmt.Errorf("failed to get max proving period: %w", err)
@@ -238,20 +214,8 @@ func insertProofSet(
 	return nil
 }
 
-func getProvingPeriodChallengeWindow(ctx context.Context, ethClient bind.ContractBackend, listenerAddr common.Address, contractClient smartcontracts.PDP, chain ChainAPI) (uint64, uint64, error) {
-	log.Debugw("Creating proving schedule provider",
-		"listener_address", listenerAddr.Hex())
-
-	// Get proving schedule provider
-	schedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, ethClient, chain)
-	if err != nil {
-		log.Errorw("Failed to create proving schedule provider",
-			"listener_address", listenerAddr.Hex(),
-			"error", err)
-		return 0, 0, fmt.Errorf("failed to create proving schedule provider: %w", err)
-	}
-
-	config, err := schedule.GetPDPConfig(ctx)
+func getProvingPeriodChallengeWindow(ctx context.Context, serviceView smartcontracts.Service) (uint64, uint64, error) {
+	config, err := serviceView.PDPConfig(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to get pdp config: %w", err)
 	}

@@ -1689,8 +1689,8 @@ github.com/spf13/viper v1.21.0/go.mod h1:P0lhsswPGWD/1lZJ9ny3fYnVqxiegrlNrEmgLjb
 github.com/stoewer/go-strcase v1.3.0/go.mod h1:fAH5hQ5pehh+j3nZfvwdk2RgEgQjAoM8wodgtPmh1xo=
 github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92 h1:Xe1z064lEQPgxl5nkzlUQAXnIr9u7MAoBvUePhXWAts=
 github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92/go.mod h1:1xN1tz2TkpwShpImD2Bf6DZ0VLeYI3c04c84BrNMuhc=
-github.com/storacha/filecoin-services/go v0.0.0-20251014235258-8f809a722a94 h1:DUuJe4ppiMkIPBybd+IrhQ4exxUnn0lGVBeovPnI54c=
-github.com/storacha/filecoin-services/go v0.0.0-20251014235258-8f809a722a94/go.mod h1:defpuuds8wN2Ag2rJH/InaARxfY49LXsP7V+RjCYhUY=
+github.com/storacha/filecoin-services/go v0.0.1 h1:o5y+s9fVzVJy8pO8zmo1zDyObwaEU8APsY+Wu/Ozf98=
+github.com/storacha/filecoin-services/go v0.0.1/go.mod h1:defpuuds8wN2Ag2rJH/InaARxfY49LXsP7V+RjCYhUY=
 github.com/storacha/go-libstoracha v0.3.2 h1:GH/6Q+lJ/HmjI3/T+3ECqOdblLTYLPtZWqLB5AG6Dus=
 github.com/storacha/go-libstoracha v0.3.2/go.mod h1:UF4t2uPwq7vhqqoRWVPnsTsvnWghd8uTJ5WW6QekjVA=
 github.com/storacha/go-ucanto v0.6.6 h1:JSyahG0+dGVw0WjqX0XkcEknM9Xjpv5vlQCdsH7LORo=
