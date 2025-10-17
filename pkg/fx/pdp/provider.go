@@ -3,6 +3,7 @@ package pdp
 import (
 	"fmt"
 
+	"github.com/storacha/filecoin-services/go/eip712"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -31,6 +32,7 @@ import (
 
 var Module = fx.Module("pdp-service",
 	fx.Provide(
+		eip712.NewExtraDataEncoder,
 		ProviderSigningService,
 		fx.Annotate(
 			ProvidePDPService,
@@ -97,17 +99,20 @@ func ProvideTODOPDPImplInterface(service types.API, agg aggregator.Aggregator, c
 type Params struct {
 	fx.In
 
-	DB              *gorm.DB `name:"engine_db"`
-	Config          app.PDPServiceConfig
-	Store           blobstore.PDPStore
-	Stash           stashstore.Stash
-	Sender          ethereum.Sender
-	Engine          *scheduler.TaskEngine
-	ChainScheduler  *chainsched.Scheduler
-	ChainClient     service.ChainClient
-	ContractClient  smartcontracts.PDP
-	ContractBackend service.EthClient
-	SigningService  signer.SigningService
+	DB               *gorm.DB `name:"engine_db"`
+	Config           app.PDPServiceConfig
+	Store            blobstore.PDPStore
+	Stash            stashstore.Stash
+	Sender           ethereum.Sender
+	Engine           *scheduler.TaskEngine
+	ChainScheduler   *chainsched.Scheduler
+	ChainClient      service.ChainClient
+	ContractBackend  service.EthClient
+	SigningService   signer.SigningService
+	ExtraDataEncoder *eip712.ExtraDataEncoder
+	Verifier         smartcontracts.Verifier
+	Service          smartcontracts.Service
+	Registry         smartcontracts.Registry
 }
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
@@ -120,9 +125,12 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.Engine,
 		params.ChainScheduler,
 		params.ChainClient,
-		params.ContractClient,
 		params.ContractBackend,
 		params.SigningService,
+		params.ExtraDataEncoder,
+		params.Verifier,
+		params.Service,
+		params.Registry,
 	)
 }
 
@@ -137,7 +145,7 @@ func ProviderSigningService(cfg app.SigningServiceConfig) (signer.SigningService
 		s := signingservice.NewSigner(
 			cfg.PrivateKey,
 			smartcontracts.ChainID,
-			smartcontracts.Addresses().PDPService,
+			smartcontracts.Addresses().Service,
 		)
 		return signerimpl.New(s), nil
 	}

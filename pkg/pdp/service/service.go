@@ -9,6 +9,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/storacha/filecoin-services/go/eip712"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
@@ -44,7 +45,6 @@ type PDPService struct {
 	storage         stashstore.Stash
 	sender          ethereum.Sender
 	chainClient     ChainClient
-	contractClient  smartcontracts.PDP
 	contractBackend bind.ContractBackend
 
 	db   *gorm.DB
@@ -53,6 +53,11 @@ type PDPService struct {
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
 	signingService signer.SigningService
+
+	edc              *eip712.ExtraDataEncoder
+	verifierContract smartcontracts.Verifier
+	serviceContract  smartcontracts.Service
+	registryContract smartcontracts.Registry
 }
 
 func New(
@@ -64,22 +69,28 @@ func New(
 	engine *scheduler.TaskEngine,
 	chainScheduler *chainsched.Scheduler,
 	chainClient ChainClient,
-	contractClient smartcontracts.PDP,
 	contractBackend EthClient,
 	signingService signer.SigningService,
+	edc *eip712.ExtraDataEncoder,
+	verifier smartcontracts.Verifier,
+	serviceContract smartcontracts.Service,
+	registryContract smartcontracts.Registry,
 ) (*PDPService, error) {
 	return &PDPService{
-		address:         address,
-		db:              db,
-		name:            "storacha",
-		blobstore:       bs,
-		storage:         stash,
-		sender:          sender,
-		engine:          engine,
-		chainScheduler:  chainScheduler,
-		chainClient:     chainClient,
-		contractClient:  contractClient,
-		contractBackend: contractBackend,
-		signingService:  signingService,
+		address:          address,
+		db:               db,
+		name:             "storacha",
+		blobstore:        bs,
+		storage:          stash,
+		sender:           sender,
+		engine:           engine,
+		chainScheduler:   chainScheduler,
+		chainClient:      chainClient,
+		contractBackend:  contractBackend,
+		signingService:   signingService,
+		edc:              edc,
+		verifierContract: verifier,
+		serviceContract:  serviceContract,
+		registryContract: registryContract,
 	}, nil
 }

@@ -51,6 +51,7 @@ require (
 	github.com/storacha/go-libstoracha v0.3.2
 	github.com/storacha/go-ucanto v0.6.6
 	github.com/stretchr/testify v1.10.0
+	github.com/storacha/filecoin-services/go v0.0.1
 	github.com/storacha/piri-signing-service v0.0.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.39.0
@@ -194,7 +195,6 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/storacha/filecoin-services/go v0.0.0-20251014235258-8f809a722a94 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/supranational/blst v0.3.16-0.20250831170142-f48500c1fdbe // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect

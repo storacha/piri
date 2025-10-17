@@ -144,8 +144,7 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 			SubRoots: subRoots,
 		})
 	}
-	// TODO(forrest): we will need to provide extra data here to "authorize" this operation
-	_, err := client.AddRoots(ctx, proofSet, newRoots, "")
+	_, err := client.AddRoots(ctx, proofSet, newRoots)
 	if err != nil {
 		return fmt.Errorf("failed to submit aggregates: %w", err)
 	}

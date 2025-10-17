@@ -26,23 +26,33 @@ var _ scheduler.TaskInterface = &NextProvingPeriodTask{}
 //var _ = scheduler.Reg(&NextProvingPeriodTask{})
 
 type NextProvingPeriodTask struct {
-	db             *gorm.DB
-	ethClient      bind.ContractBackend
-	contractClient smartcontracts.PDP
-	sender         ethereum.Sender
+	db        *gorm.DB
+	ethClient bind.ContractBackend
+	verifier  smartcontracts.Verifier
+	service   smartcontracts.Service
+	sender    ethereum.Sender
 
 	fil ChainAPI
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
 }
 
-func NewNextProvingPeriodTask(db *gorm.DB, ethClient bind.ContractBackend, contractClient smartcontracts.PDP, api ChainAPI, chainSched *chainsched.Scheduler, sender ethereum.Sender) (*NextProvingPeriodTask, error) {
+func NewNextProvingPeriodTask(
+	db *gorm.DB,
+	ethClient bind.ContractBackend,
+	api ChainAPI,
+	chainSched *chainsched.Scheduler,
+	sender ethereum.Sender,
+	verifier smartcontracts.Verifier,
+	service smartcontracts.Service,
+) (*NextProvingPeriodTask, error) {
 	n := &NextProvingPeriodTask{
-		db:             db,
-		ethClient:      ethClient,
-		contractClient: contractClient,
-		sender:         sender,
-		fil:            api,
+		db:        db,
+		ethClient: ethClient,
+		sender:    sender,
+		fil:       api,
+		verifier:  verifier,
+		service:   service,
 	}
 
 	if err := chainSched.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
@@ -139,53 +149,33 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	}
 	proofSetID := pdp.ID
 
-	// Get the listener address for this proof set from the PDPVerifier contract
-	pdpVerifier, err := n.contractClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, n.ethClient)
-	if err != nil {
-		return false, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
-	}
-
-	listenerAddr, err := pdpVerifier.GetDataSetListener(nil, big.NewInt(proofSetID))
-	if err != nil {
-		return false, fmt.Errorf("failed to get listener address for data set %d: %w", proofSetID, err)
-	}
-
-	// Determine the next challenge window start by consulting the proving schedule provider
-	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, n.ethClient, n.fil)
-	if err != nil {
-		return false, fmt.Errorf("failed to create proving schedule provider: %w", err)
-	}
-	next_prove_at, err := provingSchedule.NextPDPChallengeWindowStart(ctx, big.NewInt(proofSetID))
+	nextProveAt, err := n.service.NextPDPChallengeWindowStart(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
 
-	// Instantiate the PDPVerifier contract
-	pdpContracts := smartcontracts.Addresses()
-	pdpVerifierAddress := pdpContracts.PDPVerifier
-
 	// Prepare the transaction data
-	abiData, err := smartcontracts.PDPVerifierMetaData()
+	abiData, err := n.verifier.GetABI()
 	if err != nil {
 		return false, fmt.Errorf("failed to get PDPVerifier ABI: %w", err)
 	}
 
-	data, err := abiData.Pack("nextProvingPeriod", big.NewInt(proofSetID), next_prove_at, []byte{})
+	data, err := abiData.Pack("nextProvingPeriod", big.NewInt(proofSetID), nextProveAt, []byte{})
 	if err != nil {
 		return false, fmt.Errorf("failed to pack data: %w", err)
 	}
 
 	// Prepare the transaction
 	txEth := types.NewTransaction(
-		0,                  // nonce (will be set by sender)
-		pdpVerifierAddress, // to
-		big.NewInt(0),      // value
-		0,                  // gasLimit (to be estimated)
-		nil,                // gasPrice (to be set by sender)
-		data,               // data
+		0,                                   // nonce (will be set by sender)
+		smartcontracts.Addresses().Verifier, // to
+		big.NewInt(0),                       // value
+		0,                                   // gasLimit (to be estimated)
+		nil,                                 // gasPrice (to be set by sender)
+		data,                                // data
 	)
 
-	fromAddress, _, err := pdpVerifier.GetDataSetStorageProvider(nil, big.NewInt(proofSetID))
+	fromAddress, _, err := n.verifier.GetDataSetStorageProvider(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
 	}
@@ -199,7 +189,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	// Send the transaction
 	reason := "pdp-proving-period"
 	log.Infow("Sending next proving period transaction", "task_id", taskID, "proof_set_id", proofSetID,
-		"next_prove_at", next_prove_at, "current_height", ts.Height())
+		"next_prove_at", nextProveAt, "current_height", ts.Height())
 	txHash, err := n.sender.Send(ctx, fromAddress, txEth, reason)
 	if err != nil {
 		return false, fmt.Errorf("failed to send transaction: %w", err)
@@ -212,7 +202,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 			Updates(map[string]interface{}{
 				"challenge_request_msg_hash":   txHash.Hex(),
 				"prev_challenge_request_epoch": ts.Height(),
-				"prove_at_epoch":               next_prove_at.Uint64(),
+				"prove_at_epoch":               nextProveAt.Uint64(),
 			})
 		if result.Error != nil {
 			return fmt.Errorf("failed to update pdp_proof_sets: %w", err)
@@ -236,7 +226,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	}
 
 	// Task completed successfully
-	log.Infow("Next challenge window scheduled", "epoch", next_prove_at)
+	log.Infow("Next challenge window scheduled", "epoch", nextProveAt)
 
 	return true, nil
 }
