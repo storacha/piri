@@ -9,6 +9,7 @@ import (
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/principal"
+	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
@@ -71,16 +72,21 @@ type PieceAggregator struct {
 	workspace  InProgressWorkspace
 	store      AggregateStore
 	queue      LinkQueue
+	taskQueue  *jobqueue.JobQueue[[]datamodel.Link]
 	aggregator BufferedAggregator
+
+	aggBuff []aggregate.Aggregate
 }
 
-func NewPieceAggregator(workspace InProgressWorkspace, store AggregateStore, queueSubmission LinkQueue, opts ...PieceAggregatorOption) *PieceAggregator {
+func NewPieceAggregator(workspace InProgressWorkspace, store AggregateStore, queueSubmission LinkQueue, taskQueue *jobqueue.JobQueue[[]datamodel.Link], opts ...PieceAggregatorOption) *PieceAggregator {
 	pa := &PieceAggregator{
 		workspace: workspace,
 		store:     store,
 		queue:     queueSubmission,
 		// default aggregator is BufferingAggregator, it can be overridden via options.
 		aggregator: &BufferingAggregator{},
+		taskQueue:  taskQueue,
+		aggBuff:    []aggregate.Aggregate{},
 	}
 
 	for _, opt := range opts {
@@ -102,13 +108,23 @@ func (pa *PieceAggregator) AggregatePieces(ctx context.Context, pieces []piece.P
 		return fmt.Errorf("updating work space: %w", err)
 	}
 	for _, a := range aggregates {
+		log.Errorw("Putting aggregate link", "link", a.Root.Link())
 		err := pa.store.Put(ctx, a.Root.Link(), a)
 		if err != nil {
 			return fmt.Errorf("storing aggregate: %w", err)
 		}
-		if err := pa.queue.Enqueue(ctx, PieceSubmitTask, a.Root.Link()); err != nil {
+	}
+
+	pa.aggBuff = append(pa.aggBuff, aggregates...)
+	if len(pa.aggBuff) >= 2 {
+		al := make([]datamodel.Link, len(pa.aggBuff))
+		for i, a := range pa.aggBuff {
+			al[i] = a.Root.Link()
+		}
+		if err := pa.taskQueue.Enqueue(ctx, PieceSubmitTask, al); err != nil {
 			return fmt.Errorf("queueing aggregates for submission: %w", err)
 		}
+		pa.aggBuff = []aggregate.Aggregate{}
 	}
 	return nil
 }
@@ -137,6 +153,7 @@ func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLin
 	log.Infow("Submit aggregates", "count", len(aggregateLinks))
 	aggregates := make([]aggregate.Aggregate, 0, len(aggregateLinks))
 	for _, aggregateLink := range aggregateLinks {
+		log.Errorw("Getting aggregate link", "link", aggregateLink.String())
 		aggregate, err := as.store.Get(ctx, aggregateLink)
 		if err != nil {
 			return fmt.Errorf("reading aggregates: %w", err)

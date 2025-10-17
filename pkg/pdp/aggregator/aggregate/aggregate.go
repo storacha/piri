@@ -30,6 +30,10 @@ func AggregateType() schema.Type {
 	return aggregateTS.TypeByName("Aggregate")
 }
 
+func AggregatesType() schema.Type {
+	return aggregateTS.TypeByName("Aggregates")
+}
+
 func PieceLinkType() schema.Type {
 	return aggregateTS.TypeByName("PieceLink")
 }

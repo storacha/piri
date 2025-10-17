@@ -12,3 +12,5 @@ type Aggregate struct {
 	root   PieceLink
 	pieces [AggregatePiece]
 }
+
+type Aggregates [Link]

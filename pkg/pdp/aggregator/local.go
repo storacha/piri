@@ -2,25 +2,11 @@ package aggregator
 
 import (
 	"context"
-	"fmt"
-	"time"
 
-	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/namespace"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/datamodel"
-	"github.com/storacha/go-libstoracha/capabilities/types"
-	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/go-ucanto/principal"
-
-	"github.com/storacha/piri/internal/ipldstore"
-	"github.com/storacha/piri/pkg/database"
-	"github.com/storacha/piri/pkg/database/sqlitedb"
-	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	types2 "github.com/storacha/piri/pkg/pdp/types"
-	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 var log = logging.Logger("pdp/aggregator")
@@ -76,6 +62,7 @@ func NewLocalAggregator(pieceQueue *jobqueue.JobQueue[piece.PieceLink], linkQueu
 }
 
 // NewLocal constructs an aggregator to run directly on a machine from a local datastore
+/*
 func NewLocal(
 	ds datastore.Datastore,
 	dbPath string,
@@ -135,3 +122,6 @@ func NewLocal(
 		linkQueue:  linkQueue,
 	}, nil
 }
+
+
+*/

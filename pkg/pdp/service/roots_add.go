@@ -195,20 +195,22 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		return common.Hash{}, err
 	}
 
+	// Track the global offset across all roots in the request
+	var globalOffset uint64 = 0
+
 	// For each AddRootRequest, validate the provided RootCID.
 	for _, addReq := range request {
 		// Collect pieceInfos for each subroot.
 		pieceInfos := make([]abi.PieceInfo, len(addReq.SubRoots))
-		var totalOffset uint64 = 0
 		for i, subCID := range addReq.SubRoots {
 			subInfo, exists := subrootInfoMap[subCID]
 			if !exists {
 				return common.Hash{}, fmt.Errorf("subroot CID %s not found in subroot info map", subCID)
 			}
-			// Set the offset for this subroot.
-			subInfo.SubrootOffset = totalOffset
+			// Set the offset for this subroot using the global offset.
+			subInfo.SubrootOffset = globalOffset
 			pieceInfos[i] = subInfo.PieceInfo
-			totalOffset += uint64(subInfo.PieceInfo.Size)
+			globalOffset += uint64(subInfo.PieceInfo.Size)
 		}
 
 		// Generate the unsealed CID from the collected piece infos.

@@ -74,8 +74,14 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		PDPStore: app.PDPStoreConfig{
 			Dir: filepath.Join(r.DataDir, "pdp", "datastore"),
 		},
+		TaskQueue: app.TaskQueueStorageConfig{
+			DBPath: filepath.Join(r.DataDir, "pdp", "taskqueue.db"),
+		},
 	}
 
+	if err := os.MkdirAll(filepath.Dir(out.TaskQueue.DBPath), 0755); err != nil {
+		return app.StorageConfig{}, fmt.Errorf("creating taskqueue db: %w", err)
+	}
 	if err := os.MkdirAll(filepath.Dir(out.Aggregator.DBPath), 0755); err != nil {
 		return app.StorageConfig{}, fmt.Errorf("creating aggregator db: %w", err)
 	}

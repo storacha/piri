@@ -19,6 +19,12 @@ type StorageConfig struct {
 	StashStore       StashStoreConfig
 	SchedulerStorage SchedulerConfig
 	PDPStore         PDPStoreConfig
+	TaskQueue        TaskQueueStorageConfig
+}
+
+type TaskQueueStorageConfig struct {
+	Dir    string
+	DBPath string
 }
 
 // AggregatorStorageConfig contains aggregator-specific storage paths

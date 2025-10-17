@@ -3,14 +3,12 @@ package pdp
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 
 	"github.com/ipfs/go-datastore"
 	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/pkg/pdp/aggregator"
-	"github.com/storacha/piri/pkg/pdp/httpapi/client"
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/piecereader"
@@ -68,26 +66,30 @@ func (p *PDPService) Shutdown(ctx context.Context) error {
 var _ PDP = (*PDPService)(nil)
 
 func NewRemote(cfg *Config, id principal.Signer, receiptStore receiptstore.ReceiptStore) (*PDPService, error) {
-	api, err := client.New(cfg.PDPServerURL, client.WithBearerFromSigner(id))
-	if err != nil {
-		return nil, fmt.Errorf("creating PDP client api: %w", err)
-	}
-	agg, err := aggregator.NewLocal(cfg.PDPDatastore, cfg.DatabasePath, api, cfg.ProofSet, id, receiptStore)
-	if err != nil {
-		return nil, fmt.Errorf("creating aggregator: %w", err)
-	}
-	return &PDPService{
-		aggregator:  agg,
-		pieceFinder: piecefinder.New(api, cfg.PDPServerURL),
-		pieceAdder:  pieceadder.New(api, cfg.PDPServerURL),
-		pieceReader: piecereader.New(api, cfg.PDPServerURL),
-		startFuncs: []func(ctx context.Context) error{
-			func(ctx context.Context) error {
-				return agg.Startup(ctx)
+	panic("debt")
+	/*
+		api, err := client.New(cfg.PDPServerURL, client.WithBearerFromSigner(id))
+		if err != nil {
+			return nil, fmt.Errorf("creating PDP client api: %w", err)
+		}
+		agg, err := aggregator.NewLocal(cfg.PDPDatastore, cfg.DatabasePath, api, cfg.ProofSet, id, receiptStore)
+		if err != nil {
+			return nil, fmt.Errorf("creating aggregator: %w", err)
+		}
+		return &PDPService{
+			aggregator:  agg,
+			pieceFinder: piecefinder.New(api, cfg.PDPServerURL),
+			pieceAdder:  pieceadder.New(api, cfg.PDPServerURL),
+			pieceReader: piecereader.New(api, cfg.PDPServerURL),
+			startFuncs: []func(ctx context.Context) error{
+				func(ctx context.Context) error {
+					return agg.Startup(ctx)
+				},
 			},
-		},
-		closeFuncs: []func(context.Context) error{
-			func(ctx context.Context) error { agg.Shutdown(ctx); return nil },
-		},
-	}, nil
+			closeFuncs: []func(context.Context) error{
+				func(ctx context.Context) error { agg.Shutdown(ctx); return nil },
+			},
+		}, nil
+
+	*/
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
+	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/internal/ipldstore"
@@ -39,11 +40,13 @@ var Module = fx.Module("aggregator",
 			fx.As(fx.Self()),
 			fx.As(new(aggregator.LinkQueue)),
 		),
+		ProviderTaskQueue,
 	),
 
 	fx.Invoke(
 		RegisterPieceQueueJobs,
 		RegisterLinkQueueJobs,
+		RegisterTaskQueueJobs,
 	),
 )
 
@@ -86,6 +89,11 @@ func ProvideLinkQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQue
 	return linkQueue, nil
 }
 
+type TaskQueueParams struct {
+	fx.In
+	DB *sql.DB `name:"aggregator_db"`
+}
+
 func ProvidePieceQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQueue[piece.PieceLink], error) {
 	pieceQueue, err := aggregator.NewPieceQueue(params.DB)
 	if err != nil {
@@ -104,15 +112,55 @@ func ProvidePieceQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQu
 	return pieceQueue, nil
 }
 
+func ProviderTaskQueue(lc fx.Lifecycle, params TaskQueueParams) (*jobqueue.JobQueue[[]datamodel.Link], error) {
+	pieceQueue, err := jobqueue.New[[]datamodel.Link](
+		aggregator.PieceSubmitTask,
+		params.DB,
+		&serializer.IPLDCBOR[[]datamodel.Link]{
+			Typ:  aggregate.AggregatesType(),
+			Opts: types.Converters,
+		},
+		//jobqueue.WithLogger(log.With("queue", PieceQueueName)),
+		jobqueue.WithMaxRetries(50),
+		jobqueue.WithMaxWorkers(uint(1)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating piece_link job-queue: %w", err)
+	}
+	queueCtx, cancel := context.WithCancel(context.Background())
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return pieceQueue.Start(queueCtx)
+		},
+		OnStop: func(ctx context.Context) error {
+			cancel()
+			return pieceQueue.Stop(ctx)
+		},
+	})
+	return pieceQueue, nil
+
+}
+
 func RegisterLinkQueueJobs(lq *jobqueue.JobQueue[datamodel.Link], pa *aggregator.PieceAccepter, as *aggregator.AggregateSubmitter) error {
 	if err := lq.Register(aggregator.PieceAcceptTask, func(ctx context.Context, msg datamodel.Link) error {
 		return pa.AcceptPieces(ctx, []datamodel.Link{msg})
 	}); err != nil {
 		return fmt.Errorf("registering %s task: %w", aggregator.PieceAcceptTask, err)
 	}
+	/*
+		if err := lq.Register(aggregator.PieceSubmitTask, func(ctx context.Context, msg datamodel.Link) error {
+			return as.SubmitAggregates(ctx, []datamodel.Link{msg})
+		}); err != nil {
+			return fmt.Errorf("registering %s task: %w", aggregator.PieceSubmitTask, err)
+		}
 
-	if err := lq.Register(aggregator.PieceSubmitTask, func(ctx context.Context, msg datamodel.Link) error {
-		return as.SubmitAggregates(ctx, []datamodel.Link{msg})
+	*/
+	return nil
+}
+
+func RegisterTaskQueueJobs(tq *jobqueue.JobQueue[[]datamodel.Link], as *aggregator.AggregateSubmitter) error {
+	if err := tq.Register(aggregator.PieceSubmitTask, func(ctx context.Context, msg []datamodel.Link) error {
+		return as.SubmitAggregates(ctx, msg)
 	}); err != nil {
 		return fmt.Errorf("registering %s task: %w", aggregator.PieceSubmitTask, err)
 	}
