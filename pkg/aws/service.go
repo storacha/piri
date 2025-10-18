@@ -20,6 +20,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/ipni/go-libipni/maurl"
 	"github.com/multiformats/go-multiaddr"
+	publisherqueue "github.com/storacha/go-libstoracha/ipnipublisher/queue"
+	awspublisherqueue "github.com/storacha/go-libstoracha/ipnipublisher/queue/aws"
+	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/core/delegation"
@@ -29,8 +32,6 @@ import (
 	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
 	"github.com/storacha/go-ucanto/principal/signer"
 	"github.com/storacha/go-ucanto/validator"
-
-	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 
 	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/access"
@@ -152,6 +153,8 @@ type Config struct {
 	SQSPDPPieceAggregatorURL       string
 	SQSPDPAggregateSubmitterURL    string
 	SQSPDPPieceAccepterURL         string
+	SQSPublishingQueueID           string
+	PublishingBucket               string
 	PDPProofSet                    uint64
 	PDPServerURL                   string
 	PrincipalMapping               map[string]string
@@ -302,6 +305,8 @@ func FromEnv(ctx context.Context) Config {
 		SQSPDPPieceAggregatorURL:       os.Getenv("PIECE_AGGREGATOR_QUEUE_URL"),
 		SQSPDPAggregateSubmitterURL:    os.Getenv("AGGREGATE_SUBMITTER_QUEUE_URL"),
 		SQSPDPPieceAccepterURL:         os.Getenv("PIECE_ACCEPTER_QUEUE_URL"),
+		SQSPublishingQueueID:           mustGetEnv("IPNI_PUBLISHING_QUEUE_ID"),
+		PublishingBucket:               mustGetEnv("IPNI_PUBLISHING_BUCKET"),
 		PDPProofSet:                    proofSet,
 		PDPServerURL:                   os.Getenv("CURIO_URL"),
 		PrincipalMapping:               principalMapping,
@@ -369,10 +374,9 @@ func Construct(cfg Config) (storage.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("setting up receipt store: %w", err)
 	}
-	announceAddr, err := multiaddr.NewMultiaddr(cfg.IPNIPublisherAnnounceAddress)
-	if err != nil {
-		return nil, fmt.Errorf("parsing announce multiaddr: %w", err)
-	}
+
+	publishingQueue := awspublisherqueue.NewSQSPublishingQueue(cfg.Config, cfg.SQSPublishingQueueID, cfg.PublishingBucket)
+	queuePublisher := publisherqueue.NewQueuePublisher(publishingQueue)
 
 	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID})
 	if err != nil {
@@ -400,9 +404,8 @@ func Construct(cfg Config) (storage.Service, error) {
 		storage.WithAllocationStore(allocationStore),
 		storage.WithClaimStore(claimStore),
 		storage.WithPublisherStore(publisherStore),
+		storage.WithAsyncPublisher(queuePublisher),
 		storage.WithPublicURL(*pubURL),
-		storage.WithPublisherDirectAnnounce(cfg.IPNIAnnounceURLs...),
-		storage.WithPublisherAnnounceAddress(announceAddr),
 		storage.WithPublisherIndexingServiceConfig(indexingServiceDID, *indexingServiceURL),
 		storage.WithPublisherIndexingServiceProof(indexingServiceProofs...),
 		storage.WithReceiptStore(receiptStore),

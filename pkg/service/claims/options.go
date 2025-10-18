@@ -5,6 +5,7 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/storacha/go-libstoracha/ipnipublisher/publisher"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/transport/http"
@@ -12,6 +13,7 @@ import (
 )
 
 type options struct {
+	asyncPublisher        publisher.AsyncPublisher
 	announceAddr          multiaddr.Multiaddr
 	announceURLs          []url.URL
 	blobAddr              multiaddr.Multiaddr
@@ -20,6 +22,14 @@ type options struct {
 }
 
 type Option func(*options) error
+
+// WithAsyncPublisher configures the async publisher for IPNI advertisements (overrides any publisher specific config)
+func WithAsyncPublisher(p publisher.AsyncPublisher) Option {
+	return func(o *options) error {
+		o.asyncPublisher = p
+		return nil
+	}
+}
 
 // WithPublisherAnnounceAddress sets the address put into announce messages to
 // tell indexers where to fetch advertisements from.

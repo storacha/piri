@@ -101,3 +101,20 @@ resource "aws_s3_bucket" "aggregates_bucket" {
   count  = var.use_pdp ? 1 : 0
   bucket = "${terraform.workspace}-${var.app}-aggregates-bucket"
 }
+
+resource "aws_s3_bucket" "ipni_publisher" {
+  bucket = "${terraform.workspace}-${var.app}-ipni-publisher"
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "ipni_publisher_lifecycle" {
+  bucket = aws_s3_bucket.ipni_publisher.id
+
+  rule {
+    id     = "${terraform.workspace}-${var.app}-ipni-publisher-expire-all-rule"
+    status = "Enabled"
+
+    expiration {
+      days = 14
+    }
+  }
+}

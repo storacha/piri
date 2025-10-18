@@ -8,6 +8,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/storacha/go-libstoracha/ipnipublisher/publisher"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
@@ -36,6 +37,7 @@ type config struct {
 	allocationDatastore   datastore.Datastore
 	claimStore            claimstore.ClaimStore
 	claimDatastore        datastore.Datastore
+	asyncPublisher        publisher.AsyncPublisher
 	publisherStore        store.PublisherStore
 	publisherDatastore    datastore.Datastore
 	publisherAnnouceAddr  multiaddr.Multiaddr
@@ -154,6 +156,14 @@ func WithReceiptStore(receiptStore receiptstore.ReceiptStore) Option {
 func WithReceiptDatastore(dstore datastore.Datastore) Option {
 	return func(c *config) error {
 		c.receiptDatastore = dstore
+		return nil
+	}
+}
+
+// WithAsyncPublisher configures the async publisher for IPNI advertisements (overrides any publisher specific config)
+func WithAsyncPublisher(p publisher.AsyncPublisher) Option {
+	return func(c *config) error {
+		c.asyncPublisher = p
 		return nil
 	}
 }
