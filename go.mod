@@ -1,6 +1,6 @@
 module github.com/storacha/piri
 
-go 1.24.4
+go 1.25.3
 
 require (
 	github.com/BurntSushi/toml v1.4.0

@@ -1,4 +1,4 @@
-FROM golang:1.24-bullseye as build
+FROM golang:1.25.3-trixie as build
 
 WORKDIR /go/src/piri
 
