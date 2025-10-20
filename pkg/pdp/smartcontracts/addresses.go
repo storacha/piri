@@ -2,11 +2,14 @@ package smartcontracts
 
 import (
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/snadrus/must"
 )
+
+const FilecoinEpoch = 30 * time.Second
 
 // TODO this will either be mainnet or calibnet, currnet ID is calibnet
 // we could also pull this from the lotus clinet piri is configued with

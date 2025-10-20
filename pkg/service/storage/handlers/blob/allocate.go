@@ -112,6 +112,8 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 			}
 		} else {
 			// use pdp service upload
+			// TODO we need to provide backpressure to the upload service here
+			// based on the number of roots we are currently allocating.
 			urlP, err := s.PDP().PieceAdder().AddPiece(ctx, req.Blob.Digest, req.Blob.Size)
 			if err != nil {
 				log.Errorw("adding to pdp service", "error", err)

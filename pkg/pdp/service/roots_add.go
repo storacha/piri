@@ -16,6 +16,7 @@ import (
 	"github.com/ipfs/go-cid"
 	sha256simd "github.com/minio/sha256-simd"
 	"github.com/samber/lo"
+	"github.com/storacha/piri/pkg/pdp/tasks"
 	"gorm.io/gorm"
 
 	"github.com/storacha/filecoin-services/go/eip712"
@@ -25,7 +26,7 @@ import (
 )
 
 /*
- Race Condition in Parallel AddRoots Operations
+ Race Condition in Parallel AddRoots Operations https://github.com/storacha/piri/issues/293
 
   Contract Behavior
 
@@ -38,7 +39,7 @@ import (
 
   Signature Validation Flow
 
-  1. Client reads nextPieceId from contract (e.g., returns 7 after 7 pieces added)
+  1. Client reads nextPieceId from contract (e.g., returns 6 after 7 pieces added)
   2. Client signs message with firstAdded = 7
   3. Client submits transaction with signed data
   4. Contract validates signature expects firstAdded = nextPieceId
@@ -78,6 +79,8 @@ import (
   4. Queue-based: Process additions sequentially through a queue
 
 */
+
+// the above issue has been addressed by making this method block on transactions completion
 
 // REVIEW(forrest): this method assumes the cids in the request are PieceCIDV2
 // TODO we need to define non-retryable errors for the add root method, like lack of auth, and lack of dataset else this retries forever.
@@ -446,7 +449,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		return common.Hash{}, fmt.Errorf("failed to send transaction: %w", err)
 	}
 
-	// Step 9: Insert into message_waits_eth and pdp_proofset_roots
+	// Step 9: Insert into message_waits_eth and pdp_proofset_root_adds
 	if err := p.db.Transaction(func(tx *gorm.DB) error {
 		// Insert into message_waits_eth
 		mw := models.MessageWaitsEth{
@@ -491,6 +494,18 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		log.Errorw("Failed to insert into database", "error", err, "txHash", txHash.Hex(), "subroots", subrootInfoMap)
 		return common.Hash{}, fmt.Errorf("failed to insert into database: %w", err)
 	}
+
+	// Step 10: Wait for the transaction to be confirmed on chain
+	// This prevents the race condition where multiple parallel AddRoots calls
+	// all read the same nextPieceId but only one can succeed
+	waitDuration := (tasks.MinConfidence + 2) * smartcontracts.FilecoinEpoch
+	log.Infow("waiting for AddRoots transaction confirmation", "txHash", txHash.Hex(), "proofSetID", proofSetID, "waitDuration", waitDuration)
+	if err := p.WaitForConfirmation(ctx, txHash, waitDuration); err != nil {
+		log.Errorw("AddRoots transaction failed or timed out", "error", err, "txHash", txHash.Hex(), "proofSetID", proofSetID)
+		return txHash, fmt.Errorf("transaction %s failed or timed out: %w", txHash.Hex(), err)
+	}
+
+	log.Infow("AddRoots transaction confirmed successfully", "txHash", txHash.Hex(), "proofSetID", proofSetID)
 	return txHash, nil
 }
 
