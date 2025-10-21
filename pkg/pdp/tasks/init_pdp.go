@@ -185,7 +185,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 		"verifier_address", smartcontracts.Addresses().Verifier)
 
 	// Check if the data set has any leaves (pieces) before attempting to initialize proving period
-	leafCount, err := ipp.verifierContract.GetDataSetLeafCount(nil, big.NewInt(proofSetID))
+	leafCount, err := ipp.verifierContract.GetDataSetLeafCount(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get leaf count for data set %d: %w", proofSetID, err)
 	}
@@ -196,7 +196,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	}
 
 	lg.Debug("Querying data set listener address")
-	listenerAddr, err := ipp.verifierContract.GetDataSetListener(nil, big.NewInt(proofSetID))
+	listenerAddr, err := ipp.verifierContract.GetDataSetListener(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		lg.Errorw("Failed to get listener address for data set", "error", err)
 		return false, fmt.Errorf("failed to get listener address for data set %d: %w", proofSetID, err)
@@ -238,7 +238,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	)
 
 	lg.Debug("Getting data set storage provider")
-	fromAddress, _, err := ipp.verifierContract.GetDataSetStorageProvider(nil, big.NewInt(proofSetID))
+	fromAddress, _, err := ipp.verifierContract.GetDataSetStorageProvider(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		lg.Errorw("Failed to get data set storage provider address", "error", err)
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
