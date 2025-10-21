@@ -52,7 +52,7 @@ func doCreate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("creating pdp client: %w", err)
 	}
 
-	txHash, err := pdpClient.CreateProofSet(ctx, types.CreateProofSetParams{})
+	txHash, err := pdpClient.CreateProofSet(ctx)
 	if err != nil {
 		return fmt.Errorf("creating proofset: %w", err)
 	}

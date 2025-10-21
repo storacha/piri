@@ -137,14 +137,10 @@ func createAuthBearerTokenFromID(id principal.Signer) (string, error) {
 	return "Bearer " + tokenString, nil
 }
 
-func (c *Client) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (common.Hash, error) {
+func (c *Client) CreateProofSet(ctx context.Context) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath).String()
-	request := httpapi.CreateProofSetRequest{
-		RecordKeeper: params.RecordKeeper.String(),
-		ExtraData:    string(params.ExtraData),
-	}
 	// send request
-	res, err := c.postJson(ctx, route, request)
+	res, err := c.postJson(ctx, route, nil)
 	if err != nil {
 		return common.Hash{}, err
 	}

@@ -130,17 +130,6 @@ type PieceReader struct {
 	Data io.ReadCloser
 }
 
-type ExtraData string
-
-// Deprecated: delete me
-type CreateProofSetParams struct {
-	// Deprecated: delete me
-	RecordKeeper common.Address
-	// TODO remove
-	// Deprecated: delete me
-	ExtraData ExtraData
-}
-
 type RegisterProviderParams struct {
 	Name        string
 	Description string
@@ -194,7 +183,7 @@ const (
 )
 
 type ProofSetAPI interface {
-	CreateProofSet(ctx context.Context, params CreateProofSetParams) (common.Hash, error)
+	CreateProofSet(ctx context.Context) (common.Hash, error)
 	GetProofSetStatus(ctx context.Context, txHash common.Hash) (*ProofSetStatus, error)
 	GetProofSet(ctx context.Context, proofSetID uint64) (*ProofSet, error)
 	AddRoots(ctx context.Context, proofSetID uint64, roots []RootAdd) (common.Hash, error)

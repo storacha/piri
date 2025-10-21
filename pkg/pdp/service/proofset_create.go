@@ -11,7 +11,6 @@ import (
 	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 // TODO there are several things we should do here as a sanity check to avoid having a really bad time "debugging" shit:
@@ -24,13 +23,13 @@ import (
 // 4. the payer has deposited funds into the payment channel for the service contract to use
 // without these we get really unhelpful errors back *sobs*
 
-func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (res common.Hash, retErr error) {
-	log.Infow("creating proof set", "recordKeeper", params.RecordKeeper)
+func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retErr error) {
+	log.Infow("creating proof set")
 	defer func() {
 		if retErr != nil {
-			log.Errorw("failed to create proof set", "recordKeeper", params.RecordKeeper, "retErr", retErr)
+			log.Errorw("failed to create proof set", "error", retErr)
 		} else {
-			log.Infow("created proof set", "recordKeeper", params.RecordKeeper, "tx", res.String())
+			log.Infow("created proof set", "tx", res.String())
 		}
 	}()
 

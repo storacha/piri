@@ -6,10 +6,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
-	"github.com/storacha/piri/pkg/pdp/types"
-
 	"github.com/storacha/piri/pkg/pdp/httpapi"
+	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 )
 
 // echoHandleCreateProofSet -> POST /pdp/proof-sets
@@ -22,10 +20,9 @@ func (p *PDPHandler) handleCreateProofSet(c echo.Context) error {
 		return middleware.NewError(operation, "Invalid request body", err, http.StatusBadRequest)
 	}
 
-	txHash, err := p.Service.CreateProofSet(ctx, types.CreateProofSetParams{})
+	txHash, err := p.Service.CreateProofSet(ctx)
 	if err != nil {
 		return err
-		//return middleware.NewError(operation, "Failed to create proof set", err, http.StatusInternalServerError)
 	}
 
 	location := path.Join("/pdp/proof-sets/created", txHash.Hex())
