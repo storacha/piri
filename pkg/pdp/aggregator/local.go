@@ -26,6 +26,7 @@ import (
 var log = logging.Logger("pdp/aggregator")
 
 const WorkspaceKey = "workspace/"
+const ManagerKey = "manager/"
 const AggregatePrefix = "aggregates/"
 
 const (

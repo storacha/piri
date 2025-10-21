@@ -1,0 +1,5 @@
+type Aggregates struct {
+	Pending [Link]
+}
+
+type AggregateLinks [Link]
