@@ -39,13 +39,13 @@ var Module = fx.Module("aggregator",
 			fx.As(fx.Self()),
 			fx.As(new(aggregator.LinkQueue)),
 		),
-		aggregator.NewManager,
 	),
 
 	fx.Invoke(
 		RegisterPieceQueueJobs,
 		RegisterLinkQueueJobs,
 	),
+	aggregator.ManagerModule,
 )
 
 type StoreParams struct {
@@ -108,7 +108,6 @@ func ProvidePieceQueue(lc fx.Lifecycle, params LinkQueueParams) (*jobqueue.JobQu
 func RegisterLinkQueueJobs(
 	lq *jobqueue.JobQueue[datamodel.Link],
 	pa *aggregator.PieceAccepter,
-	as *aggregator.AggregateSubmitter,
 	m *aggregator.Manager,
 ) error {
 	if err := lq.Register(aggregator.PieceAcceptTask, func(ctx context.Context, msg datamodel.Link) error {
@@ -118,7 +117,7 @@ func RegisterLinkQueueJobs(
 	}
 
 	if err := lq.Register(aggregator.PieceSubmitTask, func(ctx context.Context, msg datamodel.Link) error {
-		return m.Submit(ctx, []datamodel.Link{msg})
+		return m.Submit(ctx, msg)
 	}); err != nil {
 		return fmt.Errorf("registering %s task: %w", aggregator.PieceSubmitTask, err)
 	}

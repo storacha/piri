@@ -4,88 +4,144 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/namespace"
 	"github.com/ipld/go-ipld-prime/datamodel"
-	types2 "github.com/storacha/go-libstoracha/capabilities/types"
-	"github.com/storacha/go-libstoracha/ipnipublisher/store"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
+	"github.com/raulk/clock"
+	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"go.uber.org/fx"
-	"golang.org/x/sync/semaphore"
-
 	"github.com/storacha/piri/pkg/pdp/types"
+	"go.uber.org/fx"
+
+	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 )
+
+// DefaultMaxBatchSizeBytes is the maximum size of batch.
+const (
+	// DefaultMaxBatchSizeBytes is the maximum number of pieces that may be submitted to be added as roots in a single operation
+	DefaultMaxBatchSizeBytes = 10
+	// DefaultPollInterval is the frequency the manager will flush its buffer to submit roots
+	DefaultPollInterval = 30 * time.Second
+	ManagerQueueName    = "manager"
+	ManagerTaskName     = "add_roots"
+)
+
+var ManagerModule = fx.Module("aggregator/manager",
+	fx.Provide(
+		NewManager,
+		NewSubmissionWorkspace,
+		NewAddRootsTaskHandler,
+		NewManagerQueue,
+	),
+)
+
+type ManagerQueueParams struct {
+	fx.In
+	DB *sql.DB `name:"aggregator_db"`
+}
+
+func NewManagerQueue(params ManagerQueueParams) (jobqueue.Service[[]datamodel.Link], error) {
+	managerQueue, err := jobqueue.New[[]datamodel.Link](
+		ManagerQueueName,
+		params.DB,
+		&serializer.IPLDCBOR[[]datamodel.Link]{
+			Typ:  bufferTS.TypeByName("AggregateLinks"),
+			Opts: captypes.Converters,
+		},
+		jobqueue.WithLogger(log.With("queue", ManagerQueueName)),
+		jobqueue.WithMaxRetries(50),
+		// NB: must remain one to keep submissions serial to AddRoots
+		jobqueue.WithMaxWorkers(uint(1)),
+		// wait for twice a filecoin epoch to submit
+		jobqueue.WithMaxTimeout(time.Minute),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating piece_link job-queue: %w", err)
+	}
+	// NB: queue lifecycle is handled by manager since it must register with queue before starting it
+	return managerQueue, nil
+}
+
+// TaskHandler is a function that processes a batch of aggregate links
+// It encapsulates the logic for how aggregates are submitted to the blockchain
+type TaskHandler interface {
+	Handle(ctx context.Context, links []datamodel.Link) error
+}
 
 // Manager handles batched submission of aggregates to the blockchain
 type Manager struct {
 	// input parameters
-	db       *sql.DB
-	api      types.ProofSetAPI
-	proofSet ProofSetIDProvider
-	store    AggregateStore
+	taskHandler TaskHandler
+	buffer      BufferStore
+	queue       jobqueue.Service[[]datamodel.Link]
 
-	// internal fields
-	buffer       BufferStore
+	// options
 	pollInterval time.Duration
-	sem          *semaphore.Weighted                  // Controls concurrent submissions
-	batchQueue   *jobqueue.JobQueue[[]datamodel.Link] // For queueing SuperAggregates
+	maxBatchSize int
+	clock        clock.Clock
+
+	// locking
+	submitMu sync.Mutex
 
 	// Lifecycle management
-	ctx    context.Context
-	cancel context.CancelFunc
-	done   chan struct{}
-
-	// Metrics
+	ctx     context.Context
+	cancel  context.CancelFunc
+	done    chan struct{}
+	running atomic.Bool
 }
 
 type ManagerParams struct {
 	fx.In
 
-	DB       *sql.DB `name:"aggregator_db"`
-	Api      types.ProofSetAPI
-	ProofSet ProofSetIDProvider
-	Store    AggregateStore
-	BufferDS datastore.Datastore `name:"aggregator_datastore"`
+	Queue       jobqueue.Service[[]datamodel.Link]
+	TaskHandler TaskHandler
+	Buffer      BufferStore
+	Options     []ManagerOption `optional:"true"`
+}
+
+type ManagerOption func(*Manager)
+
+func WithPollInterval(pollInterval time.Duration) ManagerOption {
+	return func(mgr *Manager) {
+		mgr.pollInterval = pollInterval
+	}
+}
+
+func WithMaxBatchSize(maxBatchSize int) ManagerOption {
+	return func(mgr *Manager) {
+		mgr.maxBatchSize = maxBatchSize
+	}
+}
+
+func WithClock(clock clock.Clock) ManagerOption {
+	return func(mgr *Manager) {
+		mgr.clock = clock
+	}
 }
 
 // NewManager creates a new submission manager
 func NewManager(lc fx.Lifecycle, params ManagerParams) (*Manager, error) {
-	batchQueue, err := jobqueue.New[[]datamodel.Link](
-		"aggregate_batch",
-		params.DB,
-		&serializer.IPLDCBOR[[]datamodel.Link]{
-			Typ:  bufferTS.TypeByName("AggregateLinks"),
-			Opts: types2.Converters,
-		},
-		jobqueue.WithLogger(log.With("queue", "aggregate_batch")),
-		jobqueue.WithMaxRetries(50),
-		// one worker to keep things serial
-		jobqueue.WithMaxWorkers(uint(1)),
-		// one filecoin epoch since this is wrongly running tasks, we need yet another queue.....
-		jobqueue.WithMaxTimeout(30*time.Second),
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &Manager{
-		api:      params.Api,
-		proofSet: params.ProofSet,
-		store:    params.Store,
+		taskHandler: params.TaskHandler,
+		buffer:      params.Buffer,
+		queue:       params.Queue,
 
-		buffer:       NewSubmissionWorkspace(store.SimpleStoreFromDatastore(namespace.Wrap(params.BufferDS, datastore.NewKey(ManagerKey)))),
-		pollInterval: 30 * time.Second,
-		sem:          semaphore.NewWeighted(1), // Allow only one concurrent submission
-		batchQueue:   batchQueue,
+		// can override with options
+		pollInterval: DefaultPollInterval,
+		maxBatchSize: DefaultMaxBatchSizeBytes,
+		clock:        clock.New(),
 
 		ctx:    ctx,
 		cancel: cancel,
 		done:   make(chan struct{}),
+	}
+
+	for _, opt := range params.Options {
+		opt(m)
 	}
 
 	lc.Append(fx.Hook{
@@ -101,17 +157,70 @@ func NewManager(lc fx.Lifecycle, params ManagerParams) (*Manager, error) {
 }
 
 // Submit adds aggregates to the buffer for submission
-func (m *Manager) Submit(ctx context.Context, aggregateLinks []datamodel.Link) error {
+func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) error {
+	if !m.running.Load() {
+		return fmt.Errorf("manager is stopped")
+	}
+	m.submitMu.Lock()
+	defer m.submitMu.Unlock()
 	// TODO return an error if manager is shutting down
 	if len(aggregateLinks) == 0 {
 		return nil
 	}
 
-	log.Infow("Buffering aggregates for submission", "new_count", len(aggregateLinks))
+	buffer, err := m.buffer.Aggregates(ctx)
+	if err != nil {
+		return fmt.Errorf("getting buffer: %w", err)
+	}
 
-	// Use atomic append operation
-	if err := m.buffer.AppendAggregates(ctx, aggregateLinks); err != nil {
-		return fmt.Errorf("appending aggregates: %w", err)
+	currentSize := len(buffer.Pending)
+	newSize := currentSize + len(aggregateLinks)
+
+	// If adding new aggregates would NOT exceed max, append and return
+	if newSize <= m.maxBatchSize {
+		log.Infow("Buffering aggregates for submission", "new_count", len(aggregateLinks), "new_size", newSize)
+		if err := m.buffer.AppendAggregates(ctx, aggregateLinks); err != nil {
+			return fmt.Errorf("appending aggregates: %w", err)
+		}
+		return nil
+	}
+
+	// Buffer would overflow, submit current buffer first
+	log.Infow("Buffer would exceed max size, triggering submission",
+		"current_size", currentSize,
+		"new_size", newSize,
+		"max_size", m.maxBatchSize)
+
+	// Block until current buffer is submitted and cleared
+	if err := m.doSubmit(buffer); err != nil {
+		return fmt.Errorf("triggering submission: %w", err)
+	}
+
+	// Process new aggregates in batches
+	remaining := aggregateLinks
+	for len(remaining) > 0 {
+		// Determine batch size
+		batchSize := m.maxBatchSize
+		if len(remaining) < batchSize {
+			batchSize = len(remaining)
+		}
+
+		batch := remaining[:batchSize]
+		remaining = remaining[batchSize:]
+
+		// If this is a full batch, submit immediately
+		if len(batch) == m.maxBatchSize {
+			log.Infow("Submitting full batch of aggregates", "count", len(batch))
+			if err := m.doSubmit(Aggregates{Pending: batch}); err != nil {
+				return fmt.Errorf("submitting batch: %w", err)
+			}
+		} else {
+			// Partial batch, add to buffer
+			log.Infow("Buffering remaining aggregates", "count", len(batch))
+			if err := m.buffer.AppendAggregates(ctx, batch); err != nil {
+				return fmt.Errorf("appending remaining aggregates: %w", err)
+			}
+		}
 	}
 
 	return nil
@@ -119,53 +228,16 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks []datamodel.Link) e
 
 // Start begins background processing
 func (m *Manager) Start() error {
+	m.running.Store(true)
 	log.Info("Starting submission manager")
 
-	if err := m.batchQueue.Register("submit_roots", func(ctx context.Context, links []datamodel.Link) error {
-		proofSetID, err := m.proofSet.ProofSetID(ctx)
-		if err != nil {
-			return fmt.Errorf("getting proof set ID from proof set provider: %w", err)
-		}
-		// build the set of roots we will add
-		// TODO we should be de-deduplicating roots here as is done in add_roots already of pdp service
-		roots := make([]types.RootAdd, len(links))
-		for i, aggregateLink := range links {
-			// fetch each aggregate to submit
-			a, err := m.store.Get(ctx, aggregateLink)
-			if err != nil {
-				return fmt.Errorf("reading aggregates: %w", err)
-			}
-			// record its root
-			rootCID, err := cid.Decode(a.Root.Link().String())
-			if err != nil {
-				return fmt.Errorf("failed to decode aggregate root CID: %w", err)
-			}
-			// subroots
-			subRoots := make([]cid.Cid, len(a.Pieces))
-			for j, p := range a.Pieces {
-				pcid, err := cid.Decode(p.Link.Link().String())
-				if err != nil {
-					return fmt.Errorf("failed to decode piece CID: %w", err)
-				}
-				subRoots[j] = pcid
-			}
-			roots[i] = types.RootAdd{
-				Root:     rootCID,
-				SubRoots: subRoots,
-			}
-		}
-		txHash, err := m.api.AddRoots(ctx, proofSetID, roots)
-		if err != nil {
-			return fmt.Errorf("adding roots: %w", err)
-		}
-		log.Infow("added roots", "count", len(roots), "tx", txHash)
-		return nil
-	}); err != nil {
+	// Register the injected task handler with the queue
+	if err := m.queue.Register(ManagerTaskName, m.taskHandler.Handle); err != nil {
 		return fmt.Errorf("failed to register batch queue submit_roots task: %w", err)
 	}
 
 	// queue handles context internally
-	if err := m.batchQueue.Start(context.Background()); err != nil {
+	if err := m.queue.Start(context.Background()); err != nil {
 		return fmt.Errorf("failed to start batch queue: %w", err)
 	}
 
@@ -175,25 +247,14 @@ func (m *Manager) Start() error {
 
 // Stop gracefully shuts down the manager
 func (m *Manager) Stop(ctx context.Context) error {
+	m.running.Store(false)
 	log.Info("Stopping submission manager")
 	// close processLoop, preventing new attempts to submit batches to queue
 	m.cancel()
 
-	// close the batchQueue, further preventing new queued submissions from starting execution
-	if err := m.batchQueue.Stop(ctx); err != nil {
+	// close the queue, further preventing new queued submissions from starting execution
+	if err := m.queue.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop batch queue: %w", err)
-	}
-
-	// TODO: consider if we can attempt to aquire semaphore and stop the queue in parallel.
-	// The stop call above on the queue will block until active tasks complete.
-
-	// TODO this feels optional? given above cancel and queue stoppage
-	// Try to acquire semaphore to ensure no submission is in progress
-	if err := m.sem.Acquire(ctx, 1); err == nil {
-		// Got semaphore, no submission in progress
-		m.sem.Release(1)
-	} else {
-		log.Warnw("Submission still in progress during shutdown", "error", err)
 	}
 
 	// Wait for processLoop to exit
@@ -211,7 +272,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 func (m *Manager) processLoop() {
 	defer close(m.done)
 
-	ticker := time.NewTicker(m.pollInterval)
+	ticker := m.clock.Ticker(m.pollInterval)
 	defer ticker.Stop()
 
 	log.Infow("Starting submission process loop", "poll_interval", m.pollInterval)
@@ -221,35 +282,30 @@ func (m *Manager) processLoop() {
 		case <-m.ctx.Done():
 			log.Info("Process loop exiting due to context cancellation")
 			return
+
 		case <-ticker.C:
-			if err := m.attemptSubmission(); err != nil {
-				log.Errorw("Process loop failed to process submission", "error", err)
+			m.submitMu.Lock()
+			aggregates, err := m.buffer.Aggregates(m.ctx)
+			if err == nil {
+				if err := m.doSubmit(aggregates); err != nil {
+					log.Errorw("Process loop failed to process submission", "error", err)
+				}
+			} else {
+				log.Errorw("Error getting buffered aggregates for submit", "error", err)
 			}
+			m.submitMu.Unlock()
 		}
 	}
 }
 
-// attemptSubmission tries to submit if there's work and no submission in progress
-func (m *Manager) attemptSubmission() error {
-	// Try to acquire semaphore (non-blocking)
-	if !m.sem.TryAcquire(1) {
-		// Submission already in progress, non-error: try again next pollInterval
-		return nil
-	}
-	// we got a slot to submit, proceed
-	defer m.sem.Release(1)
-
-	// get the current buffered aggregates
-	aggregates, err := m.buffer.Aggregates(m.ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get aggregates: %w", err)
-	}
-	bufferSize := len(aggregates.Pending)
-
+// doSubmit tries to submit if there's work and no submission in progress
+func (m *Manager) doSubmit(aggregates Aggregates) error {
 	if len(aggregates.Pending) == 0 {
 		// Nothing to submit, non-error: try again next pollInterval
 		return nil
 	}
+
+	log.Infow("Starting aggregates batch submission", "count", len(aggregates.Pending))
 
 	// TODO: we __really__ need enqueue and clear to be atomic, else we may re-enqueue
 	// roots we have already queued if clear fails, which should be rare, but can result
@@ -259,9 +315,7 @@ func (m *Manager) attemptSubmission() error {
 	// before submitting
 	// or 2. the signing service should reject signing data that has already been added.
 	// if either 1. or 2. are implemented, the task fill eventually leave the queue, moving to deadletter
-	log.Infow("Starting aggregates batch submission", "count", bufferSize)
-	// enqueue buffered aggregates to submission to PDP service
-	if err := m.batchQueue.Enqueue(m.ctx, "submit_roots", aggregates.Pending); err != nil {
+	if err := m.queue.Enqueue(m.ctx, ManagerTaskName, aggregates.Pending); err != nil {
 		return fmt.Errorf("failed to enqueue batch submission roots: %w", err)
 	}
 
@@ -270,5 +324,68 @@ func (m *Manager) attemptSubmission() error {
 		return fmt.Errorf("failed to clear batch submission roots: %w", err)
 	}
 
+	return nil
+}
+
+// NewAddRootsTaskHandler creates a TaskHandler that submits aggregate roots to the blockchain
+// This factory function encapsulates the API dependencies needed for the task
+func NewAddRootsTaskHandler(
+	api types.ProofSetAPI,
+	proofSet ProofSetIDProvider,
+	store AggregateStore,
+) TaskHandler {
+	return &AddRootsTaskHandler{
+		api:      api,
+		proofSet: proofSet,
+		store:    store,
+	}
+}
+
+type AddRootsTaskHandler struct {
+	api      types.ProofSetAPI
+	proofSet ProofSetIDProvider
+	store    AggregateStore
+}
+
+func (a *AddRootsTaskHandler) Handle(ctx context.Context, links []datamodel.Link) error {
+	proofSetID, err := a.proofSet.ProofSetID(ctx)
+	if err != nil {
+		return fmt.Errorf("getting proof set ID from proof set provider: %w", err)
+	}
+
+	// build the set of roots we will add
+	// TODO we should be de-deduplicating roots here as is done in add_roots already of pdp service
+	roots := make([]types.RootAdd, len(links))
+	for i, aggregateLink := range links {
+		// fetch each aggregate to submit
+		a, err := a.store.Get(ctx, aggregateLink)
+		if err != nil {
+			return fmt.Errorf("reading aggregates: %w", err)
+		}
+		// record its root
+		rootCID, err := cid.Decode(a.Root.Link().String())
+		if err != nil {
+			return fmt.Errorf("failed to decode aggregate root CID: %w", err)
+		}
+		// subroots
+		subRoots := make([]cid.Cid, len(a.Pieces))
+		for j, p := range a.Pieces {
+			pcid, err := cid.Decode(p.Link.Link().String())
+			if err != nil {
+				return fmt.Errorf("failed to decode piece CID: %w", err)
+			}
+			subRoots[j] = pcid
+		}
+		roots[i] = types.RootAdd{
+			Root:     rootCID,
+			SubRoots: subRoots,
+		}
+	}
+
+	txHash, err := a.api.AddRoots(ctx, proofSetID, roots)
+	if err != nil {
+		return fmt.Errorf("adding roots: %w", err)
+	}
+	log.Infow("added roots", "count", len(roots), "tx", txHash)
 	return nil
 }

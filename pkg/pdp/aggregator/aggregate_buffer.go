@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/namespace"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/schema"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
+	"go.uber.org/fx"
 
 	"github.com/storacha/piri/internal/ipldstore"
 )
@@ -38,7 +41,6 @@ type BufferStore interface {
 	Aggregates(context.Context) (Aggregates, error)
 	AppendAggregates(context.Context, []datamodel.Link) error
 	ClearAggregates(context.Context) error
-	NumAggregates(context.Context) (int, error)
 }
 
 // aggBufferKey is used as the single key for storing submission state
@@ -51,46 +53,54 @@ type submissionWorkspace struct {
 	store   ipldstore.KVStore[aggBufferKey, Aggregates]
 }
 
+type SubmissionWorkspaceParams struct {
+	fx.In
+	Datastore datastore.Datastore `name:"aggregator_datastore"`
+}
+
+const ManagerKey = "manager/"
+
 // NewSubmissionWorkspace creates a new submission workspace backed by the provided store
-func NewSubmissionWorkspace(store store.SimpleStore) BufferStore {
-	return &submissionWorkspace{
+func NewSubmissionWorkspace(params SubmissionWorkspaceParams) (BufferStore, error) {
+	ss := store.SimpleStoreFromDatastore(namespace.Wrap(params.Datastore, datastore.NewKey(ManagerKey)))
+	sw := &submissionWorkspace{
 		store: ipldstore.IPLDStore[aggBufferKey, Aggregates](
-			store,
+			ss,
 			bufferTS.TypeByName("Aggregates"),
 			types.Converters...,
 		),
 	}
+
+	// Initialize empty buffer at creation time to avoid race conditions
+	// and side effects in read operations
+	ctx := context.Background()
+	emptyBuffer := Aggregates{
+		Pending: []datamodel.Link{},
+	}
+	err := sw.store.Put(ctx, aggBufferKey{}, emptyBuffer)
+	if err != nil {
+		return nil, fmt.Errorf("putting empty buffer: %w", err)
+	}
+
+	return sw, nil
 }
 
-// GetBuffer retrieves the current submission buffer state
+// Aggregates retrieves the current submission buffer state
 func (sw *submissionWorkspace) Aggregates(ctx context.Context) (Aggregates, error) {
+	sw.storeMu.RLock()
+	defer sw.storeMu.RUnlock()
+
 	buf, err := sw.store.Get(ctx, aggBufferKey{})
-	if store.IsNotFound(err) {
-		// Initialize empty buffer
-		emptyBuffer := Aggregates{
-			Pending: []datamodel.Link{},
-		}
-		if err := sw.store.Put(ctx, aggBufferKey{}, emptyBuffer); err != nil {
-			return emptyBuffer, fmt.Errorf("initializing submission buffer: %w", err)
-		}
-		return emptyBuffer, nil
-	}
 	if err != nil {
+		// If not found, return empty aggregates (should not happen after initialization)
+		if store.IsNotFound(err) {
+			return Aggregates{
+				Pending: []datamodel.Link{},
+			}, nil
+		}
 		return Aggregates{}, fmt.Errorf("reading submission buffer: %w", err)
 	}
 	return buf, nil
-}
-
-// PutBuffer updates the submission buffer state
-func (sw *submissionWorkspace) writeBuffer(ctx context.Context, buffer Aggregates) error {
-	return sw.store.Put(ctx, aggBufferKey{}, buffer)
-}
-
-// ClearBuffer resets the submission buffer to empty state
-func (sw *submissionWorkspace) ClearBuffer(ctx context.Context) error {
-	return sw.store.Put(ctx, aggBufferKey{}, Aggregates{
-		Pending: []datamodel.Link{},
-	})
 }
 
 // AppendAggregates atomically appends new aggregates to the buffer
@@ -99,14 +109,18 @@ func (sw *submissionWorkspace) AppendAggregates(ctx context.Context, aggregates 
 		return nil
 	}
 
-	buffer, err := sw.Aggregates(ctx)
+	sw.storeMu.Lock()
+	defer sw.storeMu.Unlock()
+
+	buffer, err := sw.store.Get(ctx, aggBufferKey{})
 	if err != nil {
 		return fmt.Errorf("getting buffer for append: %w", err)
+	} else {
+		// Append to existing buffer
+		buffer.Pending = append(buffer.Pending, aggregates...)
 	}
 
-	buffer.Pending = append(buffer.Pending, aggregates...)
-
-	if err := sw.writeBuffer(ctx, buffer); err != nil {
+	if err := sw.store.Put(ctx, aggBufferKey{}, buffer); err != nil {
 		return fmt.Errorf("saving buffer after append: %w", err)
 	}
 
@@ -115,20 +129,15 @@ func (sw *submissionWorkspace) AppendAggregates(ctx context.Context, aggregates 
 
 // ClearAggregates atomically clears the pending aggregates while preserving other state
 func (sw *submissionWorkspace) ClearAggregates(ctx context.Context) error {
+	sw.storeMu.Lock()
+	defer sw.storeMu.Unlock()
+
 	return sw.store.Put(ctx, aggBufferKey{}, Aggregates{
 		Pending: []datamodel.Link{},
 	})
 }
 
-// BufferSize returns the number of pending aggregates without loading full buffer data
-func (sw *submissionWorkspace) NumAggregates(ctx context.Context) (int, error) {
-	buffer, err := sw.Aggregates(ctx)
-	if err != nil {
-		if store.IsNotFound(err) {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("getting buffer size: %w", err)
-	}
-
-	return len(buffer.Pending), nil
+// PutBuffer updates the submission buffer state
+func (sw *submissionWorkspace) writeBuffer(ctx context.Context, buffer Aggregates) error {
+	return sw.store.Put(ctx, aggBufferKey{}, buffer)
 }
