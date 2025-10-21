@@ -170,6 +170,9 @@ func TestManagerSubmit(t *testing.T) {
 
 		// advance clock one poll interval
 		tClock.Add(aggregator.DefaultPollInterval)
+		// we need to let that processing trigger
+		time.Sleep(500 * time.Millisecond)
+
 		aggs, err = buffer.Aggregates(t.Context())
 		require.NoError(t, err)
 		require.Len(t, aggs.Pending, 0)
@@ -206,6 +209,8 @@ func TestManagerSubmit(t *testing.T) {
 
 		// advance clock, should spawn task
 		tClock.Add(aggregator.DefaultPollInterval)
+		// we need to let that processing trigger
+		time.Sleep(500 * time.Millisecond)
 
 		aggs, err = buffer.Aggregates(t.Context())
 		require.NoError(t, err)
@@ -599,7 +604,11 @@ func TestManagerLongRunningStress(t *testing.T) {
 		processingTicker := time.NewTicker(100 * time.Millisecond)
 		defer processingTicker.Stop()
 
+		// Use separate wait group for clock goroutine to avoid data race
+		var clockWg sync.WaitGroup
+		clockWg.Add(1)
 		go func() {
+			defer clockWg.Done()
 			for {
 				select {
 				case <-stop:
@@ -616,6 +625,7 @@ func TestManagerLongRunningStress(t *testing.T) {
 		// Stop submissions
 		close(stop)
 		wg.Wait()
+		clockWg.Wait() // Wait for clock goroutine to fully exit before calling tClock.Add()
 
 		// Final processing
 		tClock.Add(50 * time.Millisecond)

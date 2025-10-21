@@ -163,7 +163,6 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 	}
 	m.submitMu.Lock()
 	defer m.submitMu.Unlock()
-	// TODO return an error if manager is shutting down
 	if len(aggregateLinks) == 0 {
 		return nil
 	}
