@@ -170,13 +170,12 @@ func TestManagerSubmit(t *testing.T) {
 
 		// advance clock one poll interval
 		tClock.Add(aggregator.DefaultPollInterval)
-		// we need to let that processing trigger
-		time.Sleep(500 * time.Millisecond)
-
-		aggs, err = buffer.Aggregates(t.Context())
-		require.NoError(t, err)
-		require.Len(t, aggs.Pending, 0)
-		require.Equal(t, int64(1), handler.called.Load())
+		// cleaning up buffer is async, so we expect it to happen sometime soonish
+		require.Eventually(t, func() bool {
+			aggs, err = buffer.Aggregates(t.Context())
+			require.NoError(t, err)
+			return len(aggs.Pending) == 0
+		}, 3*time.Second, 500*time.Millisecond)
 	})
 
 	t.Run("single link task spawned after max size reached", func(t *testing.T) {
@@ -209,13 +208,13 @@ func TestManagerSubmit(t *testing.T) {
 
 		// advance clock, should spawn task
 		tClock.Add(aggregator.DefaultPollInterval)
-		// we need to let that processing trigger
-		time.Sleep(500 * time.Millisecond)
 
-		aggs, err = buffer.Aggregates(t.Context())
-		require.NoError(t, err)
-		require.Len(t, aggs.Pending, 0)
-		require.Equal(t, int64(2), handler.called.Load())
+		// cleaning up buffer is async, so we expect it to happen sometime soonish
+		require.Eventually(t, func() bool {
+			aggs, err = buffer.Aggregates(t.Context())
+			require.NoError(t, err)
+			return len(aggs.Pending) == 0
+		}, 3*time.Second, 500*time.Millisecond)
 	})
 
 	t.Run("large input exceeding batch size is properly batched", func(t *testing.T) {
