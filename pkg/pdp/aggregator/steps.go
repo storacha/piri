@@ -143,6 +143,18 @@ func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLin
 		}
 		aggregates = append(aggregates, aggregate)
 	}
+	// TODO this call will block until the transaction is confirmed on-chain.
+	// in the event it blocking whe should consider buffering the aggregates being added
+	// into a single add root call. Otherwise time scales linearly here with roots to add.
+	// Sadly, all this queue logic sends one root per aggregated piece, there is room
+	// to improve here, we should instead try and batch as many add root calls as we can into one in order to save gas
+	// Imagine this case:
+	// 1. User adds 256 MiB of data, it gets aggregated, and we beging adding a root, blocking till conformation is received
+	// 2. User adds N*256Mib of data shortly after 1., currently we block and add each aggregate (with one root) sequentially
+	// 3. Instead, we begin buffering aggregates into a single addRoot call that goes through once 1. is complete
+	// This should help with burst workflows. Continuous trickles of data will be challenging, we can improve there with
+	// a time based buffer. Performance here comes down to how we expect this network to be used, idk if we'll be
+	// adding data in bursts, or as a trickle, or both?
 	if err := fns.SubmitAggregates(ctx, as.client, proofSetID, aggregates); err != nil {
 		return fmt.Errorf("submitting aggregates to Curio: %w", err)
 	}

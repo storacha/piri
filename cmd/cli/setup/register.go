@@ -24,7 +24,6 @@ import (
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/wallet"
 
@@ -239,15 +238,7 @@ func setupProofSet(ctx context.Context, cmd *cobra.Command, pdpSvc *service.PDPS
 
 	// Create new proof set
 	cmd.PrintErrln("📝 Creating new proof set...")
-	tx, err := pdpSvc.CreateProofSet(ctx, types.CreateProofSetParams{
-		RecordKeeper: contractAddress,
-		// TODO unsure what data goes here, I think something like this:
-		//  - payer (address): The client who will pay for storage
-		//  - metadataKeys (string[]): Array of metadata keys
-		//  - metadataValues (string[]): Array of metadata values
-		//  - signature (bytes): EIP-712 signature proving the payer authorized the creation
-		ExtraData: "",
-	})
+	tx, err := pdpSvc.CreateProofSet(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("creating proof set: %w", err)
 	}

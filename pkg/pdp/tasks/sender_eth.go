@@ -2,13 +2,17 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/storacha/filecoin-services/go/evmerrors"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 	"gorm.io/gorm"
@@ -26,10 +30,10 @@ var _ scheduler.TaskInterface = &SendTaskETH{}
 
 type SenderETHClient interface {
 	NetworkID(ctx context.Context) (*big.Int, error)
-	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*ethtypes.Header, error)
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
-	SendTransaction(ctx context.Context, transaction *types.Transaction) error
+	SendTransaction(ctx context.Context, transaction *ethtypes.Transaction) error
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
 }
 
@@ -56,7 +60,7 @@ func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB) (*S
 	}, st
 }
 
-func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *types.Transaction, reason string) (common.Hash, error) {
+func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *ethtypes.Transaction, reason string) (common.Hash, error) {
 	// Ensure the transaction has zero nonce; it will be assigned during send task
 	if tx.Nonce() != 0 {
 		return common.Hash{}, xerrors.Errorf("Send expects transaction nonce to be 0, was %d", tx.Nonce())
@@ -73,6 +77,20 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *ty
 
 		gasLimit, err := s.client.EstimateGas(ctx, msg)
 		if err != nil {
+			// Try to parse contract revert error
+			// otherwise we get a bunch of hex and glhf trying to read that
+			var dataErr rpc.DataError
+			if errors.As(err, &dataErr) {
+				// TODO this will panic if ErrorData is empty, meaning there was no vm error and just a straight revert
+				if dataErr.ErrorData() != nil {
+					if parsedErr, failure := evmerrors.ParseRevert(dataErr.ErrorData().(string)); failure == nil {
+						log.Errorw("parsed contract revert during gas estimation", "error", parsedErr)
+						return common.Hash{}, types.NewError(types.KindInvalidInput, parsedErr.Error())
+					} else {
+						log.Warnw("failed to parse revert during gas estimation", "parse_error", failure, "original_error", err)
+					}
+				}
+			}
 			return common.Hash{}, fmt.Errorf("failed to estimate gas: %w", err)
 		}
 		if gasLimit == 0 {
@@ -105,7 +123,7 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *ty
 		}
 
 		// Create a new transaction with estimated gas limit and fee caps
-		tx = types.NewTx(&types.DynamicFeeTx{
+		tx = ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 			ChainID:   chainID,
 			Nonce:     0, // nonce will be set later
 			GasFeeCap: gasFeeCap,
@@ -217,7 +235,7 @@ func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
 	}
 
 	// Deserialize the unsigned transaction
-	tx := new(types.Transaction)
+	tx := new(ethtypes.Transaction)
 	err = tx.UnmarshalBinary(dbTx.UnsignedTx)
 	if err != nil {
 		return false, xerrors.Errorf("unmarshaling unsigned transaction: %w", err)
@@ -272,7 +290,7 @@ func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
 		}
 	}()
 
-	var signedTx *types.Transaction
+	var signedTx *ethtypes.Transaction
 
 	if dbTx.Nonce == nil {
 		// Get the latest nonce
@@ -296,7 +314,7 @@ func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
 		}
 
 		// Update the transaction with the assigned nonce
-		tx = types.NewTransaction(assignedNonce, *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), tx.Data())
+		tx = ethtypes.NewTransaction(assignedNonce, *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), tx.Data())
 
 		// Sign the transaction
 		signedTx, err = s.signTransaction(ctx, fromAddress, tx)
@@ -327,7 +345,7 @@ func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
 	} else {
 		// Transaction was previously signed but possibly failed to send
 		// Deserialize the signed transaction
-		signedTx = new(types.Transaction)
+		signedTx = new(ethtypes.Transaction)
 		err = signedTx.UnmarshalBinary(dbTx.SignedTx)
 		if err != nil {
 			return false, xerrors.Errorf("unmarshaling signed transaction: %w", err)
@@ -358,7 +376,7 @@ func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
 	return true, nil
 }
 
-func (s *SendTaskETH) signTransaction(ctx context.Context, fromAddress common.Address, tx *types.Transaction) (*types.Transaction, error) {
+func (s *SendTaskETH) signTransaction(ctx context.Context, fromAddress common.Address, tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	// Get the chain ID
 	chainID, err := s.client.NetworkID(ctx)
 	if err != nil {
@@ -366,7 +384,7 @@ func (s *SendTaskETH) signTransaction(ctx context.Context, fromAddress common.Ad
 	}
 
 	// Sign the transaction with our wallet
-	signer := types.LatestSignerForChainID(chainID)
+	signer := ethtypes.LatestSignerForChainID(chainID)
 	signedTx, err := s.wallet.SignTransaction(ctx, fromAddress, signer, tx)
 	if err != nil {
 		return nil, xerrors.Errorf("signing transaction: %w", err)

@@ -2,59 +2,81 @@ package service
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
+	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (res common.Hash, retErr error) {
-	log.Infow("creating proof set", "recordKeeper", params.RecordKeeper)
+// TODO there are several things we should do here as a sanity check to avoid having a really bad time "debugging" shit:
+// 1. Check if the provider attempting to create a proof is a. register and b. approved (we do this)
+// 2. Check that the payer has deposited funds in the contract, this might be hard...
+// In order for this operation to succeed the following must be true:
+// 1. This node has registered with the contract
+// 2. the contract owner has approved this node
+// 3. the payer has authorized the service contract to act on its behalf
+// 4. the payer has deposited funds into the payment channel for the service contract to use
+// without these we get really unhelpful errors back *sobs*
+
+func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retErr error) {
+	log.Infow("creating proof set")
 	defer func() {
 		if retErr != nil {
-			log.Errorw("failed to create proof set", "recordKeeper", params.RecordKeeper, "retErr", retErr)
+			log.Errorw("failed to create proof set", "error", retErr)
 		} else {
-			log.Infow("created proof set", "recordKeeper", params.RecordKeeper, "tx", res.String())
+			log.Infow("created proof set", "tx", res.String())
 		}
 	}()
-	if len(params.RecordKeeper.Bytes()) == 0 {
-		return common.Hash{}, types.NewError(types.KindInvalidInput, "record keeper is required")
-	}
-	if !common.IsHexAddress(params.RecordKeeper.Hex()) {
-		return common.Hash{}, types.NewErrorf(types.KindInvalidInput, "record keeper %s is not a valid address", params.RecordKeeper)
+
+	// Check if the provider is both registered and approved
+	if err := p.RequireProviderApproved(ctx); err != nil {
+		return common.Hash{}, err
 	}
 
-	// Decode extraData if provided
-	var extraDataBytes []byte
-	if params.ExtraData != "" {
-		extraDataHexStr := string(params.ExtraData)
-		decodedBytes, err := hex.DecodeString(strings.TrimPrefix(extraDataHexStr, "0x"))
-		if err != nil {
-			log.Errorf("Failed to decode hex extraData: %v", err)
-			return common.Hash{}, types.WrapError(types.KindInvalidInput,
-				fmt.Sprintf("invalid extraData format: %s (must be hex encoded)", params.ExtraData),
-				err)
-		}
-		extraDataBytes = decodedBytes
+	// Get the next client dataset ID for this payer, each payer has their own ID, which is different from the data set ID
+	nextClientDataSetId, err := p.serviceContract.GetNextClientDataSetId(ctx, smartcontracts.PayerAddress)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to get next client dataset ID: %w", err)
+	}
+	log.Infof("Next client dataset ID for payer %s: %s", smartcontracts.PayerAddress, nextClientDataSetId)
+
+	// TODO: limit, or remove the extra data that can be provided to this method
+	// the caller of this will be the operator, we could encode a did here or something
+	var metadataEntries []eip712.MetadataEntry
+	// request a signature for creating the dataset from the signing service
+	signature, err := p.signingService.SignCreateDataSet(ctx,
+		nextClientDataSetId,
+		p.address, // Use the nodes address as the address receiving payment for storage
+		metadataEntries,
+	)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to sign CreateDataSet: %w", err)
+	}
+
+	// Encode the extraData with payer, metadata, and signature
+	extraDataBytes, err := p.edc.EncodeCreateDataSetExtraData(
+		smartcontracts.PayerAddress,
+		nextClientDataSetId,
+		metadataEntries,
+		signature,
+	)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to encode extraData: %w", err)
 	}
 
 	// Obtain the ABI of the PDPVerifier contract
-	abiData, err := smartcontracts.PDPVerifierMetaData()
+	abiData, err := p.verifierContract.GetABI()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to get contract ABI: %w", err)
 	}
 
-	// Pack the method call data
-	// TODO(forrest): we are using an empty address for the record keeper right now, but when we integrate with a service
-	// contract soon, we'll want to use its address instead
-	data, err := abiData.Pack("createDataSet", common.Address{}, extraDataBytes)
+	// Pack the method call data with listener address and extraData
+	data, err := abiData.Pack("createDataSet", smartcontracts.Addresses().Service, extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack create proof set: %w", err)
 	}
@@ -62,7 +84,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	tx := ethtypes.NewTransaction(
 		0,
-		smartcontracts.Addresses().PDPVerifier,
+		smartcontracts.Addresses().Verifier,
 		smartcontracts.SybilFee(),
 		0,
 		nil,
@@ -87,7 +109,6 @@ func (p *PDPService) CreateProofSet(ctx context.Context, params types.CreateProo
 		proofsetCreate := models.PDPProofsetCreate{
 			CreateMessageHash: txHash.Hex(),
 			Service:           p.name,
-			// ProofsetCreated defaults to false, and Ok is nil by default.
 		}
 		if err := tx.Create(&proofsetCreate).Error; err != nil {
 			return fmt.Errorf("failed to insert into %s: %w", proofsetCreate.TableName(), err)

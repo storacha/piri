@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/schema"
@@ -25,7 +26,10 @@ func NewLinkQueue(db *sql.DB) (*jobqueue.JobQueue[datamodel.Link], error) {
 		},
 		jobqueue.WithLogger(log.With("queue", LinkQueueName)),
 		jobqueue.WithMaxRetries(50),
-		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
+		// one worker to keep things serial
+		jobqueue.WithMaxWorkers(uint(1)),
+		// one filecoin epoch since this is wrongly running tasks, we need yet another queue.....
+		jobqueue.WithMaxTimeout(30*time.Second),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating link job-queue: %w", err)

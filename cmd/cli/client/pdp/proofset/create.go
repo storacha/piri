@@ -30,7 +30,7 @@ func init() {
 		"",
 		"Hex Address of the PDP Contract Record Keeper (Service Contract)",
 	)
-	cobra.CheckErr(CreateCmd.MarkFlagRequired("record-keeper"))
+	cobra.CheckErr(CreateCmd.Flags().MarkDeprecated("record-keeper", "record keeper is no longer used"))
 
 	CreateCmd.Flags().Bool(
 		"wait",
@@ -52,23 +52,7 @@ func doCreate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("creating pdp client: %w", err)
 	}
 
-	recordKeeper, err := cmd.Flags().GetString("record-keeper")
-	if err != nil {
-		return fmt.Errorf("loading record-keeper: %w", err)
-	}
-	if !common.IsHexAddress(recordKeeper) {
-		return fmt.Errorf("record keeper address (%s) is invalid", recordKeeper)
-	}
-
-	txHash, err := pdpClient.CreateProofSet(ctx, types.CreateProofSetParams{
-		RecordKeeper: common.HexToAddress(recordKeeper),
-		// TODO unsure what data goes here, I think something like this:
-		//  - payer (address): The client who will pay for storage
-		//  - metadataKeys (string[]): Array of metadata keys
-		//  - metadataValues (string[]): Array of metadata values
-		//  - signature (bytes): EIP-712 signature proving the payer authorized the creation
-		ExtraData: "",
-	})
+	txHash, err := pdpClient.CreateProofSet(ctx)
 	if err != nil {
 		return fmt.Errorf("creating proofset: %w", err)
 	}

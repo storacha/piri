@@ -26,18 +26,16 @@ import (
 
 var log = logging.Logger("pdp/tasks")
 
-// TODO determine if this is a requirement.
-// based on curio it appears this is needed for task summary details via the RPC.
-// var _ = scheduler.Reg(&InitProvingPeriodTask{})
 var _ scheduler.TaskInterface = &InitProvingPeriodTask{}
 
 type InitProvingPeriodTask struct {
-	db             *gorm.DB
-	ethClient      bind.ContractBackend
-	contractClient smartcontracts.PDP
-	sender         ethereum.Sender
+	db        *gorm.DB
+	ethClient bind.ContractBackend
+	sender    ethereum.Sender
 
-	chain ChainAPI
+	chain            ChainAPI
+	serviceContract  smartcontracts.Service
+	verifierContract smartcontracts.Verifier
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
 }
@@ -50,19 +48,21 @@ type ChainAPI interface {
 func NewInitProvingPeriodTask(
 	db *gorm.DB,
 	ethClient bind.ContractBackend,
-	contractClient smartcontracts.PDP,
 	chain ChainAPI,
 	chainSched *chainsched.Scheduler,
 	sender ethereum.Sender,
+	serviceContract smartcontracts.Service,
+	verifierContact smartcontracts.Verifier,
 ) (*InitProvingPeriodTask, error) {
 	log.Infow("Initializing proving period task", "component", "InitProvingPeriodTask")
 
 	ipp := &InitProvingPeriodTask{
-		db:             db,
-		ethClient:      ethClient,
-		contractClient: contractClient,
-		sender:         sender,
-		chain:          chain,
+		db:               db,
+		ethClient:        ethClient,
+		sender:           sender,
+		chain:            chain,
+		verifierContract: verifierContact,
+		serviceContract:  serviceContract,
 	}
 
 	if err := chainSched.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
@@ -182,15 +182,10 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 
 	// Get the listener address for this proof set from the PDPVerifier contract
 	lg.Debugw("Getting PDP verifier contract",
-		"verifier_address", smartcontracts.Addresses().PDPVerifier.Hex())
-	pdpVerifier, err := ipp.contractClient.NewPDPVerifier(smartcontracts.Addresses().PDPVerifier, ipp.ethClient)
-	if err != nil {
-		lg.Errorw("Failed to instantiate PDPVerifier contract", "error", err)
-		return false, fmt.Errorf("failed to instantiate PDPVerifier contract: %w", err)
-	}
+		"verifier_address", smartcontracts.Addresses().Verifier)
 
 	// Check if the data set has any leaves (pieces) before attempting to initialize proving period
-	leafCount, err := pdpVerifier.GetDataSetLeafCount(nil, big.NewInt(proofSetID))
+	leafCount, err := ipp.verifierContract.GetDataSetLeafCount(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get leaf count for data set %d: %w", proofSetID, err)
 	}
@@ -201,7 +196,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	}
 
 	lg.Debug("Querying data set listener address")
-	listenerAddr, err := pdpVerifier.GetDataSetListener(nil, big.NewInt(proofSetID))
+	listenerAddr, err := ipp.verifierContract.GetDataSetListener(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		lg.Errorw("Failed to get listener address for data set", "error", err)
 		return false, fmt.Errorf("failed to get listener address for data set %d: %w", proofSetID, err)
@@ -211,13 +206,8 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 
 	// Determine the next challenge window start by consulting the proving schedule provider
 	lg.Debug("Creating proving schedule provider")
-	provingSchedule, err := smartcontracts.GetProvingScheduleFromListener(listenerAddr, ipp.ethClient, ipp.chain)
-	if err != nil {
-		lg.Errorw("Failed to create proving schedule provider", "error", err)
-		return false, fmt.Errorf("failed to create proving schedule provider: %w", err)
-	}
 
-	config, err := provingSchedule.GetPDPConfig(ctx)
+	config, err := ipp.serviceContract.PDPConfig(ctx)
 	if err != nil {
 		return false, xerrors.Errorf("failed to GetPDPConfig: %w", err)
 	}
@@ -225,11 +215,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	// Give a buffer of 1/2 challenge window epochs so that we are still within challenge window
 	initProveAt := config.InitChallengeWindowStart.Add(config.InitChallengeWindowStart, config.ChallengeWindow.Div(config.ChallengeWindow, big.NewInt(2)))
 
-	// Instantiate the PDPVerifier contract
-	pdpContracts := smartcontracts.Addresses()
-	pdpVeriferAddress := pdpContracts.PDPVerifier
-
-	abiData, err := smartcontracts.PDPVerifierMetaData()
+	abiData, err := ipp.verifierContract.GetABI()
 	if err != nil {
 		lg.Errorw("Failed to get PDPVerifier ABI", "error", err)
 		return false, fmt.Errorf("failed to get PDPVerifier ABI: %w", err)
@@ -243,16 +229,16 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 
 	// Prepare the transaction
 	txEth := types.NewTransaction(
-		0,                 // nonce (will be set by sender)
-		pdpVeriferAddress, // to
-		big.NewInt(0),     // value
-		0,                 // gasLimit (to be estimated)
-		nil,               // gasPrice (to be set by sender)
-		data,              // data
+		0,                                   // nonce (will be set by sender)
+		smartcontracts.Addresses().Verifier, // to
+		big.NewInt(0),                       // value
+		0,                                   // gasLimit (to be estimated)
+		nil,                                 // gasPrice (to be set by sender)
+		data,                                // data
 	)
 
 	lg.Debug("Getting data set storage provider")
-	fromAddress, _, err := pdpVerifier.GetDataSetStorageProvider(nil, big.NewInt(proofSetID))
+	fromAddress, _, err := ipp.verifierContract.GetDataSetStorageProvider(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		lg.Errorw("Failed to get data set storage provider address", "error", err)
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
@@ -273,7 +259,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	// Send the transaction
 	reason := "pdp-proving-init"
 	lg.Infow("Sending nextProvingPeriod transaction",
-		"to_address", pdpVeriferAddress.Hex(),
+		"to_address", smartcontracts.Addresses().Verifier,
 		"reason", reason)
 
 	txHash, err := ipp.sender.Send(ctx, fromAddress, txEth, reason)

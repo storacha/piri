@@ -137,14 +137,10 @@ func createAuthBearerTokenFromID(id principal.Signer) (string, error) {
 	return "Bearer " + tokenString, nil
 }
 
-func (c *Client) CreateProofSet(ctx context.Context, params types.CreateProofSetParams) (common.Hash, error) {
+func (c *Client) CreateProofSet(ctx context.Context) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath).String()
-	request := httpapi.CreateProofSetRequest{
-		RecordKeeper: params.RecordKeeper.String(),
-		ExtraData:    string(params.ExtraData),
-	}
 	// send request
-	res, err := c.postJson(ctx, route, request)
+	res, err := c.postJson(ctx, route, nil)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -326,8 +322,7 @@ func (c *Client) ListProofSet(ctx context.Context) ([]types.ProofSet, error) {
 	return out, nil
 }
 
-func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.RootAdd,
-	extraData types.ExtraData) (common.Hash, error) {
+func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.RootAdd) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, "/", strconv.FormatUint(proofSetID, 10), rootsPath).String()
 
 	addRoots := make([]httpapi.Root, 0, len(roots))
@@ -343,7 +338,7 @@ func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.
 			Subroots: subRoots,
 		})
 	}
-	payload := httpapi.AddRootsRequest{Roots: addRoots, ExtraData: string(extraData)}
+	payload := httpapi.AddRootsRequest{Roots: addRoots}
 	if !c.isPiriServer() {
 		return common.Hash{}, c.verifySuccess(c.postJson(ctx, route, payload))
 	}
@@ -576,6 +571,7 @@ func (c *Client) GetProviderStatus(ctx context.Context) (types.GetProviderStatus
 		Payee:              common.HexToAddress(resp.Payee),
 		IsRegistered:       resp.IsRegistered,
 		IsActive:           resp.IsActive,
+		IsApproved:         resp.IsApproved,
 		Name:               resp.Name,
 		Description:        resp.Description,
 		RegistrationStatus: resp.RegistrationStatus,

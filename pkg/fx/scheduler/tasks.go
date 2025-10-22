@@ -37,20 +37,22 @@ type InitProvingPeriodTaskParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
 	Client    service.EthClient
-	Contract  smartcontracts.PDP
 	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 	Sender    ethereum.Sender
+	Verifier  smartcontracts.Verifier
+	Service   smartcontracts.Service
 }
 
 func ProvideInitProvingPeriodTask(params InitProvingPeriodTaskParams) (*tasks.InitProvingPeriodTask, error) {
 	return tasks.NewInitProvingPeriodTask(
 		params.DB,
 		params.Client,
-		params.Contract,
 		params.Chain,
 		params.Scheduler,
 		params.Sender,
+		params.Service,
+		params.Verifier,
 	)
 }
 
@@ -58,20 +60,22 @@ type NextProvingPeriodTaskParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
 	Client    service.EthClient
-	Contract  smartcontracts.PDP
 	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 	Sender    ethereum.Sender
+	Verifier  smartcontracts.Verifier
+	Service   smartcontracts.Service
 }
 
 func ProvideNextProvingPeriodTask(params NextProvingPeriodTaskParams) (*tasks.NextProvingPeriodTask, error) {
 	return tasks.NewNextProvingPeriodTask(
 		params.DB,
 		params.Client,
-		params.Contract,
 		params.Chain,
 		params.Scheduler,
 		params.Sender,
+		params.Verifier,
+		params.Service,
 	)
 }
 
@@ -79,7 +83,7 @@ type PDPProveTaskParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
 	Client    service.EthClient
-	Contract  smartcontracts.PDP
+	Contract  smartcontracts.Verifier
 	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 	Sender    ethereum.Sender

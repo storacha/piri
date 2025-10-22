@@ -23,7 +23,7 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 		}
 	}()
 	// Get the ABI and pack the transaction data
-	abiData, err := smartcontracts.PDPVerifierMetaData()
+	abiData, err := p.verifierContract.GetABI()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("get contract ABI: %w", err)
 	}
@@ -44,7 +44,7 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 	// Prepare the transaction
 	ethTx := types.NewTransaction(
 		0, // nonce will be set by SenderETH
-		smartcontracts.Addresses().PDPVerifier,
+		smartcontracts.Addresses().Verifier,
 		big.NewInt(0), // value
 		0,             // gas limit (will be estimated)
 		nil,           // gas price (will be set by SenderETH)
