@@ -29,6 +29,7 @@ type EgressTrackerServiceConfig struct {
 	Connection           client.Connection
 	Proofs               delegation.Proofs
 	ReceiptsEndpoint     *url.URL
+	MaxBatchSizeBytes    int64
 	CleanupCheckInterval time.Duration
 }
 

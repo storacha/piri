@@ -105,6 +105,15 @@ func init() {
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-receipts-endpoint"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.receipts_endpoint", FullCmd.Flags().Lookup("egress-tracker-service-receipts-endpoint")))
 
+	FullCmd.Flags().Int64(
+		"egress-tracker-service-max-batch-size-bytes",
+		// default: 100MiB
+		100*1024*1024,
+		"Maximum batch size in bytes for egress tracker service. It should be between 10MiB and 1GiB",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-max-batch-size-bytes"))
+	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.max_batch_size_bytes", FullCmd.Flags().Lookup("egress-tracker-service-max-batch-size-bytes")))
+
 	FullCmd.Flags().String(
 		"upload-service-did",
 		presets.UploadServiceDID.String(),
