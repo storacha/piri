@@ -284,7 +284,6 @@ resource "aws_iam_role_policy_attachment" "lambda_ssm" {
 }
 
 data "aws_iam_policy_document" "lambda_sqs_document" {
-  count = var.use_pdp ? 1 : 0
   statement {
 
     effect = "Allow"
@@ -296,26 +295,26 @@ data "aws_iam_policy_document" "lambda_sqs_document" {
       "sqs:GetQueueAttributes"
     ]
 
-    resources = [
+    resources = var.use_pdp ? [
       aws_sqs_queue.aggregate_submitter[0].arn,
       aws_sqs_queue.piece_accepter[0].arn,
       aws_sqs_queue.piece_aggregator[0].arn,
+      aws_sqs_queue.ipni_publisher.arn,
+      ] : [
       aws_sqs_queue.ipni_publisher.arn,
     ]
   }
 }
 
 resource "aws_iam_policy" "lambda_sqs" {
-  count       = var.use_pdp ? 1 : 0
   name        = "${terraform.workspace}-${var.app}-lambda-sqs"
   description = "This policy will be used by the lambda to send messages to an SQS queue"
-  policy      = data.aws_iam_policy_document.lambda_sqs_document[0].json
+  policy      = data.aws_iam_policy_document.lambda_sqs_document.json
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_sqs" {
-  count      = var.use_pdp ? 1 : 0
   role       = aws_iam_role.lambda_exec.name
-  policy_arn = aws_iam_policy.lambda_sqs[0].arn
+  policy_arn = aws_iam_policy.lambda_sqs.arn
 }
 
 # event source mappings
