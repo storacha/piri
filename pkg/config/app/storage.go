@@ -50,9 +50,8 @@ type ReceiptStorageConfig struct {
 
 // EgressTrackerStorageConfig contains egress tracker store-specific storage paths
 type EgressTrackerStorageConfig struct {
-	Dir          string
-	MaxBatchSize int64
-	DBPath       string
+	Dir    string
+	DBPath string
 }
 
 // AllocationStorageConfig contains allocation-specific storage paths
