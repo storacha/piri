@@ -306,7 +306,7 @@ func FromEnv(ctx context.Context) Config {
 		SQSPDPAggregateSubmitterURL:    os.Getenv("AGGREGATE_SUBMITTER_QUEUE_URL"),
 		SQSPDPPieceAccepterURL:         os.Getenv("PIECE_ACCEPTER_QUEUE_URL"),
 		SQSPublishingQueueID:           mustGetEnv("IPNI_PUBLISHER_QUEUE_ID"),
-		PublishingBucket:               mustGetEnv("IPNI_PUBLISHER_BUCKET"),
+		PublishingBucket:               mustGetEnv("IPNI_PUBLISHER_BUCKET_NAME"),
 		PDPProofSet:                    proofSet,
 		PDPServerURL:                   os.Getenv("CURIO_URL"),
 		PrincipalMapping:               principalMapping,
