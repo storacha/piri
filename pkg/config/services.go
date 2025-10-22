@@ -112,6 +112,7 @@ type EgressTrackerServiceConfig struct {
 	URL              string `mapstructure:"url" flag:"egress-tracker-service-url" toml:"url,omitempty"`
 	ReceiptsEndpoint string `mapstructure:"receipts_endpoint" flag:"egress-tracker-service-receipts-endpoint" toml:"receipts_endpoint,omitempty"`
 	// According to the spec, batch size should be between 10MiB and 1GiB
+	// (see https://github.com/storacha/specs/blob/main/w3-egress-tracking.md)
 	MaxBatchSizeBytes int64  `mapstructure:"max_batch_size_bytes" validate:"min=10485760,max=1073741824" flag:"egress-tracker-service-max-batch-size-bytes" toml:"max_batch_size_bytes,omitempty"`
 	Proof             string `mapstructure:"proof" flag:"egress-tracker-service-proof" toml:"proof,omitempty"`
 }
