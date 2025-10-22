@@ -108,7 +108,7 @@ func init() {
 	FullCmd.Flags().Int64(
 		"egress-tracker-service-max-batch-size-bytes",
 		// default: 100MiB
-		104857600,
+		100*1024*1024,
 		"Maximum batch size in bytes for egress tracker service. It should be between 10MiB and 1GiB",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-max-batch-size-bytes"))
