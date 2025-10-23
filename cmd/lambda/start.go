@@ -68,12 +68,15 @@ func StartBatchSQSEventHandler(makeHandler SQSBatchEventHandlerBuilder) {
 
 // instrumentSQSBatchEventHandler wraps a SQSBatchEventHandler with error reporting.
 func instrumentSQSBatchEventHandler(handler SQSBatchEventHandler) SQSBatchEventHandler {
-	return func(ctx context.Context, sqsEvent events.SQSEvent) []events.SQSBatchItemFailure {
-		failures := handler(ctx, sqsEvent)
-		if len(failures) > 0 {
-			telemetry.ReportError(ctx, fmt.Errorf("handling batch SQS event failed: %v", failures))
+	return func(ctx context.Context, sqsEvent events.SQSEvent) (events.SQSEventResponse, error) {
+		failures, err := handler(ctx, sqsEvent)
+		if len(failures.BatchItemFailures) > 0 {
+			telemetry.ReportError(ctx, fmt.Errorf("handling batch SQS event failed: %v", failures.BatchItemFailures))
 		}
-		return failures
+		if err != nil {
+			telemetry.ReportError(ctx, fmt.Errorf("handling batch SQS event failed: %v", err))
+		}
+		return failures, err
 	}
 }
 
