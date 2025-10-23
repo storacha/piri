@@ -51,7 +51,7 @@ func makeHandler(cfg aws.Config) (lambda.SQSBatchEventHandler, error) {
 		return nil, fmt.Errorf("creating IPNI publisher instance: %w", err)
 	}
 
-	return func(ctx context.Context, sqsEvent events.SQSEvent) []events.SQSBatchItemFailure {
+	return func(ctx context.Context, sqsEvent events.SQSEvent) (events.SQSEventResponse, error) {
 		deadline, ok := ctx.Deadline()
 		if ok {
 			graceDeadline := deadline.Add(-gracePeriod)
@@ -72,7 +72,7 @@ func makeHandler(cfg aws.Config) (lambda.SQSBatchEventHandler, error) {
 				})
 			}
 		}
-		return failures
+		return events.SQSEventResponse{BatchItemFailures: failures}, nil
 	}, nil
 }
 

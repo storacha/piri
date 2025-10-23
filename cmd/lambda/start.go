@@ -46,7 +46,7 @@ func instrumentSQSEventHandler(handler SQSEventHandler) SQSEventHandler {
 }
 
 // SQSBatchEventHandler is a function that handles SQS events, suitable to use as a lambda handler.
-type SQSBatchEventHandler func(context.Context, events.SQSEvent) []events.SQSBatchItemFailure
+type SQSBatchEventHandler func(context.Context, events.SQSEvent) (events.SQSEventResponse, error)
 
 // SQSBatchEventHandlerBuilder is a function that creates a SQSBatchEventHandler from a config.
 type SQSBatchEventHandlerBuilder func(aws.Config) (SQSBatchEventHandler, error)
