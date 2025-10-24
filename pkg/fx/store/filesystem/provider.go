@@ -204,12 +204,12 @@ func NewReceiptStore(cfg app.ReceiptStorageConfig, lc fx.Lifecycle) (receiptstor
 
 }
 
-func NewRetrievalJournal(storeCfg app.EgressTrackerStorageConfig, svcCfg app.EgressTrackerServiceConfig, lc fx.Lifecycle) (retrievaljournal.Journal, error) {
+func NewRetrievalJournal(storeCfg app.EgressTrackerStorageConfig, svcCfg app.UCANServiceConfig, lc fx.Lifecycle) (retrievaljournal.Journal, error) {
 	if storeCfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for retrieval journal")
 	}
 
-	rj, err := retrievaljournal.NewFSJournal(storeCfg.Dir, svcCfg.MaxBatchSizeBytes)
+	rj, err := retrievaljournal.NewFSJournal(storeCfg.Dir, svcCfg.Services.EgressTracker.MaxBatchSizeBytes)
 	if err != nil {
 		return nil, fmt.Errorf("creating retrieval journal: %w", err)
 	}
