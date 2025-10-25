@@ -25,7 +25,6 @@ import (
 // mockQueue is a simple implementation of jobqueue.Service for testing
 type mockQueue struct {
 	taskHandler   aggregator.TaskHandler
-	mu            sync.Mutex
 	delay         time.Duration // Simulated processing delay
 	failRate      float32       // Failure rate (0-1) for error injection
 	enqueuedCount atomic.Int64

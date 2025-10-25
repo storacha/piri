@@ -139,8 +139,3 @@ func (sw *submissionWorkspace) ClearRoots(ctx context.Context) error {
 		Roots: []datamodel.Link{},
 	})
 }
-
-// PutBuffer updates the submission buffer state
-func (sw *submissionWorkspace) writeBuffer(ctx context.Context, buffer Aggregation) error {
-	return sw.store.Put(ctx, aggBufferKey{}, buffer)
-}
