@@ -321,5 +321,3 @@ require (
 )
 
 replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20240617180043-68d350f18fd4
-
-replace github.com/storacha/delegator => ../delegator
