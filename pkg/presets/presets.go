@@ -17,6 +17,7 @@ var (
 	UploadServiceURL        *url.URL
 	UploadServiceDID        did.DID
 	PrincipalMapping        map[string]string
+	SigningServiceEndpoint  url.URL
 )
 
 var (
@@ -61,6 +62,7 @@ func init() {
 		UploadServiceURL = warmStageUploadServiceURL
 		UploadServiceDID = warmStageUploadServiceDID
 		PrincipalMapping = warmStagePrincipalMapping
+		SigningServiceEndpoint = *warmStageSigningServiceURL
 	}
 }
 
@@ -83,6 +85,8 @@ var (
 		warmStageIndexingServiceDID.String():      "did:key:z6Mkr4QkdinnXQmJ9JdnzwhcEjR8nMnuVPEwREyh9jp2Pb7k",
 		warmStageEgressTrackerServiceDID.String(): "did:key:z6Mkqv9fjGQpNKQdgUxkq2VYH2nKiKZiGPxbtYjhJBz8wfAn",
 	}
+
+	warmStageSigningServiceURL = lo.Must(url.Parse("https://staging.signer.warm.storacha.network"))
 )
 
 // Staging preset values

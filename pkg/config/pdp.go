@@ -16,7 +16,7 @@ type PDPServiceConfig struct {
 	OwnerAddress         string               `mapstructure:"owner_address" validate:"required" flag:"owner-address" toml:"owner_address"`
 	ContractAddress      string               `mapstructure:"contract_address" validate:"required" flag:"contract-address" toml:"contract_address"`
 	LotusEndpoint        string               `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
-	SigningServiceConfig SigningServiceConfig `mapstructure:"signing_service" toml:"signing_service"`
+	SigningServiceConfig SigningServiceConfig `mapstructure:"signing_service" toml:"signing_service,omitempty"`
 }
 
 func (c PDPServiceConfig) Validate() error {
@@ -49,11 +49,11 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 // SigningServiceConfig configures the signing service for PDP operations
 type SigningServiceConfig struct {
 	// URL endpoint for remote signing service (if using HTTP client)
-	Endpoint string `mapstructure:"endpoint" toml:"endpoint"`
+	Endpoint string `mapstructure:"endpoint" toml:"endpoint,omitempty"`
 	// Private key for in-process signing (if using local signer)
 	// This should be a hex-encoded private key string
 	// NB: this should only be used for development purposes
-	PrivateKey string `mapstructure:"private_key" toml:"private_key"`
+	PrivateKey string `mapstructure:"private_key" toml:"private_key,omitempty"`
 }
 
 func (c SigningServiceConfig) Validate() error {
