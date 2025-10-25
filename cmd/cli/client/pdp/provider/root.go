@@ -8,6 +8,8 @@ var (
 	Cmd = &cobra.Command{
 		Use:   "provider",
 		Short: "Interact with PDP provider operations",
+		// NB(forrest): this command is hidden since the intention is to register via init
+		Hidden: true,
 	}
 )
 
