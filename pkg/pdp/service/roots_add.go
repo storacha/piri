@@ -26,7 +26,84 @@ import (
 )
 
 // TODO we need to define non-retryable errors for the add root method, like lack of auth, and lack of dataset else this retries ~50 times
+// TODO: Enhanced Crash Recovery Using Deterministic Request IDs:
+/*
+
+ Current Implementation Gap:
+ There's a window between Send() completing and the database transaction
+ where a crash would result in a sent transaction with no database record.
+ On restart, duplicate detection wouldn't find anything, leading to duplicate submissions.
+
+ Proposed Solution: Deterministic Request IDs
+
+ Generate a deterministic hash of the request BEFORE calling Send:
+   requestID := sha256(proofSetID + sorted(rootCIDs))
+
+ Implementation approach:
+ 1. Before Send (around line 563):
+    // Generate deterministic request ID
+    sortedRoots := make([]string, len(rootCIDs))
+    copy(sortedRoots, rootCIDs)
+    sort.Strings(sortedRoots)
+
+    requestID := sha256.Sum256([]byte(
+        fmt.Sprintf("%d:%s", proofSetID, strings.Join(sortedRoots, ","))
+    ))
+    requestIDHex := "0x" + hex.EncodeToString(requestID[:])
+
+ 2. Create DB records with requestID as placeholder txHash:
+    if err := p.db.Transaction(func(tx *gorm.DB) error {
+        // Insert with deterministic ID
+        mw := models.MessageWaitsEth{
+            SignedTxHash: requestIDHex,
+            TxStatus:     "preparing",
+        }
+        tx.Create(&mw)
+
+        // Create pdp_proofset_root_adds with requestIDHex
+        for _, addReq := range request {
+            // ... create records using requestIDHex as AddMessageHash
+        }
+        return nil
+    }); err != nil {
+        return common.Hash{}, err
+    }
+
+ 3. NOW safe to Send - even if we crash, records exist:
+    txHash, err := p.sender.Send(ctx, p.address, txEth, reason)
+
+ 4. Update records with actual txHash:
+    db.Model(&models.MessageWaitsEth{}).
+        Where("signed_tx_hash = ?", requestIDHex).
+        Update("signed_tx_hash", txHash.Hex())
+    // Similarly update pdp_proofset_root_adds
+
+ 5. Update duplicate detection to check for both:
+    WHERE add_message_hash = ? OR add_message_hash = ?
+    -- Check for real txHash OR deterministic requestID
+
+ Benefits:
+ - Always leaves a trace in the database before Send
+ - Deterministic ID is reproducible from same inputs
+ - No special handling needed - looks like a normal hash
+ - Handles all crash scenarios:
+   * Before DB insert: No trace, safe to proceed
+   * After DB insert, before Send: requestID exists, detected as duplicate
+   * After Send, before update: Real tx on chain, requestID in DB, still detected
+   * After update: Normal state with real txHash
+
+ This approach is simpler than:
+ - Parsing encoded transaction data from message_sends_eth
+ - Modifying Send to work within transactions (deadlock issues)
+ - Adding new tables or complex state management
+*/
+
 func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (res common.Hash, retErr error) {
+	// ensure this method can never be called in parallel, else nextPieceId will be wrong from one of the parallel calls and
+	// produce an invalid signature
+	p.addRootMu.Lock()
+	defer p.addRootMu.Unlock()
+
 	log.Infow("adding roots", "id", id, "request", request)
 	defer func() {
 		if retErr != nil {
@@ -76,6 +153,85 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 
 			newSubroots.Add(subrootEntry)
 		}
+	}
+
+	// Calculate wait duration for transaction confirmations (used for both new and existing transactions)
+	waitDuration := (tasks.MinConfidence + 2) * smartcontracts.FilecoinEpoch
+
+	// Check if any of these roots have already been successfully added to prevent duplicate submissions
+	// This handles the case where the node crashes after sending the transaction but before
+	// recording it in the database, or when roots have already been fully processed
+	rootCIDs := make([]string, len(request))
+	for i, req := range request {
+		rootCIDs[i] = req.Root.String()
+	}
+
+	log.Debugw("Checking for duplicate root submissions",
+		"proofset_id", id,
+		"root_count", len(rootCIDs))
+
+	// First check pdp_proofset_roots for already successfully added roots
+	var existingCompletedRoots []struct {
+		Root           string
+		AddMessageHash string
+	}
+	if err := p.db.WithContext(ctx).
+		Table("pdp_proofset_roots").
+		Select("DISTINCT root, add_message_hash").
+		Where("proofset_id = ? AND root IN ?", id, rootCIDs).
+		Scan(&existingCompletedRoots).Error; err != nil {
+		return common.Hash{}, fmt.Errorf("failed to check for existing completed roots: %w", err)
+	}
+
+	if len(existingCompletedRoots) > 0 {
+		// Roots have already been successfully added
+		txHash := existingCompletedRoots[0].AddMessageHash
+		log.Infow("Roots already successfully added, skipping submission",
+			"proofset_id", id,
+			"tx_hash", txHash,
+			"completed_roots", len(existingCompletedRoots))
+		return common.HexToHash(txHash), nil
+	}
+
+	// Then check pdp_proofset_root_adds for pending additions
+	var existingPendingRoots []struct {
+		Root           string
+		AddMessageHash string
+	}
+	if err := p.db.WithContext(ctx).
+		Table("pdp_proofset_root_adds").
+		Select("DISTINCT root, add_message_hash").
+		Where("proofset_id = ? AND root IN ?", id, rootCIDs).
+		Scan(&existingPendingRoots).Error; err != nil {
+		return common.Hash{}, fmt.Errorf("failed to check for existing pending roots: %w", err)
+	}
+
+	if len(existingPendingRoots) > 0 {
+		// Roots are currently being processed - wait for the existing transaction
+		txHashStr := existingPendingRoots[0].AddMessageHash
+		txHash := common.HexToHash(txHashStr)
+
+		log.Infow("Found existing pending transaction for roots, waiting for confirmation",
+			"proofset_id", id,
+			"tx_hash", txHashStr,
+			"pending_roots", len(existingPendingRoots),
+			"wait_duration", waitDuration)
+
+		// Wait for the existing transaction to be confirmed
+		// If it succeeds, return success. If it fails, WaitForConfirmation will return an error
+		// and the Manager's job queue will automatically retry
+		if err := p.WaitForConfirmation(ctx, txHash, waitDuration); err != nil {
+			log.Errorw("Existing AddRoots transaction failed or timed out",
+				"error", err,
+				"tx_hash", txHashStr,
+				"proofset_id", id)
+			return txHash, fmt.Errorf("existing transaction %s failed or timed out: %w", txHashStr, err)
+		}
+
+		log.Infow("Existing AddRoots transaction confirmed successfully",
+			"tx_hash", txHashStr,
+			"proofset_id", id)
+		return txHash, nil
 	}
 
 	// Map to store subrootCID -> [pieceInfo, pdp_pieceref.id, subrootOffset, rawSize]
@@ -140,20 +296,47 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		return common.Hash{}, err
 	}
 
+	// Calculate global offset across all aggregates in the batch to avoid collisions
+	// when multiple aggregates are submitted in the same transaction.
+	//
+	// IMPORTANT: With dynamic batching, multiple aggregates can be submitted in a single
+	// AddRoots call. Each aggregate would normally start its subroot offsets from 0,
+	// but since they share the same transaction hash, this would violate the UNIQUE
+	// constraint on (proofset_id, add_message_hash, subroot_offset). Using a global
+	// offset ensures each subroot has a unique offset within the transaction.
+	var globalOffset uint64 = 0
+
+	// Log if we're processing a batch
+	if len(request) > 1 {
+		log.Infow("Processing batched AddRoots request",
+			"batch_size", len(request),
+			"proofset_id", id)
+	}
+
 	// For each AddRootRequest, validate the provided RootCID.
-	for _, addReq := range request {
+	for aggregateIdx, addReq := range request {
 		// Collect pieceInfos for each subroot.
 		pieceInfos := make([]abi.PieceInfo, len(addReq.SubRoots))
-		var totalOffset uint64 = 0
+
+		// Log aggregate details if batching
+		if len(request) > 1 {
+			log.Debugw("Processing aggregate in batch",
+				"aggregate_index", aggregateIdx,
+				"root", addReq.Root.String(),
+				"subroot_count", len(addReq.SubRoots),
+				"starting_offset", globalOffset)
+		}
+
 		for i, subCID := range addReq.SubRoots {
 			subInfo, exists := subrootInfoMap[subCID]
 			if !exists {
 				return common.Hash{}, fmt.Errorf("subroot CID %s not found in subroot info map", subCID)
 			}
-			// Set the offset for this subroot.
-			subInfo.SubrootOffset = totalOffset
+			// Set the offset for this subroot using the global offset
+			// This ensures unique offsets across all aggregates in the batch
+			subInfo.SubrootOffset = globalOffset
 			pieceInfos[i] = subInfo.PieceInfo
-			totalOffset += uint64(subInfo.PieceInfo.Size)
+			globalOffset += uint64(subInfo.PieceInfo.Size)
 		}
 
 		// Generate the unsealed CID from the collected piece infos.
@@ -440,7 +623,6 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	// Step 10: Wait for the transaction to be confirmed on chain
 	// This prevents the race condition where multiple parallel AddRoots calls
 	// all read the same nextPieceId but only one can succeed
-	waitDuration := (tasks.MinConfidence + 2) * smartcontracts.FilecoinEpoch
 	log.Infow("waiting for AddRoots transaction confirmation", "txHash", txHash.Hex(), "proofSetID", proofSetID, "waitDuration", waitDuration)
 	if err := p.WaitForConfirmation(ctx, txHash, waitDuration); err != nil {
 		log.Errorw("AddRoots transaction failed or timed out", "error", err, "txHash", txHash.Hex(), "proofSetID", proofSetID)

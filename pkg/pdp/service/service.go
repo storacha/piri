@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -58,6 +59,8 @@ type PDPService struct {
 	verifierContract smartcontracts.Verifier
 	serviceContract  smartcontracts.Service
 	registryContract smartcontracts.Registry
+
+	addRootMu sync.Mutex
 }
 
 func New(

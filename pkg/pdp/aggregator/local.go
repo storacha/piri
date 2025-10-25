@@ -9,7 +9,7 @@ import (
 	"github.com/ipfs/go-datastore/namespace"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/datamodel"
-	"github.com/storacha/go-libstoracha/capabilities/types"
+	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/principal"
@@ -19,7 +19,7 @@ import (
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	types2 "github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -79,14 +79,14 @@ func NewLocalAggregator(pieceQueue *jobqueue.JobQueue[piece.PieceLink], linkQueu
 func NewLocal(
 	ds datastore.Datastore,
 	dbPath string,
-	client types2.ProofSetAPI,
+	client types.ProofSetAPI,
 	proofSet uint64,
 	issuer principal.Signer,
 	receiptStore receiptstore.ReceiptStore,
 ) (*LocalAggregator, error) {
 	aggregateStore := ipldstore.IPLDStore[datamodel.Link, aggregate.Aggregate](
 		store.SimpleStoreFromDatastore(namespace.Wrap(ds, datastore.NewKey(AggregatePrefix))),
-		aggregate.AggregateType(), types.Converters...)
+		aggregate.AggregateType(), captypes.Converters...)
 	inProgressWorkspace := NewInProgressWorkspace(store.SimpleStoreFromDatastore(namespace.Wrap(ds, datastore.NewKey(WorkspaceKey))))
 
 	db, err := sqlitedb.New(dbPath,
