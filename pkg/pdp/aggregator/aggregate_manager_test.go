@@ -167,14 +167,17 @@ func TestManagerSubmit(t *testing.T) {
 		require.Len(t, aggs.Roots, 1)
 		require.Equal(t, int64(0), handler.called.Load())
 
-		// advance clock one poll interval
-		tClock.Add(aggregator.DefaultPollInterval + 1)
 		// cleaning up buffer is async, so we expect it to happen sometime soonish
 		require.Eventually(t, func() bool {
+			// advance clock one poll interval
+			// NB(forrest): we do this internally to ensure the ticker fires before checking
+			tClock.Add(aggregator.DefaultPollInterval + 1)
+
 			aggs, err = buffer.Aggregation(t.Context())
+			t.Logf("waiting on %d aggregats to clearn", len(aggs.Roots))
 			require.NoError(t, err)
 			return len(aggs.Roots) == 0
-		}, 30*time.Second, 3*time.Second)
+		}, 30*time.Second, time.Millisecond)
 	})
 
 	t.Run("single link task spawned after max size reached", func(t *testing.T) {
@@ -205,11 +208,12 @@ func TestManagerSubmit(t *testing.T) {
 		require.Len(t, aggs.Roots, 1)
 		require.Equal(t, int64(1), handler.called.Load())
 
-		// advance clock, should spawn task
-		tClock.Add(aggregator.DefaultPollInterval)
-
 		// cleaning up buffer is async, so we expect it to happen sometime soonish
 		require.Eventually(t, func() bool {
+			// advance clock one poll interval
+			// NB(forrest): we do this internally to ensure the ticker fires before checking
+			tClock.Add(aggregator.DefaultPollInterval)
+
 			aggs, err = buffer.Aggregation(t.Context())
 			require.NoError(t, err)
 			return len(aggs.Roots) == 0
