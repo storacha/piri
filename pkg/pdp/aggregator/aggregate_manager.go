@@ -167,35 +167,69 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 		return nil
 	}
 
-	buffer, err := m.buffer.Aggregates(ctx)
+	aggregates, err := m.buffer.Aggregation(ctx)
 	if err != nil {
 		return fmt.Errorf("getting buffer: %w", err)
 	}
 
-	currentSize := len(buffer.Pending)
+	currentSize := len(aggregates.Roots)
 	newSize := currentSize + len(aggregateLinks)
 
 	// If adding new aggregates would NOT exceed max, append and return
 	if newSize <= m.maxBatchSize {
 		log.Infow("Buffering aggregates for submission", "new_count", len(aggregateLinks), "new_size", newSize)
-		if err := m.buffer.AppendAggregates(ctx, aggregateLinks); err != nil {
+		if err := m.buffer.AppendRoots(ctx, aggregateLinks); err != nil {
 			return fmt.Errorf("appending aggregates: %w", err)
 		}
 		return nil
 	}
 
-	// Buffer would overflow, submit current buffer first
-	log.Infow("Buffer would exceed max size, triggering submission",
+	// Buffer would overflow, optimize by filling to max size first
+	log.Infow("Buffer would exceed max size, optimizing submission",
 		"current_size", currentSize,
 		"new_size", newSize,
 		"max_size", m.maxBatchSize)
 
-	// Block until current buffer is submitted and cleared
-	if err := m.doSubmit(buffer); err != nil {
-		return fmt.Errorf("triggering submission: %w", err)
+	// Calculate how many items we can add to reach max size
+	itemsToAdd := m.maxBatchSize - currentSize
+
+	// If current buffer has items, fill it to max and submit
+	if currentSize > 0 && itemsToAdd > 0 {
+		// Take items from new aggregates to fill buffer to max
+		// But don't take more than we have available
+		toTake := itemsToAdd
+		if len(aggregateLinks) < toTake {
+			toTake = len(aggregateLinks)
+		}
+		fillItems := aggregateLinks[:toTake]
+		aggregateLinks = aggregateLinks[toTake:]
+
+		log.Infow("Filling buffer to max size before submission",
+			"adding", len(fillItems),
+			"total", m.maxBatchSize)
+
+		// Append to buffer to reach max size
+		if err := m.buffer.AppendRoots(ctx, fillItems); err != nil {
+			return fmt.Errorf("appending aggregates to fill buffer: %w", err)
+		}
+
+		// Get the full buffer and submit
+		fullBuffer, err := m.buffer.Aggregation(ctx)
+		if err != nil {
+			return fmt.Errorf("getting full buffer: %w", err)
+		}
+
+		if err := m.doSubmit(fullBuffer); err != nil {
+			return fmt.Errorf("submitting full buffer: %w", err)
+		}
+	} else if currentSize > 0 {
+		// Current buffer has items but new aggregates alone exceed max, submit current buffer
+		if err := m.doSubmit(aggregates); err != nil {
+			return fmt.Errorf("submitting current buffer: %w", err)
+		}
 	}
 
-	// Process new aggregates in batches
+	// Process remaining aggregates in batches
 	remaining := aggregateLinks
 	for len(remaining) > 0 {
 		// Determine batch size
@@ -210,13 +244,13 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 		// If this is a full batch, submit immediately
 		if len(batch) == m.maxBatchSize {
 			log.Infow("Submitting full batch of aggregates", "count", len(batch))
-			if err := m.doSubmit(Aggregates{Pending: batch}); err != nil {
+			if err := m.doSubmit(Aggregation{Roots: batch}); err != nil {
 				return fmt.Errorf("submitting batch: %w", err)
 			}
 		} else {
 			// Partial batch, add to buffer
 			log.Infow("Buffering remaining aggregates", "count", len(batch))
-			if err := m.buffer.AppendAggregates(ctx, batch); err != nil {
+			if err := m.buffer.AppendRoots(ctx, batch); err != nil {
 				return fmt.Errorf("appending remaining aggregates: %w", err)
 			}
 		}
@@ -284,7 +318,7 @@ func (m *Manager) processLoop() {
 
 		case <-ticker.C:
 			m.submitMu.Lock()
-			aggregates, err := m.buffer.Aggregates(m.ctx)
+			aggregates, err := m.buffer.Aggregation(m.ctx)
 			if err == nil {
 				if err := m.doSubmit(aggregates); err != nil {
 					log.Errorw("Process loop failed to process submission", "error", err)
@@ -298,13 +332,13 @@ func (m *Manager) processLoop() {
 }
 
 // doSubmit tries to submit if there's work and no submission in progress
-func (m *Manager) doSubmit(aggregates Aggregates) error {
-	if len(aggregates.Pending) == 0 {
+func (m *Manager) doSubmit(aggregates Aggregation) error {
+	if len(aggregates.Roots) == 0 {
 		// Nothing to submit, non-error: try again next pollInterval
 		return nil
 	}
 
-	log.Infow("Starting aggregates batch submission", "count", len(aggregates.Pending))
+	log.Infow("Starting aggregates batch submission", "count", len(aggregates.Roots))
 
 	// TODO: we __really__ need enqueue and clear to be atomic, else we may re-enqueue
 	// roots we have already queued if clear fails, which should be rare, but can result
@@ -314,12 +348,12 @@ func (m *Manager) doSubmit(aggregates Aggregates) error {
 	// before submitting
 	// or 2. the signing service should reject signing data that has already been added.
 	// if either 1. or 2. are implemented, the task fill eventually leave the queue, moving to deadletter
-	if err := m.queue.Enqueue(m.ctx, ManagerTaskName, aggregates.Pending); err != nil {
+	if err := m.queue.Enqueue(m.ctx, ManagerTaskName, aggregates.Roots); err != nil {
 		return fmt.Errorf("failed to enqueue batch submission roots: %w", err)
 	}
 
 	// only clear the buffer if we successfully submit to our stateful job queue
-	if err := m.buffer.ClearAggregates(m.ctx); err != nil {
+	if err := m.buffer.ClearRoots(m.ctx); err != nil {
 		return fmt.Errorf("failed to clear batch submission roots: %w", err)
 	}
 

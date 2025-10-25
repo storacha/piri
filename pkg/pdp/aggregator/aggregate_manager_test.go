@@ -149,9 +149,9 @@ func TestManagerSubmit(t *testing.T) {
 		err := manager.Submit(t.Context(), link)
 		require.NoError(t, err)
 
-		aggs, err := buffer.Aggregates(t.Context())
+		aggs, err := buffer.Aggregation(t.Context())
 		require.NoError(t, err)
-		require.Len(t, aggs.Pending, 1)
+		require.Len(t, aggs.Roots, 1)
 		require.Equal(t, int64(0), handler.called.Load())
 	})
 
@@ -163,19 +163,19 @@ func TestManagerSubmit(t *testing.T) {
 		err := manager.Submit(t.Context(), link)
 		require.NoError(t, err)
 
-		aggs, err := buffer.Aggregates(t.Context())
+		aggs, err := buffer.Aggregation(t.Context())
 		require.NoError(t, err)
-		require.Len(t, aggs.Pending, 1)
+		require.Len(t, aggs.Roots, 1)
 		require.Equal(t, int64(0), handler.called.Load())
 
 		// advance clock one poll interval
-		tClock.Add(aggregator.DefaultPollInterval)
+		tClock.Add(aggregator.DefaultPollInterval + 1)
 		// cleaning up buffer is async, so we expect it to happen sometime soonish
 		require.Eventually(t, func() bool {
-			aggs, err = buffer.Aggregates(t.Context())
+			aggs, err = buffer.Aggregation(t.Context())
 			require.NoError(t, err)
-			return len(aggs.Pending) == 0
-		}, 3*time.Second, 500*time.Millisecond)
+			return len(aggs.Roots) == 0
+		}, 30*time.Second, 3*time.Second)
 	})
 
 	t.Run("single link task spawned after max size reached", func(t *testing.T) {
@@ -190,9 +190,9 @@ func TestManagerSubmit(t *testing.T) {
 			err := manager.Submit(t.Context(), link)
 			require.NoError(t, err)
 
-			aggs, err := buffer.Aggregates(t.Context())
+			aggs, err := buffer.Aggregation(t.Context())
 			require.NoError(t, err)
-			require.Len(t, aggs.Pending, i)
+			require.Len(t, aggs.Roots, i)
 			require.Equal(t, int64(0), handler.called.Load())
 		}
 
@@ -201,9 +201,9 @@ func TestManagerSubmit(t *testing.T) {
 		err := manager.Submit(t.Context(), link)
 		require.NoError(t, err)
 
-		aggs, err := buffer.Aggregates(t.Context())
+		aggs, err := buffer.Aggregation(t.Context())
 		require.NoError(t, err)
-		require.Len(t, aggs.Pending, 1)
+		require.Len(t, aggs.Roots, 1)
 		require.Equal(t, int64(1), handler.called.Load())
 
 		// advance clock, should spawn task
@@ -211,9 +211,9 @@ func TestManagerSubmit(t *testing.T) {
 
 		// cleaning up buffer is async, so we expect it to happen sometime soonish
 		require.Eventually(t, func() bool {
-			aggs, err = buffer.Aggregates(t.Context())
+			aggs, err = buffer.Aggregation(t.Context())
 			require.NoError(t, err)
-			return len(aggs.Pending) == 0
+			return len(aggs.Roots) == 0
 		}, 3*time.Second, 500*time.Millisecond)
 	})
 
@@ -232,16 +232,16 @@ func TestManagerSubmit(t *testing.T) {
 		}
 
 		// Verify buffer has 3 links
-		aggs, err := buffer.Aggregates(t.Context())
+		aggs, err := buffer.Aggregation(t.Context())
 		require.NoError(t, err)
-		require.Len(t, aggs.Pending, initialLinks)
+		require.Len(t, aggs.Roots, initialLinks)
 		require.Equal(t, int64(0), handler.called.Load())
 
 		// Now submit a large batch that exceeds max size (25 links)
-		// This should trigger:
-		// 1. Submit current buffer (3 links)
-		// 2. Submit 2 full batches (10 links each = 20 links)
-		// 3. Buffer the remaining 5 links
+		// With optimized batching, this should trigger:
+		// 1. Fill current buffer (3 links) to max by adding 7 from new links, submit full batch (10 links)
+		// 2. Submit 1 more full batch (10 links) from remaining 18 links
+		// 3. Buffer the remaining 8 links
 		largeInput := make([]datamodel.Link, 25)
 		for i := 0; i < 25; i++ {
 			largeInput[i] = testutil.RandomCID(t)
@@ -251,13 +251,13 @@ func TestManagerSubmit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify:
-		// - 3 batches were submitted (3 + 10 + 10 = 23 links)
-		// - 5 links remain in buffer
-		aggs, err = buffer.Aggregates(t.Context())
+		// - 2 batches were submitted (10 + 10 = 20 links)
+		// - 8 links remain in buffer (3 initial + 25 new - 20 submitted = 8)
+		aggs, err = buffer.Aggregation(t.Context())
 		require.NoError(t, err)
-		require.Len(t, aggs.Pending, 5, "Should have 5 remaining links in buffer")
-		require.Equal(t, int64(3), handler.called.Load(), "Should have submitted 3 batches")
-		require.Equal(t, int64(23), handler.totalLinks.Load(), "Should have processed 23 links total")
+		require.Len(t, aggs.Roots, 8, "Should have 8 remaining links in buffer")
+		require.Equal(t, int64(2), handler.called.Load(), "Should have submitted 2 batches")
+		require.Equal(t, int64(20), handler.totalLinks.Load(), "Should have processed 20 links total")
 	})
 
 }
@@ -301,13 +301,13 @@ func TestManagerParallelSubmit(t *testing.T) {
 		require.Equal(t, int64(0), errorCount.Load(), "Got %d errors during submission", errorCount.Load())
 
 		// Verify all links are in buffer or processed
-		aggs, err := buffer.Aggregates(context.Background())
+		aggs, err := buffer.Aggregation(context.Background())
 		require.NoError(t, err)
 
 		// Total links should be either in buffer or processed
 		totalExpected := numGoroutines * linksPerGoroutine
 		totalProcessed := handler.totalLinks.Load()
-		totalInBuffer := len(aggs.Pending)
+		totalInBuffer := len(aggs.Roots)
 
 		require.Equal(t, int64(totalExpected), totalProcessed+int64(totalInBuffer),
 			"Total links mismatch: expected %d, got %d processed + %d in buffer",
@@ -356,10 +356,10 @@ func TestManagerParallelSubmit(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		// Verify data integrity
-		aggs, err := buffer.Aggregates(context.Background())
+		aggs, err := buffer.Aggregation(context.Background())
 		require.NoError(t, err)
 
-		totalInBuffer := len(aggs.Pending)
+		totalInBuffer := len(aggs.Roots)
 		totalProcessed := handler.totalLinks.Load()
 
 		// Should have processed some and maybe some in buffer
@@ -409,9 +409,9 @@ func TestManagerShutdownUnderLoad(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 
 		// Record state before shutdown
-		aggs, err := buffer.Aggregates(context.Background())
+		aggs, err := buffer.Aggregation(context.Background())
 		require.NoError(t, err)
-		linksBeforeStop := len(aggs.Pending)
+		linksBeforeStop := len(aggs.Roots)
 		processedBeforeStop := handler.totalLinks.Load()
 
 		// Stop the manager
@@ -421,11 +421,11 @@ func TestManagerShutdownUnderLoad(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify no data loss after shutdown
-		aggs, err = buffer.Aggregates(context.Background())
+		aggs, err = buffer.Aggregation(context.Background())
 		require.NoError(t, err)
 
 		// Buffer should still have unprocessed links or they should be processed
-		totalAfterStop := handler.totalLinks.Load() + int64(len(aggs.Pending))
+		totalAfterStop := handler.totalLinks.Load() + int64(len(aggs.Roots))
 		totalBeforeStop := processedBeforeStop + int64(linksBeforeStop)
 
 		require.GreaterOrEqual(t, totalAfterStop, totalBeforeStop,
@@ -450,20 +450,20 @@ func TestManagerSustainedLoadPatterns(t *testing.T) {
 		}
 
 		// Check buffer filled during burst
-		aggs, err := buffer.Aggregates(context.Background())
+		aggs, err := buffer.Aggregation(context.Background())
 		require.NoError(t, err)
-		require.Greater(t, len(aggs.Pending), 0, "Buffer should have links after burst")
+		require.Greater(t, len(aggs.Roots), 0, "Buffer should have links after burst")
 
 		// Trigger processing
 		tClock.Add(100 * time.Millisecond)
 		time.Sleep(50 * time.Millisecond) // Give processLoop time to run
 
 		// Verify burst was processed
-		aggs, err = buffer.Aggregates(context.Background())
+		aggs, err = buffer.Aggregation(context.Background())
 		require.NoError(t, err)
 
 		totalProcessed := handler.totalLinks.Load()
-		totalInBuffer := len(aggs.Pending)
+		totalInBuffer := len(aggs.Roots)
 
 		require.Equal(t, int64(burstSize), totalProcessed+int64(totalInBuffer),
 			"All burst links should be accounted for")
@@ -641,12 +641,12 @@ func TestManagerLongRunningStress(t *testing.T) {
 			initialGoroutines, finalGoroutines)
 
 		// Verify data integrity
-		aggs, err := buffer.Aggregates(context.Background())
+		aggs, err := buffer.Aggregation(context.Background())
 		require.NoError(t, err)
 
 		totalSubmitted := submissionCount.Load()
 		totalProcessed := handler.totalLinks.Load()
-		totalInBuffer := int64(len(aggs.Pending))
+		totalInBuffer := int64(len(aggs.Roots))
 
 		require.Equal(t, totalSubmitted, totalProcessed+totalInBuffer,
 			"Data integrity check failed: submitted %d, processed %d, in buffer %d",

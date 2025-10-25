@@ -32,15 +32,18 @@ func init() {
 	bufferTS = ts
 }
 
-type Aggregates struct {
-	Pending []datamodel.Link
+type Aggregation struct {
+	Roots []datamodel.Link
 }
 
 // BufferStore provides persistent storage for submission state
 type BufferStore interface {
-	Aggregates(context.Context) (Aggregates, error)
-	AppendAggregates(context.Context, []datamodel.Link) error
-	ClearAggregates(context.Context) error
+	// Aggregation retrieves the pending pieces aggregation.
+	Aggregation(context.Context) (Aggregation, error)
+	// AppendRoots adds roots to the pending aggregation
+	AppendRoots(context.Context, []datamodel.Link) error
+	// ClearRoots removes all roots from the current aggregation.
+	ClearRoots(context.Context) error
 }
 
 // aggBufferKey is used as the single key for storing submission state
@@ -50,7 +53,7 @@ func (aggBufferKey) String() string { return "aggregate_buffer" }
 
 type submissionWorkspace struct {
 	storeMu sync.RWMutex
-	store   ipldstore.KVStore[aggBufferKey, Aggregates]
+	store   ipldstore.KVStore[aggBufferKey, Aggregation]
 }
 
 type SubmissionWorkspaceParams struct {
@@ -64,7 +67,7 @@ const ManagerKey = "manager/"
 func NewSubmissionWorkspace(params SubmissionWorkspaceParams) (BufferStore, error) {
 	ss := store.SimpleStoreFromDatastore(namespace.Wrap(params.Datastore, datastore.NewKey(ManagerKey)))
 	sw := &submissionWorkspace{
-		store: ipldstore.IPLDStore[aggBufferKey, Aggregates](
+		store: ipldstore.IPLDStore[aggBufferKey, Aggregation](
 			ss,
 			bufferTS.TypeByName("Aggregates"),
 			types.Converters...,
@@ -74,8 +77,8 @@ func NewSubmissionWorkspace(params SubmissionWorkspaceParams) (BufferStore, erro
 	// Initialize empty buffer at creation time to avoid race conditions
 	// and side effects in read operations
 	ctx := context.Background()
-	emptyBuffer := Aggregates{
-		Pending: []datamodel.Link{},
+	emptyBuffer := Aggregation{
+		Roots: []datamodel.Link{},
 	}
 	err := sw.store.Put(ctx, aggBufferKey{}, emptyBuffer)
 	if err != nil {
@@ -86,7 +89,7 @@ func NewSubmissionWorkspace(params SubmissionWorkspaceParams) (BufferStore, erro
 }
 
 // Aggregates retrieves the current submission buffer state
-func (sw *submissionWorkspace) Aggregates(ctx context.Context) (Aggregates, error) {
+func (sw *submissionWorkspace) Aggregation(ctx context.Context) (Aggregation, error) {
 	sw.storeMu.RLock()
 	defer sw.storeMu.RUnlock()
 
@@ -94,17 +97,17 @@ func (sw *submissionWorkspace) Aggregates(ctx context.Context) (Aggregates, erro
 	if err != nil {
 		// If not found, return empty aggregates (should not happen after initialization)
 		if store.IsNotFound(err) {
-			return Aggregates{
-				Pending: []datamodel.Link{},
+			return Aggregation{
+				Roots: []datamodel.Link{},
 			}, nil
 		}
-		return Aggregates{}, fmt.Errorf("reading submission buffer: %w", err)
+		return Aggregation{}, fmt.Errorf("reading submission buffer: %w", err)
 	}
 	return buf, nil
 }
 
 // AppendAggregates atomically appends new aggregates to the buffer
-func (sw *submissionWorkspace) AppendAggregates(ctx context.Context, aggregates []datamodel.Link) error {
+func (sw *submissionWorkspace) AppendRoots(ctx context.Context, aggregates []datamodel.Link) error {
 	if len(aggregates) == 0 {
 		return nil
 	}
@@ -117,7 +120,7 @@ func (sw *submissionWorkspace) AppendAggregates(ctx context.Context, aggregates 
 		return fmt.Errorf("getting buffer for append: %w", err)
 	} else {
 		// Append to existing buffer
-		buffer.Pending = append(buffer.Pending, aggregates...)
+		buffer.Roots = append(buffer.Roots, aggregates...)
 	}
 
 	if err := sw.store.Put(ctx, aggBufferKey{}, buffer); err != nil {
@@ -128,16 +131,16 @@ func (sw *submissionWorkspace) AppendAggregates(ctx context.Context, aggregates 
 }
 
 // ClearAggregates atomically clears the pending aggregates while preserving other state
-func (sw *submissionWorkspace) ClearAggregates(ctx context.Context) error {
+func (sw *submissionWorkspace) ClearRoots(ctx context.Context) error {
 	sw.storeMu.Lock()
 	defer sw.storeMu.Unlock()
 
-	return sw.store.Put(ctx, aggBufferKey{}, Aggregates{
-		Pending: []datamodel.Link{},
+	return sw.store.Put(ctx, aggBufferKey{}, Aggregation{
+		Roots: []datamodel.Link{},
 	})
 }
 
 // PutBuffer updates the submission buffer state
-func (sw *submissionWorkspace) writeBuffer(ctx context.Context, buffer Aggregates) error {
+func (sw *submissionWorkspace) writeBuffer(ctx context.Context, buffer Aggregation) error {
 	return sw.store.Put(ctx, aggBufferKey{}, buffer)
 }
