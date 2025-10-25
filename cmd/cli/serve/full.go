@@ -180,6 +180,14 @@ func init() {
 	)
 	cobra.CheckErr(viper.BindPFlag("pdp.contract_address", FullCmd.Flags().Lookup("contract-address")))
 
+	FullCmd.Flags().String(
+		"contract-signing-service-endpoint",
+		presets.SigningServiceEndpoint.String(),
+		"Endpoint of the contract signing service",
+	)
+	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.endpoint", FullCmd.Flags().Lookup("contract-signing-service-endpoint")))
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-endpoint"))
+
 }
 
 func fullServer(cmd *cobra.Command, _ []string) error {
