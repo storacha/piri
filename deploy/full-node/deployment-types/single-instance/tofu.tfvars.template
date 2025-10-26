@@ -155,8 +155,8 @@ pdp_lotus_endpoint = "wss://YOUR_LOTUS_ENDPOINT/rpc/v1"
 # pdp_contract_address = "0x6170dE2b09b404776197485F3dc6c968Ef948505"
 
 # Registrar service URL for node registration
-# Default: "https://staging.registrar.storacha.network" - uncomment to override
-# registrar_url = "https://staging.registrar.storacha.network"
+# Default: "https://staging.registrar.warm.storacha.network" - uncomment to override
+# registrar_url = "https://staging.registrar.warm.storacha.network"
 
 # ===========================================================================
 # OPERATOR CONFIGURATION
