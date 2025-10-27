@@ -52,6 +52,18 @@ func withErrorHandler() ucanretrieval.Option {
 
 func withReceiptLogger(ets *egresstracker.Service) ucanretrieval.Option {
 	return ucanretrieval.WithReceiptLogger(func(_ context.Context, rcpt receipt.AnyReceipt, inv invocation.Invocation) error {
+		// Filter out capabilities that are not space/content/retrieve
+		if len(inv.Capabilities()) != 1 {
+			log.Warn("Expected exactly one capability in invocation")
+			return nil
+		}
+
+		capability := inv.Capabilities()[0]
+		if capability.Can() != content.RetrieveAbility {
+			log.Info("Receipt is for a %s invocation, ignoring", capability.Can())
+			return nil
+		}
+
 		// Egress tracking is optional, the service will be nil if it is disabled
 		if ets == nil {
 			log.Warn("Egress tracking is not configured")
