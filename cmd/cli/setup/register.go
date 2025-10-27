@@ -322,7 +322,7 @@ func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.
 	}
 
 	req := &delgclient.RegisterRequest{
-		DID:           cfg.Identity.Signer.DID().String(),
+		Operator:      cfg.Identity.Signer.DID().String(),
 		OwnerAddress:  ownerAddress.String(),
 		ProofSetID:    proofSetID,
 		OperatorEmail: flags.operatorEmail,
@@ -370,8 +370,8 @@ func requestContractApproval(ctx context.Context, id principal.Signer, flags *in
 		return fmt.Errorf("creating delegator client: %w", err)
 	}
 
-	req := &delgclient.RequestApproval{
-		DID:          id.DID().String(),
+	req := &delgclient.RequestApprovalRequest{
+		Operator:     id.DID().String(),
 		OwnerAddress: ownerAddress.String(),
 		Signature:    signature,
 	}

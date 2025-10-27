@@ -47,7 +47,7 @@ require (
 	github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.21.0
-	github.com/storacha/delegator v0.0.2-0.20250917082246-b34dc3785c92
+	github.com/storacha/delegator v0.0.2-0.20251027182137-7d26b5ae9a70
 	github.com/storacha/filecoin-services/go v0.0.1
 	github.com/storacha/go-libstoracha v0.3.3
 	github.com/storacha/go-ucanto v0.6.6
