@@ -50,12 +50,12 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 		// TODO: later, we way want to allow node providers to pick these themselves, unsure what value that adds currently
 		// but this does represent information that are advertising on chain.
 		ServiceURL:                 "https://storacha.network",
-		MinPieceSizeInBytes:        big.NewInt(0),
-		MaxPieceSizeInBytes:        big.NewInt(0),
+		MinPieceSizeInBytes:        big.NewInt(1),
+		MaxPieceSizeInBytes:        big.NewInt(1),
 		IpniPiece:                  false,
 		IpniIpfs:                   false,
-		StoragePricePerTibPerMonth: big.NewInt(0),
-		MinProvingPeriodInEpochs:   big.NewInt(0),
+		StoragePricePerTibPerMonth: big.NewInt(1),
+		MinProvingPeriodInEpochs:   big.NewInt(1),
 		Location:                   "earth",
 		// This field DOES matter as it's the address payment will be issued to by the contract.
 		PaymentTokenAddress: p.address,
