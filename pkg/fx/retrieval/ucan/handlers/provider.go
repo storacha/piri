@@ -58,6 +58,17 @@ func withReceiptLogger(ets *egresstracker.Service) ucanretrieval.Option {
 			return nil
 		}
 
+		if len(inv.Capabilities()) != 1 {
+			log.Warn("Expected exactly one capability in invocation")
+			return nil
+		}
+
+		capability := inv.Capabilities()[0]
+		if capability.Can() != content.RetrieveAbility {
+			log.Info("Receipt is for a %s invocation, ignoring", capability.Can())
+			return nil
+		}
+
 		// Make sure the receipt is self-contained, i.e. it also has invocation blocks
 		fullRcpt, err := rcpt.Clone()
 		if err != nil {
