@@ -20,6 +20,8 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-ucanto/core/delegation"
+	"github.com/storacha/go-ucanto/principal"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
@@ -223,6 +225,36 @@ func walletKeyFromWalletFile(walletPath string) (*wallet.Key, error) {
 	return wallet.NewKey(keystore.KeyInfo{PrivateKey: ki.PrivateKey})
 }
 
+func registerWithContract(ctx context.Context, id principal.Signer, pdpSvc *service.PDPService) (uint64, error) {
+	// check if the provider is already registered with the contract
+	status, err := pdpSvc.GetProviderStatus(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("getting provider status: %w", err)
+	}
+	// already registered, return the provider id
+	if status.IsRegistered {
+		return status.ID, nil
+	}
+	// else we need to register
+	res, err := pdpSvc.RegisterProvider(ctx, types.RegisterProviderParams{
+		Name:        id.DID().String(),
+		Description: "Storacha Service Operator",
+	})
+	if err != nil {
+		return 0, fmt.Errorf("registering provider: %w", err)
+	}
+	// then wait for transaction to be applied
+	if err := pdpSvc.WaitForConfirmation(ctx, res.TransactionHash, (30*time.Second)*4); err != nil {
+		return 0, fmt.Errorf("waiting for confirmation of registration: %w", err)
+	}
+	// so that we may then query for our provider ID
+	status, err = pdpSvc.GetProviderStatus(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("getting provider status: %w", err)
+	}
+	return status.ID, nil
+}
+
 // setupProofSet creates or finds an existing proof set
 func setupProofSet(ctx context.Context, cmd *cobra.Command, pdpSvc *service.PDPService, contractAddress common.Address) (uint64, error) {
 	proofSets, err := pdpSvc.ListProofSets(ctx)
@@ -290,7 +322,7 @@ func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.
 	}
 
 	req := &delgclient.RegisterRequest{
-		DID:           cfg.Identity.Signer.DID().String(),
+		Operator:      cfg.Identity.Signer.DID().String(),
 		OwnerAddress:  ownerAddress.String(),
 		ProofSetID:    proofSetID,
 		OperatorEmail: flags.operatorEmail,
@@ -327,6 +359,25 @@ func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.
 	cmd.PrintErrln("✅ Received proofs from delegator")
 
 	return res.Proofs.Indexer, res.Proofs.EgressTracker, nil
+}
+
+func requestContractApproval(ctx context.Context, id principal.Signer, flags *initFlags, ownerAddress common.Address) error {
+	// create a signature by signing our own did with the private key of our did
+	signature := id.Sign(id.DID().Bytes()).Raw()
+
+	c, err := delgclient.New(flags.delegatorURL)
+	if err != nil {
+		return fmt.Errorf("creating delegator client: %w", err)
+	}
+
+	req := &delgclient.RequestApprovalRequest{
+		Operator:     id.DID().String(),
+		OwnerAddress: ownerAddress.String(),
+		Signature:    signature,
+	}
+
+	// request approval from delegator, on success the delegator will approve piri within the smart contract
+	return c.RequestApproval(ctx, req)
 }
 
 // generateConfig generates the final configuration for the user
@@ -370,7 +421,7 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	cmd.PrintErrln()
 
 	// Step 1: Parse and validate flags
-	cmd.PrintErrln("[1/5] Validating configuration...")
+	cmd.PrintErrln("[1/7] Validating configuration...")
 	flags, err := parseAndValidateFlags(cmd)
 	if err != nil {
 		return err
@@ -379,7 +430,7 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	cmd.PrintErrln()
 
 	// Step 2: Create and start node
-	cmd.PrintErrln("[2/5] Creating Piri node...")
+	cmd.PrintErrln("[2/7] Creating Piri node...")
 	fxApp, pdpSvc, cfg, ownerAddress, err := createNode(ctx, flags)
 	if err != nil {
 		return err
@@ -388,24 +439,41 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	cmd.PrintErrf("✅ Node created with DID: %s\n", cfg.Identity.Signer.DID().String())
 	cmd.PrintErrln()
 
-	// Step 3: Create or find proof set
-	cmd.PrintErrln("[3/5] Setting up proof set...")
+	// Step 3: Register with the smart contract
+	cmd.PrintErrln("[3/7] Registering provider with contract...")
+	providerID, err := registerWithContract(ctx, cfg.Identity.Signer, pdpSvc)
+	if err != nil {
+		return err
+	}
+	cmd.PrintErrf("✅ Node registered with contract ProviderID: %d\n", providerID)
+	cmd.PrintErrln()
+
+	// Step 4: Request approval to join contract from storacha
+	cmd.PrintErrln("[4/7] Requesting approval to join contract from Storacha...")
+	if err := requestContractApproval(ctx, cfg.Identity.Signer, flags, ownerAddress); err != nil {
+		return err
+	}
+	cmd.PrintErrln("✅ Node approved to join contract by Storacha")
+	cmd.PrintErrln()
+
+	// Step 5: Create or find proof set (must be approved in step 4 to succeed here)
+	cmd.PrintErrln("[5/7] Setting up proof set...")
 	proofSetID, err := setupProofSet(ctx, cmd, pdpSvc, cfg.PDPService.ContractAddress)
 	if err != nil {
 		return err
 	}
 	cmd.PrintErrln()
 
-	// Step 4: Register with delegator service
-	cmd.PrintErrln("[4/5] Registering with delegator service...")
+	// Step 6: Register with delegator service
+	cmd.PrintErrln("[6/7] Registering with delegator service...")
 	indexerProof, egressTrackerProof, err := registerWithDelegator(ctx, cmd, cfg, flags, ownerAddress, proofSetID)
 	if err != nil {
 		return err
 	}
 	cmd.PrintErrln()
 
-	// Step 5: Generate configuration
-	cmd.PrintErrln("[5/5] Generating configuration file...")
+	// Step 7: Generate configuration
+	cmd.PrintErrln("[7/7] Generating configuration file...")
 	userConfig, err := generateConfig(cfg, flags, ownerAddress, proofSetID, indexerProof, egressTrackerProof)
 	if err != nil {
 		return err
@@ -435,8 +503,5 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	}
 
 	cmd.PrintErrf("\nConfiguration saved to: %s\n", PiriConfigFileName)
-	cmd.PrintErrln("To install Piri as a system service, run:")
-	cmd.PrintErrf("   sudo piri install --config %s\n", PiriConfigFileName)
-
 	return nil
 }
