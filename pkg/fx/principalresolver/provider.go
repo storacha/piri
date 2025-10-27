@@ -7,6 +7,7 @@ import (
 
 	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
+	ucanretrievalserver "github.com/storacha/go-ucanto/server/retrieval"
 	"github.com/storacha/go-ucanto/validator"
 	"go.uber.org/fx"
 
@@ -20,6 +21,10 @@ var Module = fx.Module("principalresolver",
 		fx.Annotate(
 			ProvideAsUCANOption,
 			fx.ResultTags(`group:"ucan_options"`),
+		),
+		fx.Annotate(
+			ProvideAsUCANRetrievalOption,
+			fx.ResultTags(`group:"ucan_retrieval_options"`),
 		),
 	),
 )
@@ -51,4 +56,10 @@ func NewPrincipalResolver(cfg app.AppConfig) (validator.PrincipalResolver, error
 // ProvideAsUCANOption provides the principal resolver as a UCAN server option
 func ProvideAsUCANOption(resolver validator.PrincipalResolver) ucanserver.Option {
 	return ucanserver.WithPrincipalResolver(resolver.ResolveDIDKey)
+}
+
+// ProvideAsUCANRetrievalOption provides the principal resolver as a UCAN
+// retrieval server option/
+func ProvideAsUCANRetrievalOption(resolver validator.PrincipalResolver) ucanretrievalserver.Option {
+	return ucanretrievalserver.WithPrincipalResolver(resolver.ResolveDIDKey)
 }
