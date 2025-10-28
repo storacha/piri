@@ -22,6 +22,7 @@ var Module = fx.Module("scheduler",
 	}),
 	MessageModule,
 	TasksModule,
+	fx.Invoke(scheduler.InitMetrics),
 )
 
 type EngineParams struct {

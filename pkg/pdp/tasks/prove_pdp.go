@@ -174,10 +174,13 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		return false, fmt.Errorf("failed to get chain randomness from beacon for pdp prove: %w", err)
 	}
 
+	timer := ProveTaskDuration.Start(ctx)
 	proofs, err := p.GenerateProofs(ctx, proofSetID, seed, smartcontracts.NumChallenges)
 	if err != nil {
+		timer.End(ProofSetIDAttr(proofSetID))
 		return false, fmt.Errorf("failed to generate proofs: %w", err)
 	}
+	timer.End(ProofSetIDAttr(proofSetID))
 
 	abiData, err := p.verifier.GetABI()
 	if err != nil {

@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -245,6 +246,14 @@ retryHandleDoneTask:
 			goto retryHandleDoneTask
 		}
 		return err
+	}
+
+	taskType := TaskType(h.TaskTypeDetails.Name)
+	TaskDuration.Record(context.Background(), time.Since(startTime), taskType)
+	if done {
+		TaskSuccess.Inc(context.Background(), taskType)
+	} else {
+		TaskFailure.Inc(context.Background(), taskType)
 	}
 
 	return nil
