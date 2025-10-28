@@ -293,9 +293,10 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		return common.Hash{}, err
 	}
 
-	var totalOffset uint64 = 0
 	// For each AddRootRequest, validate the provided RootCID.
 	for _, addReq := range request {
+		// Reset offset for each root so subroots start at 0 for each root
+		var totalOffset uint64 = 0
 		// Collect pieceInfos for each subroot.
 		pieceInfos := make([]abi.PieceInfo, len(addReq.SubRoots))
 

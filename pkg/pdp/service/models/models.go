@@ -219,11 +219,11 @@ type PDPProofsetRootAdd struct {
 	ProofsetID int64        `gorm:"primaryKey;column:proofset_id"`                                   // references pdp_proof_sets(id)
 	ProofSet   *PDPProofSet `gorm:"foreignKey:ProofsetID;references:ID;constraint:OnDelete:CASCADE"` // "proofset references pdp_proof_sets(id) on delete cascade"
 
-	AddMessageHash string           `gorm:"primaryKey"` // references message_waits_eth(signed_tx_hash)
+	AddMessageHash string           `gorm:"column:add_message_hash"` // references message_waits_eth(signed_tx_hash)
 	AddMessageWait *MessageWaitsEth `gorm:"foreignKey:AddMessageHash;references:SignedTxHash;constraint:OnDelete:CASCADE"`
 
-	SubrootOffset   int64  `gorm:"primaryKey"`
-	Root            string `gorm:"not null"`
+	SubrootOffset   int64  `gorm:"primaryKey;column:subroot_offset"`
+	Root            string `gorm:"primaryKey;column:root"`
 	AddMessageOK    *bool
 	AddMessageIndex *int64
 	Subroot         string `gorm:"not null"`
