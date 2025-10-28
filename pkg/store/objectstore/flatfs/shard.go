@@ -140,7 +140,7 @@ func WriteShardFunc(dir string, id *ShardIdV1) error {
 
 func WriteReadme(dir string, id *ShardIdV1) error {
 	if id.String() == NEXT_TO_LAST2_DEF_SHARD.String() {
-		err := os.WriteFile(filepath.Join(dir, README_FN), []byte(README_DEF_SHARD), 0444)
+		err := os.WriteFile(filepath.Join(dir, README_FN), []byte(README_NEXT_TO_LAST2_DEF_SHARD), 0444)
 		if err != nil {
 			return err
 		}

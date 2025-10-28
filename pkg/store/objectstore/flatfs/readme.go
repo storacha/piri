@@ -1,6 +1,6 @@
 package flatfs
 
-var README_DEF_SHARD = `This is a repository of object data. Each object is in a single file named
+var README_NEXT_TO_LAST2_DEF_SHARD = `This is a repository of object data. Each object is in a single file named
 <key>.data. Where <key> is a unique identifier for the object. Typically this
 repo stores content addressed data, where <key> is a base32 (lowercase, no
 padding) encoded multihash.
