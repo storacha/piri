@@ -77,12 +77,10 @@ type opT int
 
 // op wraps useful arguments of write operations
 type op struct {
-	typ  opT       // operation type
-	key  string    // datastore key. Mandatory.
-	tmp  string    // temp file path
-	path string    // file path
-	size uint64    // value size in bytes
-	v    io.Reader // value
+	typ   opT       // operation type
+	key   string    // datastore key. Mandatory.
+	size  uint64    // value size in bytes
+	value io.Reader // value
 }
 
 // opMap is a synchronisation structure where a single op can be stored
@@ -294,10 +292,10 @@ func (fs *Store) Put(ctx context.Context, key string, size uint64, value io.Read
 	}
 
 	_, err := fs.doWriteOp(&op{
-		typ:  opPut,
-		key:  key,
-		v:    value,
-		size: size,
+		typ:   opPut,
+		key:   key,
+		value: value,
+		size:  size,
 	})
 	return err
 }
@@ -305,7 +303,7 @@ func (fs *Store) Put(ctx context.Context, key string, size uint64, value io.Read
 func (fs *Store) doOp(oper *op) error {
 	switch oper.typ {
 	case opPut:
-		return fs.doPut(oper.key, oper.size, oper.v)
+		return fs.doPut(oper.key, oper.size, oper.value)
 	case opDelete:
 		return fs.doDelete(oper.key)
 	default:
@@ -457,9 +455,9 @@ func (fs *Store) Delete(ctx context.Context, key string) error {
 	}
 
 	_, err := fs.doWriteOp(&op{
-		typ: opDelete,
-		key: key,
-		v:   nil,
+		typ:   opDelete,
+		key:   key,
+		value: nil,
 	})
 	return err
 }
