@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -369,6 +370,13 @@ func requestContractApproval(ctx context.Context, id principal.Signer, flags *in
 	if err != nil {
 		return fmt.Errorf("creating delegator client: %w", err)
 	}
+
+	// requesting approval requires the message to be published to chain by delegator
+	// before it returns, so we need an extended timeout
+	// TODO a better(?) mechanism might be to poll via a different method
+	c = c.WithHTTPClient(&http.Client{
+		Timeout: 5 * time.Minute,
+	})
 
 	req := &delgclient.RequestApprovalRequest{
 		Operator:     id.DID().String(),
