@@ -1,33 +1,26 @@
 package flatfs
 
-var README_IPFS_DEF_SHARD = `This is a repository of IPLD objects. Each IPLD object is in a single file,
-named <base32 encoding of cid>.data. Where <base32 encoding of cid> is the
-"base32" encoding of the CID (as specified in
-https://github.com/multiformats/multibase) without the 'B' prefix.
+var README_DEF_SHARD = `This is a repository of object data. Each object is in a single file named
+<key>.data. Where <key> is a unique identifier for the object. Typically this
+repo stores content addressed data, where <key> is a base32 (lowercase, no
+padding) encoded multihash.
+
 All the object files are placed in a tree of directories, based on a
-function of the CID. This is a form of sharding similar to
-the objects directory in git repositories. Previously, we used
-prefixes, we now use the next-to-last two characters.
+function of the key. This function takes the next-to-last two characters of the
+key, with underscore padding characters added if the key is too short. This is a
+form of sharding similar to the objects directory in git repositories.
 
-    func NextToLast(base32cid string) {
-      nextToLastLen := 2
-      offset := len(base32cid) - nextToLastLen - 1
-      return str[offset : offset+nextToLastLen]
-    }
-
-For example, an object with a base58 CIDv1 of
+For example, an object with a base58 CIDv1 of:
 
     zb2rhYSxw4ZjuzgCnWSt19Q94ERaeFhu9uSqRgjSdx9bsgM6f
 
-has a base32 CIDv1 of
+has a base32 (lowercase, no padding) encoded multihash of:
 
-    bafkreia22flid5aj2ku7urg47mdlrozih6yf2kalu2pwefpvi37ylkrsca
+    ciqbvukwqh2atuvj7jcnz6ygxc5sqp5qluuaxju7mik7krx7qwvdeea
 
-and will be placed at
+and will be placed at:
 
-    sc/afkreia22flid5aj2ku7urg47mdlrozih6yf2kalu2pwefpvi37ylkrsca.data
+    ee/ciqbvukwqh2atuvj7jcnz6ygxc5sqp5qluuaxju7mik7krx7qwvdeea.data
 
-with 'sc' being the last-to-next two characters and the 'b' at the
-beginning of the CIDv1 string is the multibase prefix that is not
-stored in the filename.
+with 'ee' being the next-to-last two characters.
 `

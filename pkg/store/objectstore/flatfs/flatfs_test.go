@@ -286,9 +286,9 @@ func testStorage(p *params, t *testing.T) {
 	if !seen {
 		t.Error("did not see the data file")
 	}
-	if fs.ShardStr() == flatfs.IPFS_DEF_SHARD_STR && !haveREADME {
+	if fs.ShardStr() == flatfs.NEXT_TO_LAST2_DEF_SHARD.String() && !haveREADME {
 		t.Error("expected _README file")
-	} else if fs.ShardStr() != flatfs.IPFS_DEF_SHARD_STR && haveREADME {
+	} else if fs.ShardStr() != flatfs.NEXT_TO_LAST2_DEF_SHARD.String() && haveREADME {
 		t.Error("did not expect _README file")
 	}
 }
@@ -397,14 +397,14 @@ func TestSHARDINGFile(t *testing.T) {
 	tempdir, cleanup := tempdir(t)
 	defer cleanup()
 
-	fun := flatfs.IPFS_DEF_SHARD
+	fun := flatfs.NEXT_TO_LAST2_DEF_SHARD
 
 	fs, err := flatfs.New(tempdir, fun, false)
 	if err != nil {
 		t.Fatalf("Open fail: %v\n", err)
 	}
-	if fs.ShardStr() != flatfs.IPFS_DEF_SHARD_STR {
-		t.Fatalf("Expected '%s' for shard function got '%s'", flatfs.IPFS_DEF_SHARD_STR, fs.ShardStr())
+	if fs.ShardStr() != flatfs.NEXT_TO_LAST2_DEF_SHARD.String() {
+		t.Fatalf("Expected '%s' for shard function got '%s'", flatfs.NEXT_TO_LAST2_DEF_SHARD.String(), fs.ShardStr())
 	}
 	fs.Close()
 

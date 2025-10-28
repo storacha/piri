@@ -44,9 +44,6 @@ var (
 	ErrShardingFileMissing = fmt.Errorf("%s file not found in datastore", SHARDING_FN)
 	ErrClosed              = errors.New("datastore closed")
 	ErrInvalidKey          = errors.New("key not supported by flatfs")
-	// ErrRangeNotSatisfiable is returned when the byte range option falls outside
-	// of the total size of the blob.
-	ErrRangeNotSatisfiable = errors.New("range not satisfiable")
 )
 
 // Store implements [objectstore.Store].
@@ -415,7 +412,7 @@ func (fs *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpt
 	}
 
 	if !rangeSatisfiable(cfg.Range().Start, cfg.Range().End, uint64(size)) {
-		return nil, ErrRangeNotSatisfiable
+		return nil, objectstore.ErrRangeNotSatisfiable
 	}
 
 	_, path := fs.encode(key)

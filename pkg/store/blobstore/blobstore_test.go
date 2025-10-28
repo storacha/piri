@@ -13,6 +13,7 @@ import (
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/piri/pkg/store"
+	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,8 +24,9 @@ func TestBlobstore(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll(tmpdir) })
 
 	impls := map[string]Blobstore{
-		"MapBlobstore": NewMapBlobstore(),
-		"FsBlobstore":  testutil.Must(NewFsBlobstore(rootdir, tmpdir))(t),
+		"MapBlobstore":    NewMapBlobstore(),
+		"FsBlobstore":     testutil.Must(NewFsBlobstore(path.Join(rootdir, "fs"), tmpdir))(t),
+		"ObjectBlobstore": NewObjectBlobstore(testutil.Must(flatfs.New(path.Join(rootdir, "flatfs"), flatfs.NextToLast(2), false))(t)),
 	}
 
 	for k, s := range impls {
@@ -52,6 +54,9 @@ func TestBlobstore(t *testing.T) {
 		})
 
 		t.Run("data consistency "+k, func(t *testing.T) {
+			if k == "ObjectBlobstore" {
+				t.SkipNow() // Object blobstore does not (currently) check data consistency on write
+			}
 			data := testutil.RandomBytes(t, 10)
 			baddata := testutil.RandomBytes(t, 10)
 			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
@@ -61,6 +66,9 @@ func TestBlobstore(t *testing.T) {
 		})
 
 		t.Run("filesystemer "+k, func(t *testing.T) {
+			if k == "ObjectBlobstore" {
+				t.SkipNow() // Object blobstore does not support filesystemer
+			}
 			data := testutil.RandomBytes(t, 10)
 			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
 
