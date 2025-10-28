@@ -39,6 +39,7 @@ func TestFXSpaceContentRetrieve(t *testing.T) {
 
 	testApp.RequireStart()
 	defer testApp.RequireStop()
+	piritestutil.WaitForHealthy(t, &appConfig.Server.PublicURL)
 
 	t.Run("space/content/retrieve", func(t *testing.T) {
 		space := testutil.RandomSigner(t)

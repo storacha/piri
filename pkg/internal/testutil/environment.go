@@ -2,8 +2,11 @@ package testutil
 
 import (
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	docker_client "github.com/docker/docker/client"
 	"github.com/stretchr/testify/require"
@@ -43,4 +46,21 @@ func IsDockerAvailable(t testing.TB) bool {
 		return false
 	}
 	return true
+}
+
+// WaitForHealthy waits for the URL to return HTTP 200 for up to 10 seconds.
+func WaitForHealthy(t testing.TB, url *url.URL) {
+	t.Helper()
+	start := time.Now()
+	for i := 0; i < 100; i++ {
+		resp, err := http.DefaultClient.Get(url.String())
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+	t.Fatalf("%s was not healthy after %s", url.String(), time.Since(start).String())
 }
