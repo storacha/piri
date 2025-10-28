@@ -25,6 +25,7 @@ type Verifier interface {
 	FindPieceIds(ctx context.Context, setId *big.Int, leafIndexs []*big.Int) ([]bindings.IPDPTypesPieceIdAndOffset, error)
 	GetNextPieceId(ctx context.Context, setId *big.Int) (*big.Int, error)
 	CalculateProofFee(ctx context.Context, setId *big.Int) (*big.Int, error)
+	MaxPieceSizeLog2(ctx context.Context) (*big.Int, error)
 
 	// not part of contract code, added for convience in testing and usage
 	GetDataSetIdFromReceipt(receipt *types.Receipt) (uint64, error)
@@ -53,6 +54,10 @@ func NewVerifierContract(backend bind.ContractBackend) (Verifier, error) {
 		client:   backend,
 		abi:      pdpABI,
 	}, nil
+}
+
+func (v *verifierContract) MaxPieceSizeLog2(ctx context.Context) (*big.Int, error) {
+	return v.verifier.MAXPIECESIZELOG2(&bind.CallOpts{Context: ctx})
 }
 
 func (v *verifierContract) GetChallengeFinality(ctx context.Context) (*big.Int, error) {
