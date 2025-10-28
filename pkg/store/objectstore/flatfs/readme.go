@@ -21,13 +21,13 @@ For example, an object with a base58 CIDv1 of
 
 has a base32 CIDv1 of
 
-    BAFKREIA22FLID5AJ2KU7URG47MDLROZIH6YF2KALU2PWEFPVI37YLKRSCA
+    bafkreia22flid5aj2ku7urg47mdlrozih6yf2kalu2pwefpvi37ylkrsca
 
 and will be placed at
 
-    SC/AFKREIA22FLID5AJ2KU7URG47MDLROZIH6YF2KALU2PWEFPVI37YLKRSCA.data
+    sc/afkreia22flid5aj2ku7urg47mdlrozih6yf2kalu2pwefpvi37ylkrsca.data
 
-with 'SC' being the last-to-next two characters and the 'B' at the
+with 'sc' being the last-to-next two characters and the 'b' at the
 beginning of the CIDv1 string is the multibase prefix that is not
 stored in the filename.
 `
