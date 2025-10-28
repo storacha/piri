@@ -1,7 +1,7 @@
 package flatfs
 
 // keyIsValid returns true if the key is valid for flatfs.
-// Allows keys that match [0-9A-Z+-_=].
+// Allows keys that match [0-9a-z+-_=].
 func keyIsValid(key string) bool {
 	if len(key) < 1 {
 		return false
