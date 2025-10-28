@@ -1,8 +1,6 @@
 package flatfs
 
-import (
-	"os"
-)
+import "os"
 
 // don't block more than 16 threads on sync opearation
 // 16 should be able to saturate most RAIDs
