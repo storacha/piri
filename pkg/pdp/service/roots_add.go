@@ -383,6 +383,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 				// implies a bad request
 				return common.Hash{}, fmt.Errorf("subroots must be in descending order of size, root %d %s is larger than prev subroot %s", i, subrootEntry, addRootReq.SubRoots[i-1])
 			}
+			prevSubrootSize = subrootInfo.PieceInfo.Size
 
 			paddedSize := uint64(subrootInfo.PieceInfo.Size)
 			totalSize += paddedSize
