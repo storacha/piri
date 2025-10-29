@@ -108,7 +108,24 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 	if err != nil {
 		return Aggregate{}, err
 	}
-	digest, err := digest.FromCommitmentAndSize(stack[0].commP, size.MaxDataSize(stack[0].size))
+
+	// Ensure the unpadded size for aggregates are calculate as:
+	// sum(subpiece(1).paddedSize ... subpiece(n-1).paddedSize) + subpiece(n).rawSize
+
+	// Calculate actual data size (sum of input pieces before tree padding)
+	// Per FRC-0069, the CIDv2 should encode the actual data size, not the padded tree size
+	// The padding field in the CID will indicate how much zero-padding was added
+	actualDataSize := uint64(0)
+	for _, p := range pieceLinks {
+		actualDataSize += p.PaddedSize()
+	}
+
+	// The unpadded size of the aggregate is the sum of the size of each piece
+	// (padded) except the last piece, which is the unpadded size.
+	actualDataSize -= pieceLinks[len(pieceLinks)-1].Padding()
+
+	// Use actual data size, not padded tree size
+	digest, err := digest.FromCommitmentAndSize(stack[0].commP, size.MaxDataSize(actualDataSize))
 	if err != nil {
 		return Aggregate{}, fmt.Errorf("error building aggregate link: %w", err)
 	}
