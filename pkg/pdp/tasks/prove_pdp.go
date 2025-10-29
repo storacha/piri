@@ -394,8 +394,8 @@ func (p *ProveTask) proveRoot(ctx context.Context, proofSetID int64, rootId int6
 	}
 
 	// find first subroot with subroot_offset >= rootChallengeOffset
-	challSubRoot, challSubrootIdx, ok := lo.FindLastIndexOf(subroots, func(subroot subrootMeta) bool {
-		return subroot.SubrootOffset < rootChallengeOffset
+	challSubRoot, challSubrootIdx, ok := lo.FindIndexOf(subroots, func(subroot subrootMeta) bool {
+		return subroot.SubrootOffset >= rootChallengeOffset && subroot.SubrootOffset+subroot.SubrootSize < rootChallengeOffset
 	})
 	if !ok {
 		return smartcontracts.IPDPTypesProof{}, fmt.Errorf("no subroot found")
