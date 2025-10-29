@@ -36,7 +36,7 @@ piri version
 Restart your Piri server using your existing configuration file:
 
 ```bash
-piri serve full --config=config.toml
+piri serve --config=config.toml
 ```
 
 **Note:** Do not run `piri init` when upgrading - your existing configuration and proof set should be preserved.
