@@ -11,6 +11,8 @@ var log = logging.Logger("cmd/serve")
 var Cmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start a server",
+	Args:  cobra.NoArgs,
+	RunE:  fullServer,
 }
 
 func init() {
