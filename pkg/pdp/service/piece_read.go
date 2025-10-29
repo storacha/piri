@@ -17,12 +17,12 @@ func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...ty
 	cfg := types.ReadPieceConfig{}
 	cfg.ProcessOptions(options)
 
-	log.Infow("reading piece", "request", piece)
+	log.Debugw("reading piece", "request", piece)
 	defer func() {
 		if retErr != nil {
 			log.Errorw("failed to read piece", "request", piece, "retErr", retErr)
 		} else {
-			log.Infow("read piece", "request", piece, "response", res)
+			log.Debugw("read piece", "request", piece, "response", res)
 		}
 	}()
 
