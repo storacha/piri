@@ -9,10 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 
 	"github.com/storacha/filecoin-services/go/bindings"
 )
+
+var log = logging.Logger("smartcontracts")
 
 type Verifier interface {
 	GetChallengeFinality(ctx context.Context) (*big.Int, error)
@@ -81,7 +84,12 @@ func (v *verifierContract) GetDataSetStorageProvider(ctx context.Context, setId 
 }
 
 func (v *verifierContract) GetChallengeRange(ctx context.Context, setId *big.Int) (*big.Int, error) {
-	return v.verifier.GetChallengeRange(&bind.CallOpts{Context: ctx}, setId)
+	out, err := v.verifier.GetChallengeRange(&bind.CallOpts{Context: ctx}, setId)
+	if err != nil {
+		return nil, err
+	}
+	log.Infow("verifier challenge range", "setId", setId, "range", out.Uint64())
+	return out, nil
 }
 
 func (v *verifierContract) GetScheduledRemovals(ctx context.Context, setId *big.Int) ([]*big.Int, error) {
@@ -89,7 +97,21 @@ func (v *verifierContract) GetScheduledRemovals(ctx context.Context, setId *big.
 }
 
 func (v *verifierContract) FindPieceIds(ctx context.Context, setId *big.Int, leafIndexs []*big.Int) ([]bindings.IPDPTypesPieceIdAndOffset, error) {
-	return v.verifier.FindPieceIds(&bind.CallOpts{Context: ctx}, setId, leafIndexs)
+	out, err := v.verifier.FindPieceIds(&bind.CallOpts{Context: ctx}, setId, leafIndexs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Format out for human-readable logging
+	pieceInfo := make([]map[string]interface{}, len(out))
+	for i, piece := range out {
+		pieceInfo[i] = map[string]interface{}{
+			"pieceId": piece.PieceId.String(),
+			"offset":  piece.Offset.String(),
+		}
+	}
+	log.Infow("FindPieceIds", "setId", setId, "leafIndexs", leafIndexs, "pieces", pieceInfo)
+	return out, nil
 }
 
 func (v *verifierContract) GetNextPieceId(ctx context.Context, setId *big.Int) (*big.Int, error) {
