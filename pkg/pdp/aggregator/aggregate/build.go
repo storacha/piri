@@ -119,6 +119,9 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 	for _, p := range pieceLinks {
 		actualDataSize += p.PaddedSize()
 	}
+	// The unpadded size of the aggregate is the sum of the size of each piece
+	// (padded) except the last piece, which is the unpadded size.
+	actualDataSize -= pieceLinks[len(pieceLinks)-1].Padding()
 
 	// Log the difference between old and new behavior
 	paddedTreeSize := stack[0].size
