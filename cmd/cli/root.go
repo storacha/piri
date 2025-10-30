@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/storacha/piri/cmd/cli/setup"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/storacha/piri/cmd/cli/client"
 	"github.com/storacha/piri/cmd/cli/delegate"
@@ -87,6 +89,19 @@ func init() {
 	rootCmd.AddCommand(setup.UpdateCmd)
 	rootCmd.AddCommand(setup.InternalUpdateCmd)
 
+	logging.SetPrimaryCore(newDevCore())
+	log := logging.Logger("test")
+	log.Error("A TEST!")
+}
+
+func newDevCore() zapcore.Core {
+	encCfg := zap.NewDevelopmentEncoderConfig()
+	ws, _, err := zap.Open("stderr")
+	if err != nil {
+		panic(fmt.Sprintf("unable to open logging output: %v", err))
+	}
+	encoder := zapcore.NewJSONEncoder(encCfg)
+	return zapcore.NewCore(encoder, ws, zap.NewAtomicLevelAt(zapcore.Level(zap.DebugLevel)))
 }
 
 func initConfig() {
