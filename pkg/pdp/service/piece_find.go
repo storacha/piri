@@ -11,7 +11,7 @@ import (
 )
 
 func (p *PDPService) FindPiece(ctx context.Context, piece types.Piece) (_ cid.Cid, _ bool, retErr error) {
-	log.Infow("finding piece", "request", piece)
+	log.Debugw("finding piece", "request", piece)
 	defer func() {
 		if retErr != nil {
 			log.Errorw("failed to find piece", "request", piece, "error", retErr)

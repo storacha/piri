@@ -259,6 +259,8 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 }
 
 func (p *ProveTask) GenerateProofs(ctx context.Context, proofSetID int64, seed abi.Randomness, numChallenges int) ([]smartcontracts.IPDPTypesProof, error) {
+	timer := ProveTaskDuration.Start(ctx)
+	defer timer.End()
 	proofs := make([]smartcontracts.IPDPTypesProof, numChallenges)
 
 	totalLeafCount, err := p.verifier.GetChallengeRange(ctx, big.NewInt(proofSetID))

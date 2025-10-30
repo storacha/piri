@@ -31,6 +31,7 @@ var TasksModule = fx.Module("scheduler-tasks",
 			fx.ResultTags(`group:"scheduler_tasks"`),
 		),
 	),
+	fx.Invoke(tasks.InitMetrics),
 )
 
 type InitProvingPeriodTaskParams struct {

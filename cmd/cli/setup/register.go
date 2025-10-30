@@ -51,7 +51,7 @@ var InitCmd = &cobra.Command{
 }
 
 func init() {
-	InitCmd.Flags().String("registrar-url", "https://staging.registrar.storacha.network", "URL of the registrar service")
+	InitCmd.Flags().String("registrar-url", "https://staging.registrar.warm.storacha.network", "URL of the registrar service")
 	cobra.CheckErr(InitCmd.Flags().MarkHidden("registrar-url"))
 
 	InitCmd.Flags().String("data-dir", "", "Path to a data directory Piri will maintain its permanent state in")

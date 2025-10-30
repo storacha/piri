@@ -227,7 +227,6 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 
 	// Task completed successfully
 	log.Infow("Next challenge window scheduled", "epoch", nextProveAt)
-
 	return true, nil
 }
 

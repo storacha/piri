@@ -86,7 +86,7 @@ variable "install_source" {
 variable "registrar_url" {
   description = "URL of the registrar service for node registration"
   type        = string
-  default     = "https://staging.registrar.storacha.network"
+  default     = "https://staging.registrar.warm.storacha.network"
 }
 
 variable "pdp_lotus_endpoint" {
