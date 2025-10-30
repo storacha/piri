@@ -25,6 +25,9 @@ import (
 	replicahandler "github.com/storacha/piri/pkg/service/storage/handlers/replica"
 )
 
+// Time in seconds we allow ourselves to transfer the blob and conclude the task
+const transferTimeout = 60 * 60 // 1h
+
 type ReplicaAllocateService interface {
 	ID() principal.Signer
 	PDP() pdp.PDP
@@ -101,6 +104,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 						Site:  cap.Nb().Site,
 						Cause: inv.Link(),
 					},
+					delegation.WithExpiration(ucan.Now()+transferTimeout),
 				)
 				if err != nil {
 					return nil, nil, err
