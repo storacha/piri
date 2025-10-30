@@ -36,6 +36,7 @@ func newProvider(ctx context.Context, cfg Config) (*Provider, error) {
 		attribute.String("service.version", cfg.ServiceVersion),
 		attribute.String("deployment.environment", cfg.environment),
 	)
+	attrs = append(attrs, cfg.Attributes...)
 
 	res, err := resource.New(ctx,
 		resource.WithAttributes(attrs...),
