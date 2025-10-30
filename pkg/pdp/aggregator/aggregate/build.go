@@ -108,11 +108,12 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 	if err != nil {
 		return Aggregate{}, err
 	}
-	digest, err := digest.FromCommitmentAndSize(stack[0].commP, size.MaxDataSize(stack[0].size))
+
+	height := size.Fr32PaddedSizeToV1TreeHeight(stack[0].size)
+	digest, err := digest.FromCommitmentFr32PaddingAndHeight(stack[0].commP, 32, height)
 	if err != nil {
 		return Aggregate{}, fmt.Errorf("error building aggregate link: %w", err)
 	}
-
 	aggregateLink := piece.FromPieceDigest(digest)
 
 	return Aggregate{

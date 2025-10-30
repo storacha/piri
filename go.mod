@@ -49,7 +49,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/storacha/delegator v0.0.2-0.20251027182137-7d26b5ae9a70
 	github.com/storacha/filecoin-services/go v0.0.1
-	github.com/storacha/go-libstoracha v0.3.3
+	github.com/storacha/go-libstoracha v0.3.4-0.20251030003446-04ba126a1e56
 	github.com/storacha/go-ucanto v0.6.6
 	github.com/storacha/piri-signing-service v0.0.1
 	github.com/stretchr/testify v1.11.1

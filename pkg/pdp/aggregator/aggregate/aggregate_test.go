@@ -21,7 +21,7 @@ func TestAggregate(t *testing.T) {
 	oddsReduction := 0.8
 	maxSize := 28 // 256 mb
 	minSize := 16 // 64 kb
-	pieceLinks, err := generatePieceLinks(uint8(maxSize), oddsShrink, oddsReduction, uint8(minSize))
+	pieceLinks, paddedPieceSizes, err := generatePieceLinks(uint8(maxSize), oddsShrink, oddsReduction, uint8(minSize))
 	require.NoError(t, err)
 	out, err := json.MarshalIndent(pieceLinks, "", "  ")
 	require.NoError(t, err)
@@ -33,14 +33,21 @@ func TestAggregate(t *testing.T) {
 		subTree := (*merkletree.Node)(aggPiece.Link.DataCommitment())
 		require.NoError(t, aggPiece.InclusionProof.ValidateSubtree(subTree, rootNode))
 	}
+	// the size of the aggregate should be the total size of all the pieces
+	totalSize := uint64(0)
+	for _, s := range paddedPieceSizes {
+		totalSize += s
+	}
+	require.Equal(t, totalSize, agg.Root.PaddedSize())
 }
 
 // this generates a random series of pieces decaying in size that should add up to a size between 2^(height-1) and 2^(height)
-func generatePieceLinks(height uint8, oddsShrink float64, oddsReduction float64, smallestSize uint8) ([]piece.PieceLink, error) {
+func generatePieceLinks(height uint8, oddsShrink float64, oddsReduction float64, smallestSize uint8) ([]piece.PieceLink, []uint64, error) {
 	size := 0
 	targetSize := 1 << (height - 1)
 	currentHeight := height
 	var pieceLinks []piece.PieceLink
+	var paddedPieceSizes []uint64
 	for size <= targetSize {
 		for {
 			if currentHeight <= smallestSize {
@@ -60,21 +67,22 @@ func generatePieceLinks(height uint8, oddsShrink float64, oddsReduction float64,
 		cp := &commp.Calc{}
 		_, err := io.Copy(cp, randLimited)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		commP, actualSize, err := cp.Digest()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if actualSize != uint64(paddedSize) {
-			return nil, errors.New("calculated wrong")
+			return nil, nil, errors.New("calculated wrong")
 		}
 		digest, err := digest.FromCommitmentAndSize(commP, uint64(blobSize))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		pieceLinks = append(pieceLinks, piece.FromPieceDigest(digest))
+		paddedPieceSizes = append(paddedPieceSizes, uint64(paddedSize))
 		size += paddedSize
 	}
-	return pieceLinks, nil
+	return pieceLinks, paddedPieceSizes, nil
 }
