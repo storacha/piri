@@ -108,7 +108,16 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 	if err != nil {
 		return Aggregate{}, err
 	}
-	digest, err := digest.FromCommitmentAndSize(stack[0].commP, size.MaxDataSize(stack[0].size))
+	// Calculate actual data size (sum of input pieces before tree padding)
+	// Per FRC-0069, the CIDv2 should encode the actual data size, not the padded tree size
+	// The padding field in the CID will indicate how much zero-padding was added
+	actualDataSize := uint64(0)
+	for _, p := range pieceLinks {
+		actualDataSize += p.PaddedSize()
+	}
+
+	// Use actual data size, not padded tree size
+	digest, err := digest.FromCommitmentAndSize(stack[0].commP, size.MaxDataSize(actualDataSize))
 	if err != nil {
 		return Aggregate{}, fmt.Errorf("error building aggregate link: %w", err)
 	}
