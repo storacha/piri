@@ -112,30 +112,11 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 		return Aggregate{}, err
 	}
 
-	// Calculate actual data size (sum of input pieces before tree padding)
-	// Per FRC-0069, the CIDv2 should encode the actual data size, not the padded tree size
-	// The padding field in the CID will indicate how much zero-padding was added
-	actualDataSize := uint64(0)
-	for _, p := range pieceLinks {
-		actualDataSize += p.PaddedSize()
-	}
-
-	// Log the difference between old and new behavior
-	paddedTreeSize := stack[0].size
-	log.Errorw("NewAggregate size calculation",
-		"actual_data_size", actualDataSize,
-		"padded_tree_size", paddedTreeSize,
-		"difference", paddedTreeSize-actualDataSize,
-		"old_max_data_size", size.MaxDataSize(paddedTreeSize),
-		"new_max_data_size", size.MaxDataSize(actualDataSize),
-		"stack_size", stack[0].size)
-
-	// Use actual data size, not padded tree size
-	digest, err := digest.FromCommitmentAndSize(stack[0].commP, size.MaxDataSize(actualDataSize))
+	height := size.Fr32PaddedSizeToV1TreeHeight(stack[0].size)
+	digest, err := digest.FromCommitmentFr32PaddingAndHeight(stack[0].commP, 32, height)
 	if err != nil {
 		return Aggregate{}, fmt.Errorf("error building aggregate link: %w", err)
 	}
-
 	aggregateLink := piece.FromPieceDigest(digest)
 
 	return Aggregate{
