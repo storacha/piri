@@ -55,6 +55,7 @@ func TestFXAccessGrant(t *testing.T) {
 
 	testApp.RequireStart()
 	defer testApp.RequireStop()
+	piritestutil.WaitForHealthy(t, &appConfig.Server.PublicURL)
 
 	channel := http.NewChannel(&appConfig.Server.PublicURL)
 	conn, err := client.NewConnection(granter, channel)
