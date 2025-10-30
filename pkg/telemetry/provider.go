@@ -22,6 +22,7 @@ type Config struct {
 	ServiceName     string
 	ServiceVersion  string
 	PublishInterval time.Duration
+	Attributes      []attribute.KeyValue
 	environment     string
 	endpoint        string
 	insecure        bool
@@ -29,12 +30,15 @@ type Config struct {
 }
 
 func newProvider(ctx context.Context, cfg Config) (*Provider, error) {
+	var attrs []attribute.KeyValue
+	attrs = append(attrs,
+		attribute.String("service.name", cfg.ServiceName),
+		attribute.String("service.version", cfg.ServiceVersion),
+		attribute.String("deployment.environment", cfg.environment),
+	)
+
 	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			attribute.String("service.name", cfg.ServiceName),
-			attribute.String("service.version", cfg.ServiceVersion),
-			attribute.String("deployment.environment", cfg.environment),
-		),
+		resource.WithAttributes(attrs...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)

@@ -160,11 +160,14 @@ func (h *taskTypeHandler) handleDoneTask(id TaskID, startTime time.Time, done bo
 	)
 
 	var (
-		endTime         = time.Now()
-		retryWait       = 100 * time.Millisecond
-		maxRetries uint = 10
-		retryCount uint = 0
+		endTime                 = time.Now()
+		retryWait               = 100 * time.Millisecond
+		maxRetries         uint = 10
+		retryCount         uint = 0
+		taskTypeMetricAttr      = TaskType(h.TaskTypeDetails.Name)
 	)
+
+	TaskDuration.Record(context.Background(), time.Since(startTime), taskTypeMetricAttr)
 
 retryHandleDoneTask:
 	err := h.TaskEngine.db.WithContext(h.TaskEngine.ctx).Transaction(func(tx *gorm.DB) error {
@@ -191,6 +194,8 @@ retryHandleDoneTask:
 			} else {
 				tlog.Info("Task completed execution")
 			}
+			// the task successfully completed
+			TaskSuccess.Inc(context.Background(), taskTypeMetricAttr)
 		} else {
 			// if the task is not done, see if it can be retried, and capture its error message
 			if doErr != nil {
@@ -199,6 +204,8 @@ retryHandleDoneTask:
 			// the task has exceeded the number of allowed retries, delete it
 			if h.TaskTypeDetails.MaxFailures > 0 && task.Retries >= h.TaskTypeDetails.MaxFailures {
 				tlog.Errorw("Task execution retries exceeded, removing task", "maxFailures", h.TaskTypeDetails.MaxFailures, "retries", task.Retries, "error", doErr)
+				// task has permanently failed, inc failure metric
+				TaskFailure.Inc(context.Background(), taskTypeMetricAttr)
 				if err := tx.Delete(&models.Task{ID: int64(id)}).Error; err != nil {
 					return fmt.Errorf("failed to deleted failed task %d: %w", id, err)
 				}
@@ -246,14 +253,6 @@ retryHandleDoneTask:
 			goto retryHandleDoneTask
 		}
 		return err
-	}
-
-	taskType := TaskType(h.TaskTypeDetails.Name)
-	TaskDuration.Record(context.Background(), time.Since(startTime), taskType)
-	if done {
-		TaskSuccess.Inc(context.Background(), taskType)
-	} else {
-		TaskFailure.Inc(context.Background(), taskType)
 	}
 
 	return nil
