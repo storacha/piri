@@ -53,7 +53,8 @@ func TestCIDSizeBug(t *testing.T) {
 	// Setup for NewAggregate
 	pieceLinks := make([]piece.PieceLink, 3)
 	for i := range sizes {
-		d, err := digest.FromCommitmentAndSize(commPs[i], sizes[i]*127/128)
+		//d, err := digest.FromCommitmentAndSize(commPs[i], sizes[i]*127/128)
+		d, err := digest.FromCommitmentAndSize(commPs[i], uint64(abi.PaddedPieceSize(sizes[i]).Unpadded()))
 		require.NoError(t, err)
 		pieceLinks[i] = piece.FromPieceDigest(d)
 	}
@@ -94,7 +95,8 @@ func TestCIDSizeBug(t *testing.T) {
 	// It uses stack[0].size (paddedTreeSize) instead of actualDataSize
 
 	// Create what the correct digest should be
-	correctDigest, err := digest.FromCommitmentAndSize(aggCommP, actualDataSize*127/128) // actual unpadded size
+	//correctDigest, err := digest.FromCommitmentAndSize(aggCommP, actualDataSize*127/128) // actual unpadded size
+	correctDigest, err := digest.FromCommitmentAndSize(aggCommP, uint64(abi.PaddedPieceSize(actualDataSize).Unpadded())) // actual unpadded size
 	require.NoError(t, err)
 	correctLink := piece.FromPieceDigest(correctDigest)
 	correctLinkStr := correctLink.Link().String()
