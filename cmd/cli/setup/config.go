@@ -104,7 +104,7 @@ var (
 
 // Service-related constants
 const (
-	PiriServeCommand                  = "serve full"
+	PiriServeCommand                  = "serve"
 	PiriUpdateCommand                 = "update-internal"
 	PiriServiceFile                   = "piri.service"
 	PiriUpdateServiceFile             = "piri-updater.service"

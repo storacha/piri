@@ -238,7 +238,7 @@ func TestInstaller_ServiceFileGeneration(t *testing.T) {
 				"User=testuser",
 				"Group=testuser",
 				"ExecStart=",
-				"serve full",
+				"serve",
 				"TimeoutStopSec=",
 			},
 		},
@@ -348,7 +348,7 @@ func TestServiceConstants(t *testing.T) {
 	require.Equal(t, "piri.service", PiriServiceFile)
 	require.Equal(t, "piri-updater.service", PiriUpdateServiceFile)
 	require.Equal(t, "piri-updater.timer", PiriUpdateTimerServiceFile)
-	require.Equal(t, "serve full", PiriServeCommand)
+	require.Equal(t, "serve", PiriServeCommand)
 	require.Equal(t, "update-internal", PiriUpdateCommand)
 	require.True(t, strings.Contains(ReleaseURL, "github.com"))
 }
