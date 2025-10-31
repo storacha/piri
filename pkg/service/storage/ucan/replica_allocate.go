@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
@@ -24,6 +25,9 @@ import (
 	blobhandler "github.com/storacha/piri/pkg/service/storage/handlers/blob"
 	replicahandler "github.com/storacha/piri/pkg/service/storage/handlers/replica"
 )
+
+// Time in seconds we allow ourselves to transfer the blob and conclude the task
+const transferTimeout = time.Hour
 
 type ReplicaAllocateService interface {
 	ID() principal.Signer
@@ -101,6 +105,9 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 						Site:  cap.Nb().Site,
 						Cause: inv.Link(),
 					},
+					delegation.WithExpiration(
+						ucan.UTCUnixTimestamp(time.Now().Add(transferTimeout).Unix()),
+					),
 				)
 				if err != nil {
 					return nil, nil, err
