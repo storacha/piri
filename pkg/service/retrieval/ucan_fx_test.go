@@ -48,6 +48,7 @@ func TestFXSpaceContentRetrieve(t *testing.T) {
 		piritestutil.WithUploadServiceConfig(uploadServiceID.DID(), uploadServiceURL),
 	)
 	testApp := fxtest.New(t,
+		fx.NopLogger,
 		app.CommonModules(appConfig),
 		app.UCANModule,
 		// use the map resolver so no network calls are made that would fail anyway
@@ -254,6 +255,7 @@ func TestFXBlobRetrieve(t *testing.T) {
 
 	appConfig := piritestutil.NewTestConfig(t, piritestutil.WithSigner(testutil.Alice))
 	testApp := fxtest.New(t,
+		fx.NopLogger,
 		app.CommonModules(appConfig),
 		app.UCANModule,
 		fx.Populate(&svc),
