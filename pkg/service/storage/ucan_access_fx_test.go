@@ -42,6 +42,7 @@ func TestFXAccessGrant(t *testing.T) {
 		piritestutil.WithUploadServiceConfig(upsvc.DID(), testutil.TestURL),
 	)
 	testApp := fxtest.New(t,
+		fx.NopLogger,
 		app.CommonModules(appConfig),
 		app.UCANModule,
 		// use the map resolver so no network calls are made that would fail anyway

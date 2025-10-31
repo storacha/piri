@@ -67,6 +67,7 @@ func TestFXServer(t *testing.T) {
 
 	appConfig := piritestutil.NewTestConfig(t, piritestutil.WithSigner(testutil.Alice))
 	testApp := fxtest.New(t,
+		fx.NopLogger,
 		app.CommonModules(appConfig),
 		app.UCANModule,
 		fx.Populate(&svc, &srv),
@@ -448,6 +449,7 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			)
 
 			testApp := fxtest.New(t,
+				fx.NopLogger,
 				app.CommonModules(appConfig),
 				app.UCANModule,
 				// replace the RequestPresigner with our fake one.
