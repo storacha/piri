@@ -148,7 +148,7 @@ func NewManager(lc fx.Lifecycle, params ManagerParams) (*Manager, error) {
 		OnStart: func(ctx context.Context) error {
 			return m.Start()
 		},
-		OnStop: func(context.Context) error {
+		OnStop: func(ctx context.Context) error {
 			return m.Stop(ctx)
 		},
 	})
