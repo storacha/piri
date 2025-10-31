@@ -32,6 +32,7 @@ func TestFXSpaceContentRetrieve(t *testing.T) {
 
 	appConfig := piritestutil.NewTestConfig(t, piritestutil.WithSigner(testutil.Alice))
 	testApp := fxtest.New(t,
+		fx.NopLogger,
 		app.CommonModules(appConfig),
 		app.UCANModule,
 		fx.Populate(&svc),
@@ -135,6 +136,7 @@ func TestFXBlobRetrieve(t *testing.T) {
 
 	appConfig := piritestutil.NewTestConfig(t, piritestutil.WithSigner(testutil.Alice))
 	testApp := fxtest.New(t,
+		fx.NopLogger,
 		app.CommonModules(appConfig),
 		app.UCANModule,
 		fx.Populate(&svc),
