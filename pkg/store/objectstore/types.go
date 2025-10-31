@@ -10,6 +10,9 @@ import (
 
 var (
 	ErrNotExist = errors.New("object does not exist")
+	// ErrRangeNotSatisfiable is returned when the byte range option falls outside
+	// of the total size of the object.
+	ErrRangeNotSatisfiable = errors.New("range not satisfiable")
 )
 
 type Store interface {

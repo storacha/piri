@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/storacha/piri/pkg/store/objectstore"
+	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
 	"github.com/storacha/piri/pkg/store/objectstore/leveldb"
 	"github.com/storacha/piri/pkg/store/objectstore/memory"
 	miniostore "github.com/storacha/piri/pkg/store/objectstore/minio"
@@ -31,10 +33,11 @@ const (
 	Memory  StoreKind = "memory"
 	LevelDB StoreKind = "leveldb"
 	Minio   StoreKind = "minio"
+	FlatFS  StoreKind = "flatfs"
 )
 
 var (
-	storeKinds = []StoreKind{Memory, LevelDB, Minio}
+	storeKinds = []StoreKind{Memory, LevelDB, Minio, FlatFS}
 )
 
 func makeStore(t *testing.T, k StoreKind) objectstore.Store {
@@ -45,6 +48,8 @@ func makeStore(t *testing.T, k StoreKind) objectstore.Store {
 		return createLevelDBStore(t)
 	case Minio:
 		return createMinioStore(t)
+	case FlatFS:
+		return createFlatFSStore(t)
 	}
 	panic("unknown store kind")
 }
@@ -56,6 +61,7 @@ func TestPutOperations(t *testing.T) {
 		data      []byte
 		size      uint64
 		expectErr bool
+		skip      []StoreKind
 	}{
 		{
 			name: "successful put",
@@ -87,12 +93,18 @@ func TestPutOperations(t *testing.T) {
 			key:  "special/key/with-dashes_and.dots",
 			data: []byte("special data"),
 			size: 12,
+			skip: []StoreKind{
+				FlatFS, // no slashes allowed in flatfs
+			},
 		},
 	}
 
 	for _, k := range storeKinds {
 		for _, tt := range tests {
 			t.Run(fmt.Sprintf("%s_%s", k, tt.name), func(t *testing.T) {
+				if slices.Contains(tt.skip, k) {
+					t.SkipNow()
+				}
 				ctx := context.Background()
 				store := makeStore(t, k)
 
@@ -281,6 +293,10 @@ func TestEdgeCases(t *testing.T) {
 	for _, k := range storeKinds {
 		store := makeStore(t, k)
 		t.Run("put and get with unicode key", func(t *testing.T) {
+			if k == FlatFS {
+				fmt.Println("unicode keys unsupported by FlatFS")
+				t.SkipNow()
+			}
 			key := "unicode-key-测试-🚀"
 			data := []byte("unicode content")
 			err := store.Put(ctx, key, uint64(len(data)), bytes.NewReader(data))
@@ -374,6 +390,12 @@ func createMinioStore(t *testing.T) objectstore.Store {
 	require.NotNil(t, store)
 	require.True(t, store.IsOnline())
 	return store
+}
+
+func createFlatFSStore(t *testing.T) objectstore.Store {
+	s, err := flatfs.New(filepath.Join(t.TempDir(), "flatfs"), flatfs.NextToLast(2), false)
+	require.NoError(t, err)
+	return s
 }
 
 func uniqueBucketName(testName string) string {
