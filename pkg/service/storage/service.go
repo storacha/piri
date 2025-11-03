@@ -313,6 +313,7 @@ func New(opts ...Option) (*StorageService, error) {
 			validator.ProofUnavailable,
 			edverifier.Parse,
 			validator.FailDIDKeyResolution,
+			validator.NotExpiredNotTooEarly,
 		)
 	}
 

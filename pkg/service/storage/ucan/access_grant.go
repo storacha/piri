@@ -206,6 +206,7 @@ func newValidationContextFromClaimContext[T any](
 		ctx.ResolveProof,
 		ctx.ParsePrincipal,
 		ctx.ResolveDIDKey,
+		ctx.ValidateTimeBounds,
 		ctx.AuthorityProofs()...,
 	)
 }
