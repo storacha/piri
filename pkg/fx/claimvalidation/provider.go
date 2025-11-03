@@ -26,5 +26,6 @@ func NewClaimValidationContext(id principal.Signer, resolver validator.Principal
 		validator.ProofUnavailable,
 		edverifier.Parse,
 		resolver.ResolveDIDKey,
+		validator.NotExpiredNotTooEarly,
 	)
 }

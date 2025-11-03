@@ -315,6 +315,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		validator.ProofUnavailable,
 		edverifier.Parse,
 		cachedpresolv.ResolveDIDKey,
+		validator.NotExpiredNotTooEarly,
 	)
 
 	storageOpts = append(storageOpts,

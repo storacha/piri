@@ -396,6 +396,7 @@ func Construct(cfg Config) (storage.Service, error) {
 		validator.ProofUnavailable,
 		edverifier.Parse,
 		cachedpresolv.ResolveDIDKey,
+		validator.NotExpiredNotTooEarly,
 	)
 
 	opts := []storage.Option{
