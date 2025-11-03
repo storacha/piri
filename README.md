@@ -13,7 +13,6 @@ What's Piri? It's the _**P**rovable **I**nformation **R**etention **I**nterface_
 Get started with Piri by exploring our comprehensive documentation:
 
 - **[🚀 Getting Started](./docs/getting-started.md)** - Complete setup guide to deploy Piri
-- **[🏗️ Architecture](./docs/architecture.md)** - Understand how Piri works
 
 ### Setup Guides
 
@@ -23,16 +22,14 @@ Follow these guides in order to set up Piri:
 2. **[Installation](./docs/setup/installation.md)** - Download and install Piri
 3. **[Key Generation](./docs/setup/key-generation.md)** - Create your cryptographic identity
 4. **[TLS Configuration](./docs/setup/tls-termination.md)** - Set up HTTPS for your domains
-5. **[PDP Server Setup](./docs/guides/pdp-server.md)** - Deploy the storage backend
-6. **[UCAN Server Setup](./docs/guides/ucan-server.md)** - Deploy the client-facing API
-7. **[Validation](./docs/setup/validation.md)** - Test your deployment
+5. **[Server Setup](./docs/guides/piri-server.md)** - Deploy the Piri server
+6. **[Validation](./docs/setup/validation.md)** - Test your deployment
 
-> **Note:** Using Curio? See [Filecoin's PDP documentation](https://docs.filecoin.io/storage-providers/pdp/enable-pdp) for setup instructions. The Piri UCAN server can connect to Curio as an alternative to the Piri PDP server.
+> **Note:** Using Curio? See [Filecoin's PDP documentation](https://docs.filecoin.io/storage-providers/pdp/install-and-run-pdp) for setup instructions. The Piri UCAN server can connect to Curio as an alternative to the Piri PDP server.
 
 ### Quick Links
 
 - **New to Piri?** Start with the [Getting Started Guide](./docs/getting-started.md)
-- **Want to understand the system?** Read the [Architecture Overview](./docs/architecture.md)
 
 ## Contributing
 
