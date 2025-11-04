@@ -18,6 +18,7 @@ import (
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 	"github.com/storacha/piri/pkg/store/stashstore"
@@ -254,16 +255,16 @@ func NewPDPStore(cfg app.PDPStoreConfig, lc fx.Lifecycle) (blobstore.PDPStore, e
 	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for pdp store")
 	}
-	ds, err := newDs(cfg.Dir)
+	objStore, err := flatfs.New(cfg.Dir, flatfs.NextToLast(2), false)
 	if err != nil {
-		return nil, fmt.Errorf("creating pdp store: %w", err)
+		return nil, fmt.Errorf("creating pdp object store: %w", err)
 	}
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			return ds.Close()
+			return objStore.Close()
 		},
 	})
-	return blobstore.NewTODO_DsBlobstore(ds), nil
+	return blobstore.NewObjectBlobstore(objStore), nil
 }
 
 func newDs(path string) (*leveldb.Datastore, error) {

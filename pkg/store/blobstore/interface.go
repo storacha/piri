@@ -84,7 +84,6 @@ type FileSystemer interface {
 
 type PDPStore interface {
 	Blobstore
-	FileSystemer
 }
 
 type GetConfig interface {
