@@ -171,12 +171,12 @@ func open(path string, syncFiles bool) (*Store, error) {
 	tempPath := filepath.Join(path, ".temp")
 	err = os.RemoveAll(tempPath)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to remove temporary directory: %v", err)
+		return nil, fmt.Errorf("failed to remove temporary directory: %w", err)
 	}
 
 	err = os.Mkdir(tempPath, 0755)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temporary directory: %v", err)
+		return nil, fmt.Errorf("failed to create temporary directory: %w", err)
 	}
 
 	shardId, err := ReadShardFunc(path)
@@ -279,7 +279,7 @@ func (fs *Store) rename(tmpPath, path string) error {
 // will win.
 func (fs *Store) Put(ctx context.Context, key string, size uint64, value io.Reader) error {
 	if !keyIsValid(key) {
-		return fmt.Errorf("when putting %q: %v", key, ErrInvalidKey)
+		return fmt.Errorf("when putting %q: %w", key, ErrInvalidKey)
 	}
 
 	fs.shutdownLock.RLock()

@@ -99,7 +99,7 @@ func ParseShardFunc(str string) (*ShardIdV1, error) {
 
 	param, err := strconv.Atoi(parts[2])
 	if err != nil {
-		return nil, fmt.Errorf("invalid parameter: %v", err)
+		return nil, fmt.Errorf("invalid parameter: %w", err)
 	}
 
 	switch funName {
