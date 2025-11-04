@@ -113,8 +113,10 @@ func (m *opMap) Begin(name string) *opResult {
 		// the result
 		op.mu.RLock()
 		if op.success {
+			op.mu.RUnlock()
 			return nil
 		}
+		op.mu.RUnlock()
 
 		// if we are here, we will retry the operation
 	}
