@@ -38,7 +38,7 @@ type StorageServiceParams struct {
 	ID                     principal.Signer
 	Blobs                  blobs.Blobs
 	Claims                 claims.Claims
-	PDP                    pdp.PDP `optional:"true"`
+	PDP                    pdp.PDP
 	ReceiptStore           receiptstore.ReceiptStore
 	Replicator             replicator.Replicator
 	ClaimValidationContext validator.ClaimContext

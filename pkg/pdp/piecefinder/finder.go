@@ -2,11 +2,11 @@ package piecefinder
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net/url"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/piece/piece"
@@ -17,7 +17,8 @@ import (
 
 type PieceFinder interface {
 	FindPiece(ctx context.Context, digest multihash.Multihash, size uint64) (piece.PieceLink, error)
-	URLForPiece(ctx context.Context, piece piece.PieceLink) (url.URL, error)
+	HasPiece(ctx context.Context, digest multihash.Multihash, size uint64) (bool, error)
+	URLForPiece(ctx context.Context, piece cid.Cid) (url.URL, error)
 }
 
 var _ PieceFinder = (*CurioFinder)(nil)
@@ -71,13 +72,10 @@ func (a *CurioFinder) FindPiece(ctx context.Context, digest multihash.Multihash,
 	// TODO: improve this. @magik6k says curio will have piece ready for processing
 	// in seconds, but we're not sure how long that will be. We need to iterate on this
 	// till we have a better solution
+	c := cid.NewCidV1(decoded.Code, decoded.Digest)
 	attempts := 0
 	for {
-		pieceCID, found, err := a.api.FindPiece(ctx, types.Piece{
-			Name: decoded.Name,
-			Hash: hex.EncodeToString(decoded.Digest),
-			Size: int64(size),
-		})
+		pieceCID, found, err := a.api.ResolvePiece(ctx, c)
 		// NB: an error here indicates a critical failure, if the piece isn't found, no error is returned.
 		if err != nil {
 			return nil, fmt.Errorf("finding piece: %w", err)
@@ -99,6 +97,15 @@ func (a *CurioFinder) FindPiece(ctx context.Context, digest multihash.Multihash,
 	}
 }
 
-func (a *CurioFinder) URLForPiece(ctx context.Context, p piece.PieceLink) (url.URL, error) {
-	return *a.endpoint.JoinPath(p.Link().String()), nil
+func (a *CurioFinder) URLForPiece(ctx context.Context, p cid.Cid) (url.URL, error) {
+	return *a.endpoint.JoinPath(p.String()), nil
+}
+
+func (a *CurioFinder) HasPiece(ctx context.Context, digest multihash.Multihash, size uint64) (bool, error) {
+	decoded, err := multihash.Decode(digest)
+	if err != nil {
+		return false, err
+	}
+	c := cid.NewCidV1(decoded.Code, decoded.Digest)
+	return a.api.HasPiece(ctx, c)
 }

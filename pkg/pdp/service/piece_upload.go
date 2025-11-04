@@ -128,6 +128,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 	log.Infow("computed piece commp", "request", pieceUpload, "commp", pieceCIDComputed.String())
 
 	// convert to a pieceCIDV2
+	// TODO(forrest): I don't think this is actually the padded size!!!! good we ignore it
 	pieceCIDV2, paddedSize, err := asPieceCIDv2(pieceCIDComputed.String(), uint64(upload.CheckSize))
 	if err != nil {
 		return fmt.Errorf("failed to compute v2 piece: %w", err)

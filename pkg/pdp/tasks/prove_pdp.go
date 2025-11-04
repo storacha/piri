@@ -23,6 +23,7 @@ import (
 	pool "github.com/libp2p/go-buffer-pool"
 	"github.com/minio/sha256-simd"
 	"github.com/samber/lo"
+	types2 "github.com/storacha/piri/pkg/pdp/types"
 	"golang.org/x/crypto/sha3"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -52,6 +53,8 @@ type ProveTask struct {
 	head atomic.Pointer[chaintypes.TipSet]
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
+	// TODO this needs to be passed in differently, prove cannot depends on the service directly
+	serviceAPI types2.PieceAPI
 }
 
 func NewProveTask(
@@ -62,14 +65,16 @@ func NewProveTask(
 	api ChainAPI,
 	sender ethereum.Sender,
 	bs blobstore.Blobstore,
+	serviceAPI types2.PieceAPI,
 ) (*ProveTask, error) {
 	pt := &ProveTask{
-		db:        db,
-		ethClient: ethClient,
-		verifier:  verifier,
-		sender:    sender,
-		api:       api,
-		bs:        bs,
+		db:         db,
+		ethClient:  ethClient,
+		verifier:   verifier,
+		sender:     sender,
+		api:        api,
+		bs:         bs,
+		serviceAPI: serviceAPI,
 	}
 
 	// ProveTasks are created on pdp_proof_sets entries where
@@ -355,18 +360,21 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 	}
 
 	// TODO everything below here is probably wrong with respect to size's
-	sr, err := p.bs.Get(ctx, subrootCidObj.Hash())
+	// these CIDs will be commp cids, our store keeps whatever value was uploaded to it
+	// so we need to figure out what the CID we uploaded was, and return that CID here instead for query
+	sr, err := p.serviceAPI.ReadPiece(ctx, subrootCidObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subroot reader: %w", err)
 	}
+	defer sr.Data.Close()
 
-	var r io.Reader = sr.Body()
+	var r io.Reader = sr.Data
 
-	if sr.Size() > int64(subrootSize) {
-		return nil, fmt.Errorf("subroot size mismatch: %d > %d", sr.Size(), subrootSize)
-	} else if sr.Size() < int64(subrootSize) {
+	if sr.Size > int64(subrootSize) {
+		return nil, fmt.Errorf("subroot size mismatch: %d > %d", sr.Size, subrootSize)
+	} else if sr.Size < int64(subrootSize) {
 		// pad with zeros
-		r = io.MultiReader(r, nullreader.NewNullReader(abi.UnpaddedPieceSize(int64(subrootSize)-sr.Size())))
+		r = io.MultiReader(r, nullreader.NewNullReader(abi.UnpaddedPieceSize(int64(subrootSize)-sr.Size)))
 	}
 
 	return proof.BuildSha254Memtree(r, subrootSize.Unpadded())

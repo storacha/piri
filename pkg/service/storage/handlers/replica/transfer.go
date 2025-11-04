@@ -9,13 +9,13 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/printer"
 	"github.com/storacha/go-libstoracha/capabilities/access"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
-	pdp_cap "github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	ucan_cap "github.com/storacha/go-libstoracha/capabilities/ucan"
 	"github.com/storacha/go-ucanto/client"
@@ -194,33 +194,20 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		}
 
 		forks = []fx.Effect{fx.FromInvocation(acceptResp.Claim)}
-		var pdpLink *ipld.Link
-		if acceptResp.PDP != nil {
-			forks = append(forks, fx.FromInvocation(acceptResp.PDP))
-			tmp := acceptResp.PDP.Link()
-			pdpLink = &tmp
-		}
 
-		rcpt, err = issueTransferReceipt(ctx, service, request, acceptResp.Claim.Link(), pdpLink, forks)
+		rcpt, err = issueTransferReceipt(ctx, service, request, acceptResp.Claim.Link(), forks)
 		if err != nil {
 			return err
 		}
 	} else {
 		// Blob already exists (skip transfer for idempotency) or no sink specified - create location assertion
-		claim, pdpAcceptInv, err := createLocationAssertion(ctx, service, request)
+		claim, err := createLocationAssertion(ctx, service, request)
 		if err != nil {
 			return err
 		}
 
 		forks = []fx.Effect{fx.FromInvocation(claim)}
-		var pdpLink *ipld.Link
-		if pdpAcceptInv != nil {
-			forks = append(forks, fx.FromInvocation(pdpAcceptInv))
-			tmp := pdpAcceptInv.Link()
-			pdpLink = &tmp
-		}
-
-		rcpt, err = issueTransferReceipt(ctx, service, request, claim.Link(), pdpLink, forks)
+		rcpt, err = issueTransferReceipt(ctx, service, request, claim.Link(), forks)
 		if err != nil {
 			return err
 		}
@@ -234,7 +221,13 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 func checkBlobExists(ctx context.Context, service TransferService, blob types.Blob) (bool, error) {
 	var err error
 	if service.PDP() != nil {
-		_, err = service.PDP().PieceFinder().FindPiece(ctx, blob.Digest, blob.Size)
+		has, err := service.PDP().PieceFinder().HasPiece(ctx, blob.Digest, blob.Size)
+		if err != nil {
+			return false, fmt.Errorf("checking if piece exists: %w", err)
+		}
+		if !has {
+			return false, nil
+		}
 	} else {
 		_, err = service.Blobs().Store().Get(ctx, blob.Digest)
 	}
@@ -442,49 +435,42 @@ func requestBlobRetrieveDelegation(
 }
 
 // createLocationAssertion creates a location assertion for an existing blob
-func createLocationAssertion(ctx context.Context, service TransferService, request *TransferRequest) (invocation.Invocation, invocation.Invocation, error) {
+func createLocationAssertion(ctx context.Context, service TransferService, request *TransferRequest) (invocation.Invocation, error) {
 	var (
-		loc          url.URL
-		pdpAcceptInv invocation.Invocation
+		loc url.URL
 	)
 
 	if service.PDP() == nil {
 		_, err := service.Blobs().Store().Get(ctx, request.Blob.Digest)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				return nil, nil, fmt.Errorf("blob not found: %w", err)
+				return nil, fmt.Errorf("blob not found: %w", err)
 			}
-			return nil, nil, fmt.Errorf("getting blob: %w", err)
+			return nil, fmt.Errorf("getting blob: %w", err)
 		}
 
 		loc, err = service.Blobs().Access().GetDownloadURL(request.Blob.Digest)
 		if err != nil {
-			return nil, nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
+			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
 	} else {
 		// Locate the piece from the PDP service
-		pdpPiece, err := service.PDP().PieceFinder().FindPiece(ctx, request.Blob.Digest, request.Blob.Size)
+		has, err := service.PDP().PieceFinder().HasPiece(ctx, request.Blob.Digest, request.Blob.Size)
 		if err != nil {
-			return nil, nil, fmt.Errorf("finding piece for blob: %w", err)
+			return nil, fmt.Errorf("checking if blob exists: %w", err)
+		}
+		if !has {
+			return nil, fmt.Errorf("blob not found")
+		}
+		_, blobCID, err := cid.CidFromBytes(request.Blob.Digest)
+		if err != nil {
+			return nil, fmt.Errorf("parsing blob ID: %w", err)
 		}
 
-		loc, err = service.PDP().PieceFinder().URLForPiece(ctx, pdpPiece)
+		loc, err = service.PDP().PieceFinder().URLForPiece(ctx, blobCID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
+			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
-
-		// Generate the invocation for piece acceptance
-		pieceAccept, err := pdp_cap.Accept.Invoke(
-			service.ID(),
-			service.ID(),
-			service.ID().DID().String(),
-			pdp_cap.AcceptCaveats{
-				Piece: pdpPiece,
-			}, delegation.WithNoExpiration())
-		if err != nil {
-			return nil, nil, fmt.Errorf("creating piece accept invocation: %w", err)
-		}
-		pdpAcceptInv = pieceAccept
 	}
 
 	claim, err := assert.Location.Delegate(
@@ -499,17 +485,17 @@ func createLocationAssertion(ctx context.Context, service TransferService, reque
 		delegation.WithNoExpiration(),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("creating location commitment: %w", err)
+		return nil, fmt.Errorf("creating location commitment: %w", err)
 	}
 
-	return claim, pdpAcceptInv, nil
+	return claim, nil
 }
 
 // issueTransferReceipt creates and stores a transfer receipt
-func issueTransferReceipt(ctx context.Context, service TransferService, request *TransferRequest, siteLink ipld.Link, pdpLink *ipld.Link, forks []fx.Effect) (receipt.AnyReceipt, error) {
+func issueTransferReceipt(ctx context.Context, service TransferService, request *TransferRequest, siteLink ipld.Link, forks []fx.Effect) (receipt.AnyReceipt, error) {
 	transferReceipt := replica.TransferOk{
 		Site: siteLink,
-		PDP:  pdpLink,
+		PDP:  nil,
 	}
 
 	ok := result.Ok[replica.TransferOk, ipld.Builder](transferReceipt)

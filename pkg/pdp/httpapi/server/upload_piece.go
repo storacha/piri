@@ -25,7 +25,7 @@ func (p *PDPHandler) handlePieceUpload(c echo.Context) error {
 
 	log.Debugw("Processing prepare piece request", "uploadID", uploadID)
 	start := time.Now()
-	if err := p.Service.UploadPiece(ctx, types.PieceUpload{
+	if err := p.Service.SimpleUpload(ctx, types.PieceUpload{
 		ID:   uploadID,
 		Data: c.Request().Body,
 	}); err != nil {

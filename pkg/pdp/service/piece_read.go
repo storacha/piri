@@ -14,15 +14,24 @@ import (
 )
 
 func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (res *types.PieceReader, retErr error) {
+	// TODO may want to make this an option...
+	readCID, found, err := p.resolvePieceInternal(ctx, piece)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find piece: %w", err)
+	}
+	if !found {
+		return nil, types.NewErrorf(types.KindNotFound, "piece %s not found", piece.String())
+	}
+
 	cfg := types.ReadPieceConfig{}
 	cfg.ProcessOptions(options)
 
-	log.Debugw("reading piece", "request", piece)
+	log.Debugw("reading piece", "request", piece, "resolved", readCID)
 	defer func() {
 		if retErr != nil {
-			log.Errorw("failed to read piece", "request", piece, "retErr", retErr)
+			log.Errorw("failed to read piece", "request", piece, "resolved", readCID, "retErr", retErr)
 		} else {
-			log.Debugw("read piece", "request", piece, "response", res)
+			log.Debugw("read piece", "request", piece, "resolved", readCID, "response", res)
 		}
 	}()
 
@@ -31,13 +40,11 @@ func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...ty
 		getOptions = append(getOptions, blobstore.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	}
 
-	// TODO(forrest): Nice to have in follow on is attempting to map the `piece` arg to a PieceCIDV2, then
-	// performing the query to blobstore with that CID. allowing the read pieces with the cid they allocated them using
-	obj, err := p.blobstore.Get(ctx, piece.Hash(), getOptions...)
+	obj, err := p.blobstore.Get(ctx, readCID.Hash(), getOptions...)
 
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, types.NewErrorf(types.KindNotFound, "piece %s not found", piece.String())
+			return nil, types.NewErrorf(types.KindNotFound, "piece %s not found", readCID.String())
 		}
 		return nil, fmt.Errorf("failed to read piece: %w", err)
 	}

@@ -94,6 +94,8 @@ type PieceAllocation struct {
 	Notify *url.URL
 }
 
+// TODO(forrest): to avoid confussion with other types, this should be called a `Blob` as it doesn't
+// guarentee that its using CommP
 type Piece struct {
 	// Name of the hash function used
 	// sha2-256-trunc254-padded - CommP
@@ -107,6 +109,8 @@ type Piece struct {
 	Size int64
 }
 
+// TODO(forrest): to avoid confussion with other types, this should be called a `Blob` as it doesn't
+// guarentee that its using CommP
 type PieceUpload struct {
 	ID   uuid.UUID
 	Data io.Reader
@@ -218,8 +222,10 @@ func WithRange(start uint64, end *uint64) ReadPieceOption {
 type PieceAPI interface {
 	AllocatePiece(ctx context.Context, allocation PieceAllocation) (*AllocatedPiece, error)
 	UploadPiece(ctx context.Context, upload PieceUpload) error
-	FindPiece(ctx context.Context, piece Piece) (cid.Cid, bool, error)
+	ResolvePiece(ctx context.Context, piece cid.Cid) (cid.Cid, bool, error)
 	ReadPiece(ctx context.Context, piece cid.Cid, options ...ReadPieceOption) (*PieceReader, error)
+	HasPiece(ctx context.Context, piece cid.Cid) (bool, error)
+	CalculateCommP(ctx context.Context, blob cid.Cid) (cid.Cid, error)
 }
 
 type ProviderAPI interface {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/storacha/filecoin-services/go/eip712"
+	"github.com/storacha/piri/pkg/pdp/comper"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -60,7 +61,7 @@ var Module = fx.Module("pdp-service",
 
 // TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface
 type TODO_PDP_Impl struct {
-	aggregator  aggregator.Aggregator
+	comper      *comper.Comper
 	pieceFinder piecefinder.PieceFinder
 	pieceAdder  pieceadder.PieceAdder
 	pieceReader piecereader.PieceReader
@@ -78,18 +79,18 @@ func (s *TODO_PDP_Impl) PieceFinder() piecefinder.PieceFinder {
 	return s.pieceFinder
 }
 
-func (s *TODO_PDP_Impl) Aggregator() aggregator.Aggregator {
-	return s.aggregator
+func (s *TODO_PDP_Impl) Comper() *comper.Comper {
+	return s.comper
 }
 
 var _ pdp.PDP = (*TODO_PDP_Impl)(nil)
 
-func ProvideTODOPDPImplInterface(service types.API, agg aggregator.Aggregator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
+func ProvideTODOPDPImplInterface(service types.API, comper *comper.Comper, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
 	finder := piecefinder.New(service, &cfg.Server.PublicURL)
 	adder := pieceadder.New(service, &cfg.Server.PublicURL)
 	reader := piecereader.New(service, &cfg.Server.PublicURL)
 	return &TODO_PDP_Impl{
-		aggregator:  agg,
+		comper:      comper,
 		pieceFinder: finder,
 		pieceAdder:  adder,
 		pieceReader: reader,

@@ -52,6 +52,21 @@ type Client struct {
 	serverType EndpointType
 }
 
+func (c *Client) HasPiece(ctx context.Context, piece cid.Cid) (bool, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) ResolvePiece(ctx context.Context, piece cid.Cid) (cid.Cid, bool, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) CalculateCommP(ctx context.Context, blob cid.Cid) (cid.Cid, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 type Option func(c *Client) error
 
 func WithHTTPClient(client *http.Client) Option {

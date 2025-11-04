@@ -13,11 +13,11 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/piri/pkg/store"
 
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
-	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 )
 
@@ -62,16 +62,20 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 	// check if we received the blob (only possible if we have an allocation)
 	if len(allocs) > 0 {
 		if s.PDP() != nil {
-			_, err = s.PDP().PieceFinder().FindPiece(ctx, req.Blob.Digest, req.Blob.Size)
+			has, err := s.PDP().PieceFinder().HasPiece(ctx, req.Blob.Digest, req.Blob.Size)
+			if err != nil {
+				return nil, fmt.Errorf("getting blob: %w", err)
+			}
+			received = has
 		} else {
 			_, err = s.Blobs().Store().Get(ctx, req.Blob.Digest)
-		}
-		if err == nil {
-			received = true
-		}
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			log.Errorw("getting blob", "error", err)
-			return nil, fmt.Errorf("getting blob: %w", err)
+			if err != nil && !errors.Is(err, store.ErrNotFound) {
+				log.Errorw("getting blob", "error", err)
+				return nil, fmt.Errorf("getting blob: %w", err)
+			}
+			if err == nil {
+				received = true
+			}
 		}
 	}
 
