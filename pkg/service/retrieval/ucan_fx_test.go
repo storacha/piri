@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipld/go-ipld-prime/printer"
 	blobcaps "github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	ucancaps "github.com/storacha/go-libstoracha/capabilities/ucan"
@@ -234,6 +233,12 @@ func assertContentRetrieveOK(
 		http.CanonicalHeaderKey("Content-Range"):  []string{fmt.Sprintf("bytes %d-%d/%d", 0, 1, expectTotalSize)},
 	}
 
+	require.Equal(t, expectStatus, hres.Status())
+	for k, v := range expectHeaders {
+		require.Equal(t, v, hres.Headers().Values(k))
+	}
+	require.Equal(t, expectBody, testutil.Must(io.ReadAll(hres.Body()))(t))
+
 	rcptLink, ok := xres.Get(task)
 	require.True(t, ok)
 
@@ -241,25 +246,7 @@ func assertContentRetrieveOK(
 	require.NoError(t, err)
 
 	_, x := result.Unwrap(rcpt.Out())
-	if x != nil {
-		printer.Print(x)
-	}
 	require.Nil(t, x)
-
-	require.Equal(t, expectStatus, hres.Status())
-	for k, v := range expectHeaders {
-		require.Equal(t, v, hres.Headers().Values(k))
-	}
-	require.Equal(t, expectBody, testutil.Must(io.ReadAll(hres.Body()))(t))
-
-	// rcptLink, ok := xres.Get(task)
-	// require.True(t, ok)
-
-	// rcpt, err := receipt.NewAnyReceiptReader().Read(rcptLink, xres.Blocks())
-	// require.NoError(t, err)
-
-	// _, x := result.Unwrap(rcpt.Out())
-	// require.Nil(t, x)
 }
 
 func TestFXBlobRetrieve(t *testing.T) {
