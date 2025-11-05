@@ -89,13 +89,11 @@ func NewServer(storageSvc storage.Service, retrievalSvc retrieval.Service, optio
 	}
 	httpClaimsSrv.RegisterRoutes(mux)
 
-	if storageSvc.PDP() == nil {
-		httpBlobsSrv, err := blobs.NewServer(storageSvc.Blobs().Presigner(), storageSvc.Blobs().Allocations(), storageSvc.Blobs().Store())
-		if err != nil {
-			return nil, fmt.Errorf("creating blobs server: %w", err)
-		}
-		httpBlobsSrv.RegisterRoutes(mux)
+	httpBlobsSrv, err := blobs.NewServer(storageSvc.Blobs().Presigner(), storageSvc.Blobs().Allocations(), storageSvc.Blobs().Store())
+	if err != nil {
+		return nil, fmt.Errorf("creating blobs server: %w", err)
 	}
+	httpBlobsSrv.RegisterRoutes(mux)
 
 	publisherStore := storageSvc.Claims().Publisher().Store()
 	encodableStore, ok := publisherStore.(store.EncodeableStore)
