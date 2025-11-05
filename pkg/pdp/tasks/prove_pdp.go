@@ -359,7 +359,8 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 		return nil, fmt.Errorf("subroot size exceeds maximum: %d", subrootSize)
 	}
 
-	resolved, found, err := p.resolver.Resolve(ctx, subrootCidObj)
+	log.Errorw("Resolving for proof", "hash", subrootCidObj.Hash(), "cid", subrootCidObj.String())
+	resolved, found, err := p.resolver.ResolveFromCommp(ctx, subrootCidObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve subroot CID %s: %w", subrootCid, err)
 	}
@@ -367,7 +368,7 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 		return nil, fmt.Errorf("subroot CID %s not found", subrootCid)
 	}
 
-	obj, err := p.bs.Get(ctx, resolved.Hash())
+	obj, err := p.bs.Get(ctx, resolved)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("resolved subroot CID %s not present in blobstore", resolved)

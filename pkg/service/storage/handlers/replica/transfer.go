@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/printer"
 	"github.com/storacha/go-libstoracha/capabilities/access"
@@ -462,12 +461,8 @@ func createLocationAssertion(ctx context.Context, service TransferService, reque
 		if !has {
 			return nil, fmt.Errorf("blob not found")
 		}
-		_, blobCID, err := cid.CidFromBytes(request.Blob.Digest)
-		if err != nil {
-			return nil, fmt.Errorf("parsing blob ID: %w", err)
-		}
 
-		loc, err = service.PDP().PieceFinder().URLForPiece(ctx, blobCID)
+		loc, err = service.PDP().PieceFinder().URLForPiece(ctx, request.Blob.Digest)
 		if err != nil {
 			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}

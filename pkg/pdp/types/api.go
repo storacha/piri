@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 )
 
 type ProofSetStatus struct {
@@ -222,10 +223,10 @@ func WithRange(start uint64, end *uint64) ReadPieceOption {
 type PieceAPI interface {
 	AllocatePiece(ctx context.Context, allocation PieceAllocation) (*AllocatedPiece, error)
 	UploadPiece(ctx context.Context, upload PieceUpload) error
-	ResolvePiece(ctx context.Context, piece cid.Cid) (cid.Cid, bool, error)
-	ReadPiece(ctx context.Context, piece cid.Cid, options ...ReadPieceOption) (*PieceReader, error)
-	HasPiece(ctx context.Context, piece cid.Cid) (bool, error)
-	CalculateCommP(ctx context.Context, blob cid.Cid) (cid.Cid, error)
+	ResolvePiece(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
+	ReadPiece(ctx context.Context, piece multihash.Multihash, options ...ReadPieceOption) (*PieceReader, error)
+	HasPiece(ctx context.Context, piece multihash.Multihash) (bool, error)
+	CalculateCommP(ctx context.Context, piece multihash.Multihash) (cid.Cid, error)
 }
 
 type ProviderAPI interface {

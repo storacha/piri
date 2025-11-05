@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ipfs/go-cid"
 	"github.com/labstack/echo/v4"
 	"github.com/multiformats/go-multihash"
 
@@ -43,12 +42,7 @@ func (p *PDPHandler) handleFindPiece(c echo.Context) error {
 	if err != nil {
 		return c.String(http.StatusBadRequest, "hash is invalid")
 	}
-	dmh, err := multihash.Decode(mh)
-	if err != nil {
-		return c.String(http.StatusBadRequest, "hash is invalid")
-	}
-	toResolve := cid.NewCidV1(dmh.Code, dmh.Digest)
-	pieceCID, has, err := p.Service.ResolvePiece(ctx, toResolve)
+	pieceCID, has, err := p.Service.ResolvePiece(ctx, mh)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "failed to find piece in database")
 	}

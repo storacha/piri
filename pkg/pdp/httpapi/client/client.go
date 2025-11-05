@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/lib"
@@ -52,17 +53,17 @@ type Client struct {
 	serverType EndpointType
 }
 
-func (c *Client) HasPiece(ctx context.Context, piece cid.Cid) (bool, error) {
+func (c *Client) HasPiece(ctx context.Context, piece multihash.Multihash) (bool, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *Client) ResolvePiece(ctx context.Context, piece cid.Cid) (cid.Cid, bool, error) {
+func (c *Client) ResolvePiece(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *Client) CalculateCommP(ctx context.Context, blob cid.Cid) (cid.Cid, error) {
+func (c *Client) CalculateCommP(ctx context.Context, blob multihash.Multihash) (cid.Cid, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -499,7 +500,7 @@ func (c *Client) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, boo
 	return cid.Undef, false, errFromResponse(res)
 }
 
-func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error) {
+func (c *Client) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	cfg := types.ReadPieceConfig{}
 	cfg.ProcessOptions(options)
 

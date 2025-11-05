@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
-func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (res *types.PieceReader, retErr error) {
+func (p *PDPService) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (res *types.PieceReader, retErr error) {
 	// TODO may want to make this an option...
 	readCID, found, err := p.resolvePieceInternal(ctx, piece)
 	if err != nil {
@@ -40,7 +40,7 @@ func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...ty
 		getOptions = append(getOptions, blobstore.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	}
 
-	obj, err := p.blobstore.Get(ctx, readCID.Hash(), getOptions...)
+	obj, err := p.blobstore.Get(ctx, readCID, getOptions...)
 
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {

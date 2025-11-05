@@ -4,13 +4,13 @@ import (
 	"context"
 	"net/url"
 
-	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 type PieceReader interface {
-	ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error)
+	ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error)
 }
 
 var _ PieceReader = (*CurioReader)(nil)
@@ -24,6 +24,6 @@ func New(api types.PieceAPI, endpoint *url.URL) *CurioReader {
 	return &CurioReader{api, endpoint.JoinPath("piece")}
 }
 
-func (r *CurioReader) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error) {
+func (r *CurioReader) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	return r.api.ReadPiece(ctx, piece, options...)
 }

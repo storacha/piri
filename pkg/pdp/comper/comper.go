@@ -7,10 +7,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/schema"
+	"github.com/multiformats/go-multihash"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/piri/pkg/pdp/aggregator"
@@ -40,12 +40,12 @@ const (
 	CommpTaskName  = "compute_commp"
 )
 
-func NewCommpQueue(lc fx.Lifecycle, params CommpQueueParams) (jobqueue.Service[cid.Cid], error) {
-	commpQueue, err := jobqueue.New[cid.Cid](
+func NewCommpQueue(lc fx.Lifecycle, params CommpQueueParams) (jobqueue.Service[multihash.Multihash], error) {
+	commpQueue, err := jobqueue.New[multihash.Multihash](
 		CommpTaskName,
 		params.DB,
-		&serializer.IPLDCBOR[cid.Cid]{
-			Typ:  &schema.TypeLink{},
+		&serializer.IPLDCBOR[multihash.Multihash]{
+			Typ:  &schema.TypeBytes{},
 			Opts: captypes.Converters,
 		},
 		jobqueue.WithLogger(log.With("queue", CommpQueueName)),
@@ -85,18 +85,18 @@ func NewCommpQueue(lc fx.Lifecycle, params CommpQueueParams) (jobqueue.Service[c
 }
 
 type TaskHandler interface {
-	Handle(ctx context.Context, blob cid.Cid) error
+	Handle(ctx context.Context, blob multihash.Multihash) error
 }
 
 type ComperParams struct {
 	fx.In
 
-	Queue   jobqueue.Service[cid.Cid]
+	Queue   jobqueue.Service[multihash.Multihash]
 	Handler TaskHandler
 }
 
 type Comper struct {
-	queue jobqueue.Service[cid.Cid]
+	queue jobqueue.Service[multihash.Multihash]
 }
 
 func NewComper(params ComperParams) (*Comper, error) {
@@ -109,7 +109,7 @@ func NewComper(params ComperParams) (*Comper, error) {
 	return c, nil
 }
 
-func (c *Comper) DoTheThing(ctx context.Context, blob cid.Cid) error {
+func (c *Comper) DoTheThing(ctx context.Context, blob multihash.Multihash) error {
 	return c.queue.Enqueue(ctx, CommpTaskName, blob)
 }
 
@@ -122,7 +122,7 @@ type ComperTaskHandler struct {
 	aggregator aggregator.Aggregator
 }
 
-func (h *ComperTaskHandler) Handle(ctx context.Context, blob cid.Cid) error {
+func (h *ComperTaskHandler) Handle(ctx context.Context, blob multihash.Multihash) error {
 	pieceCid, err := h.api.CalculateCommP(ctx, blob)
 	if err != nil {
 		return err

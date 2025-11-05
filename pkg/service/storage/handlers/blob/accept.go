@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/ipfs/go-cid"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/types"
@@ -72,20 +71,16 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 		if !has {
 			return nil, fmt.Errorf("blob not found")
 		}
-		_, blobCID, err := cid.CidFromBytes(req.Blob.Digest)
-		if err != nil {
-			return nil, fmt.Errorf("parsing blob ID: %w", err)
-		}
 
 		// get a download url
-		loc, err = s.PDP().PieceFinder().URLForPiece(ctx, blobCID)
+		loc, err = s.PDP().PieceFinder().URLForPiece(ctx, req.Blob.Digest)
 		if err != nil {
 			log.Errorw("creating retrieval URL for blob", "error", err)
 			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
 
 		// submit the piece for aggregation
-		err = s.PDP().Comper().DoTheThing(ctx, blobCID)
+		err = s.PDP().Comper().DoTheThing(ctx, req.Blob.Digest)
 		if err != nil {
 			log.Errorw("submitting piece for aggregation", "error", err)
 			return nil, fmt.Errorf("submitting piece for aggregation: %w", err)

@@ -3,15 +3,15 @@ package service
 import (
 	"context"
 
-	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 )
 
 // resolvePieceInternal is the shared implementation for both FindPiece and HasPiece
-func (p *PDPService) resolvePieceInternal(ctx context.Context, piece cid.Cid) (cid.Cid, bool, error) {
+func (p *PDPService) resolvePieceInternal(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error) {
 	return p.pieceResolver.Resolve(ctx, piece)
 }
 
-func (p *PDPService) ResolvePiece(ctx context.Context, piece cid.Cid) (_ cid.Cid, _ bool, retErr error) {
+func (p *PDPService) ResolvePiece(ctx context.Context, piece multihash.Multihash) (_ multihash.Multihash, _ bool, retErr error) {
 	log.Debugw("resolving piece", "request", piece)
 	defer func() {
 		if retErr != nil {

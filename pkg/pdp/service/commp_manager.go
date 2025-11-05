@@ -9,14 +9,15 @@ import (
 	commp "github.com/filecoin-project/go-fil-commp-hashhash"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-func (p *PDPService) CalculateCommP(ctx context.Context, blob cid.Cid) (cid.Cid, error) {
-	data, err := p.blobstore.Get(ctx, blob.Hash())
+func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihash) (cid.Cid, error) {
+	data, err := p.blobstore.Get(ctx, blob)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -24,7 +25,12 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob cid.Cid) (cid.Cid,
 	dataReader := data.Body()
 	defer dataReader.Close()
 
-	pieceCID, paddedSize, err := doCommp(blob, dataReader, uint64(data.Size()))
+	dmh, err := multihash.Decode(blob)
+	if err != nil {
+		return cid.Undef, fmt.Errorf("invalid multihash: %w", err)
+	}
+	blobCID := cid.NewCidV1(dmh.Code, dmh.Digest)
+	pieceCID, paddedSize, err := doCommp(blobCID, dataReader, uint64(data.Size()))
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -56,9 +62,9 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob cid.Cid) (cid.Cid,
 		}
 
 		// 3. insert into pdp_piece_mh_to_commp iff we derived a new CID
-		if !pieceCID.Equals(blob) {
+		if pieceCID.Hash().HexString() != blob.HexString() {
 			mhToCommp := models.PDPPieceMHToCommp{
-				Mhash: blob.Hash(),
+				Mhash: blob,
 				Size:  data.Size(),
 				Commp: pieceCID.String(),
 			}
