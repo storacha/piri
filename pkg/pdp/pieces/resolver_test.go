@@ -3,6 +3,7 @@ package pieces_test
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"io"
 	"path/filepath"
 	"testing"
@@ -30,36 +31,37 @@ type resolverFixture struct {
 }
 
 func TestRoundTripCommP(t *testing.T) {
-	c := &commp.Calc{}
-	size := 10 * 1024
-	data := testutil.RandomBytes(t, size)
+	var pieceCID, commpCID cid.Cid
+	var pieceMH multihash.Multihash
+	{
+		size := 10 * 1024
+		c := &commp.Calc{}
+		data := testutil.RandomBytes(t, size)
 
-	n, err := io.Copy(c, bytes.NewReader(data))
-	require.NoError(t, err)
-	require.EqualValues(t, size, n)
+		n, err := io.Copy(c, bytes.NewReader(data))
+		require.NoError(t, err)
+		require.EqualValues(t, size, n)
 
-	digest, _, err := c.Digest()
-	require.NoError(t, err)
+		digest, _, err := c.Digest()
+		require.NoError(t, err)
 
-	pieceCID, err := commcid.DataCommitmentToPieceCidv2(digest, uint64(size))
-	require.NoError(t, err)
+		pieceCID, err = commcid.DataCommitmentToPieceCidv2(digest, uint64(size))
+		require.NoError(t, err)
+		pieceMH = pieceCID.Hash()
+	}
 
-	pieceMH := pieceCID.Hash()
-	dmh, err := multihash.Decode(pieceMH)
-	require.NoError(t, err)
+	{
 
-	// TODO: this is probably wrong
-	tmp := cid.NewCidV1(dmh.Code, dmh.Digest)
-	commpdigest, _, err := commcid.PieceCidV2ToDataCommitment(tmp)
-	require.NoError(t, err)
+		tmp := cid.NewCidV1(cid.Raw, pieceMH)
+		commpdigest, size, err := commcid.PieceCidV2ToDataCommitment(tmp)
+		require.NoError(t, err)
 
-	_ = commpdigest
+		commpCID, err = commcid.DataCommitmentToPieceCidv2(commpdigest, uint64(size))
+		require.NoError(t, err)
 
-	_, commpCID, err := cid.CidFromBytes(digest)
-	require.NoError(t, err)
+	}
 
 	require.Equal(t, pieceCID.String(), commpCID.String())
-
 }
 
 func newResolverFixture(t *testing.T) resolverFixture {
@@ -90,27 +92,32 @@ func newResolverFixture(t *testing.T) resolverFixture {
 	}
 }
 
+func randomBytes(t *testing.T, size int) []byte {
+	bytes := make([]byte, size)
+	n, err := crand.Read(bytes)
+	require.NoError(t, err)
+	require.Equal(t, size, n)
+	return bytes
+}
+
+func randomMultihash(t *testing.T, data []byte) multihash.Multihash {
+	out, err := multihash.Sum(data, multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	return out
+}
+
 func TestStoreResolverResolveWithCommpMapping(t *testing.T) {
 	fx := newResolverFixture(t)
 
 	commpCID := mustTestCommpCID(t)
 	require.Equal(t, uint64(multicodec.Fr32Sha256Trunc254Padbintree), commpCID.Prefix().MhType)
 
-	ihatethis := testutil.RandomCID(t)
-	resolvedCID, err := cid.Parse(ihatethis.String())
-	require.NoError(t, err)
-	/*
-		rawMH, err := multihash.Sum([]byte("resolved-payload"), multihash.SHA2_256, -1)
-		require.NoError(t, err)
-		decoded, err := multihash.Decode(rawMH)
-		require.NoError(t, err)
-		resolvedCID := cid.NewCidV1(uint64(decoded.Code), decoded.Digest)
-
-	*/
+	size := 10 * 1024
+	resolvedHash := randomMultihash(t, randomBytes(t, size))
 
 	entry := models.PDPPieceMHToCommp{
-		Mhash: resolvedCID.Hash(),
-		Size:  int64(len("resolved-payload")),
+		Mhash: resolvedHash,
+		Size:  int64(size),
 		Commp: commpCID.String(),
 	}
 	require.NoError(t, fx.db.Create(&entry).Error)
@@ -118,23 +125,22 @@ func TestStoreResolverResolveWithCommpMapping(t *testing.T) {
 	got, ok, err := fx.resolver.Resolve(fx.ctx, commpCID.Hash())
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, resolvedCID, got)
+	require.Equal(t, resolvedHash, got)
 }
 
 func TestStoreResolverResolveReadsBlobstore(t *testing.T) {
 	fx := newResolverFixture(t)
 
-	data := []byte("plain-piece")
-	mh, err := multihash.Sum(data, multihash.SHA2_256, -1)
-	require.NoError(t, err)
-	pieceCID := cid.NewCidV1(uint64(multicodec.Raw), mh)
+	size := 10 * 1024
+	data := randomBytes(t, size)
+	resolvedHash := randomMultihash(t, data)
 
-	require.NoError(t, fx.store.Put(fx.ctx, mh, uint64(len(data)), bytes.NewReader(data)))
+	require.NoError(t, fx.store.Put(fx.ctx, resolvedHash, uint64(size), bytes.NewReader(data)))
 
-	got, ok, err := fx.resolver.Resolve(fx.ctx, pieceCID.Hash())
+	got, ok, err := fx.resolver.Resolve(fx.ctx, resolvedHash)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, pieceCID, got)
+	require.Equal(t, resolvedHash, got)
 }
 
 func TestStoreResolverResolveNotFound(t *testing.T) {
@@ -145,7 +151,7 @@ func TestStoreResolverResolveNotFound(t *testing.T) {
 	got, ok, err := fx.resolver.Resolve(fx.ctx, commpCID.Hash())
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.Equal(t, cid.Undef, got)
+	require.Nil(t, got)
 }
 
 func mustTestCommpCID(t *testing.T) cid.Cid {

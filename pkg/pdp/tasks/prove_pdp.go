@@ -360,7 +360,7 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 	}
 
 	log.Errorw("Resolving for proof", "hash", subrootCidObj.Hash(), "cid", subrootCidObj.String())
-	resolved, found, err := p.resolver.ResolveFromCommp(ctx, subrootCidObj)
+	resolved, found, err := p.resolver.Resolve(ctx, subrootCidObj.Hash())
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve subroot CID %s: %w", subrootCid, err)
 	}

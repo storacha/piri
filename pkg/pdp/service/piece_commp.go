@@ -49,7 +49,9 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihas
 		}
 
 		// 2. Create a parked piece ref pointing to PDPStore.
-		dataURL := fmt.Sprintf("pdpstore://%s", pieceCID.String())
+		// NB this field is meaningless, but we might want to use the multihash for the value
+		// since that's the key in the store
+		dataURL := fmt.Sprintf("pdpstore://%s", blobCID.String())
 
 		parkedPieceRef := models.ParkedPieceRef{
 			PieceID:     parkedPiece.ID,
@@ -106,27 +108,29 @@ func doCommp(c cid.Cid, data io.Reader, size uint64) (cid.Cid, uint64, error) {
 		}
 		return pieceCID, uint64(32) << treeHeight, nil
 	case uint64(multicodec.Fr32Sha256Trunc254Padbintree):
-		// we have a pieceCID v2
-		// TODO we can probably skip this and return the cid with derived padded size
+		// we have a pieceCID v2, we can return it, but also need to extract padded size
 		digest, extractedSize, err := commcid.PieceCidV2ToDataCommitment(c)
 		if err != nil {
 			return cid.Undef, 0, fmt.Errorf("failed to convert cid %s from v2 to data commitment: %w", c, err)
 		}
-		_, pieceCID, err := cid.CidFromBytes(digest)
-		if err != nil {
-			return cid.Undef, 0, fmt.Errorf("failed to parse %s digest of v2 cid from data commitment: %w", c, err)
-		}
 		if extractedSize != size {
 			return cid.Undef, 0, fmt.Errorf("expected extracted size %d but got %d", size, extractedSize)
 		}
-		if !pieceCID.Equals(c) {
-			return cid.Undef, 0, fmt.Errorf("expected cid %s but got %s", c, pieceCID)
+
+		// TODO(forrest): I am just being paranoid, this is not needed
+		commpCID, err := commcid.DataCommitmentToPieceCidv2(digest, extractedSize)
+		if err != nil {
+			return cid.Undef, 0, fmt.Errorf("failed to convert cid %s from v2 to data commitment: %w", c, err)
+		}
+
+		if !commpCID.Equals(c) {
+			return cid.Undef, 0, fmt.Errorf("expected cid %s but got %s", c, commpCID)
 		}
 		treeHeight, _, err := commcid.PayloadSizeToV1TreeHeightAndPadding(size)
 		if err != nil {
 			return cid.Undef, 0, err
 		}
-		return pieceCID, uint64(32) << treeHeight, nil
+		return c, uint64(32) << treeHeight, nil
 	default:
 		// need to calculate commp
 		cp := &commp.Calc{}
