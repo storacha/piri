@@ -20,9 +20,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/httpapi/server"
-	"github.com/storacha/piri/pkg/pdp/pieceadder"
-	"github.com/storacha/piri/pkg/pdp/piecefinder"
-	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/pdp/pieces"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
@@ -42,6 +39,9 @@ var Module = fx.Module("pdp-service",
 			fx.As(new(types.API)), // also provide the server as the interface(s) it implements
 			fx.As(new(types.ProofSetAPI)),
 			fx.As(new(types.PieceAPI)),
+			fx.As(new(types.PieceReaderAPI)),
+			fx.As(new(types.PieceWriterAPI)),
+			fx.As(new(types.PieceResolverAPI)),
 		),
 		fx.Annotate(
 			ProvideProofSetIDProvider,
@@ -66,45 +66,31 @@ var Module = fx.Module("pdp-service",
 
 // TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface
 type TODO_PDP_Impl struct {
-	comper      *comper.Comper
-	pieceFinder piecefinder.PieceFinder
-	pieceAdder  pieceadder.PieceAdder
-	pieceReader piecereader.PieceReader
+	comper comper.Calculator
+	api    types.API
 }
 
-func (s *TODO_PDP_Impl) PieceReader() piecereader.PieceReader {
-	return s.pieceReader
+func (s *TODO_PDP_Impl) API() types.PieceAPI {
+	return s.api
 }
 
-func (s *TODO_PDP_Impl) PieceAdder() pieceadder.PieceAdder {
-	return s.pieceAdder
-}
-
-func (s *TODO_PDP_Impl) PieceFinder() piecefinder.PieceFinder {
-	return s.pieceFinder
-}
-
-func (s *TODO_PDP_Impl) Comper() *comper.Comper {
+func (s *TODO_PDP_Impl) CommpCalculator() comper.Calculator {
 	return s.comper
 }
 
 var _ pdp.PDP = (*TODO_PDP_Impl)(nil)
 
-func ProvideTODOPDPImplInterface(service types.API, comper *comper.Comper, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
-	finder := piecefinder.New(service, &cfg.Server.PublicURL)
-	adder := pieceadder.New(service, &cfg.Server.PublicURL)
-	reader := piecereader.New(service, &cfg.Server.PublicURL)
+func ProvideTODOPDPImplInterface(service types.API, comper comper.Calculator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
 	return &TODO_PDP_Impl{
-		comper:      comper,
-		pieceFinder: finder,
-		pieceAdder:  adder,
-		pieceReader: reader,
+		comper: comper,
+		api:    service,
 	}, nil
 }
 
 type Params struct {
 	fx.In
 
+	ServerConfig     app.ServerConfig
 	DB               *gorm.DB `name:"engine_db"`
 	Config           app.PDPServiceConfig
 	Store            blobstore.PDPStore
@@ -124,6 +110,7 @@ type Params struct {
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
 	return service.New(
+		params.ServerConfig.PublicURL,
 		params.DB,
 		params.Config.OwnerAddress,
 		params.Store,

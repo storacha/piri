@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/url"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -42,6 +43,7 @@ type EthClient interface {
 }
 
 type PDPService struct {
+	endpoint        url.URL
 	address         common.Address
 	blobstore       blobstore.Blobstore
 	storage         stashstore.Stash
@@ -67,6 +69,7 @@ type PDPService struct {
 }
 
 func New(
+	endpoint url.URL,
 	db *gorm.DB,
 	address common.Address,
 	bs blobstore.PDPStore,
@@ -84,6 +87,7 @@ func New(
 	registryContract smartcontracts.Registry,
 ) (*PDPService, error) {
 	return &PDPService{
+		endpoint:         endpoint,
 		address:          address,
 		db:               db,
 		name:             "storacha",

@@ -206,17 +206,6 @@ func New(opts ...Option) (*StorageService, error) {
 		} else {
 			blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, pubURL))
 		}
-	} else {
-		pdpImpl = c.pdpImpl
-		if pdpImpl == nil {
-			pdpService, err := pdp.NewRemote(c.pdpCfg, id, receiptStore)
-			if err != nil {
-				return nil, fmt.Errorf("creating pdp service: %w", err)
-			}
-			closeFuncs = append(closeFuncs, pdpService.Shutdown)
-			startFuncs = append(startFuncs, pdpService.Startup)
-			pdpImpl = pdpService
-		}
 	}
 
 	var uploadServiceConnection client.Connection

@@ -56,7 +56,6 @@ type UCANServerConfig struct {
 	UploadServiceDID     did.DID
 	UploadServiceURL     *url.URL
 	IPNIAnnounceURLs     []url.URL
-	PDPEnabled           bool
 	PDPServerURL         *url.URL
 	ProofSetID           uint64
 }
@@ -112,15 +111,5 @@ func PrintUCANServerConfig(cmd *cobra.Command, cfg UCANServerConfig) {
 		}
 	}
 
-	cmd.Println()
-	if cfg.PDPEnabled {
-		cmd.Println("PDP CONFIGURATION")
-		cmd.Println("-----------------")
-		cmd.Println("Status:      Enabled")
-		cmd.Printf("Server URL:  %s\n", cfg.PDPServerURL)
-		cmd.Printf("Proof Set:   %d\n", cfg.ProofSetID)
-	} else {
-		cmd.Println("PDP Status:  Disabled")
-	}
 	cmd.Println()
 }

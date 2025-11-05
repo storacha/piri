@@ -220,7 +220,7 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 func checkBlobExists(ctx context.Context, service TransferService, blob types.Blob) (bool, error) {
 	var err error
 	if service.PDP() != nil {
-		has, err := service.PDP().PieceFinder().HasPiece(ctx, blob.Digest, blob.Size)
+		has, err := service.PDP().API().HasPiece(ctx, blob.Digest)
 		if err != nil {
 			return false, fmt.Errorf("checking if piece exists: %w", err)
 		}
@@ -454,7 +454,7 @@ func createLocationAssertion(ctx context.Context, service TransferService, reque
 		}
 	} else {
 		// Locate the piece from the PDP service
-		has, err := service.PDP().PieceFinder().HasPiece(ctx, request.Blob.Digest, request.Blob.Size)
+		has, err := service.PDP().API().HasPiece(ctx, request.Blob.Digest)
 		if err != nil {
 			return nil, fmt.Errorf("checking if blob exists: %w", err)
 		}
@@ -462,10 +462,7 @@ func createLocationAssertion(ctx context.Context, service TransferService, reque
 			return nil, fmt.Errorf("blob not found")
 		}
 
-		loc, err = service.PDP().PieceFinder().URLForPiece(ctx, request.Blob.Digest)
-		if err != nil {
-			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
-		}
+		loc = service.PDP().API().ReadPieceURL(request.Blob.Digest)
 	}
 
 	claim, err := assert.Location.Delegate(

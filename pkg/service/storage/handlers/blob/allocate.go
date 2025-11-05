@@ -2,6 +2,7 @@ package blob
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,10 +10,12 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/ucan"
+	types2 "github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store"
 
 	"github.com/storacha/go-libstoracha/digestutil"
@@ -62,7 +65,7 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 	// check if we received the blob (only possible if we have an allocation)
 	if len(allocs) > 0 {
 		if s.PDP() != nil {
-			has, err := s.PDP().PieceFinder().HasPiece(ctx, req.Blob.Digest, req.Blob.Size)
+			has, err := s.PDP().API().HasPiece(ctx, req.Blob.Digest)
 			if err != nil {
 				return nil, fmt.Errorf("getting blob: %w", err)
 			}
@@ -118,12 +121,25 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 			// use pdp service upload
 			// TODO we need to provide backpressure to the upload service here
 			// based on the number of roots we are currently allocating.
-			urlP, err := s.PDP().PieceAdder().AddPiece(ctx, req.Blob.Digest, req.Blob.Size)
+			dmh, err := multihash.Decode(req.Blob.Digest)
+			if err != nil {
+				log.Errorw("decoding digest", "error", err)
+				return nil, fmt.Errorf("decoding digest: %w", err)
+			}
+			resp, err := s.PDP().API().AllocatePiece(ctx, types2.PieceAllocation{
+				Piece: types2.Piece{
+					Name: dmh.Name,
+					Hash: hex.EncodeToString(req.Blob.Digest),
+					Size: int64(req.Blob.Size),
+				},
+			})
 			if err != nil {
 				log.Errorw("adding to pdp service", "error", err)
 				return nil, fmt.Errorf("adding to pdp service: %w", err)
 			}
-			uploadURL = *urlP
+			if resp.Allocated {
+				uploadURL = s.PDP().API().WritePieceURL(resp.UploadID)
+			}
 		}
 		address = &blob.Address{
 			URL:     uploadURL,

@@ -20,6 +20,10 @@ import (
 	"go.uber.org/fx"
 )
 
+type Calculator interface {
+	Enqueue(ctx context.Context, blob multihash.Multihash) error
+}
+
 var log = logging.Logger("comper")
 
 var CommperModule = fx.Module("commper",
@@ -99,7 +103,7 @@ type Comper struct {
 	queue jobqueue.Service[multihash.Multihash]
 }
 
-func NewComper(params ComperParams) (*Comper, error) {
+func NewComper(params ComperParams) (Calculator, error) {
 	c := &Comper{
 		queue: params.Queue,
 	}
@@ -109,7 +113,7 @@ func NewComper(params ComperParams) (*Comper, error) {
 	return c, nil
 }
 
-func (c *Comper) DoTheThing(ctx context.Context, blob multihash.Multihash) error {
+func (c *Comper) Enqueue(ctx context.Context, blob multihash.Multihash) error {
 	return c.queue.Enqueue(ctx, CommpTaskName, blob)
 }
 

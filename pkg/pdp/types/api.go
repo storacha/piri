@@ -221,12 +221,26 @@ func WithRange(start uint64, end *uint64) ReadPieceOption {
 }
 
 type PieceAPI interface {
+	CalculateCommP(ctx context.Context, piece multihash.Multihash) (cid.Cid, error)
+	WritePieceURL(piece uuid.UUID) url.URL
+	ReadPieceURL(piece multihash.Multihash) url.URL
+	PieceReaderAPI
+	PieceWriterAPI
+	PieceResolverAPI
+}
+
+type PieceWriterAPI interface {
 	AllocatePiece(ctx context.Context, allocation PieceAllocation) (*AllocatedPiece, error)
 	UploadPiece(ctx context.Context, upload PieceUpload) error
+}
+
+type PieceResolverAPI interface {
 	ResolvePiece(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
-	ReadPiece(ctx context.Context, piece multihash.Multihash, options ...ReadPieceOption) (*PieceReader, error)
 	HasPiece(ctx context.Context, piece multihash.Multihash) (bool, error)
-	CalculateCommP(ctx context.Context, piece multihash.Multihash) (cid.Cid, error)
+}
+
+type PieceReaderAPI interface {
+	ReadPiece(ctx context.Context, piece multihash.Multihash, options ...ReadPieceOption) (*PieceReader, error)
 }
 
 type ProviderAPI interface {

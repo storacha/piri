@@ -62,7 +62,7 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 		}
 	} else {
 		// ensure the blob being accepted is stored
-		has, err := s.PDP().PieceFinder().HasPiece(ctx, req.Blob.Digest, req.Blob.Size)
+		has, err := s.PDP().API().HasPiece(ctx, req.Blob.Digest)
 		if err != nil {
 			log.Errorw("finding piece for blob", "error", err)
 			return nil, fmt.Errorf("finding piece for blob: %w", err)
@@ -73,14 +73,10 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 		}
 
 		// get a download url
-		loc, err = s.PDP().PieceFinder().URLForPiece(ctx, req.Blob.Digest)
-		if err != nil {
-			log.Errorw("creating retrieval URL for blob", "error", err)
-			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
-		}
+		loc = s.PDP().API().ReadPieceURL(req.Blob.Digest)
 
 		// submit the piece for aggregation
-		err = s.PDP().Comper().DoTheThing(ctx, req.Blob.Digest)
+		err = s.PDP().CommpCalculator().Enqueue(ctx, req.Blob.Digest)
 		if err != nil {
 			log.Errorw("submitting piece for aggregation", "error", err)
 			return nil, fmt.Errorf("submitting piece for aggregation: %w", err)

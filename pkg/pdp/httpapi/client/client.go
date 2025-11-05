@@ -53,6 +53,16 @@ type Client struct {
 	serverType EndpointType
 }
 
+func (c *Client) WritePieceURL(id uuid.UUID) url.URL {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) ReadPieceURL(piece multihash.Multihash) url.URL {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (c *Client) HasPiece(ctx context.Context, piece multihash.Multihash) (bool, error) {
 	//TODO implement me
 	panic("implement me")
