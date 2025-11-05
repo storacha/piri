@@ -92,16 +92,6 @@ resource "aws_s3_bucket" "claim_store_bucket" {
   bucket = "${terraform.workspace}-${var.app}-claim-store-bucket"
 }
 
-resource "aws_s3_bucket" "buffer_bucket" {
-  count  = var.use_pdp ? 1 : 0
-  bucket = "${terraform.workspace}-${var.app}-buffer-bucket"
-}
-
-resource "aws_s3_bucket" "aggregates_bucket" {
-  count  = var.use_pdp ? 1 : 0
-  bucket = "${terraform.workspace}-${var.app}-aggregates-bucket"
-}
-
 resource "aws_s3_bucket" "ipni_publisher" {
   bucket = "${terraform.workspace}-${var.app}-ipni-publisher"
 }
