@@ -23,18 +23,19 @@ import (
 	pool "github.com/libp2p/go-buffer-pool"
 	"github.com/minio/sha256-simd"
 	"github.com/samber/lo"
-	types2 "github.com/storacha/piri/pkg/pdp/types"
 	"golang.org/x/crypto/sha3"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
+	"github.com/storacha/piri/pkg/pdp/pieces"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/proof"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
@@ -48,13 +49,12 @@ type ProveTask struct {
 	verifier  smartcontracts.Verifier
 	sender    ethereum.Sender
 	bs        blobstore.Blobstore
+	resolver  pieces.Resolver
 	api       ChainAPI
 
 	head atomic.Pointer[chaintypes.TipSet]
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
-	// TODO this needs to be passed in differently, prove cannot depends on the service directly
-	serviceAPI types2.PieceAPI
 }
 
 func NewProveTask(
@@ -65,16 +65,16 @@ func NewProveTask(
 	api ChainAPI,
 	sender ethereum.Sender,
 	bs blobstore.Blobstore,
-	serviceAPI types2.PieceAPI,
+	resolver pieces.Resolver,
 ) (*ProveTask, error) {
 	pt := &ProveTask{
-		db:         db,
-		ethClient:  ethClient,
-		verifier:   verifier,
-		sender:     sender,
-		api:        api,
-		bs:         bs,
-		serviceAPI: serviceAPI,
+		db:        db,
+		ethClient: ethClient,
+		verifier:  verifier,
+		sender:    sender,
+		api:       api,
+		bs:        bs,
+		resolver:  resolver,
 	}
 
 	// ProveTasks are created on pdp_proof_sets entries where
@@ -359,22 +359,33 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 		return nil, fmt.Errorf("subroot size exceeds maximum: %d", subrootSize)
 	}
 
-	// TODO everything below here is probably wrong with respect to size's
-	// these CIDs will be commp cids, our store keeps whatever value was uploaded to it
-	// so we need to figure out what the CID we uploaded was, and return that CID here instead for query
-	sr, err := p.serviceAPI.ReadPiece(ctx, subrootCidObj)
+	resolved, found, err := p.resolver.Resolve(ctx, subrootCidObj)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get subroot reader: %w", err)
+		return nil, fmt.Errorf("failed to resolve subroot CID %s: %w", subrootCid, err)
 	}
-	defer sr.Data.Close()
+	if !found {
+		return nil, fmt.Errorf("subroot CID %s not found", subrootCid)
+	}
 
-	var r io.Reader = sr.Data
+	obj, err := p.bs.Get(ctx, resolved.Hash())
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, fmt.Errorf("resolved subroot CID %s not present in blobstore", resolved)
+		}
+		return nil, fmt.Errorf("failed to read resolved subroot CID %s: %w", resolved, err)
+	}
 
-	if sr.Size > int64(subrootSize) {
-		return nil, fmt.Errorf("subroot size mismatch: %d > %d", sr.Size, subrootSize)
-	} else if sr.Size < int64(subrootSize) {
+	body := obj.Body()
+	defer body.Close()
+
+	size := obj.Size()
+
+	var r io.Reader = body
+	if size > int64(subrootSize) {
+		return nil, fmt.Errorf("subroot size mismatch: %d > %d", size, subrootSize)
+	} else if size < int64(subrootSize) {
 		// pad with zeros
-		r = io.MultiReader(r, nullreader.NewNullReader(abi.UnpaddedPieceSize(int64(subrootSize)-sr.Size)))
+		r = io.MultiReader(r, nullreader.NewNullReader(abi.UnpaddedPieceSize(int64(subrootSize)-size)))
 	}
 
 	return proof.BuildSha254Memtree(r, subrootSize.Unpadded())

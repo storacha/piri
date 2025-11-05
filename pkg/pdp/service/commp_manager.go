@@ -147,6 +147,7 @@ func doCommp(c cid.Cid, data io.Reader, size uint64) (cid.Cid, uint64, error) {
 		if err != nil {
 			return cid.Undef, 0, err
 		}
+
 		expectedPaddedSize := uint64(32) << treeHeight
 		if commpPaddedSize != expectedPaddedSize {
 			return cid.Undef, 0, fmt.Errorf("unexpected padded size from commp calculation: got %d, expected %d (raw size: %d)", commpPaddedSize, expectedPaddedSize, size)

@@ -23,6 +23,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/pieceadder"
 	"github.com/storacha/piri/pkg/pdp/piecefinder"
 	"github.com/storacha/piri/pkg/pdp/piecereader"
+	"github.com/storacha/piri/pkg/pdp/pieces"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
@@ -50,6 +51,10 @@ var Module = fx.Module("pdp-service",
 		fx.Annotate(
 			ProvideTODOPDPImplInterface,
 			fx.As(new(pdp.PDP)),
+		),
+		fx.Annotate(
+			ProvidePieceResolver,
+			fx.As(new(pieces.Resolver)),
 		),
 		fx.Annotate(
 			server.NewPDPHandler,
@@ -105,6 +110,7 @@ type Params struct {
 	Store            blobstore.PDPStore
 	Stash            stashstore.Stash
 	Sender           ethereum.Sender
+	PieceResolver    pieces.Resolver
 	Engine           *scheduler.TaskEngine
 	ChainScheduler   *chainsched.Scheduler
 	ChainClient      service.ChainClient
@@ -121,6 +127,7 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.DB,
 		params.Config.OwnerAddress,
 		params.Store,
+		params.PieceResolver,
 		params.Stash,
 		params.Sender,
 		params.Engine,
@@ -137,6 +144,17 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 
 func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (*aggregator.ConfiguredProofSetProvider, error) {
 	return &aggregator.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
+}
+
+type PieceResolverParams struct {
+	fx.In
+
+	DB    *gorm.DB `name:"engine_db"`
+	Store blobstore.PDPStore
+}
+
+func ProvidePieceResolver(params PieceResolverParams) pieces.Resolver {
+	return pieces.NewStoreResolver(params.DB, params.Store)
 }
 
 func ProviderSigningService(cfg app.SigningServiceConfig) (signer.SigningService, error) {

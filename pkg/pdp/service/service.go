@@ -17,6 +17,7 @@ import (
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
+	"github.com/storacha/piri/pkg/pdp/pieces"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
@@ -51,6 +52,8 @@ type PDPService struct {
 	db   *gorm.DB
 	name string
 
+	pieceResolver pieces.Resolver
+
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
 	signingService signer.SigningService
@@ -67,6 +70,7 @@ func New(
 	db *gorm.DB,
 	address common.Address,
 	bs blobstore.PDPStore,
+	resolver pieces.Resolver,
 	stash stashstore.Stash,
 	sender ethereum.Sender,
 	engine *scheduler.TaskEngine,
@@ -84,6 +88,7 @@ func New(
 		db:               db,
 		name:             "storacha",
 		blobstore:        bs,
+		pieceResolver:    resolver,
 		storage:          stash,
 		sender:           sender,
 		engine:           engine,
