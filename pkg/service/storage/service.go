@@ -37,7 +37,6 @@ type StorageService struct {
 	id            principal.Signer
 	blobs         blobs.Blobs
 	claims        claims.Claims
-	pdp           pdp.PDP
 	receiptStore  receiptstore.ReceiptStore
 	replicator    replicator.Replicator
 	uploadService client.Connection
@@ -68,7 +67,7 @@ func (s *StorageService) ID() principal.Signer {
 }
 
 func (s *StorageService) PDP() pdp.PDP {
-	return s.pdp
+	return nil
 }
 
 func (s *StorageService) Receipts() receiptstore.ReceiptStore {
@@ -182,30 +181,27 @@ func New(opts ...Option) (*StorageService, error) {
 		}
 	}
 
-	var pdpImpl pdp.PDP
-	if c.pdpCfg == nil && c.pdpImpl == nil {
-		blobStore := c.blobStore
-		if blobStore == nil {
-			blobStore = blobstore.NewMapBlobstore()
-			log.Warn("Blob store not configured, using in-memory store")
-		}
+	blobStore := c.blobStore
+	if blobStore == nil {
+		blobStore = blobstore.NewMapBlobstore()
+		log.Warn("Blob store not configured, using in-memory store")
+	}
 
-		blobOpts = append(blobOpts, blobs.WithBlobstore(blobStore))
-		if c.blobsAccess != nil {
-			blobOpts = append(blobOpts, blobs.WithAccess(c.blobsAccess))
-		} else if c.blobsPublicURL != (url.URL{}) {
-			blobOpts = append(blobOpts, blobs.WithPublicURLAccess(c.blobsPublicURL))
-		} else {
-			blobOpts = append(blobOpts, blobs.WithPublicURLAccess(pubURL))
-		}
+	blobOpts = append(blobOpts, blobs.WithBlobstore(blobStore))
+	if c.blobsAccess != nil {
+		blobOpts = append(blobOpts, blobs.WithAccess(c.blobsAccess))
+	} else if c.blobsPublicURL != (url.URL{}) {
+		blobOpts = append(blobOpts, blobs.WithPublicURLAccess(c.blobsPublicURL))
+	} else {
+		blobOpts = append(blobOpts, blobs.WithPublicURLAccess(pubURL))
+	}
 
-		if c.blobsPresigner != nil {
-			blobOpts = append(blobOpts, blobs.WithPresigner(c.blobsPresigner))
-		} else if c.blobsPublicURL != (url.URL{}) {
-			blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, c.blobsPublicURL))
-		} else {
-			blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, pubURL))
-		}
+	if c.blobsPresigner != nil {
+		blobOpts = append(blobOpts, blobs.WithPresigner(c.blobsPresigner))
+	} else if c.blobsPublicURL != (url.URL{}) {
+		blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, c.blobsPublicURL))
+	} else {
+		blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, pubURL))
 	}
 
 	var uploadServiceConnection client.Connection
@@ -266,7 +262,7 @@ func New(opts ...Option) (*StorageService, error) {
 		return nil, fmt.Errorf("creating replication queue: %w", err)
 	}
 
-	repl, err := replicator.New(id, pdpImpl, blobs, claims, receiptStore, uploadServiceConnection, replicationQueue)
+	repl, err := replicator.New(id, nil, blobs, claims, receiptStore, uploadServiceConnection, replicationQueue)
 	if err != nil {
 		return nil, fmt.Errorf("creating replicator service: %w", err)
 	}
@@ -313,7 +309,6 @@ func New(opts ...Option) (*StorageService, error) {
 		closeFuncs:    closeFuncs,
 		startFuncs:    startFuncs,
 		receiptStore:  receiptStore,
-		pdp:           pdpImpl,
 		replicator:    repl,
 		uploadService: uploadServiceConnection,
 		claimCtx:      claimCtx,
