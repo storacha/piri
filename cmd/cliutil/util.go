@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/labstack/gommon/color"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
@@ -56,26 +55,6 @@ type UCANServerConfig struct {
 	UploadServiceDID     did.DID
 	UploadServiceURL     *url.URL
 	IPNIAnnounceURLs     []url.URL
-	PDPEnabled           bool
-	PDPServerURL         *url.URL
-	ProofSetID           uint64
-}
-
-type PDPServerConfig struct {
-	Endpoint     *url.URL
-	LotusURL     *url.URL
-	OwnerAddress common.Address
-	DataDir      string
-}
-
-func PrintPDPServerConfig(cmd *cobra.Command, cfg PDPServerConfig) {
-	cmd.Println("SERVER CONFIGURATION")
-	cmd.Println("--------------------")
-	cmd.Printf("Endpoint:		%s\n", cfg.Endpoint.String())
-	cmd.Printf("Data Dir:		%s\n", cfg.DataDir)
-	cmd.Printf("Lotus Endpoint:		%s\n", cfg.LotusURL.String())
-	cmd.Printf("Owner Address:		%s\n", cfg.OwnerAddress.String())
-	cmd.Println()
 }
 
 func PrintUCANServerConfig(cmd *cobra.Command, cfg UCANServerConfig) {
@@ -112,15 +91,5 @@ func PrintUCANServerConfig(cmd *cobra.Command, cfg UCANServerConfig) {
 		}
 	}
 
-	cmd.Println()
-	if cfg.PDPEnabled {
-		cmd.Println("PDP CONFIGURATION")
-		cmd.Println("-----------------")
-		cmd.Println("Status:      Enabled")
-		cmd.Printf("Server URL:  %s\n", cfg.PDPServerURL)
-		cmd.Printf("Proof Set:   %d\n", cfg.ProofSetID)
-	} else {
-		cmd.Println("PDP Status:  Disabled")
-	}
 	cmd.Println()
 }
