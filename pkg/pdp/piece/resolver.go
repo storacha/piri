@@ -68,10 +68,7 @@ func (r *StoreResolver) ResolvePiece(ctx context.Context, blob multihash.Multiha
 	}
 	switch dmh.Code {
 	case uint64(multicodec.Fr32Sha256Trunc254Padbintree): // we are resolving a CommP to the multihash it was uploaded with, which could be the commP, or a different mh
-		commpCID, err := MultihashToCommpV2CID(blob)
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to convert blob to commp CID: %w", err)
-		}
+		commpCID := MultihashToCommpV2CID(blob)
 		var record models.PDPPieceMHToCommp
 		if err := r.db.WithContext(ctx).Where("commp = ?", commpCID.String()).First(&record).Error; err != nil {
 			// if the commp doesn't exist in the mapping, then the pice may have been uploaded as a commp and never
@@ -111,14 +108,6 @@ func (r *StoreResolver) ResolvePiece(ctx context.Context, blob multihash.Multiha
 	}
 }
 
-func MultihashToCommpV2CID(mh multihash.Multihash) (cid.Cid, error) {
-	return cid.NewCidV1(cid.Raw, mh), nil
-	/*
-		digest, payloadSize, err := commcid.PieceCidV2ToDataCommitment(cid.NewCidV1(cid.Raw, mh))
-		if err != nil {
-			return cid.Undef, err
-		}
-		return commcid.DataCommitmentToPieceCidv2(digest, payloadSize)
-
-	*/
+func MultihashToCommpV2CID(mh multihash.Multihash) cid.Cid {
+	return cid.NewCidV1(cid.Raw, mh)
 }
