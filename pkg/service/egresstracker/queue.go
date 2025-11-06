@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/ipfs/go-cid"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue"
 )
 
 type EgressTrackerQueue interface {

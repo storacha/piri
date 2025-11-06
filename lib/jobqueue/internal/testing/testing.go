@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/pkg/database/sqlitedb"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
 )
 
 //go:embed schema.sql

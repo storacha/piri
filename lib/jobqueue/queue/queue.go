@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"time"
 
-	internalsql "github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/internal/sql"
+	internalsql "github.com/storacha/piri/lib/jobqueue/internal/sql"
 )
 
 //go:embed schema.sql
@@ -85,6 +85,19 @@ type Message struct {
 	Delay    time.Duration
 	Received int
 	Body     []byte
+}
+
+type Interface interface {
+	MaxReceive() int
+	Timeout() time.Duration
+	Send(context.Context, Message) error
+	SendTx(context.Context, *sql.Tx, Message) error
+	SendAndGetID(context.Context, Message) (ID, error)
+	Receive(context.Context) (*Message, error)
+	ReceiveAndWait(context.Context, time.Duration) (*Message, error)
+	Extend(context.Context, ID, time.Duration) error
+	Delete(context.Context, ID) error
+	MoveToDeadLetter(context.Context, ID, string, string, string) error
 }
 
 func (q *Queue) MaxReceive() int {

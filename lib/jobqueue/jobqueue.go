@@ -10,9 +10,10 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/worker"
+	"github.com/storacha/piri/lib/jobqueue/dedup"
+	"github.com/storacha/piri/lib/jobqueue/queue"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/worker"
 )
 
 var log = logging.Logger("jobqueue")
@@ -25,10 +26,11 @@ type Service[T any] interface {
 }
 
 type Config struct {
-	Logger     worker.StandardLogger
-	MaxWorkers uint
-	MaxRetries uint
-	MaxTimeout time.Duration
+	Logger        worker.StandardLogger
+	MaxWorkers    uint
+	MaxRetries    uint
+	MaxTimeout    time.Duration
+	queueProvider QueueProvider
 }
 type Option func(c *Config) error
 
@@ -69,9 +71,84 @@ func WithMaxTimeout(maxTimeout time.Duration) Option {
 	}
 }
 
+func defaultQueueProvider() QueueProvider {
+	return QueueProvider{
+		Setup: queue.Setup,
+		New: func(name string, db *sql.DB, opts QueueProviderOpts) (queue.Interface, error) {
+			return queue.New(queue.NewOpts{
+				DB:         db,
+				MaxReceive: opts.MaxReceive,
+				Name:       name,
+				Timeout:    opts.Timeout,
+			})
+		},
+	}
+}
+
+type QueueProviderOpts struct {
+	MaxReceive int
+	Timeout    time.Duration
+}
+
+type QueueProvider struct {
+	Setup func(context.Context, *sql.DB) error
+	New   func(name string, db *sql.DB, opts QueueProviderOpts) (queue.Interface, error)
+}
+
+func WithQueueProvider(provider QueueProvider) Option {
+	return func(c *Config) error {
+		if provider.Setup == nil {
+			return errors.New("queue provider setup cannot be nil")
+		}
+		if provider.New == nil {
+			return errors.New("queue provider new cannot be nil")
+		}
+		c.queueProvider = provider
+		return nil
+	}
+}
+
+type DedupQueueConfig struct {
+	DedupeEnabled     *bool
+	BlockRepeatsOnDLQ *bool
+	HashFunc          dedup.HashFunc
+}
+
+func WithDedupQueue(cfg *DedupQueueConfig) Option {
+	return func(c *Config) error {
+		dedupCfg := DedupQueueConfig{}
+		if cfg != nil {
+			dedupCfg = *cfg
+		}
+
+		provider := QueueProvider{
+			Setup: dedup.Setup,
+			New: func(name string, db *sql.DB, opts QueueProviderOpts) (queue.Interface, error) {
+				dOpts := dedup.NewOpts{
+					DB:         db,
+					Name:       name,
+					MaxReceive: opts.MaxReceive,
+					Timeout:    opts.Timeout,
+					HashFunc:   dedupCfg.HashFunc,
+				}
+				if dedupCfg.DedupeEnabled != nil {
+					dOpts.DedupeEnabled = dedupCfg.DedupeEnabled
+				}
+				if dedupCfg.BlockRepeatsOnDLQ != nil {
+					dOpts.BlockRepeatsOnDLQ = dedupCfg.BlockRepeatsOnDLQ
+				}
+				return dedup.New(dOpts)
+			},
+		}
+
+		c.queueProvider = provider
+		return nil
+	}
+}
+
 type JobQueue[T any] struct {
 	worker *worker.Worker[T]
-	queue  *queue.Queue
+	queue  queue.Interface
 	name   string
 
 	// shutdown management
@@ -85,10 +162,11 @@ type JobQueue[T any] struct {
 func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...Option) (*JobQueue[T], error) {
 	// set defaults
 	c := &Config{
-		Logger:     &worker.DiscardLogger{},
-		MaxWorkers: 1,
-		MaxRetries: 3,
-		MaxTimeout: 5 * time.Second,
+		Logger:        &worker.DiscardLogger{},
+		MaxWorkers:    1,
+		MaxRetries:    3,
+		MaxTimeout:    5 * time.Second,
+		queueProvider: defaultQueueProvider(),
 	}
 	// apply overrides of defaults
 	for _, opt := range opts {
@@ -97,18 +175,20 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 		}
 	}
 
+	if c.queueProvider.Setup == nil || c.queueProvider.New == nil {
+		return nil, errors.New("queue provider is not configured")
+	}
+
 	// instantiate queue schema in the database, this should be fairly quick
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
-	if err := queue.Setup(ctx, db); err != nil {
+	if err := c.queueProvider.Setup(ctx, db); err != nil {
 		return nil, err
 	}
 
 	// instantiate queue
-	q, err := queue.New(queue.NewOpts{
-		DB:         db,
+	q, err := c.queueProvider.New(name, db, QueueProviderOpts{
 		MaxReceive: int(c.MaxRetries),
-		Name:       name,
 		Timeout:    c.MaxTimeout,
 	})
 	if err != nil {
