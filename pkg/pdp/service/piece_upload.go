@@ -40,6 +40,11 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		}
 	}
 
+	mh, err := multihash.Decode(upload.CheckHash)
+	if err != nil {
+		return types.WrapError(types.KindInternal, "failed to decode check hash", err)
+	}
+
 	vr, err := verifyread.New(pieceUpload.Data, hasher, mh.Digest)
 	if err != nil {
 		return types.WrapError(types.KindInternal, "failed to create verification reader", err)
@@ -49,11 +54,6 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		// transaction since we only want to remove the upload entry if we can write to the store
 		if err := tx.Delete(&models.PDPPieceUpload{}, "id = ?", upload.ID).Error; err != nil {
 			return types.WrapError(types.KindInternal, fmt.Sprintf("failed to delete piece upload ID %s from pdp_piece_uploads", upload.ID), err)
-		}
-
-		mh, err := multihash.Decode(upload.CheckHash)
-		if err != nil {
-			return types.WrapError(types.KindInternal, "failed to decode check hash", err)
 		}
 
 		if err := p.blobstore.Put(ctx, upload.CheckHash, uint64(upload.CheckSize), vr); err != nil {
