@@ -19,17 +19,17 @@ import (
 	"github.com/storacha/piri/pkg/store"
 )
 
-var log = logging.Logger("piece/resolver")
+var log = logging.Logger("pdp/piece")
 
 // Resolver resolves externally supplied piece identifiers to the multihashes
 // used within the blobstore.
 type Resolver interface {
-	Resolve(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
+	ResolvePiece(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
 }
 
 type StoreResolver struct {
 	db    *gorm.DB
-	store blobstore.BlobGetter
+	store blobstore.PDPStore
 	// TODO add an Arc or LRU cache
 }
 
@@ -41,7 +41,7 @@ type StoreResolverParams struct {
 	// TODO pass in a cache interface
 }
 
-func NewStoreResolver(params StoreResolverParams) *StoreResolver {
+func NewStoreResolver(params StoreResolverParams) Resolver {
 	return &StoreResolver{
 		db:    params.DB,
 		store: params.Store,
@@ -50,7 +50,8 @@ func NewStoreResolver(params StoreResolverParams) *StoreResolver {
 
 var _ Resolver = (*StoreResolver)(nil)
 
-func (r *StoreResolver) Resolve(ctx context.Context, piece multihash.Multihash) (resolved multihash.Multihash, found bool, retErr error) {
+func (r *StoreResolver) ResolvePiece(ctx context.Context, piece multihash.Multihash) (resolved multihash.Multihash, found bool, retErr error) {
+	log.Errorw("resolving piece multihash", "pieces", piece.String())
 	start := time.Now()
 	defer func() {
 		if found {

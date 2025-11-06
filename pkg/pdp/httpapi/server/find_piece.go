@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
-
 	"github.com/storacha/piri/pkg/pdp/httpapi"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
@@ -32,11 +31,15 @@ func (p *PDPHandler) handleFindPiece(c echo.Context) error {
 	}
 
 	// Verify that a 'parked_pieces' entry exists for the given 'piece_cid'
-	pieceCID, has, err := p.Service.FindPiece(ctx, types.Piece{
+	mh, err := types.Piece{
 		Name: name,
 		Hash: hash,
 		Size: size,
-	})
+	}.Multihash()
+	if err != nil {
+		return c.String(http.StatusBadRequest, "hash is invalid")
+	}
+	pieceCID, has, err := p.Service.ResolvePiece(ctx, mh)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "failed to find piece in database")
 	}

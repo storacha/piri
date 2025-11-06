@@ -2,12 +2,15 @@ package types
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"net/url"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 )
 
 type ProofSetStatus struct {
@@ -105,6 +108,20 @@ type Piece struct {
 
 	// Size of the piece in bytes
 	Size int64
+}
+
+func (p Piece) Multihash() (multihash.Multihash, error) {
+	_, ok := multihash.Names[p.Name]
+	if !ok {
+		return nil, fmt.Errorf("unknown piece multihash: %s", p.Name)
+	}
+
+	hashBytes, err := hex.DecodeString(p.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode piece %s:%s: %w", p.Name, p.Hash, err)
+	}
+
+	return multihash.EncodeName(hashBytes, p.Name)
 }
 
 type PieceUpload struct {
@@ -216,10 +233,26 @@ func WithRange(start uint64, end *uint64) ReadPieceOption {
 }
 
 type PieceAPI interface {
+	PieceReaderAPI
+	PieceWriterAPI
+	PieceResolverAPI
+
+	WritePieceURL(piece uuid.UUID) (url.URL, error)
+	ReadPieceURL(piece cid.Cid) (url.URL, error)
+}
+
+type PieceWriterAPI interface {
 	AllocatePiece(ctx context.Context, allocation PieceAllocation) (*AllocatedPiece, error)
 	UploadPiece(ctx context.Context, upload PieceUpload) error
-	FindPiece(ctx context.Context, piece Piece) (cid.Cid, bool, error)
-	ReadPiece(ctx context.Context, piece cid.Cid, options ...ReadPieceOption) (*PieceReader, error)
+}
+
+type PieceResolverAPI interface {
+	ResolvePiece(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
+	CalculateCommP(ctx context.Context, piece multihash.Multihash) (cid.Cid, error)
+}
+
+type PieceReaderAPI interface {
+	ReadPiece(ctx context.Context, piece multihash.Multihash, options ...ReadPieceOption) (*PieceReader, error)
 }
 
 type ProviderAPI interface {

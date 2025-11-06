@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/storacha/filecoin-services/go/eip712"
+	"github.com/storacha/piri/pkg/pdp/piece"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -19,9 +20,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/httpapi/server"
-	"github.com/storacha/piri/pkg/pdp/pieceadder"
-	"github.com/storacha/piri/pkg/pdp/piecefinder"
-	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
@@ -60,48 +58,37 @@ var Module = fx.Module("pdp-service",
 
 // TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface
 type TODO_PDP_Impl struct {
-	aggregator  aggregator.Aggregator
-	pieceFinder piecefinder.PieceFinder
-	pieceAdder  pieceadder.PieceAdder
-	pieceReader piecereader.PieceReader
+	commpCalc piece.Calculator
+	api       types.PieceAPI
 }
 
-func (s *TODO_PDP_Impl) PieceReader() piecereader.PieceReader {
-	return s.pieceReader
+func (s *TODO_PDP_Impl) CommpCalculate() piece.Calculator {
+	return s.commpCalc
 }
 
-func (s *TODO_PDP_Impl) PieceAdder() pieceadder.PieceAdder {
-	return s.pieceAdder
-}
-
-func (s *TODO_PDP_Impl) PieceFinder() piecefinder.PieceFinder {
-	return s.pieceFinder
-}
-
-func (s *TODO_PDP_Impl) Aggregator() aggregator.Aggregator {
-	return s.aggregator
+func (s *TODO_PDP_Impl) API() types.PieceAPI {
+	return s.api
 }
 
 var _ pdp.PDP = (*TODO_PDP_Impl)(nil)
 
-func ProvideTODOPDPImplInterface(service types.API, agg aggregator.Aggregator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
-	finder := piecefinder.New(service, &cfg.Server.PublicURL)
-	adder := pieceadder.New(service, &cfg.Server.PublicURL)
-	reader := piecereader.New(service, &cfg.Server.PublicURL)
+func ProvideTODOPDPImplInterface(service types.API, commpCalc piece.Calculator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
 	return &TODO_PDP_Impl{
-		aggregator:  agg,
-		pieceFinder: finder,
-		pieceAdder:  adder,
-		pieceReader: reader,
+		commpCalc: commpCalc,
+		api:       service,
 	}, nil
 }
 
 type Params struct {
 	fx.In
 
-	DB               *gorm.DB `name:"engine_db"`
-	Config           app.PDPServiceConfig
-	Store            blobstore.PDPStore
+	ServerConfig app.ServerConfig
+	DB           *gorm.DB `name:"engine_db"`
+	Config       app.PDPServiceConfig
+	Store        blobstore.PDPStore
+	Resolver     piece.Resolver
+	Reader       piece.Reader
+	// TODO remove stash store, its unused.
 	Stash            stashstore.Stash
 	Sender           ethereum.Sender
 	Engine           *scheduler.TaskEngine
@@ -117,9 +104,12 @@ type Params struct {
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
 	return service.New(
+		params.ServerConfig.PublicURL,
 		params.DB,
 		params.Config.OwnerAddress,
 		params.Store,
+		params.Resolver,
+		params.Reader,
 		params.Stash,
 		params.Sender,
 		params.Engine,

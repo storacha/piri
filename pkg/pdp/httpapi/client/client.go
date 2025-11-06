@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/lib"
@@ -50,6 +51,22 @@ type Client struct {
 	endpoint   *url.URL
 	client     *http.Client
 	serverType EndpointType
+}
+
+func (c *Client) CalculateCommP(ctx context.Context, piece multihash.Multihash) (cid.Cid, error) {
+	return cid.Undef, fmt.Errorf("PDP Client does not support calculate commP")
+}
+
+func (c *Client) WritePieceURL(piece uuid.UUID) (url.URL, error) {
+	return url.URL{}, fmt.Errorf("PDP Client does not support write piece URL")
+}
+
+func (c *Client) ReadPieceURL(piece cid.Cid) (url.URL, error) {
+	return url.URL{}, fmt.Errorf("PDP Client does not support read piece URL")
+}
+
+func (c *Client) ResolvePiece(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error) {
+	return nil, false, fmt.Errorf("PDP Client does not support resolving pieces")
 }
 
 type Option func(c *Client) error
@@ -484,7 +501,7 @@ func (c *Client) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, boo
 	return cid.Undef, false, errFromResponse(res)
 }
 
-func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error) {
+func (c *Client) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	cfg := types.ReadPieceConfig{}
 	cfg.ProcessOptions(options)
 

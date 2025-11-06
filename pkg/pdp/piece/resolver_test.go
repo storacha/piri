@@ -27,7 +27,7 @@ type resolverFixture struct {
 	ctx      context.Context
 	db       *gorm.DB
 	store    *blobstore.MapBlobstore
-	resolver *piece.StoreResolver
+	resolver piece.Resolver
 }
 
 func TestMultihashToCommpV2CID(t *testing.T) {
@@ -122,7 +122,7 @@ func TestStoreResolverResolveWithCommpMapping(t *testing.T) {
 	}
 	require.NoError(t, fx.db.Create(&entry).Error)
 
-	got, ok, err := fx.resolver.Resolve(fx.ctx, commpCID.Hash())
+	got, ok, err := fx.resolver.ResolvePiece(fx.ctx, commpCID.Hash())
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, resolvedHash, got)
@@ -137,7 +137,7 @@ func TestStoreResolverResolveReadsBlobstore(t *testing.T) {
 
 	require.NoError(t, fx.store.Put(fx.ctx, resolvedHash, uint64(size), bytes.NewReader(data)))
 
-	got, ok, err := fx.resolver.Resolve(fx.ctx, resolvedHash)
+	got, ok, err := fx.resolver.ResolvePiece(fx.ctx, resolvedHash)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, resolvedHash, got)
@@ -148,7 +148,7 @@ func TestStoreResolverResolveNotFound(t *testing.T) {
 
 	commpCID := mustTestCommpCID(t)
 
-	got, ok, err := fx.resolver.Resolve(fx.ctx, commpCID.Hash())
+	got, ok, err := fx.resolver.ResolvePiece(fx.ctx, commpCID.Hash())
 	require.NoError(t, err)
 	require.False(t, ok)
 	require.Nil(t, got)
