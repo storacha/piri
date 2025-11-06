@@ -10,6 +10,9 @@ locals {
     }
     publisher = {
       name        = "publisher"
+    }
+    advertisementpublisher = {
+      name        = "advertisementpublisher"
       concurrency = 1
     }
     postad = {
@@ -81,6 +84,7 @@ resource "aws_lambda_function" "lambda" {
       RECEIPT_STORE_BUCKET_NAME           = aws_s3_bucket.receipt_store_bucket.id
       IPNI_PUBLISHER_QUEUE_ID             = aws_sqs_queue.ipni_publisher.id
       IPNI_PUBLISHER_BUCKET_NAME          = aws_s3_bucket.ipni_publisher.bucket
+      IPNI_ADVERTISEMENT_PUBLISHING_QUEUE = aws_sqs_queue.ipni_advertisement_publishing.id
       PRINCIPAL_MAPPING                   = var.principal_mapping,
       PIRI_PRESETS                        = var.presets,
     }
@@ -262,7 +266,10 @@ data "aws_iam_policy_document" "lambda_sqs_document" {
       "sqs:GetQueueAttributes"
     ]
 
-    resources = [aws_sqs_queue.ipni_publisher.arn]
+    resources = [
+      aws_sqs_queue.ipni_publisher.arn,
+      aws_sqs_queue.ipni_advertisement_publishing.arn
+    ]
   }
 }
 
@@ -284,5 +291,12 @@ resource "aws_lambda_event_source_mapping" "ipni_publisher_source_mapping" {
   event_source_arn = aws_sqs_queue.ipni_publisher.arn
   enabled          = true
   function_name    = aws_lambda_function.lambda["publisher"].arn
+  batch_size       = terraform.workspace == "prod" ? 10 : 1
+}
+
+resource "aws_lambda_event_source_mapping" "ipni_advertisement_publishing_source_mapping" {
+  event_source_arn = aws_sqs_queue.ipni_advertisement_publishing.arn
+  enabled          = true
+  function_name    = aws_lambda_function.lambda["advertisementpublisher"].arn
   batch_size       = terraform.workspace == "prod" ? 10 : 1
 }
