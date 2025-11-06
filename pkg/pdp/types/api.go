@@ -2,8 +2,6 @@ package types
 
 import (
 	"context"
-	"encoding/hex"
-	"fmt"
 	"io"
 	"net/url"
 

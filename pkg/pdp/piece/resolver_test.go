@@ -52,9 +52,7 @@ func TestMultihashToCommpV2CID(t *testing.T) {
 
 	{
 
-		var err error
-		commpCID, err = piece.MultihashToCommpV2CID(pieceMH)
-		require.NoError(t, err)
+		commpCID = piece.MultihashToCommpV2CID(pieceMH)
 
 	}
 
