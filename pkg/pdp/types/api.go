@@ -110,20 +110,6 @@ type Piece struct {
 	Size int64
 }
 
-func (p Piece) Multihash() (multihash.Multihash, error) {
-	_, ok := multihash.Names[p.Name]
-	if !ok {
-		return nil, fmt.Errorf("unknown piece multihash: %s", p.Name)
-	}
-
-	hashBytes, err := hex.DecodeString(p.Hash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode piece %s:%s: %w", p.Name, p.Hash, err)
-	}
-
-	return multihash.EncodeName(hashBytes, p.Name)
-}
-
 type PieceUpload struct {
 	ID   uuid.UUID
 	Data io.Reader
