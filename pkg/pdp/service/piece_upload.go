@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"hash"
 
+	commp "github.com/filecoin-project/go-fil-commp-hashhash"
 	"github.com/storacha/piri/lib/verifyread"
 	"gorm.io/gorm"
 
-	commp "github.com/filecoin-project/go-fil-commp-hashhash"
 	"github.com/multiformats/go-multihash"
 	mhreg "github.com/multiformats/go-multihash/core"
 
@@ -27,7 +27,9 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 	}
 
 	var hasher hash.Hash
-	if upload.CheckHashCodec == multihash.Codes[multihash.SHA2_256_TRUNC254_PADDED] {
+	// TODO where can I get a better value than this shitty string?
+	commpHashCodec := "fr32-sha2-256-trunc254-padded-binary-tree"
+	if upload.CheckHashCodec == commpHashCodec {
 		hasher = &commp.Calc{}
 	} else {
 		// TODO(forrest): I bet the commp hash function isn't returned by this, so above special case

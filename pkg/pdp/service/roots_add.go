@@ -111,6 +111,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	}()
 
 	// Check if the provider is both registered and approved
+	// TODO we can't make an API call everytime here, need to cache.
 	if err := p.RequireProviderApproved(ctx); err != nil {
 		return common.Hash{}, err
 	}

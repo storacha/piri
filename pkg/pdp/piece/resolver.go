@@ -51,7 +51,6 @@ func NewStoreResolver(params StoreResolverParams) Resolver {
 var _ Resolver = (*StoreResolver)(nil)
 
 func (r *StoreResolver) ResolvePiece(ctx context.Context, piece multihash.Multihash) (resolved multihash.Multihash, found bool, retErr error) {
-	log.Errorw("resolving piece multihash", "pieces", piece.String())
 	start := time.Now()
 	defer func() {
 		if found {
