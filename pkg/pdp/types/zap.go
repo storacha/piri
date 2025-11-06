@@ -80,9 +80,7 @@ func (p PieceUpload) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 // MarshalLogObject implements zapcore.ObjectMarshaler for AllocatedPiece
 func (a AllocatedPiece) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddBool("allocated", a.Allocated)
-	if a.Piece.Defined() {
-		enc.AddString("piece", a.Piece.String())
-	}
+	enc.AddString("piece", a.Piece.String())
 	if a.UploadID != uuid.Nil {
 		enc.AddString("upload_id", a.UploadID.String())
 	}

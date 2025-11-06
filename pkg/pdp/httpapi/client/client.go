@@ -415,17 +415,9 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 			if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 				return nil, fmt.Errorf("failed to decode response for piece allocation: %w", err)
 			}
-			pieceCIDStr, ok := result["pieceCID"]
-			if !ok {
-				return nil, fmt.Errorf("failed to find pieceCID in response for piece allocation")
-			}
-			pieceCID, err := cid.Parse(pieceCIDStr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse pieceCID: %w", err)
-			}
 			return &types.AllocatedPiece{
 				Allocated: false,
-				Piece:     pieceCID,
+				Piece:     multihash.Multihash(allocation.Piece.Hash),
 			}, nil
 		}
 		// piece was created
@@ -451,18 +443,14 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 		}
 		return &types.AllocatedPiece{
 			Allocated: payload.Allocated,
-			Piece:     cid.Undef,
+			Piece:     multihash.Multihash(allocation.Piece.Hash),
 			UploadID:  uid,
 		}, nil
 	}
 	// else, already exists
-	pcid, err := cid.Decode(payload.PieceCID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse piece CID: %w", err)
-	}
 	return &types.AllocatedPiece{
 		Allocated: payload.Allocated,
-		Piece:     pcid,
+		Piece:     multihash.Multihash(allocation.Piece.Hash),
 		UploadID:  uuid.Nil,
 	}, nil
 }

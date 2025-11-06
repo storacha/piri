@@ -137,7 +137,7 @@ type API interface {
 
 type AllocatedPiece struct {
 	Allocated bool
-	Piece     cid.Cid
+	Piece     multihash.Multihash
 	UploadID  uuid.UUID
 }
 
