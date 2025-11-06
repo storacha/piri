@@ -10,6 +10,7 @@ import (
 )
 
 type Reader interface {
+	// ReadPiece accepts a piece multihash, resolves it to the blob multihash and then returns a reader for the piece
 	ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error)
 }
 
