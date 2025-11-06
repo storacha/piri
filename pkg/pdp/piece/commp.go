@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"runtime"
-	"time"
 
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/schema"
@@ -49,15 +48,6 @@ func NewCommpQueue(lc fx.Lifecycle, params CommpQueueParams) (jobqueue.Service[m
 		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
 		// TODO(forrest): no idea how long commp will take in practice as it depends on
 		// diskIO for reading, CPU for commp'in and RAM
-		jobqueue.WithMaxTimeout(time.Minute),
-		// TODO(forrest): might want to add extension timeout since this will take more than the default of 5 seconds
-		// TODO(forrest): will likley need an on failure function
-		// in the event computing a commp of the data fails, it is unclear what we shoud do
-		// failure means it never makes it on chain, but the node will still be storing it
-		// and the client will still be able to retirve it, honestly its a very concerning error
-		// we could delete it from the datastore, but no way to inform a client their data is gone
-		// or we could keep it and then the node is storing data it's not being paid for
-		// though it can still egress it, tough decision..... maybe just retry for Uint64 Max? :')
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating commp queue: %w", err)
@@ -96,7 +86,21 @@ func NewComper(params ComperParams) (Calculator, error) {
 	c := &Comper{
 		queue: params.Queue,
 	}
-	if err := c.queue.Register(CommpTaskName, params.Handler.Handle); err != nil {
+	if err := c.queue.Register(
+		CommpTaskName,
+		params.Handler.Handle,
+		jobqueue.WithOnFailure(func(ctx context.Context, msg multihash.Multihash, err error) error {
+			// NB(forrest): failed tasks will go to the dead-letter queue, meaning the failure is detectable,
+			// and could be retried later.
+			// TODO(forrest): in the very rare case a failure happens, node operators may want to take action by:
+			// 1. Telling a developer!
+			// 2. Manually deleting the data from their store, since failure here prevents a root from being added,
+			// thus no payment for its storage.
+			// 3. Communicate to the client that this data is no longer being stored for the client.
+			// 4. Manually retry the failed task from the job queue.
+			log.Errorw("failed to handle commp task", "multihash", msg.String(), "err", err)
+			return nil
+		})); err != nil {
 		return nil, fmt.Errorf("registering comper task handler: %w", err)
 	}
 	return c, nil
