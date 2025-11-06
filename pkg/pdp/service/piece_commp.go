@@ -138,7 +138,7 @@ func doCommp(c cid.Cid, data io.Reader, size uint64) (cid.Cid, uint64, error) {
 		}
 
 		if uint64(written) != size {
-			return cid.Undef, 0, fmt.Errorf("filed to compute commp digest: expected %d bytes, got %d", size, written)
+			return cid.Undef, 0, fmt.Errorf("failed to compute commp digest: expected %d bytes, got %d", size, written)
 		}
 
 		commpDigest, commpPaddedSize, err := cp.Digest()

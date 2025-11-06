@@ -53,7 +53,7 @@ type Client struct {
 	serverType EndpointType
 }
 
-func (c *Client) CalculateCommP(ctx context.Context, piece multihash.Multihash) (cid.Cid, error) {
+func (c *Client) CalculateCommP(ctx context.Context, blob multihash.Multihash) (cid.Cid, error) {
 	return cid.Undef, fmt.Errorf("PDP Client does not support calculate commP")
 }
 
@@ -65,7 +65,7 @@ func (c *Client) ReadPieceURL(piece cid.Cid) (url.URL, error) {
 	return url.URL{}, fmt.Errorf("PDP Client does not support read piece URL")
 }
 
-func (c *Client) ResolvePiece(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error) {
+func (c *Client) ResolvePiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error) {
 	return nil, false, fmt.Errorf("PDP Client does not support resolving pieces")
 }
 

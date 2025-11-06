@@ -247,8 +247,8 @@ type PieceWriterAPI interface {
 }
 
 type PieceResolverAPI interface {
-	ResolvePiece(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
-	CalculateCommP(ctx context.Context, piece multihash.Multihash) (cid.Cid, error)
+	ResolvePiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error)
+	CalculateCommP(ctx context.Context, blob multihash.Multihash) (cid.Cid, error)
 }
 
 type PieceReaderAPI interface {
