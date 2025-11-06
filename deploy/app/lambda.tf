@@ -28,7 +28,12 @@ locals {
       nopdponly = false
     }
     publisher = {
-      name        = "publisher"
+      name      = "publisher"
+      pdponly   = false
+      nopdponly = false
+    }
+    advertisementpublisher = {
+      name        = "advertisementpublisher"
       pdponly     = false
       nopdponly   = false
       concurrency = 1
@@ -113,6 +118,7 @@ resource "aws_lambda_function" "lambda" {
       PIECE_ACCEPTER_QUEUE_URL            = var.use_pdp ? aws_sqs_queue.piece_accepter[0].id : ""
       IPNI_PUBLISHER_QUEUE_ID             = aws_sqs_queue.ipni_publisher.id
       IPNI_PUBLISHER_BUCKET_NAME          = aws_s3_bucket.ipni_publisher.bucket
+      IPNI_ADVERTISEMENT_PUBLISHING_QUEUE = aws_sqs_queue.ipni_advertisement_publishing.id
       PDP_PROOFSET                        = var.pdp_proofset,
       CURIO_URL                           = var.curio_url,
       PRINCIPAL_MAPPING                   = var.principal_mapping,
@@ -300,8 +306,10 @@ data "aws_iam_policy_document" "lambda_sqs_document" {
       aws_sqs_queue.piece_accepter[0].arn,
       aws_sqs_queue.piece_aggregator[0].arn,
       aws_sqs_queue.ipni_publisher.arn,
+      aws_sqs_queue.ipni_advertisement_publishing.arn,
       ] : [
       aws_sqs_queue.ipni_publisher.arn,
+      aws_sqs_queue.ipni_advertisement_publishing.arn
     ]
   }
 }
@@ -347,5 +355,12 @@ resource "aws_lambda_event_source_mapping" "ipni_publisher_source_mapping" {
   event_source_arn = aws_sqs_queue.ipni_publisher.arn
   enabled          = true
   function_name    = aws_lambda_function.lambda["publisher"].arn
+  batch_size       = terraform.workspace == "prod" ? 10 : 1
+}
+
+resource "aws_lambda_event_source_mapping" "ipni_advertisement_publishing_source_mapping" {
+  event_source_arn = aws_sqs_queue.ipni_advertisement_publishing.arn
+  enabled          = true
+  function_name    = aws_lambda_function.lambda["advertisementpublisher"].arn
   batch_size       = terraform.workspace == "prod" ? 10 : 1
 }
