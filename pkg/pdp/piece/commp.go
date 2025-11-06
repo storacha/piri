@@ -41,13 +41,9 @@ func NewCommpQueue(lc fx.Lifecycle, params CommpQueueParams) (jobqueue.Service[m
 			Opts: captypes.Converters,
 		},
 		jobqueue.WithLogger(log.With("queue", CommpQueueName)),
-		// TODO(forrest): determine appropriate amount of retries
-		// failures likely stem from failure to read from blobstore, of invalid cid inputs?
+		// TODO(forrest) make these configuration parameters.
 		jobqueue.WithMaxRetries(50),
-		// TODO(forrest): number of worker will likely be a function of system memory + CPU
 		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
-		// TODO(forrest): no idea how long commp will take in practice as it depends on
-		// diskIO for reading, CPU for commp'in and RAM
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating commp queue: %w", err)
