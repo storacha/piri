@@ -4,16 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	internaltesting "github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/internal/testing"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/worker"
+	"github.com/storacha/piri/lib/jobqueue"
+	internaltesting "github.com/storacha/piri/lib/jobqueue/internal/testing"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/worker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,26 +24,66 @@ type TestMessage struct {
 	Delay   time.Duration
 }
 
+type queueImplementation string
+
+const (
+	queueImplClassic queueImplementation = "classic"
+	queueImplDedup   queueImplementation = "dedup"
+)
+
+var allQueueImplementations = []queueImplementation{queueImplClassic, queueImplDedup}
+
+func runForQueueImplementations(t *testing.T, impls []queueImplementation, fn func(*testing.T, queueImplementation)) {
+	for _, impl := range impls {
+		impl := impl
+		t.Run(string(impl), func(t *testing.T) {
+			fn(t, impl)
+		})
+	}
+}
+
+func runForAllQueues(t *testing.T, fn func(*testing.T, queueImplementation)) {
+	runForQueueImplementations(t, allQueueImplementations, fn)
+}
+
+func runForDedupQueue(t *testing.T, fn func(*testing.T, queueImplementation)) {
+	runForQueueImplementations(t, []queueImplementation{queueImplDedup}, fn)
+}
+
+func (k queueImplementation) options() []jobqueue.Option {
+	switch k {
+	case queueImplClassic:
+		return nil
+	case queueImplDedup:
+		return []jobqueue.Option{jobqueue.WithDedupQueue(nil)}
+	default:
+		panic(fmt.Sprintf("unknown queue implementation %q", k))
+	}
+}
+
+func (k queueImplementation) queueName(base string) string {
+	return fmt.Sprintf("%s-%s", base, k)
+}
+
 // newTestJobQueue creates a new JobQueue for testing
-func newTestJobQueue(t *testing.T, db *sql.DB, opts ...jobqueue.Option) *jobqueue.JobQueue[TestMessage] {
+func newTestJobQueue(t *testing.T, impl queueImplementation, db *sql.DB, opts ...jobqueue.Option) *jobqueue.JobQueue[TestMessage] {
 	t.Helper()
 	if db == nil {
 		db = internaltesting.NewInMemoryDB(t)
-		// Setup queue schema
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-		defer cancel()
-		require.NoError(t, queue.Setup(ctx, db))
 	}
 
 	ser := serializer.JSON[TestMessage]{}
-	jq, err := jobqueue.New[TestMessage]("test-queue", db, ser, opts...)
+	allOpts := append([]jobqueue.Option{}, opts...)
+	allOpts = append(allOpts, impl.options()...)
+
+	jq, err := jobqueue.New[TestMessage](impl.queueName("test-queue"), db, ser, allOpts...)
 	require.NoError(t, err)
 	return jq
 }
 
 func TestJobQueue_Stop_GracefulShutdown(t *testing.T) {
-	t.Run("waits for running tasks to complete", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil, jobqueue.WithMaxWorkers(1))
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil, jobqueue.WithMaxWorkers(1))
 
 		var taskCompleted atomic.Bool
 		var taskStarted atomic.Bool
@@ -83,8 +123,8 @@ func TestJobQueue_Stop_GracefulShutdown(t *testing.T) {
 }
 
 func TestJobQueue_Stop_RejectsNewTasks(t *testing.T) {
-	t.Run("rejects enqueue after Stop is called", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil)
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil)
 
 		// Register a simple task
 		err := jq.Register("simple-task", func(ctx context.Context, msg TestMessage) error {
@@ -109,8 +149,8 @@ func TestJobQueue_Stop_RejectsNewTasks(t *testing.T) {
 }
 
 func TestJobQueue_RejectRegisterAfterStart(t *testing.T) {
-	t.Run("rejects register before Start is called", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil)
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil)
 
 		// Register a simple task, should pass
 		err := jq.Register("simple-task", func(ctx context.Context, msg TestMessage) error {
@@ -132,8 +172,8 @@ func TestJobQueue_RejectRegisterAfterStart(t *testing.T) {
 }
 
 func TestJobQueue_Stop_ContextTimeout(t *testing.T) {
-	t.Run("returns timeout error when context expires", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil, jobqueue.WithMaxWorkers(1))
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil, jobqueue.WithMaxWorkers(1))
 
 		blockForever := make(chan struct{})
 
@@ -168,8 +208,8 @@ func TestJobQueue_Stop_ContextTimeout(t *testing.T) {
 }
 
 func TestJobQueue_Stop_MultipleCallsHandled(t *testing.T) {
-	t.Run("handles multiple Stop calls gracefully", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil)
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil)
 
 		// Register a simple task
 		err := jq.Register("simple-task", func(ctx context.Context, msg TestMessage) error {
@@ -215,9 +255,46 @@ func TestJobQueue_Stop_MultipleCallsHandled(t *testing.T) {
 	})
 }
 
+func TestJobQueue_DedupPreventsDuplicates(t *testing.T) {
+	runForDedupQueue(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil)
+
+		var processed atomic.Int32
+		require.NoError(t, jq.Register("task", func(ctx context.Context, msg TestMessage) error {
+			processed.Add(1)
+			return nil
+		}))
+
+		ctx := context.Background()
+		require.NoError(t, jq.Start(ctx))
+		t.Cleanup(func() {
+			stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			_ = jq.Stop(stopCtx)
+		})
+
+		err := jq.Enqueue(ctx, "task", TestMessage{ID: "1"})
+		require.NoError(t, err)
+
+		err = jq.Enqueue(ctx, "task", TestMessage{ID: "1"})
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			return processed.Load() == 1
+		}, 5*time.Second, 50*time.Millisecond)
+
+		err = jq.Enqueue(ctx, "task", TestMessage{ID: "1"})
+		require.NoError(t, err)
+
+		// Give the queue time to process if it were to run again.
+		time.Sleep(200 * time.Millisecond)
+		require.Equal(t, int32(1), processed.Load(), "dedup queue should prevent duplicate payloads")
+	})
+}
+
 func TestJobQueue_Stop_CompletesAllPendingTasks(t *testing.T) {
-	t.Run("processes all tasks before shutdown", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil, jobqueue.WithMaxWorkers(2))
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil, jobqueue.WithMaxWorkers(2))
 
 		var processedCount atomic.Int32
 		taskProcessing := make(chan struct{}, 10)
@@ -267,8 +344,8 @@ func TestJobQueue_Stop_CompletesAllPendingTasks(t *testing.T) {
 }
 
 func TestJobQueue_Stop_EnqueueDuringShutdown(t *testing.T) {
-	t.Run("rejects new tasks during shutdown", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil, jobqueue.WithMaxWorkers(1))
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil, jobqueue.WithMaxWorkers(1))
 
 		shutdownStarted := make(chan struct{})
 		taskCanComplete := make(chan struct{})
@@ -322,8 +399,8 @@ func TestJobQueue_Stop_EnqueueDuringShutdown(t *testing.T) {
 }
 
 func TestJobQueue_Stop_WithoutStart(t *testing.T) {
-	t.Run("can stop without starting", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil)
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil)
 
 		// Stop without starting must fail
 		stopCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -339,8 +416,8 @@ func TestJobQueue_Stop_WithoutStart(t *testing.T) {
 }
 
 func TestJobQueue_Stop_TaskFailureHandling(t *testing.T) {
-	t.Run("completes shutdown even if tasks fail", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil,
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil,
 			jobqueue.WithMaxWorkers(2))
 
 		var processedCount atomic.Int32
@@ -359,7 +436,7 @@ func TestJobQueue_Stop_TaskFailureHandling(t *testing.T) {
 		// Enqueue multiple tasks that will fail
 		for i := 0; i < 3; i++ {
 			err = jq.Enqueue(ctx, "failing-task", TestMessage{
-				ID:      string(rune('0' + i)),
+				ID:      fmt.Sprintf("fail-%d", i),
 				Payload: "test",
 			})
 			require.NoError(t, err)
@@ -380,8 +457,8 @@ func TestJobQueue_Stop_TaskFailureHandling(t *testing.T) {
 }
 
 func TestJobQueue_StartStopStartCycle(t *testing.T) {
-	t.Run("cannot start after stop", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil)
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		jq := newTestJobQueue(t, impl, nil)
 
 		var processedCount atomic.Int32
 
@@ -424,9 +501,9 @@ func TestJobQueue_StartStopStartCycle(t *testing.T) {
 }
 
 func TestJobQueue_WithOnFailure(t *testing.T) {
-	t.Run("calls OnFailure callback after exhausting all retries", func(t *testing.T) {
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
 		// Create job queue with low max retries for faster test
-		jq := newTestJobQueue(t, nil,
+		jq := newTestJobQueue(t, impl, nil,
 			jobqueue.WithMaxRetries(2),
 			jobqueue.WithMaxTimeout(100*time.Millisecond))
 
@@ -490,121 +567,110 @@ func TestJobQueue_WithOnFailure(t *testing.T) {
 }
 
 func TestJobQueue_PermanentError(t *testing.T) {
-	t.Run("does not retry tasks that fail with PermanentError", func(t *testing.T) {
-		// Create job queue with retries enabled to verify they're skipped for PermanentError
-		jq := newTestJobQueue(t, nil,
-			jobqueue.WithMaxRetries(5),
-			jobqueue.WithMaxTimeout(100*time.Millisecond))
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		t.Run("does not retry tasks that fail with PermanentError", func(t *testing.T) {
+			jq := newTestJobQueue(t, impl, nil,
+				jobqueue.WithMaxRetries(5),
+				jobqueue.WithMaxTimeout(100*time.Millisecond))
 
-		var (
-			attemptCount    atomic.Int32
-			onFailureCalled atomic.Bool
-			capturedErr     error
-			capturedMsg     TestMessage
-			mu              sync.Mutex
-		)
+			var (
+				attemptCount    atomic.Int32
+				onFailureCalled atomic.Bool
+				capturedErr     error
+				capturedMsg     TestMessage
+				mu              sync.Mutex
+			)
 
-		// Register a task that fails with PermanentError
-		err := jq.Register("permanent-failure-task",
-			func(ctx context.Context, msg TestMessage) error {
-				attemptCount.Add(1)
-				return worker.Permanent(errors.New("permanent failure"))
-			},
-			jobqueue.WithOnFailure(func(ctx context.Context, msg TestMessage, err error) error {
-				onFailureCalled.Store(true)
-				mu.Lock()
-				capturedErr = err
-				capturedMsg = msg
-				mu.Unlock()
-				return nil
-			}),
-		)
-		require.NoError(t, err)
+			err := jq.Register("permanent-failure-task",
+				func(ctx context.Context, msg TestMessage) error {
+					attemptCount.Add(1)
+					return worker.Permanent(errors.New("permanent failure"))
+				},
+				jobqueue.WithOnFailure(func(ctx context.Context, msg TestMessage, err error) error {
+					onFailureCalled.Store(true)
+					mu.Lock()
+					capturedErr = err
+					capturedMsg = msg
+					mu.Unlock()
+					return nil
+				}),
+			)
+			require.NoError(t, err)
 
-		// Start the queue
-		ctx := context.Background()
-		require.NoError(t, jq.Start(ctx))
+			ctx := context.Background()
+			require.NoError(t, jq.Start(ctx))
 
-		// Enqueue a task that will fail permanently
-		testMsg := TestMessage{ID: "permanent-fail", Payload: "should not retry"}
-		err = jq.Enqueue(ctx, "permanent-failure-task", testMsg)
-		require.NoError(t, err)
+			testMsg := TestMessage{ID: "permanent-fail", Payload: "should not retry"}
+			err = jq.Enqueue(ctx, "permanent-failure-task", testMsg)
+			require.NoError(t, err)
 
-		// Wait for OnFailure callback to be triggered
-		require.Eventually(t, func() bool {
-			return onFailureCalled.Load()
-		}, 15*time.Second, 250*time.Millisecond, "OnFailure callback should have been triggered")
+			require.Eventually(t, func() bool {
+				return onFailureCalled.Load()
+			}, 15*time.Second, 250*time.Millisecond, "OnFailure callback should have been triggered")
 
-		// Verify the callback received the correct error and message
-		mu.Lock()
-		require.Error(t, capturedErr)
-		require.Contains(t, capturedErr.Error(), "permanent failure")
-		require.Equal(t, testMsg.ID, capturedMsg.ID)
-		require.Equal(t, testMsg.Payload, capturedMsg.Payload)
-		mu.Unlock()
+			mu.Lock()
+			require.Error(t, capturedErr)
+			require.Contains(t, capturedErr.Error(), "permanent failure")
+			require.Equal(t, testMsg.ID, capturedMsg.ID)
+			require.Equal(t, testMsg.Payload, capturedMsg.Payload)
+			mu.Unlock()
 
-		// Critical assertion: task should have been attempted only ONCE
-		// PermanentError should skip retries entirely
-		require.Equal(t, int32(1), attemptCount.Load(), "Task with PermanentError should be attempted exactly once (no retries)")
+			require.Equal(t, int32(1), attemptCount.Load(), "Task with PermanentError should be attempted exactly once (no retries)")
 
-		// Clean up
-		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		require.NoError(t, jq.Stop(stopCtx))
+			stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			require.NoError(t, jq.Stop(stopCtx))
+		})
 	})
 
-	t.Run("unwraps PermanentError correctly", func(t *testing.T) {
-		jq := newTestJobQueue(t, nil,
-			jobqueue.WithMaxRetries(3),
-			jobqueue.WithMaxTimeout(100*time.Millisecond))
+	runForAllQueues(t, func(t *testing.T, impl queueImplementation) {
+		t.Run("unwraps PermanentError correctly", func(t *testing.T) {
+			jq := newTestJobQueue(t, impl, nil,
+				jobqueue.WithMaxRetries(3),
+				jobqueue.WithMaxTimeout(100*time.Millisecond))
 
-		var (
-			capturedErr error
-			mu          sync.Mutex
-		)
+			var (
+				capturedErr error
+				mu          sync.Mutex
+			)
 
-		originalErr := errors.New("original error message")
+			originalErr := errors.New("original error message")
 
-		// Register a task that fails with a wrapped PermanentError
-		err := jq.Register("wrapped-permanent-error",
-			func(ctx context.Context, msg TestMessage) error {
-				return worker.Permanent(originalErr)
-			},
-			jobqueue.WithOnFailure(func(ctx context.Context, msg TestMessage, err error) error {
+			err := jq.Register("wrapped-permanent-error",
+				func(ctx context.Context, msg TestMessage) error {
+					return worker.Permanent(originalErr)
+				},
+				jobqueue.WithOnFailure(func(ctx context.Context, msg TestMessage, err error) error {
+					mu.Lock()
+					capturedErr = err
+					mu.Unlock()
+					return nil
+				}),
+			)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			require.NoError(t, jq.Start(ctx))
+
+			testMsg := TestMessage{ID: "unwrap-test", Payload: "test unwrap"}
+			err = jq.Enqueue(ctx, "wrapped-permanent-error", testMsg)
+			require.NoError(t, err)
+
+			require.Eventually(t, func() bool {
 				mu.Lock()
-				capturedErr = err
-				mu.Unlock()
-				return nil
-			}),
-		)
-		require.NoError(t, err)
+				defer mu.Unlock()
+				return capturedErr != nil
+			}, 15*time.Second, 250*time.Millisecond, "OnFailure callback should have been triggered")
 
-		// Start the queue
-		ctx := context.Background()
-		require.NoError(t, jq.Start(ctx))
-
-		// Enqueue a task
-		testMsg := TestMessage{ID: "unwrap-test", Payload: "test unwrap"}
-		err = jq.Enqueue(ctx, "wrapped-permanent-error", testMsg)
-		require.NoError(t, err)
-
-		// Wait for OnFailure callback
-		require.Eventually(t, func() bool {
 			mu.Lock()
-			defer mu.Unlock()
-			return capturedErr != nil
-		}, 15*time.Second, 250*time.Millisecond, "OnFailure callback should have been triggered")
+			require.Error(t, capturedErr)
+			require.Contains(t, capturedErr.Error(), "original error message")
+			require.ErrorIs(t, capturedErr, originalErr, "Should be able to unwrap PermanentError to get original error")
+			mu.Unlock()
 
-		// Verify the error can be unwrapped
-		mu.Lock()
-		require.Error(t, capturedErr)
-		require.Contains(t, capturedErr.Error(), "original error message")
-		require.ErrorIs(t, capturedErr, originalErr, "Should be able to unwrap PermanentError to get original error")
-		mu.Unlock()
-
-		// Clean up
-		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		require.NoError(t, jq.Stop(stopCtx))
+			stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			require.NoError(t, jq.Stop(stopCtx))
+		})
 	})
 }

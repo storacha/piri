@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/queue"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
 )
 
 // JobFn is the job function to run.
@@ -43,7 +43,7 @@ type jobRegistration[T any] struct {
 }
 
 type Worker[T any] struct {
-	queue         *queue.Queue
+	queue         queue.Interface
 	jobs          map[string]*jobRegistration[T]
 	pollInterval  time.Duration
 	extend        time.Duration
@@ -61,7 +61,7 @@ type NewOpts struct {
 	Extend        time.Duration
 }
 
-func New[T any](q *queue.Queue, ser serializer.Serializer[T], options ...Option) *Worker[T] {
+func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Option) *Worker[T] {
 	// Default config
 	cfg := &Config{
 		Log:           &DiscardLogger{},
