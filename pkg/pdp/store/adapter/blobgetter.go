@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/multiformats/go-multihash"
-	"github.com/storacha/go-libstoracha/digestutil"
-	"github.com/storacha/piri/pkg/pdp/piecefinder"
-	"github.com/storacha/piri/pkg/pdp/piecereader"
+	"github.com/storacha/piri/pkg/pdp/piece"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
@@ -35,28 +32,18 @@ type BlobSizer interface {
 // BlobGetterAdapter adapts a PDP piece finder and piece reader into a
 // [blobstore.BlobGetter]
 type BlobGetterAdapter struct {
-	pieceFinder piecefinder.PieceFinder
-	pieceReader piecereader.PieceReader
-	blobSizer   BlobSizer
+	pieceReader piece.Reader
 }
 
 func (bga *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihash, opts ...blobstore.GetOption) (blobstore.Object, error) {
 	cfg := blobstore.GetOptions{}
 	cfg.ProcessOptions(opts)
 
-	size, err := bga.blobSizer.Size(ctx, digest)
-	if err != nil {
-		return nil, fmt.Errorf("getting size of blob %s: %w", digestutil.Format(digest), err)
-	}
-	pieceLink, err := bga.pieceFinder.FindPiece(ctx, digest, size)
-	if err != nil {
-		return nil, fmt.Errorf("finding piece link for %s: %w", digestutil.Format(digest), err)
-	}
 	var readOptions []types.ReadPieceOption
 	if cfg.ByteRange.Start > 0 || cfg.ByteRange.End != nil {
 		readOptions = append(readOptions, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	}
-	res, err := bga.pieceReader.ReadPiece(ctx, pieceLink.Link().(cidlink.Link).Cid, readOptions...)
+	res, err := bga.pieceReader.ReadPiece(ctx, digest, readOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("reading piece: %w", err)
 	}
@@ -65,6 +52,6 @@ func (bga *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihas
 
 // NewBlobGetterAdapter creates a new blob getter that allows retrieving from
 // piece storage by user hash (typically sha2-256).
-func NewBlobGetterAdapter(finder piecefinder.PieceFinder, reader piecereader.PieceReader, sizer BlobSizer) *BlobGetterAdapter {
-	return &BlobGetterAdapter{finder, reader, sizer}
+func NewBlobGetterAdapter(reader types.PieceReaderAPI) *BlobGetterAdapter {
+	return &BlobGetterAdapter{reader}
 }

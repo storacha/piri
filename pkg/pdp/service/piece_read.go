@@ -3,20 +3,14 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
-	"io"
 
-	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store"
-	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
-func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (res *types.PieceReader, retErr error) {
-	cfg := types.ReadPieceConfig{}
-	cfg.ProcessOptions(options)
-
+func (p *PDPService) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (res *types.PieceReader, retErr error) {
 	log.Debugw("reading piece", "request", piece)
 	defer func() {
 		if retErr != nil {
@@ -26,34 +20,12 @@ func (p *PDPService) ReadPiece(ctx context.Context, piece cid.Cid, options ...ty
 		}
 	}()
 
-	var getOptions []blobstore.GetOption
-	if cfg.ByteRange.Start > 0 || cfg.ByteRange.End != nil {
-		getOptions = append(getOptions, blobstore.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
-	}
-
-	// TODO(forrest): Nice to have in follow on is attempting to map the `piece` arg to a PieceCIDV2, then
-	// performing the query to blobstore with that CID. allowing the read pieces with the cid they allocated them using
-	obj, err := p.blobstore.Get(ctx, piece.Hash(), getOptions...)
-
+	pr, err := p.pieceReader.ReadPiece(ctx, piece)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, types.NewErrorf(types.KindNotFound, "piece %s not found", piece.String())
+			return nil, types.NewError(types.KindNotFound, "piece not found")
 		}
-		return nil, fmt.Errorf("failed to read piece: %w", err)
+		return nil, types.WrapError(types.KindInternal, "failed to read piece", err)
 	}
-	var size int64
-	if cfg.ByteRange.Start > 0 || cfg.ByteRange.End != nil {
-		start := int64(cfg.ByteRange.Start)
-		end := obj.Size() - 1
-		if cfg.ByteRange.End != nil {
-			end = int64(*cfg.ByteRange.End)
-		}
-		size = end - start + 1
-	} else {
-		size = obj.Size()
-	}
-	return &types.PieceReader{
-		Size: size,
-		Data: io.NopCloser(obj.Body()),
-	}, nil
+	return pr, nil
 }

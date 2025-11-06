@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/url"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -12,6 +13,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/filecoin-services/go/eip712"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
+	"github.com/storacha/piri/pkg/pdp/piece"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
 
@@ -41,6 +43,7 @@ type EthClient interface {
 }
 
 type PDPService struct {
+	endpoint        url.URL
 	address         common.Address
 	blobstore       blobstore.Blobstore
 	storage         stashstore.Stash
@@ -50,6 +53,9 @@ type PDPService struct {
 
 	db   *gorm.DB
 	name string
+
+	pieceResolver piece.Resolver
+	pieceReader   piece.Reader
 
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
@@ -64,9 +70,12 @@ type PDPService struct {
 }
 
 func New(
+	endpoint url.URL,
 	db *gorm.DB,
 	address common.Address,
 	bs blobstore.PDPStore,
+	resolver piece.Resolver,
+	reader piece.Reader,
 	stash stashstore.Stash,
 	sender ethereum.Sender,
 	engine *scheduler.TaskEngine,
@@ -80,9 +89,12 @@ func New(
 	registryContract smartcontracts.Registry,
 ) (*PDPService, error) {
 	return &PDPService{
+		endpoint:         endpoint,
 		address:          address,
 		db:               db,
 		name:             "storacha",
+		pieceResolver:    resolver,
+		pieceReader:      reader,
 		blobstore:        bs,
 		storage:          stash,
 		sender:           sender,
