@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyRead(t *testing.T) {
@@ -24,11 +25,12 @@ func TestVerifyRead(t *testing.T) {
 		source := bytes.NewReader(data)
 
 		// Create validating reader
-		reader := New(
+		reader, err := New(
 			source,
 			sha256.New(),
 			expectedHash,
 		)
+		require.NoError(t, err)
 
 		// Consumer reads all data
 		result := &bytes.Buffer{}
@@ -50,11 +52,12 @@ func TestVerifyRead(t *testing.T) {
 		wrongHash := sha256.Sum256([]byte("Different content"))
 
 		// Create validating reader with wrong hash
-		reader := New(
+		reader, err := New(
 			source,
 			sha256.New(),
 			wrongHash[:],
 		)
+		require.NoError(t, err)
 
 		// Consumer tries to read all data
 		result := &bytes.Buffer{}
@@ -76,11 +79,12 @@ func TestVerifyRead(t *testing.T) {
 		data, expectedHash := createTestData("Hello, World! This is a longer message.")
 		source := bytes.NewReader(data)
 
-		reader := New(
+		reader, err := New(
 			source,
 			sha256.New(),
 			expectedHash,
 		)
+		require.NoError(t, err)
 
 		// Read in small chunks
 		result := &bytes.Buffer{}
@@ -111,16 +115,18 @@ func TestVerifyRead(t *testing.T) {
 
 		reader0 := bytes.NewReader(data)
 
-		reader1 := New(
+		reader1, err := New(
 			reader0,
 			sha256.New(),
 			shaDigest[:],
 		)
+		require.NoError(t, err)
 
-		reader2 := New(
+		reader2, _ := New(
 			reader1,
 			md5.New(),
 			md5Digest[:])
+		require.NoError(t, err)
 
 		// Consumer reads all data
 		result := &bytes.Buffer{}
@@ -146,12 +152,13 @@ func BenchmarkHashValidatingReader(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			reader := New(
+			reader, err := New(
 
 				bytes.NewReader(data),
 				sha256.New(),
 				hash[:],
 			)
+			require.NoError(b, err)
 			io.Copy(io.Discard, reader)
 		}
 	})

@@ -40,6 +40,11 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		}
 	}
 
+	vr, err := verifyread.New(pieceUpload.Data, hasher, mh.Digest)
+	if err != nil {
+		return types.WrapError(types.KindInternal, "failed to create verification reader", err)
+	}
+
 	if err := p.db.Transaction(func(tx *gorm.DB) error {
 		// transaction since we only want to remove the upload entry if we can write to the store
 		if err := tx.Delete(&models.PDPPieceUpload{}, "id = ?", upload.ID).Error; err != nil {
@@ -51,7 +56,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 			return types.WrapError(types.KindInternal, "failed to decode check hash", err)
 		}
 
-		if err := p.blobstore.Put(ctx, upload.CheckHash, uint64(upload.CheckSize), verifyread.New(pieceUpload.Data, hasher, mh.Digest)); err != nil {
+		if err := p.blobstore.Put(ctx, upload.CheckHash, uint64(upload.CheckSize), vr); err != nil {
 			return types.WrapError(types.KindInvalidInput, "failed to put piece", err)
 		}
 		return nil

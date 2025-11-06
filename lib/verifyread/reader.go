@@ -20,18 +20,17 @@ type Reader struct {
 	finalErr  error // latched terminal error (e.g., mismatch)
 }
 
-// If you pass nil values to `New` it will panic and you're an idiot.
-func New(src io.Reader, h hash.Hash, expected []byte) *Reader {
+func New(src io.Reader, h hash.Hash, expected []byte) (*Reader, error) {
 	if src == nil {
-		panic("source reader cannot be nil")
+		return nil, fmt.Errorf("source reader cannot be nil")
 	}
 	if h == nil {
-		panic("source reader cannot be nil")
+		return nil, fmt.Errorf("hash function cannot be nil")
 	}
 	if len(expected) == 0 {
-		panic("source reader cannot be nil")
+		return nil, fmt.Errorf("expected digest cannot be nil")
 	}
-	return &Reader{src: src, h: h, expectedSum: expected}
+	return &Reader{src: src, h: h, expectedSum: expected}, nil
 }
 
 func (r *Reader) Read(p []byte) (int, error) {
