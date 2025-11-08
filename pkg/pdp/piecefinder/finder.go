@@ -68,35 +68,20 @@ func (a *CurioFinder) FindPiece(ctx context.Context, digest multihash.Multihash,
 		return nil, err
 	}
 
-	// TODO: improve this. @magik6k says curio will have piece ready for processing
-	// in seconds, but we're not sure how long that will be. We need to iterate on this
-	// till we have a better solution
-	attempts := 0
-	for {
-		pieceCID, found, err := a.api.FindPiece(ctx, types.Piece{
-			Name: decoded.Name,
-			Hash: hex.EncodeToString(decoded.Digest),
-			Size: int64(size),
-		})
-		// NB: an error here indicates a critical failure, if the piece isn't found, no error is returned.
-		if err != nil {
-			return nil, fmt.Errorf("finding piece: %w", err)
-		}
-		if found {
-			return piece.FromLink(cidlink.Link{Cid: pieceCID})
-		}
-		// piece not found, try again
-		attempts++
-		if attempts >= a.maxAttempts {
-			return nil, fmt.Errorf("maximum retries exceeded: %w", store.ErrNotFound)
-		}
-		timer := time.NewTimer(a.retryDelay)
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-timer.C:
-		}
+	pieceCID, found, err := a.api.FindPiece(ctx, types.Piece{
+		Name: decoded.Name,
+		Hash: hex.EncodeToString(decoded.Digest),
+		Size: int64(size),
+	})
+	// NB: an error here indicates a critical failure, if the piece isn't found, no error is returned.
+	if err != nil {
+		return nil, fmt.Errorf("finding piece: %w", err)
 	}
+	if found {
+		return piece.FromLink(cidlink.Link{Cid: pieceCID})
+	}
+
+	return nil, store.ErrNotFound
 }
 
 func (a *CurioFinder) URLForPiece(ctx context.Context, p piece.PieceLink) (url.URL, error) {
