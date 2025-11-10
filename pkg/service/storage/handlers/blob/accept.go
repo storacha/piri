@@ -63,7 +63,7 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 		}
 	} else {
 		// locate the piece from the pdp service
-		pdpPiece, found, err := s.PDP().API().ResolvePiece(ctx, req.Blob.Digest)
+		_, found, err := s.PDP().API().ResolvePiece(ctx, req.Blob.Digest)
 		if err != nil {
 			log.Errorw("finding piece for blob", "error", err)
 			return nil, fmt.Errorf("finding piece for blob: %w", err)
@@ -73,14 +73,14 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 			return nil, fmt.Errorf("piece not found: %w", err)
 		}
 		// get a download url
-		pieceCID := cid.NewCidV1(cid.Raw, pdpPiece)
+		pieceCID := cid.NewCidV1(cid.Raw, req.Blob.Digest)
 		loc, err = s.PDP().API().ReadPieceURL(pieceCID)
 		if err != nil {
 			log.Errorw("creating retrieval URL for blob", "error", err)
 			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
 		// submit the piece for aggregation
-		if err := s.PDP().CommpCalculate().Enqueue(ctx, pdpPiece); err != nil {
+		if err := s.PDP().CommpCalculate().Enqueue(ctx, req.Blob.Digest); err != nil {
 			log.Errorw("submitting piece for aggregation", "error", err)
 			return nil, fmt.Errorf("submitting piece for aggregation: %w", err)
 		}

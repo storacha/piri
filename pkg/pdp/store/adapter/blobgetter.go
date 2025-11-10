@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/multiformats/go-multihash"
-	"github.com/storacha/piri/pkg/pdp/piece"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
@@ -32,7 +31,7 @@ type BlobSizer interface {
 // BlobGetterAdapter adapts a PDP piece finder and piece reader into a
 // [blobstore.BlobGetter]
 type BlobGetterAdapter struct {
-	pieceReader piece.Reader
+	pieceReader types.PieceReaderAPI
 }
 
 func (bga *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihash, opts ...blobstore.GetOption) (blobstore.Object, error) {

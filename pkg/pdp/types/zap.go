@@ -65,7 +65,7 @@ func (p PieceAllocation) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 // MarshalLogObject implements zapcore.ObjectMarshaler for Piece
 func (p Piece) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddString("name", p.Name)
-	enc.AddString("hash", p.Hash)
+	enc.AddString("hash", p.Hash.String())
 	enc.AddInt64("size", p.Size)
 	return nil
 }

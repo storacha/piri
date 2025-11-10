@@ -102,7 +102,7 @@ type Piece struct {
 	Name string
 
 	// hex encoded hash
-	Hash string
+	Hash multihash.Multihash
 
 	// Size of the piece in bytes
 	Size int64
@@ -200,6 +200,7 @@ type Range struct {
 
 type ReadPieceConfig struct {
 	ByteRange Range
+	Resolver  PieceResolverAPI
 }
 
 func (c *ReadPieceConfig) ProcessOptions(opts []ReadPieceOption) {
@@ -216,10 +217,18 @@ func WithRange(start uint64, end *uint64) ReadPieceOption {
 	}
 }
 
+func WithResolver(resolver PieceResolverAPI) ReadPieceOption {
+	return func(c *ReadPieceConfig) {
+		c.Resolver = resolver
+	}
+}
+
 type PieceAPI interface {
 	PieceReaderAPI
-	PieceWriterAPI
 	PieceResolverAPI
+	PieceWriterAPI
+
+	CalculateCommP(ctx context.Context, blob multihash.Multihash) (cid.Cid, error)
 
 	WritePieceURL(piece uuid.UUID) (url.URL, error)
 	ReadPieceURL(piece cid.Cid) (url.URL, error)
@@ -232,7 +241,6 @@ type PieceWriterAPI interface {
 
 type PieceResolverAPI interface {
 	ResolvePiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error)
-	CalculateCommP(ctx context.Context, blob multihash.Multihash) (cid.Cid, error)
 }
 
 type PieceReaderAPI interface {

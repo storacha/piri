@@ -19,7 +19,6 @@ import (
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
-	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var Module = fx.Module("memory-store",
@@ -50,7 +49,6 @@ var Module = fx.Module("memory-store",
 		NewReceiptStore,
 		NewRetrievalJournal,
 		NewKeyStore,
-		NewStashStore,
 		NewPDPStore,
 	),
 )
@@ -104,21 +102,6 @@ func NewRetrievalJournal(lc fx.Lifecycle) (retrievaljournal.Journal, error) {
 func NewKeyStore() (keystore.KeyStore, error) {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	return keystore.NewKeyStore(ds)
-}
-
-// TODO need an in-memory impl of the stash store...
-func NewStashStore(lc fx.Lifecycle) (stashstore.Stash, error) {
-	tmpDir := filepath.Join(os.TempDir(), "piri-stash-tmp")
-	out, err := stashstore.NewStashStore(tmpDir)
-	if err != nil {
-		return nil, fmt.Errorf("creating stash store")
-	}
-	lc.Append(fx.Hook{
-		OnStop: func(ctx context.Context) error {
-			return os.RemoveAll(tmpDir)
-		},
-	})
-	return out, nil
 }
 
 func NewPDPStore() (blobstore.PDPStore, error) {

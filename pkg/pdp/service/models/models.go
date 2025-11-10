@@ -94,7 +94,8 @@ type PDPPieceUpload struct {
 	Service string `gorm:"not null"`             // references pdp_services(service_label)
 	//ServiceModel   *PDPService `gorm:"foreignKey:Service;references:ServiceLabel;constraint:OnDelete:CASCADE"` // "service references pdp_services(service_label) on delete cascade"
 
-	CheckHashCodec string          `gorm:"not null"`
+	CheckHashCodec string `gorm:"not null"`
+	// CheckHash is the Multihash of the data
 	CheckHash      []byte          `gorm:"not null"`
 	CheckSize      int64           `gorm:"not null"`
 	PieceCID       *string         `gorm:"column:piece_cid"`

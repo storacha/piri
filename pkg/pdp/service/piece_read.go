@@ -20,7 +20,7 @@ func (p *PDPService) ReadPiece(ctx context.Context, piece multihash.Multihash, o
 		}
 	}()
 
-	pr, err := p.pieceReader.ReadPiece(ctx, piece)
+	pr, err := p.pieceReader.ReadPiece(ctx, piece, options...)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, types.NewError(types.KindNotFound, "piece not found")
