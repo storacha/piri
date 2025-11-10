@@ -107,7 +107,8 @@ func doCommp(blob multihash.Multihash, data io.Reader, size uint64) (cid.Cid, ui
 		if err != nil {
 			return cid.Undef, 0, err
 		}
-		return pieceCID, uint64(32) << treeHeight, nil
+		paddedSize := uint64(32) << treeHeight
+		return pieceCID, paddedSize, nil
 	case uint64(multicodec.Fr32Sha256Trunc254Padbintree):
 		pieceCID, err := commcid.DataCommitmentToPieceCidv2(piece.Digest, size)
 		if err != nil {
@@ -117,7 +118,8 @@ func doCommp(blob multihash.Multihash, data io.Reader, size uint64) (cid.Cid, ui
 		if err != nil {
 			return cid.Undef, 0, err
 		}
-		return pieceCID, uint64(32) << treeHeight, nil
+		paddedSize := uint64(32) << treeHeight
+		return pieceCID, paddedSize, nil
 	default:
 		// need to calculate commp
 		cp := &commp.Calc{}
