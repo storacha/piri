@@ -7,6 +7,7 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/labstack/echo/v4"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi"
 	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
@@ -40,7 +41,7 @@ func (p *PDPHandler) handlePreparePiece(c echo.Context) error {
 	params := types.PieceAllocation{
 		Piece: types.Piece{
 			Name: req.Check.Name,
-			Hash: req.Check.Hash,
+			Hash: multihash.Multihash(req.Check.Hash),
 			Size: req.Check.Size,
 		},
 	}

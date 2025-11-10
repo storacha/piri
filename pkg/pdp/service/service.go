@@ -13,7 +13,6 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/filecoin-services/go/eip712"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
-	"github.com/storacha/piri/pkg/pdp/piece"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
 
@@ -23,7 +22,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var log = logging.Logger("pdp/service")
@@ -43,19 +41,17 @@ type EthClient interface {
 }
 
 type PDPService struct {
-	endpoint        url.URL
-	address         common.Address
-	blobstore       blobstore.Blobstore
-	storage         stashstore.Stash
-	sender          ethereum.Sender
-	chainClient     ChainClient
-	contractBackend bind.ContractBackend
+	endpoint    url.URL
+	address     common.Address
+	blobstore   blobstore.Blobstore
+	sender      ethereum.Sender
+	chainClient ChainClient
 
 	db   *gorm.DB
 	name string
 
-	pieceResolver piece.Resolver
-	pieceReader   piece.Reader
+	pieceResolver types.PieceResolverAPI
+	pieceReader   types.PieceReaderAPI
 
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
@@ -74,14 +70,12 @@ func New(
 	db *gorm.DB,
 	address common.Address,
 	bs blobstore.PDPStore,
-	resolver piece.Resolver,
-	reader piece.Reader,
-	stash stashstore.Stash,
+	resolver types.PieceResolverAPI,
+	reader types.PieceReaderAPI,
 	sender ethereum.Sender,
 	engine *scheduler.TaskEngine,
 	chainScheduler *chainsched.Scheduler,
 	chainClient ChainClient,
-	contractBackend EthClient,
 	signingService signer.SigningService,
 	edc *eip712.ExtraDataEncoder,
 	verifier smartcontracts.Verifier,
@@ -96,12 +90,10 @@ func New(
 		pieceResolver:    resolver,
 		pieceReader:      reader,
 		blobstore:        bs,
-		storage:          stash,
 		sender:           sender,
 		engine:           engine,
 		chainScheduler:   chainScheduler,
 		chainClient:      chainClient,
-		contractBackend:  contractBackend,
 		signingService:   signingService,
 		edc:              edc,
 		verifierContract: verifier,

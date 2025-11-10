@@ -25,7 +25,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var Module = fx.Module("pdp-service",
@@ -38,6 +37,9 @@ var Module = fx.Module("pdp-service",
 			fx.As(new(types.API)), // also provide the server as the interface(s) it implements
 			fx.As(new(types.ProofSetAPI)),
 			fx.As(new(types.PieceAPI)),
+			fx.As(new(types.PieceResolverAPI)),
+			fx.As(new(types.PieceReaderAPI)),
+			fx.As(new(types.PieceWriterAPI)),
 		),
 		fx.Annotate(
 			ProvideProofSetIDProvider,
@@ -86,15 +88,13 @@ type Params struct {
 	DB           *gorm.DB `name:"engine_db"`
 	Config       app.PDPServiceConfig
 	Store        blobstore.PDPStore
-	Resolver     piece.Resolver
-	Reader       piece.Reader
+	Resolver     types.PieceResolverAPI
+	Reader       types.PieceReaderAPI
 	// TODO remove stash store, its unused.
-	Stash            stashstore.Stash
 	Sender           ethereum.Sender
 	Engine           *scheduler.TaskEngine
 	ChainScheduler   *chainsched.Scheduler
 	ChainClient      service.ChainClient
-	ContractBackend  service.EthClient
 	SigningService   signer.SigningService
 	ExtraDataEncoder *eip712.ExtraDataEncoder
 	Verifier         smartcontracts.Verifier
@@ -110,12 +110,10 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.Store,
 		params.Resolver,
 		params.Reader,
-		params.Stash,
 		params.Sender,
 		params.Engine,
 		params.ChainScheduler,
 		params.ChainClient,
-		params.ContractBackend,
 		params.SigningService,
 		params.ExtraDataEncoder,
 		params.Verifier,

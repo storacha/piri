@@ -23,12 +23,7 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihas
 	}
 	defer piece.Data.Close()
 
-	dmh, err := multihash.Decode(blob)
-	if err != nil {
-		return cid.Undef, fmt.Errorf("invalid multihash: %w", err)
-	}
-	blobCID := cid.NewCidV1(dmh.Code, dmh.Digest)
-	pieceCID, paddedSize, err := doCommp(blobCID, piece.Data, uint64(piece.Size))
+	pieceCID, paddedSize, err := doCommp(blob, piece.Data, uint64(piece.Size))
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -49,7 +44,7 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihas
 		// 2. Create a parked piece ref pointing to PDPStore.
 		// NB this field is meaningless, but we might want to use the multihash for the value
 		// since that's the key in the store
-		dataURL := fmt.Sprintf("pdpstore://%s", blobCID.String())
+		dataURL := fmt.Sprintf("pdpstore://%s", blob.String())
 
 		parkedPieceRef := models.ParkedPieceRef{
 			PieceID:     parkedPiece.ID,
@@ -92,13 +87,21 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihas
 	return pieceCID, nil
 }
 
-func doCommp(c cid.Cid, data io.Reader, size uint64) (cid.Cid, uint64, error) {
-	switch c.Prefix().MhType {
+func doCommp(blob multihash.Multihash, data io.Reader, size uint64) (cid.Cid, uint64, error) {
+	piece, err := multihash.Decode(blob)
+	if err != nil {
+		return cid.Undef, 0, fmt.Errorf("invalid multihash: %w", err)
+	}
+	switch piece.Code {
 	case uint64(multicodec.Sha2_256Trunc254Padded):
 		// we have a pieceCID v1, convert to v2 and return padded size
-		pieceCID, err := commcid.PieceCidV2FromV1(c, size)
+		pv1, err := commcid.DataCommitmentV1ToCID(piece.Digest)
 		if err != nil {
-			return cid.Undef, 0, fmt.Errorf("failed to convert pieceCid %s from v1 to v2: %w", c, err)
+			return cid.Undef, 0, err
+		}
+		pieceCID, err := commcid.PieceCidV2FromV1(pv1, size)
+		if err != nil {
+			return cid.Undef, 0, fmt.Errorf("failed to convert pieceCid %s from v1 to v2: %w", pv1, err)
 		}
 		treeHeight, _, err := commcid.PayloadSizeToV1TreeHeightAndPadding(size)
 		if err != nil {
@@ -106,29 +109,15 @@ func doCommp(c cid.Cid, data io.Reader, size uint64) (cid.Cid, uint64, error) {
 		}
 		return pieceCID, uint64(32) << treeHeight, nil
 	case uint64(multicodec.Fr32Sha256Trunc254Padbintree):
-		// we have a pieceCID v2, we can return it, but also need to extract padded size
-		digest, extractedSize, err := commcid.PieceCidV2ToDataCommitment(c)
+		pieceCID, err := commcid.DataCommitmentToPieceCidv2(piece.Digest, size)
 		if err != nil {
-			return cid.Undef, 0, fmt.Errorf("failed to convert cid %s from v2 to data commitment: %w", c, err)
-		}
-		if extractedSize != size {
-			return cid.Undef, 0, fmt.Errorf("expected extracted size %d but got %d", size, extractedSize)
-		}
-
-		// TODO(forrest): I am just being paranoid, this is not needed
-		commpCID, err := commcid.DataCommitmentToPieceCidv2(digest, extractedSize)
-		if err != nil {
-			return cid.Undef, 0, fmt.Errorf("failed to convert cid %s from v2 to data commitment: %w", c, err)
-		}
-
-		if !commpCID.Equals(c) {
-			return cid.Undef, 0, fmt.Errorf("expected cid %s but got %s", c, commpCID)
+			return cid.Undef, 0, err
 		}
 		treeHeight, _, err := commcid.PayloadSizeToV1TreeHeightAndPadding(size)
 		if err != nil {
 			return cid.Undef, 0, err
 		}
-		return c, uint64(32) << treeHeight, nil
+		return pieceCID, uint64(32) << treeHeight, nil
 	default:
 		// need to calculate commp
 		cp := &commp.Calc{}

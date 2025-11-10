@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/core/types"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/filecoin-project/go-commp-utils/zerocomm"
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -23,7 +23,6 @@ import (
 	pool "github.com/libp2p/go-buffer-pool"
 	"github.com/minio/sha256-simd"
 	"github.com/samber/lo"
-	"github.com/storacha/piri/pkg/pdp/piece"
 	"golang.org/x/crypto/sha3"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -35,6 +34,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
@@ -49,7 +49,8 @@ type ProveTask struct {
 	sender    ethereum.Sender
 	bs        blobstore.Blobstore
 	api       ChainAPI
-	reader    piece.Reader
+	reader    types.PieceReaderAPI
+	resolver  types.PieceResolverAPI
 
 	head atomic.Pointer[chaintypes.TipSet]
 
@@ -64,7 +65,8 @@ func NewProveTask(
 	api ChainAPI,
 	sender ethereum.Sender,
 	bs blobstore.Blobstore,
-	reader piece.Reader,
+	reader types.PieceReaderAPI,
+	resolver types.PieceResolverAPI,
 ) (*ProveTask, error) {
 	pt := &ProveTask{
 		db:        db,
@@ -207,7 +209,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	}
 
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
-	txEth := types.NewTransaction(
+	txEth := ethtypes.NewTransaction(
 		0,
 		smartcontracts.Addresses().Verifier,
 		proofFee,
@@ -358,8 +360,7 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 		return nil, fmt.Errorf("subroot size exceeds maximum: %d", subrootSize)
 	}
 
-	// TODO everything below here is probably wrong with respect to size's
-	sr, err := p.reader.ReadPiece(ctx, subrootCidObj.Hash())
+	sr, err := p.reader.ReadPiece(ctx, subrootCidObj.Hash(), types.WithResolver(p.resolver))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subroot reader: %w", err)
 	}

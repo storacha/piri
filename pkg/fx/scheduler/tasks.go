@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"github.com/storacha/piri/pkg/pdp/piece"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -89,7 +89,8 @@ type PDPProveTaskParams struct {
 	Scheduler *chainsched.Scheduler
 	Sender    ethereum.Sender
 	Store     blobstore.PDPStore
-	Reader    piece.Reader
+	Reader    types.PieceReaderAPI
+	Resolver  types.PieceResolverAPI
 }
 
 func ProvidePDPProveTask(params PDPProveTaskParams) (*tasks.ProveTask, error) {
@@ -102,5 +103,6 @@ func ProvidePDPProveTask(params PDPProveTaskParams) (*tasks.ProveTask, error) {
 		params.Sender,
 		params.Store,
 		params.Reader,
+		params.Resolver,
 	)
 }

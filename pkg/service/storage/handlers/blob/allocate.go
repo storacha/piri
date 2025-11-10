@@ -2,7 +2,6 @@ package blob
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/ucan"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/presets"
 
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/pdp"
@@ -123,13 +123,16 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 				log.Errorw("decoding digest", "error", err)
 				return nil, fmt.Errorf("decoding digest: %w", err)
 			}
+			if _, ok := presets.HasherRegistry[dmh.Name]; !ok {
+				return nil, fmt.Errorf("unsupported hash: %s", dmh.Name)
+			}
 			// use pdp service upload
 			// TODO we need to provide backpressure to the upload service here
 			// based on the number of roots we are currently allocating.
 			resp, err := s.PDP().API().AllocatePiece(ctx, types.PieceAllocation{
 				Piece: types.Piece{
 					Name: dmh.Name,
-					Hash: hex.EncodeToString(req.Blob.Digest),
+					Hash: req.Blob.Digest,
 					Size: int64(req.Blob.Size),
 				},
 			})

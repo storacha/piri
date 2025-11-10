@@ -14,6 +14,7 @@ import (
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/testutil"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -27,7 +28,7 @@ type resolverFixture struct {
 	ctx      context.Context
 	db       *gorm.DB
 	store    *blobstore.MapBlobstore
-	resolver piece.Resolver
+	resolver types.PieceResolverAPI
 }
 
 func TestMultihashToCommpV2CID(t *testing.T) {
@@ -52,7 +53,7 @@ func TestMultihashToCommpV2CID(t *testing.T) {
 
 	{
 
-		commpCID = piece.MultihashToCommpV2CID(pieceMH)
+		commpCID = piece.MultihashToCommpCID(pieceMH)
 
 	}
 

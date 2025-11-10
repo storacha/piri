@@ -9,39 +9,40 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
-type Reader interface {
-	// ReadPiece accepts a piece multihash, resolves it to the blob multihash and then returns a reader for the piece
-	ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error)
-}
-
 type StoreReader struct {
-	resolver Resolver
-	store    blobstore.PDPStore
+	store blobstore.PDPStore
 }
 
-func NewStoreReader(resolver Resolver, store blobstore.PDPStore) Reader {
+func NewStoreReader(store blobstore.PDPStore) types.PieceReaderAPI {
 	return &StoreReader{
-		resolver: resolver,
-		store:    store,
+		store: store,
 	}
 }
 
 func (r *StoreReader) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
-	resolved, found, err := r.resolver.ResolvePiece(ctx, piece)
-	if err != nil {
-		return nil, fmt.Errorf("resolving piece: %w", err)
-	}
-	if !found {
-		return nil, fmt.Errorf("piece %s not found", piece)
-	}
-
 	cfg := types.ReadPieceConfig{}
 	cfg.ProcessOptions(options)
+
+	resolved := piece
+	if resolver := cfg.Resolver; resolver != nil {
+		var (
+			err   error
+			found bool
+		)
+		resolved, found, err = resolver.ResolvePiece(ctx, piece)
+		if err != nil {
+			return nil, fmt.Errorf("resolving piece: %w", err)
+		}
+		if !found {
+			return nil, fmt.Errorf("piece %s not found", piece)
+		}
+	}
 
 	var getOptions []blobstore.GetOption
 	if cfg.ByteRange.Start > 0 || cfg.ByteRange.End != nil {
 		getOptions = append(getOptions, blobstore.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	}
+
 	obj, err := r.store.Get(ctx, resolved, getOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("reading piece: %w", err)

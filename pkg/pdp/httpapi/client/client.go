@@ -394,7 +394,7 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 	req := httpapi.AddPieceRequest{
 		Check: httpapi.PieceHash{
 			Name: allocation.Piece.Name,
-			Hash: allocation.Piece.Hash,
+			Hash: allocation.Piece.Hash.String(),
 			Size: allocation.Piece.Size,
 		},
 	}
@@ -458,35 +458,6 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 func (c *Client) UploadPiece(ctx context.Context, upload types.PieceUpload) error {
 	route := c.endpoint.JoinPath(pdpRoutePath, piecePath, "upload", upload.ID.String()).String()
 	return c.verifySuccess(c.sendRequest(ctx, http.MethodPut, route, upload.Data, nil))
-}
-
-func (c *Client) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, bool, error) {
-	route := c.endpoint.JoinPath(pdpRoutePath, piecePath)
-	query := route.Query()
-	query.Add("size", strconv.FormatInt(piece.Size, 10))
-	query.Add("name", piece.Name)
-	query.Add("hash", piece.Hash)
-	route.RawQuery = query.Encode()
-	res, err := c.sendRequest(ctx, http.MethodGet, route.String(), nil, nil)
-	if err != nil {
-		return cid.Undef, false, fmt.Errorf("failed to find piece: %w", err)
-	}
-	if res.StatusCode == http.StatusNotFound {
-		return cid.Undef, false, nil
-	}
-	if res.StatusCode == http.StatusOK {
-		var foundPiece httpapi.FoundPieceResponse
-		if err := json.NewDecoder(res.Body).Decode(&foundPiece); err != nil {
-			return cid.Undef, false, fmt.Errorf("failed to decode response for piece: %w", err)
-		}
-		pcid, err := cid.Decode(foundPiece.PieceCID)
-		if err != nil {
-			return cid.Undef, false, fmt.Errorf("failed to parse found piece CID: %w", err)
-		}
-		return pcid, true, nil
-
-	}
-	return cid.Undef, false, errFromResponse(res)
 }
 
 func (c *Client) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
