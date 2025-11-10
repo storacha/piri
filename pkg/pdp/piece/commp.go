@@ -78,7 +78,7 @@ type Comper struct {
 	queue jobqueue.Service[multihash.Multihash]
 }
 
-func NewComper(params ComperParams) (Calculator, error) {
+func NewQueuingCommpCalculator(params ComperParams) (Calculator, error) {
 	c := &Comper{
 		queue: params.Queue,
 	}

@@ -10,7 +10,7 @@ var Module = fx.Module("pdp/piece",
 
 		NewStoreReader,
 
-		NewComper,
+		NewQueuingCommpCalculator,
 		NewCommpQueue,
 		NewComperTaskHandler,
 	),

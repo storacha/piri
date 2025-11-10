@@ -53,9 +53,10 @@ func (r *StoreResolver) ResolvePiece(ctx context.Context, blob multihash.Multiha
 
 	switch dmh.Code {
 	case uint64(multicodec.Fr32Sha256Trunc254Padbintree): // we are resolving a CommP to the multihash it was uploaded with, which could be the commP, or a different mh
-		commpCID := MultihashToCommpCID(blob)
 		var record models.PDPPieceMHToCommp
-		if err := r.db.WithContext(ctx).Where("commp = ?", commpCID.String()).First(&record).Error; err != nil {
+		if err := r.db.WithContext(ctx).
+			Where("commp = ?", MultihashToCommpCID(blob).String()).
+			First(&record).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, false, nil
 			}
