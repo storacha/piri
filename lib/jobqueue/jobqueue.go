@@ -194,6 +194,16 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 		return nil, errors.New("queue provider is not configured")
 	}
 
+	if c.MaxWorkers == 0 {
+		return nil, errors.New("max workers cannot be 0")
+	}
+	if c.MaxTimeout == 0 {
+		return nil, errors.New("max timeout cannot be 0")
+	}
+	if c.ExtendDelay == 0 {
+		return nil, errors.New("extend delay cannot be 0")
+	}
+
 	// instantiate queue schema in the database, this should be fairly quick
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
