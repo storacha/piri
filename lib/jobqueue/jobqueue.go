@@ -33,6 +33,7 @@ type Config struct {
 	MaxTimeout    time.Duration
 	ExtendDelay   time.Duration
 	queueProvider QueueProvider
+	isDedupQueue  bool
 }
 type Option func(c *Config) error
 
@@ -117,6 +118,7 @@ func WithQueueProvider(provider QueueProvider) Option {
 			return errors.New("queue provider new cannot be nil")
 		}
 		c.queueProvider = provider
+		c.isDedupQueue = false // Reset to false when using custom provider
 		return nil
 	}
 }
@@ -156,6 +158,8 @@ func WithDedupQueue(cfg *DedupQueueConfig) Option {
 		}
 
 		c.queueProvider = provider
+
+		c.isDedupQueue = true
 		return nil
 	}
 }
@@ -202,6 +206,14 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 	}
 	if c.ExtendDelay == 0 {
 		return nil, errors.New("extend delay cannot be 0")
+	}
+	// Check for both pointer and value types of JSON serializer
+	switch ser.(type) {
+	case serializer.JSON[T], *serializer.JSON[T]:
+		if c.isDedupQueue {
+			// TODO enforce this with an actual error
+			log.Error("JSON serializer cannot be used with dedupe queue due to non-deterministic serialization")
+		}
 	}
 
 	// instantiate queue schema in the database, this should be fairly quick

@@ -73,6 +73,7 @@ func New(opts NewOpts) (*Queue, error) {
 		name:       opts.Name,
 		maxReceive: opts.MaxReceive,
 		timeout:    opts.Timeout,
+		logger:     opts.Logger,
 	}, nil
 }
 
@@ -255,6 +256,7 @@ func (q *Queue) deleteTx(ctx context.Context, tx *sql.Tx, id ID) error {
 // MoveToDeadLetter moves a message from the main queue to the dead letter queue.
 // This is used for jobs that fail permanently or exceed max retries.
 func (q *Queue) MoveToDeadLetter(ctx context.Context, id ID, jobName, failureReason, errorMsg string) error {
+	q.logger.Warnw("moving job to dead letter queue", "job", jobName, "failure_reason", failureReason, "error_msg", errorMsg)
 	return internalsql.InTx(q.db, func(tx *sql.Tx) error {
 		return q.moveToDeadLetterTx(ctx, tx, id, jobName, failureReason, errorMsg)
 	})

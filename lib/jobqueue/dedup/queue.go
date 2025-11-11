@@ -389,6 +389,7 @@ func (q *Queue) deleteTx(ctx context.Context, tx *sql.Tx, id queue.ID, status jo
 }
 
 func (q *Queue) MoveToDeadLetter(ctx context.Context, id queue.ID, jobName, failureReason, errorMsg string) error {
+	q.logger.Warnw("moving job to dead letter queue", "job", jobName, "failure_reason", failureReason, "error_msg", errorMsg)
 	return internalsql.InTx(q.db, func(tx *sql.Tx) error {
 		return q.moveToDeadLetterTx(ctx, tx, id, jobName, failureReason, errorMsg)
 	})
