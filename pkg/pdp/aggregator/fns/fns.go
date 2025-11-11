@@ -25,7 +25,6 @@ import (
 
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/types"
-	types2 "github.com/storacha/piri/pkg/pdp/types"
 )
 
 var log = logging.Logger("fns")
@@ -116,7 +115,7 @@ func AggregatePieces(buffer Buffer, pieces []piece.PieceLink) (Buffer, []aggrega
 	return buffer, aggregates, nil
 }
 
-func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet uint64, aggregates []aggregate.Aggregate) error {
+func SubmitAggregates(ctx context.Context, client types.ProofSetAPI, proofSet uint64, aggregates []aggregate.Aggregate) error {
 	log.Infow("submitting aggregates",
 		zap.Array("aggregates", zapcore.ArrayMarshalerFunc(func(arr zapcore.ArrayEncoder) error {
 			for _, agg := range aggregates { // aggregates is []Aggregate
@@ -127,7 +126,7 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 			return nil
 		})),
 	)
-	newRoots := make([]types2.RootAdd, 0, len(aggregates))
+	newRoots := make([]types.RootAdd, 0, len(aggregates))
 	for _, a := range aggregates {
 		rootCID, err := cid.Decode(a.Root.Link().String())
 		if err != nil {
@@ -141,7 +140,7 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 			}
 			subRoots = append(subRoots, pcid)
 		}
-		newRoots = append(newRoots, types2.RootAdd{
+		newRoots = append(newRoots, types.RootAdd{
 			Root:     rootCID,
 			SubRoots: subRoots,
 		})
