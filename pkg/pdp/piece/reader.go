@@ -5,20 +5,25 @@ import (
 	"errors"
 	"fmt"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
+const DefaultHasSetSize = 100_000
+
 type StoreReader struct {
-	store blobstore.PDPStore
+	store  blobstore.PDPStore
+	hasSet mapset.Set[string]
 }
 
-func NewStoreReader(store blobstore.PDPStore) types.PieceReaderAPI {
+func NewStoreReader(store blobstore.PDPStore) (types.PieceReaderAPI, error) {
 	return &StoreReader{
-		store: store,
-	}
+		store:  store,
+		hasSet: mapset.NewSetWithSize[string](DefaultHasSetSize),
+	}, nil
 }
 
 func (r *StoreReader) Read(ctx context.Context, blob multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
@@ -48,6 +53,9 @@ func (r *StoreReader) Read(ctx context.Context, blob multihash.Multihash, option
 }
 
 func (r *StoreReader) Has(ctx context.Context, blob multihash.Multihash) (bool, error) {
+	if r.hasSet.ContainsOne(blob.String()) {
+		return true, nil
+	}
 	_, err := r.store.Get(ctx, blob)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -55,5 +63,6 @@ func (r *StoreReader) Has(ctx context.Context, blob multihash.Multihash) (bool, 
 		}
 		return false, types.WrapError(types.KindInternal, "failed to read data", err)
 	}
+	r.hasSet.Add(blob.String())
 	return true, nil
 }

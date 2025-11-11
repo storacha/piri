@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/multiformats/go-multicodec"
@@ -16,24 +17,37 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
+// DefaultResolverCacheSize is the default size of the resolver cache
+//
+// NB(forrest): arrived on this value since:
+// It stores 2 hash per entry, each are ~256 bytes
+// 256 bytes * 2 * 100,000 = ~60MiB when cache is full
+// 100,000 entries assuming each piece references a ~128MiB blob allows the
+// cache to store ~1.5 TiB worth of referenced data
+const DefaultResolverCacheSize = 100_000
+
 var log = logging.Logger("pdp/piece")
 
 type StoreResolver struct {
-	db *gorm.DB
-	// TODO add an Arc or LRU cache
+	db    *gorm.DB
+	cache *lru.Cache[string, multihash.Multihash]
 }
 
 type StoreResolverParams struct {
 	fx.In
 
 	DB *gorm.DB `name:"engine_db"`
-	// TODO pass in a cache interface
 }
 
-func NewStoreResolver(params StoreResolverParams) types.PieceResolverAPI {
-	return &StoreResolver{
-		db: params.DB,
+func NewStoreResolver(params StoreResolverParams) (types.PieceResolverAPI, error) {
+	cache, err := lru.New[string, multihash.Multihash](DefaultResolverCacheSize)
+	if err != nil {
+		return nil, err
 	}
+	return &StoreResolver{
+		db:    params.DB,
+		cache: cache,
+	}, nil
 }
 
 var _ types.PieceResolverAPI = (*StoreResolver)(nil)
@@ -57,6 +71,9 @@ func (r *StoreResolver) Resolve(ctx context.Context, mh multihash.Multihash) (mu
 // the corresponding blob the piece was derived from.
 // If the piece does not exist it returns false and no error.
 func (r *StoreResolver) ResolveToBlob(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error) {
+	if cached, hit := r.cache.Get(piece.String()); hit {
+		return cached, true, nil
+	}
 	dmh, err := multihash.Decode(piece)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to decode multihash: %w", err)
@@ -74,6 +91,7 @@ func (r *StoreResolver) ResolveToBlob(ctx context.Context, piece multihash.Multi
 		}
 		return nil, false, fmt.Errorf("failed to read database: %w", err)
 	}
+	r.cache.Add(piece.String(), record.Mhash)
 	return record.Mhash, true, nil
 }
 
@@ -82,6 +100,9 @@ func (r *StoreResolver) ResolveToBlob(ctx context.Context, piece multihash.Multi
 // the corresponding piece derived from the blob.
 // If the piece does not exist it returns false and no error.
 func (r *StoreResolver) ResolveToPiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error) {
+	if cached, hit := r.cache.Get(blob.String()); hit {
+		return cached, true, nil
+	}
 	dmh, err := multihash.Decode(blob)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to decode multihash: %w", err)
@@ -107,6 +128,7 @@ func (r *StoreResolver) ResolveToPiece(ctx context.Context, blob multihash.Multi
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to decode commp cid %s for blob %s: %w", record.Commp, blob.String(), err)
 	}
+	r.cache.Add(blob.String(), commpCID.Hash())
 	return commpCID.Hash(), true, nil
 
 }
