@@ -360,7 +360,16 @@ func (p *ProveTask) genSubrootMemtree(ctx context.Context, subrootCid string, su
 		return nil, fmt.Errorf("subroot size exceeds maximum: %d", subrootSize)
 	}
 
-	sr, err := p.reader.ReadPiece(ctx, subrootCidObj.Hash(), types.WithResolver(p.resolver))
+	// the subrootCidObj will be a commp cid as this is what the contract operates on.
+	// Therefore, we must resolve the commp to the blob inorder to read it from the store.
+	piece, found, err := p.resolver.ResolveToBlob(ctx, subrootCidObj.Hash())
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve subroot CID: %w", err)
+	}
+	if !found {
+		return nil, fmt.Errorf("failed to find subroot CID")
+	}
+	sr, err := p.reader.Read(ctx, piece)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subroot reader: %w", err)
 	}

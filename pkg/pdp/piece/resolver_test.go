@@ -21,13 +21,11 @@ import (
 	"github.com/storacha/piri/pkg/database/gormdb"
 	"github.com/storacha/piri/pkg/pdp/piece"
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
 type resolverFixture struct {
 	ctx      context.Context
 	db       *gorm.DB
-	store    *blobstore.MapBlobstore
 	resolver types.PieceResolverAPI
 }
 
@@ -78,15 +76,11 @@ func newResolverFixture(t *testing.T) resolverFixture {
 		_ = sqlDB.Close()
 	})
 
-	store := blobstore.NewMapBlobstore()
-
 	return resolverFixture{
-		ctx:   context.Background(),
-		db:    db,
-		store: store,
+		ctx: context.Background(),
+		db:  db,
 		resolver: piece.NewStoreResolver(piece.StoreResolverParams{
-			DB:    db,
-			Store: store,
+			DB: db,
 		}),
 	}
 }
@@ -121,22 +115,7 @@ func TestStoreResolverResolveWithCommpMapping(t *testing.T) {
 	}
 	require.NoError(t, fx.db.Create(&entry).Error)
 
-	got, ok, err := fx.resolver.ResolvePiece(fx.ctx, commpCID.Hash())
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, resolvedHash, got)
-}
-
-func TestStoreResolverResolveReadsBlobstore(t *testing.T) {
-	fx := newResolverFixture(t)
-
-	size := 10 * 1024
-	data := randomBytes(t, size)
-	resolvedHash := randomMultihash(t, data)
-
-	require.NoError(t, fx.store.Put(fx.ctx, resolvedHash, uint64(size), bytes.NewReader(data)))
-
-	got, ok, err := fx.resolver.ResolvePiece(fx.ctx, resolvedHash)
+	got, ok, err := fx.resolver.ResolveToBlob(fx.ctx, commpCID.Hash())
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, resolvedHash, got)
@@ -147,7 +126,7 @@ func TestStoreResolverResolveNotFound(t *testing.T) {
 
 	commpCID := mustTestCommpCID(t)
 
-	got, ok, err := fx.resolver.ResolvePiece(fx.ctx, commpCID.Hash())
+	got, ok, err := fx.resolver.Resolve(fx.ctx, commpCID.Hash())
 	require.NoError(t, err)
 	require.False(t, ok)
 	require.Nil(t, got)

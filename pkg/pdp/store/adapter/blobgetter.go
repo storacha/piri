@@ -42,7 +42,7 @@ func (bga *BlobGetterAdapter) Get(ctx context.Context, digest multihash.Multihas
 	if cfg.ByteRange.Start > 0 || cfg.ByteRange.End != nil {
 		readOptions = append(readOptions, types.WithRange(cfg.ByteRange.Start, cfg.ByteRange.End))
 	}
-	res, err := bga.pieceReader.ReadPiece(ctx, digest, readOptions...)
+	res, err := bga.pieceReader.Read(ctx, digest, readOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("reading piece: %w", err)
 	}

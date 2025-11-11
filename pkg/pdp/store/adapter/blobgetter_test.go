@@ -50,7 +50,12 @@ type mockPieceReader struct {
 	data map[string][]byte
 }
 
-func (m *mockPieceReader) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
+func (m *mockPieceReader) Has(ctx context.Context, blob multihash.Multihash) (bool, error) {
+	_, ok := m.data[blob.String()]
+	return ok, nil
+}
+
+func (m *mockPieceReader) Read(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	cfg := types.ReadPieceConfig{}
 	cfg.ProcessOptions(options)
 

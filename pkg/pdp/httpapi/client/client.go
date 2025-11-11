@@ -53,8 +53,24 @@ type Client struct {
 	serverType EndpointType
 }
 
-func (c *Client) CalculateCommP(ctx context.Context, blob multihash.Multihash) (cid.Cid, error) {
-	return cid.Undef, fmt.Errorf("PDP Client does not support calculate commP")
+func (c *Client) ParkPiece(ctx context.Context, params types.ParkPieceRequest) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (c *Client) Has(ctx context.Context, blob multihash.Multihash) (bool, error) {
+	return false, fmt.Errorf("not implemented")
+}
+
+func (c *Client) ResolveToPiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error) {
+	return nil, false, fmt.Errorf("not implemented")
+}
+
+func (c *Client) ResolveToBlob(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error) {
+	return nil, false, fmt.Errorf("not implemented")
+}
+
+func (c *Client) CalculateCommP(ctx context.Context, blob multihash.Multihash) (types.CalculateCommPResponse, error) {
+	return types.CalculateCommPResponse{}, fmt.Errorf("PDP Client does not support calculate commP")
 }
 
 func (c *Client) WritePieceURL(piece uuid.UUID) (url.URL, error) {
@@ -65,8 +81,8 @@ func (c *Client) ReadPieceURL(piece cid.Cid) (url.URL, error) {
 	return url.URL{}, fmt.Errorf("PDP Client does not support read piece URL")
 }
 
-func (c *Client) ResolvePiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error) {
-	return nil, false, fmt.Errorf("PDP Client does not support resolving pieces")
+func (c *Client) Resolve(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error) {
+	return nil, false, fmt.Errorf("PDP Client does not support resolving")
 }
 
 type Option func(c *Client) error
@@ -460,7 +476,7 @@ func (c *Client) UploadPiece(ctx context.Context, upload types.PieceUpload) erro
 	return c.verifySuccess(c.sendRequest(ctx, http.MethodPut, route, upload.Data, nil))
 }
 
-func (c *Client) ReadPiece(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
+func (c *Client) Read(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	cfg := types.ReadPieceConfig{}
 	cfg.ProcessOptions(options)
 

@@ -116,11 +116,19 @@ type ComperTaskHandler struct {
 }
 
 func (h *ComperTaskHandler) Handle(ctx context.Context, blob multihash.Multihash) error {
-	pieceCid, err := h.api.CalculateCommP(ctx, blob)
+	res, err := h.api.CalculateCommP(ctx, blob)
 	if err != nil {
-		return err
+		return fmt.Errorf("calculating commp: %w", err)
 	}
-	p, err := piece.FromLink(cidlink.Link{Cid: pieceCid})
+	if err := h.api.ParkPiece(ctx, types.ParkPieceRequest{
+		Blob:       blob,
+		PieceCID:   res.PieceCID,
+		RawSize:    res.RawSize,
+		PaddedSize: res.PaddedSize,
+	}); err != nil {
+		return fmt.Errorf("parking piece: %w", err)
+	}
+	p, err := piece.FromLink(cidlink.Link{Cid: res.PieceCID})
 	if err != nil {
 		return err
 	}
