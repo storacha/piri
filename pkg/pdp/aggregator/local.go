@@ -83,6 +83,7 @@ func NewLocal(
 	proofSet uint64,
 	issuer principal.Signer,
 	receiptStore receiptstore.ReceiptStore,
+	resolver types.PieceResolverAPI,
 ) (*LocalAggregator, error) {
 	aggregateStore := ipldstore.IPLDStore[datamodel.Link, aggregate.Aggregate](
 		store.SimpleStoreFromDatastore(namespace.Wrap(ds, datastore.NewKey(AggregatePrefix))),
@@ -108,7 +109,7 @@ func NewLocal(
 	}
 
 	// construct queues -- somewhat frstratingly these have to be constructed backward for now
-	pieceAccepter := NewPieceAccepter(issuer, aggregateStore, receiptStore)
+	pieceAccepter := NewPieceAccepter(issuer, aggregateStore, receiptStore, resolver)
 	aggregationSubmitter := NewAggregateSubmitter(&ConfiguredProofSetProvider{ID: proofSet}, aggregateStore, client, linkQueue)
 	pieceAggregator := NewPieceAggregator(inProgressWorkspace, aggregateStore, linkQueue)
 

@@ -40,6 +40,7 @@ var Module = fx.Module("pdp-service",
 			fx.As(new(types.PieceResolverAPI)),
 			fx.As(new(types.PieceReaderAPI)),
 			fx.As(new(types.PieceWriterAPI)),
+			fx.As(new(types.PieceCommPAPI)),
 		),
 		fx.Annotate(
 			ProvideProofSetIDProvider,

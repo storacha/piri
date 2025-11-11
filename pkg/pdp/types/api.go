@@ -233,9 +233,8 @@ type PieceAPI interface {
 	PieceReaderAPI
 	PieceResolverAPI
 	PieceWriterAPI
+	PieceCommPAPI
 
-	// CalculateCommP accepts a blob multihash and returns a result containing its commp CID, raw and padded size.
-	CalculateCommP(ctx context.Context, blob multihash.Multihash) (CalculateCommPResponse, error)
 	// ParkPiece persists a record of a commp cid to the database
 	ParkPiece(ctx context.Context, params ParkPieceRequest) error
 
@@ -273,6 +272,11 @@ type PieceReaderAPI interface {
 	Read(ctx context.Context, data multihash.Multihash, options ...ReadPieceOption) (*PieceReader, error)
 	// Has returns true if the provided `data` multihash is present in the store, false otherwise
 	Has(ctx context.Context, blob multihash.Multihash) (bool, error)
+}
+
+type PieceCommPAPI interface {
+	// CalculateCommP accepts a blob multihash and returns a result containing its commp CID, raw and padded size.
+	CalculateCommP(ctx context.Context, blob multihash.Multihash) (CalculateCommPResponse, error)
 }
 
 type ProviderAPI interface {

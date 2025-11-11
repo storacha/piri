@@ -4,8 +4,10 @@ import (
 	"context"
 
 	logging "github.com/ipfs/go-log/v2"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/capabilities/types"
+	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt"
@@ -17,6 +19,8 @@ import (
 	"github.com/storacha/go-ucanto/server"
 	"github.com/storacha/go-ucanto/ucan"
 
+	"github.com/storacha/go-libstoracha/ipnipublisher/store"
+	pdpservice "github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -25,6 +29,7 @@ var log = logging.Logger("storage/ucan")
 type PDPInfoService interface {
 	ID() principal.Signer
 	Receipts() receiptstore.ReceiptStore
+	PDP() pdpservice.PDP
 }
 
 func PDPInfo(storageService PDPInfoService) server.Option {
@@ -33,16 +38,39 @@ func PDPInfo(storageService PDPInfoService) server.Option {
 		server.Provide(
 			pdp.Info,
 			func(ctx context.Context, cap ucan.Capability[pdp.InfoCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (result.Result[pdp.InfoOk, failure.IPLDBuilderFailure], fx.Effects, error) {
+				// if there is a PDP piece either aggregated or queued, we should be able to look up the piece CID
+				commpResp, err := storageService.PDP().API().CalculateCommP(ctx, cap.Nb().Blob)
+				if err != nil {
+					log.Errorf("unable to lookup piece CID: %w", err)
+					return nil, nil, err
+				}
+
+				// ok, we have a piece CID, let's see if we have an accepted PDP for it
+
 				// generate the invocation that would submit when this was first submitted
 				pieceAccept, err := pdp.Accept.Invoke(
 					storageService.ID(),
 					storageService.ID(),
 					storageService.ID().DID().GoString(),
 					pdp.AcceptCaveats{
-						Piece: cap.Nb().Piece,
+						Blob: cap.Nb().Blob,
 					}, delegation.WithNoExpiration())
 				if err != nil {
-					log.Errorf("creating location commitment: %w", err)
+					if store.IsNotFound(err) {
+						// no accept found, so this piece is still pending aggregation
+						pieceLink, err := piece.FromLink(cidlink.Link{Cid: commpResp.PieceCID})
+						if err != nil {
+							log.Errorf("creating piece link: %w", err)
+							return nil, nil, err
+						}
+						return result.Ok[pdp.InfoOk, failure.IPLDBuilderFailure](
+							pdp.InfoOk{
+								Piece:      pieceLink,
+								Aggregates: []pdp.InfoAcceptedAggregate{},
+							},
+						), nil, nil
+					}
+					log.Errorf("creating pdp accept: %w", err)
 					return nil, nil, err
 				}
 				// look up the receipt for the accept invocation
@@ -62,7 +90,7 @@ func PDPInfo(storageService PDPInfoService) server.Option {
 					func(ok pdp.AcceptOk) (result.Result[pdp.InfoOk, failure.IPLDBuilderFailure], fx.Effects, error) {
 						return result.Ok[pdp.InfoOk, failure.IPLDBuilderFailure](
 							pdp.InfoOk{
-								Piece: cap.Nb().Piece,
+								Piece: ok.Piece,
 								Aggregates: []pdp.InfoAcceptedAggregate{
 									{
 										Aggregate:      ok.Aggregate,

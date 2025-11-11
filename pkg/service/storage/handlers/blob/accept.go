@@ -9,8 +9,10 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
+	pdp_cap "github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-ucanto/core/delegation"
+	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 
@@ -36,6 +38,8 @@ type AcceptRequest struct {
 
 type AcceptResponse struct {
 	Claim delegation.Delegation
+	// only present when using PDP
+	PDP invocation.Invocation
 }
 
 func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptResponse, error) {
@@ -43,8 +47,9 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 	log.Infof("%s %s", blob.AcceptAbility, req.Space)
 
 	var (
-		err error
-		loc url.URL
+		err          error
+		loc          url.URL
+		pdpAcceptInv invocation.Invocation
 	)
 	if s.PDP() == nil {
 		_, err = s.Blobs().Store().Get(ctx, req.Blob.Digest)
@@ -84,6 +89,19 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 			log.Errorw("submitting piece for aggregation", "error", err)
 			return nil, fmt.Errorf("submitting piece for aggregation: %w", err)
 		}
+		// generate the invocation that will complete when aggregation is complete and the piece is accepted
+		pieceAccept, err := pdp_cap.Accept.Invoke(
+			s.ID(),
+			s.ID(),
+			s.ID().DID().String(),
+			pdp_cap.AcceptCaveats{
+				Blob: req.Blob.Digest,
+			}, delegation.WithNoExpiration())
+		if err != nil {
+			log.Error("creating piece accept invocation", "error", err)
+			return nil, fmt.Errorf("creating piece accept invocation: %w", err)
+		}
+		pdpAcceptInv = pieceAccept
 	}
 
 	byteRange := assert.Range{Offset: 0, Length: &req.Blob.Size}
@@ -118,5 +136,6 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 
 	return &AcceptResponse{
 		Claim: claim,
+		PDP:   pdpAcceptInv,
 	}, nil
 }

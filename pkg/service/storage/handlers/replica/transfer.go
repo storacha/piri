@@ -16,6 +16,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
+	pdp_cap "github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	ucan_cap "github.com/storacha/go-libstoracha/capabilities/ucan"
 	"github.com/storacha/go-ucanto/client"
@@ -194,21 +195,33 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		}
 
 		forks = []fx.Effect{fx.FromInvocation(acceptResp.Claim)}
+		var pdpLink *ipld.Link
+		if acceptResp.PDP != nil {
+			forks = append(forks, fx.FromInvocation(acceptResp.PDP))
+			tmp := acceptResp.PDP.Link()
+			pdpLink = &tmp
+		}
 
-		rcpt, err = issueTransferReceipt(ctx, service, request, acceptResp.Claim.Link(), forks)
+		rcpt, err = issueTransferReceipt(ctx, service, request, acceptResp.Claim.Link(), pdpLink, forks)
 		if err != nil {
 			return err
 		}
 	} else {
 		// Blob already exists (skip transfer for idempotency) or no sink specified - create location assertion
-		claim, err := createLocationAssertion(ctx, service, request)
+		claim, pdpAcceptInv, err := createLocationAssertion(ctx, service, request)
 		if err != nil {
 			return err
 		}
 
 		forks = []fx.Effect{fx.FromInvocation(claim)}
+		var pdpLink *ipld.Link
+		if pdpAcceptInv != nil {
+			forks = append(forks, fx.FromInvocation(pdpAcceptInv))
+			tmp := pdpAcceptInv.Link()
+			pdpLink = &tmp
+		}
 
-		rcpt, err = issueTransferReceipt(ctx, service, request, claim.Link(), forks)
+		rcpt, err = issueTransferReceipt(ctx, service, request, claim.Link(), pdpLink, forks)
 		if err != nil {
 			return err
 		}
@@ -433,37 +446,53 @@ func requestBlobRetrieveDelegation(
 }
 
 // createLocationAssertion creates a location assertion for an existing blob
-func createLocationAssertion(ctx context.Context, service TransferService, request *TransferRequest) (invocation.Invocation, error) {
-	var loc url.URL
+func createLocationAssertion(ctx context.Context, service TransferService, request *TransferRequest) (invocation.Invocation, invocation.Invocation, error) {
+	var (
+		loc          url.URL
+		pdpAcceptInv invocation.Invocation
+	)
 
 	if service.PDP() == nil {
 		_, err := service.Blobs().Store().Get(ctx, request.Blob.Digest)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				return nil, fmt.Errorf("blob not found: %w", err)
+				return nil, nil, fmt.Errorf("blob not found: %w", err)
 			}
-			return nil, fmt.Errorf("getting blob: %w", err)
+			return nil, nil, fmt.Errorf("getting blob: %w", err)
 		}
 
 		loc, err = service.Blobs().Access().GetDownloadURL(request.Blob.Digest)
 		if err != nil {
-			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
+			return nil, nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
 	} else {
 		// Locate the piece from the PDP service
 		has, err := service.PDP().API().Has(ctx, request.Blob.Digest)
 		if err != nil {
-			return nil, fmt.Errorf("finding piece for blob: %w", err)
+			return nil, nil, fmt.Errorf("finding piece for blob: %w", err)
 		}
 		if !has {
-			return nil, fmt.Errorf("piece not found")
+			return nil, nil, fmt.Errorf("piece not found")
 		}
 
 		blobCID := cid.NewCidV1(cid.Raw, request.Blob.Digest)
 		loc, err = service.PDP().API().ReadPieceURL(blobCID)
 		if err != nil {
-			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
+			return nil, nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
+		// Generate the invocation for piece acceptance
+		pieceAccept, err := pdp_cap.Accept.Invoke(
+			service.ID(),
+			service.ID(),
+			service.ID().DID().String(),
+			pdp_cap.AcceptCaveats{
+				Blob: blobCID.Hash(),
+			}, delegation.WithNoExpiration())
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("creating piece accept invocation: %w", err)
+		}
+		pdpAcceptInv = pieceAccept
 	}
 
 	claim, err := assert.Location.Delegate(
@@ -478,18 +507,17 @@ func createLocationAssertion(ctx context.Context, service TransferService, reque
 		delegation.WithNoExpiration(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("creating location commitment: %w", err)
+		return nil, nil, fmt.Errorf("creating location commitment: %w", err)
 	}
 
-	return claim, nil
+	return claim, pdpAcceptInv, nil
 }
 
 // issueTransferReceipt creates and stores a transfer receipt
-func issueTransferReceipt(ctx context.Context, service TransferService, request *TransferRequest, siteLink ipld.Link, forks []fx.Effect) (receipt.AnyReceipt, error) {
+func issueTransferReceipt(ctx context.Context, service TransferService, request *TransferRequest, siteLink ipld.Link, pdpLink *ipld.Link, forks []fx.Effect) (receipt.AnyReceipt, error) {
 	transferReceipt := replica.TransferOk{
 		Site: siteLink,
-		// TODO requires change in goucanto and maybe spec?
-		PDP: nil,
+		PDP:  pdpLink,
 	}
 
 	ok := result.Ok[replica.TransferOk, ipld.Builder](transferReceipt)

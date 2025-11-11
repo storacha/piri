@@ -56,6 +56,11 @@ func BlobAccept(storageService BlobAcceptService) server.Option {
 				res := blob.AcceptOk{
 					Site: resp.Claim.Link(),
 				}
+				if resp.PDP != nil {
+					forks = append(forks, fx.FromInvocation(resp.PDP))
+					tmp := resp.PDP.Link()
+					res.PDP = &tmp
+				}
 
 				return result.Ok[blob.AcceptOk, failure.IPLDBuilderFailure](res), fx.NewEffects(fx.WithFork(forks...)), nil
 			},
