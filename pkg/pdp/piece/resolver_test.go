@@ -76,12 +76,14 @@ func newResolverFixture(t *testing.T) resolverFixture {
 		_ = sqlDB.Close()
 	})
 
+	resolver, err := piece.NewStoreResolver(piece.StoreResolverParams{
+		DB: db,
+	})
+	require.NoError(t, err)
 	return resolverFixture{
-		ctx: context.Background(),
-		db:  db,
-		resolver: piece.NewStoreResolver(piece.StoreResolverParams{
-			DB: db,
-		}),
+		ctx:      context.Background(),
+		db:       db,
+		resolver: resolver,
 	}
 }
 
