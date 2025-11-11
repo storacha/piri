@@ -25,7 +25,7 @@ func (p *PDPHandler) handleFindPiece(c echo.Context) error {
 	}
 
 	// Verify that a 'parked_pieces' entry exists for the given 'piece_cid'
-	pieceCID, has, err := p.Service.ResolvePiece(ctx, mh)
+	pieceCID, has, err := p.Service.Resolve(ctx, mh)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "failed to find piece in database")
 	}

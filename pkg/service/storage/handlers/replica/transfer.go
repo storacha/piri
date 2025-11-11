@@ -222,7 +222,7 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 func checkBlobExists(ctx context.Context, service TransferService, blob types.Blob) (bool, error) {
 	var err error
 	if service.PDP() != nil {
-		_, has, err := service.PDP().API().ResolvePiece(ctx, blob.Digest)
+		has, err := service.PDP().API().Has(ctx, blob.Digest)
 		if err != nil {
 			return false, fmt.Errorf("resolving Piece: %w", err)
 		}
@@ -451,7 +451,7 @@ func createLocationAssertion(ctx context.Context, service TransferService, reque
 		}
 	} else {
 		// Locate the piece from the PDP service
-		piece, has, err := service.PDP().API().ResolvePiece(ctx, request.Blob.Digest)
+		has, err := service.PDP().API().Has(ctx, request.Blob.Digest)
 		if err != nil {
 			return nil, fmt.Errorf("finding piece for blob: %w", err)
 		}
@@ -459,8 +459,8 @@ func createLocationAssertion(ctx context.Context, service TransferService, reque
 			return nil, fmt.Errorf("piece not found")
 		}
 
-		pieceCID := cid.NewCidV1(cid.Raw, piece)
-		loc, err = service.PDP().API().ReadPieceURL(pieceCID)
+		blobCID := cid.NewCidV1(cid.Raw, request.Blob.Digest)
+		loc, err = service.PDP().API().ReadPieceURL(blobCID)
 		if err != nil {
 			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}

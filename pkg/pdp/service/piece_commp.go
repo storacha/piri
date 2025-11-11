@@ -10,81 +10,26 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
-	"github.com/storacha/piri/pkg/pdp/service/models"
-	"gorm.io/datatypes"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihash) (cid.Cid, error) {
-	piece, err := p.pieceReader.ReadPiece(ctx, blob)
+func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihash) (types.CalculateCommPResponse, error) {
+	readObj, err := p.pieceReader.Read(ctx, blob)
 	if err != nil {
-		return cid.Undef, err
+		return types.CalculateCommPResponse{}, err
 	}
-	defer piece.Data.Close()
+	defer readObj.Data.Close()
 
-	pieceCID, paddedSize, err := doCommp(blob, piece.Data, uint64(piece.Size))
+	pieceCID, paddedSize, err := doCommp(blob, readObj.Data, uint64(readObj.Size))
 	if err != nil {
-		return cid.Undef, err
+		return types.CalculateCommPResponse{}, err
 	}
 
-	if err := p.db.Transaction(func(tx *gorm.DB) error {
-		// 1. Create a long-term parked piece entry (marked as complete immediately).
-		parkedPiece := models.ParkedPiece{
-			PieceCID:        pieceCID.String(),
-			PiecePaddedSize: int64(paddedSize),
-			PieceRawSize:    piece.Size,
-			LongTerm:        true,
-			Complete:        true, // Mark as complete since it's already in PDPStore
-		}
-		if err := tx.Create(&parkedPiece).Error; err != nil {
-			return fmt.Errorf("failed to create %s entry: %w", parkedPiece.TableName(), err)
-		}
-
-		// 2. Create a parked piece ref pointing to PDPStore.
-		// NB this field is meaningless, but we might want to use the multihash for the value
-		// since that's the key in the store
-		dataURL := fmt.Sprintf("pdpstore://%s", blob.String())
-
-		parkedPieceRef := models.ParkedPieceRef{
-			PieceID:     parkedPiece.ID,
-			DataURL:     dataURL,
-			LongTerm:    true,
-			DataHeaders: datatypes.JSON("{}"), // default empty JSON
-		}
-		if err := tx.Create(&parkedPieceRef).Error; err != nil {
-			return fmt.Errorf("failed to create %s entry: %w", parkedPieceRef.TableName(), err)
-		}
-
-		// 3. insert into pdp_piece_mh_to_commp iff we derived a new CID
-		if pieceCID.Hash().HexString() != blob.HexString() {
-			mhToCommp := models.PDPPieceMHToCommp{
-				Mhash: blob,
-				Size:  piece.Size,
-				Commp: pieceCID.String(),
-			}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&mhToCommp).Error; err != nil {
-				return fmt.Errorf("failed to insert into %s: %w", mhToCommp.TableName(), err)
-			}
-		}
-
-		// 4. Move the entry from pdp_piece_uploads to pdp_piecerefs
-		ref := models.PDPPieceRef{
-			Service:  "storacha",
-			PieceCID: pieceCID.String(),
-			PieceRef: parkedPieceRef.RefID,
-		}
-		if err := tx.Create(&ref).Error; err != nil {
-			return fmt.Errorf("failed to create %s entry: %w", ref.TableName(), err)
-		}
-
-		// nil returns will commit the transaction.
-		return nil
-	}); err != nil {
-		return cid.Undef, fmt.Errorf("failed to process piece upload: %w", err)
-	}
-
-	return pieceCID, nil
+	return types.CalculateCommPResponse{
+		PieceCID:   pieceCID,
+		RawSize:    readObj.Size,
+		PaddedSize: int64(paddedSize),
+	}, nil
 }
 
 func doCommp(blob multihash.Multihash, data io.Reader, size uint64) (cid.Cid, uint64, error) {

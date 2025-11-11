@@ -62,8 +62,8 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
 	} else {
-		// locate the piece from the pdp service
-		_, found, err := s.PDP().API().ResolvePiece(ctx, req.Blob.Digest)
+		// ensure the blob exists, else it cannot be accepted.
+		found, err := s.PDP().API().Has(ctx, req.Blob.Digest)
 		if err != nil {
 			log.Errorw("finding piece for blob", "error", err)
 			return nil, fmt.Errorf("finding piece for blob: %w", err)
@@ -73,8 +73,8 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 			return nil, fmt.Errorf("piece not found: %w", err)
 		}
 		// get a download url
-		pieceCID := cid.NewCidV1(cid.Raw, req.Blob.Digest)
-		loc, err = s.PDP().API().ReadPieceURL(pieceCID)
+		blobCID := cid.NewCidV1(cid.Raw, req.Blob.Digest)
+		loc, err = s.PDP().API().ReadPieceURL(blobCID)
 		if err != nil {
 			log.Errorw("creating retrieval URL for blob", "error", err)
 			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)

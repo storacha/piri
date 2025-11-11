@@ -2,12 +2,10 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/google/uuid"
-	"github.com/storacha/piri/pkg/store"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
@@ -28,20 +26,18 @@ func (p *PDPService) AllocatePiece(ctx context.Context, allocation types.PieceAl
 	}
 
 	// check if we already have this piece
-	_, err := p.pieceReader.ReadPiece(ctx, allocation.Piece.Hash)
+	found, err := p.Has(ctx, allocation.Piece.Hash)
 	if err != nil {
-		if !errors.Is(err, store.ErrNotFound) {
-			// this represents an unexpected error
-			return nil, types.WrapError(types.KindInternal, "failed to read piece", err)
-		}
-		// else it's not found, which is the expected case for new allocations
-	} else { // err == nil
-		// if we can read the piece, no allocation is required as we already have it.
+		return nil, types.WrapError(types.KindInternal, "failed to check if allocation exists", err)
+	}
+	if found {
+		// if we have the piece, no allocation is required as we already have it.
 		return &types.AllocatedPiece{
 			Allocated: false,
 			Piece:     allocation.Piece.Hash,
 			UploadID:  uuid.Nil,
 		}, nil
+
 	}
 
 	// Variables to hold information outside the transaction

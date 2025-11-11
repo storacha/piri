@@ -38,7 +38,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		return types.WrapError(types.KindInternal, "failed to decode check hash", err)
 	}
 
-	vr, err := verifyread.New(pieceUpload.Data, hasher, mh.Digest)
+	vr, err := verifyread.New(pieceUpload.Data, hasher(), mh.Digest)
 	if err != nil {
 		return types.WrapError(types.KindInternal, "failed to create verification reader", err)
 	}

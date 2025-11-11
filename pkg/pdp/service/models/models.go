@@ -133,6 +133,9 @@ type PDPPieceMHToCommp struct {
 	Mhash []byte `gorm:"primaryKey"` // BYTEA primary key
 	Size  int64  `gorm:"not null"`
 	Commp string `gorm:"not null"`
+	// TODO:
+	// 1. validate if the size field is even required here
+	// 2. ensure an index exists for Commp for faster lookups
 }
 
 func (PDPPieceMHToCommp) TableName() string {

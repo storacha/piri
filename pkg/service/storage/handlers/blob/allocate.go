@@ -65,7 +65,7 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 	// check if we received the blob (only possible if we have an allocation)
 	if len(allocs) > 0 {
 		if s.PDP() != nil {
-			_, has, err := s.PDP().API().ResolvePiece(ctx, req.Blob.Digest)
+			has, err := s.PDP().API().Has(ctx, req.Blob.Digest)
 			if err != nil {
 				return nil, fmt.Errorf("getting blob: %w", err)
 			}
