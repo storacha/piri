@@ -53,7 +53,7 @@ func PDPInfo(storageService PDPInfoService) server.Option {
 				if !found {
 					// we didn't find the commp for this blob, compute it on demand, this means it hasn't been computed yet
 					// and is still likely in the pipeline.
-					// TODO(forrest): this is a bite wastefully, we could instead poll for it to be resolved yolo-ing for now
+					// TODO(forrest): this is a bit wastefully, we could instead poll for it to be resolved yolo-ing for now
 					commpResp, err := storageService.PDP().API().CalculateCommP(ctx, cap.Nb().Blob)
 					if err != nil {
 						log.Errorw("failed to compute commp for digest", "digest", cap.Nb().Blob.String(), "error", err)

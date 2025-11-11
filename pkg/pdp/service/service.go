@@ -11,9 +11,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/multiformats/go-multihash"
 	"github.com/storacha/filecoin-services/go/eip712"
-	"github.com/storacha/go-libstoracha/bytemap"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
@@ -51,10 +49,6 @@ type PDPService struct {
 
 	db   *gorm.DB
 	name string
-
-	// commp calculations in progress
-	wipCommpsMu sync.RWMutex
-	wipCommps   bytemap.ByteMap[multihash.Multihash, <-chan struct{}]
 
 	pieceResolver types.PieceResolverAPI
 	pieceReader   types.PieceReaderAPI
@@ -105,6 +99,5 @@ func New(
 		verifierContract: verifier,
 		serviceContract:  serviceContract,
 		registryContract: registryContract,
-		wipCommps:        bytemap.NewByteMap[multihash.Multihash, <-chan struct{}](-1),
 	}, nil
 }
