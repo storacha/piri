@@ -26,6 +26,8 @@ import (
 
 var log = logging.Logger("storage/ucan")
 
+var ErrNoPDPService = failure.New(failure.CodeInvalid, "PDP service not available")
+
 type PDPInfoService interface {
 	ID() principal.Signer
 	Receipts() receiptstore.ReceiptStore
@@ -38,6 +40,10 @@ func PDPInfo(storageService PDPInfoService) server.Option {
 		server.Provide(
 			pdp.Info,
 			func(ctx context.Context, cap ucan.Capability[pdp.InfoCaveats], inv invocation.Invocation, iCtx server.InvocationContext) (result.Result[pdp.InfoOk, failure.IPLDBuilderFailure], fx.Effects, error) {
+				if storageService.PDP() == nil {
+					log.Warnf("PDPInfo requested but PDP service is not available")
+					return nil, nil, ErrNoPDPService
+				}
 				// if there is a PDP piece either aggregated or queued, we should be able to look up the piece CID
 				commpResp, err := storageService.PDP().API().CalculateCommP(ctx, cap.Nb().Blob)
 				if err != nil {
