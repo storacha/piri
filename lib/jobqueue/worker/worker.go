@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/storacha/piri/lib/jobqueue/logger"
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
 )
@@ -50,21 +51,50 @@ type Worker[T any] struct {
 	jobCount      int
 	jobCountLimit int
 	jobCountLock  sync.RWMutex
-	log           StandardLogger
+	log           logger.StandardLogger
 	serializer    serializer.Serializer[T]
 }
 
-type NewOpts struct {
-	Loger         StandardLogger
+// Config holds all parameters needed to initialize a Worker.
+type Config struct {
+	Log           logger.StandardLogger
 	JobCountLimit int
 	PollInterval  time.Duration
 	Extend        time.Duration
 }
 
+// Option modifies a Config before creating the Worker.
+type Option func(*Config)
+
+func WithLog(l logger.StandardLogger) Option {
+	return func(cfg *Config) {
+		cfg.Log = l
+	}
+}
+
+func WithLimit(limit int) Option {
+	return func(cfg *Config) {
+		cfg.JobCountLimit = limit
+	}
+}
+
+func WithPollInterval(interval time.Duration) Option {
+	return func(cfg *Config) {
+		cfg.PollInterval = interval
+	}
+}
+
+// WithExtend configures the frequency running jobs are polled for completion
+func WithExtend(d time.Duration) Option {
+	return func(cfg *Config) {
+		cfg.Extend = d
+	}
+}
+
 func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Option) *Worker[T] {
 	// Default config
 	cfg := &Config{
-		Log:           &DiscardLogger{},
+		Log:           &logger.DiscardLogger{},
 		JobCountLimit: runtime.GOMAXPROCS(0),
 		PollInterval:  100 * time.Millisecond,
 		Extend:        5 * time.Second,

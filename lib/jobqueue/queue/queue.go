@@ -16,6 +16,7 @@ import (
 	"time"
 
 	internalsql "github.com/storacha/piri/lib/jobqueue/internal/sql"
+	"github.com/storacha/piri/lib/jobqueue/logger"
 )
 
 //go:embed schema.sql
@@ -30,6 +31,7 @@ type NewOpts struct {
 	MaxReceive int // Max receive count for messages before they cannot be received anymore.
 	Name       string
 	Timeout    time.Duration // Default timeout for messages before they can be re-received.
+	Logger     logger.StandardLogger
 }
 
 // New Queue with the given options.
@@ -62,6 +64,9 @@ func New(opts NewOpts) (*Queue, error) {
 	if opts.Timeout == 0 {
 		opts.Timeout = 5 * time.Second
 	}
+	if opts.Logger == nil {
+		opts.Logger = &logger.DiscardLogger{}
+	}
 
 	return &Queue{
 		db:         opts.DB,
@@ -76,6 +81,7 @@ type Queue struct {
 	maxReceive int
 	name       string
 	timeout    time.Duration
+	logger     logger.StandardLogger
 }
 
 type ID string

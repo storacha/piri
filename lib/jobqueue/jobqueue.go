@@ -9,6 +9,7 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/storacha/piri/lib/jobqueue/logger"
 
 	"github.com/storacha/piri/lib/jobqueue/dedup"
 	"github.com/storacha/piri/lib/jobqueue/queue"
@@ -26,15 +27,16 @@ type Service[T any] interface {
 }
 
 type Config struct {
-	Logger        worker.StandardLogger
+	Logger        logger.StandardLogger
 	MaxWorkers    uint
 	MaxRetries    uint
 	MaxTimeout    time.Duration
+	ExtendDelay   time.Duration
 	queueProvider QueueProvider
 }
 type Option func(c *Config) error
 
-func WithLogger(l worker.StandardLogger) Option {
+func WithLogger(l logger.StandardLogger) Option {
 	return func(c *Config) error {
 		if l == nil {
 			return errors.New("job queue logger cannot be nil")
@@ -71,6 +73,16 @@ func WithMaxTimeout(maxTimeout time.Duration) Option {
 	}
 }
 
+func WithExtendDelay(extendDelay time.Duration) Option {
+	return func(c *Config) error {
+		if extendDelay == 0 {
+			return errors.New("extend delay cannot be 0")
+		}
+		c.ExtendDelay = extendDelay
+		return nil
+	}
+}
+
 func defaultQueueProvider() QueueProvider {
 	return QueueProvider{
 		Setup: queue.Setup,
@@ -88,6 +100,7 @@ func defaultQueueProvider() QueueProvider {
 type QueueProviderOpts struct {
 	MaxReceive int
 	Timeout    time.Duration
+	Logger     logger.StandardLogger
 }
 
 type QueueProvider struct {
@@ -129,6 +142,7 @@ func WithDedupQueue(cfg *DedupQueueConfig) Option {
 					Name:       name,
 					MaxReceive: opts.MaxReceive,
 					Timeout:    opts.Timeout,
+					Logger:     opts.Logger,
 					HashFunc:   dedupCfg.HashFunc,
 				}
 				if dedupCfg.DedupeEnabled != nil {
@@ -162,10 +176,11 @@ type JobQueue[T any] struct {
 func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...Option) (*JobQueue[T], error) {
 	// set defaults
 	c := &Config{
-		Logger:        &worker.DiscardLogger{},
+		Logger:        &logger.DiscardLogger{},
 		MaxWorkers:    1,
 		MaxRetries:    3,
 		MaxTimeout:    5 * time.Second,
+		ExtendDelay:   5 * time.Second,
 		queueProvider: defaultQueueProvider(),
 	}
 	// apply overrides of defaults
@@ -190,13 +205,14 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 	q, err := c.queueProvider.New(name, db, QueueProviderOpts{
 		MaxReceive: int(c.MaxRetries),
 		Timeout:    c.MaxTimeout,
+		Logger:     c.Logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create queue: %w", err)
 	}
 
 	// instantiate worker which consumes from queue
-	w := worker.New[T](q, ser, worker.WithLog(c.Logger), worker.WithLimit(int(c.MaxWorkers)))
+	w := worker.New[T](q, ser, worker.WithLog(c.Logger), worker.WithLimit(int(c.MaxWorkers)), worker.WithExtend(c.ExtendDelay))
 
 	return &JobQueue[T]{
 		queue:  q,

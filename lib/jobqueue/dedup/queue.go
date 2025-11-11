@@ -12,6 +12,7 @@ import (
 	"time"
 
 	internalsql "github.com/storacha/piri/lib/jobqueue/internal/sql"
+	"github.com/storacha/piri/lib/jobqueue/logger"
 	"github.com/storacha/piri/lib/jobqueue/queue"
 )
 
@@ -40,6 +41,7 @@ type NewOpts struct {
 	DedupeEnabled     *bool
 	BlockRepeatsOnDLQ *bool
 	HashFunc          HashFunc
+	Logger            logger.StandardLogger
 }
 
 type Queue struct {
@@ -50,6 +52,7 @@ type Queue struct {
 	dedupeEnabled     bool
 	blockRepeatsOnDLQ bool
 	hash              HashFunc
+	logger            logger.StandardLogger
 }
 
 func Setup(ctx context.Context, db *sql.DB) error {
@@ -97,6 +100,10 @@ func New(opts NewOpts) (*Queue, error) {
 		opts.HashFunc = defaultHashFunc
 	}
 
+	if opts.Logger == nil {
+		opts.Logger = &logger.DiscardLogger{}
+	}
+
 	err := ensureQueueConfigured(opts.DB, opts.Name, dedupeEnabled)
 	if err != nil {
 		return nil, err
@@ -110,6 +117,7 @@ func New(opts NewOpts) (*Queue, error) {
 		dedupeEnabled:     dedupeEnabled,
 		blockRepeatsOnDLQ: blockRepeatsOnDLQ,
 		hash:              opts.HashFunc,
+		logger:            opts.Logger,
 	}, nil
 }
 
@@ -186,6 +194,7 @@ func (q *Queue) sendAndGetIDTx(ctx context.Context, tx *sql.Tx, m queue.Message)
 			return "", err
 		}
 		if done {
+			q.logger.Debugw("skipping job: already done", "task", env.Name, "queue", nsID, "id", key)
 			return "", nil
 		}
 	}
@@ -202,6 +211,7 @@ func (q *Queue) sendAndGetIDTx(ctx context.Context, tx *sql.Tx, m queue.Message)
 	err = tx.QueryRowContext(ctx, insertQuery, nsID, key, m.Body, available).Scan(&id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			q.logger.Debugw("skipping job: already in queue", "task", env.Name, "queue", nsID, "id", key)
 			return "", nil
 		}
 		return "", fmt.Errorf("insert job: %w", err)

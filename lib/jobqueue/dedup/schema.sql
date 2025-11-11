@@ -1,7 +1,7 @@
 ----------------------------------------------------------------
 -- queues
 ----------------------------------------------------------------
-CREATE TABLE queues (
+CREATE TABLE IF NOT EXISTS queues (
                         queue TEXT PRIMARY KEY,             -- logical queue name ("manager", "signer", etc.)
                         dedupe_enabled INTEGER NOT NULL
                             DEFAULT 0 -- 0 = no dedup; 1 = permanent dedupe enforced via job_done
@@ -12,7 +12,7 @@ CREATE TABLE queues (
 -- Maps (queue, task name) → compact integer namespace id
 -- Reduces size of foreign keys and PRIMARY KEYs in large tables.
 ----------------------------------------------------------------
-CREATE TABLE job_ns (
+CREATE TABLE IF NOT EXISTS job_ns (
                         id     INTEGER PRIMARY KEY,         -- autoincrement namespace id
                         queue  TEXT    NOT NULL,            -- queue this namespace belongs to
                         name   TEXT    NOT NULL,            -- task name within that queue
@@ -27,7 +27,7 @@ CREATE TABLE job_ns (
 -- Live job queue; holds only unprocessed / inflight jobs.
 -- Each row is a single task payload awaiting execution.
 ----------------------------------------------------------------
-CREATE TABLE jobs (
+CREATE TABLE IF NOT EXISTS jobs (
                       id        INTEGER PRIMARY KEY,          -- rowid table for fast inserts/claims
                       ns_id     INTEGER NOT NULL,             -- foreign key into job_ns.id
                       key       BLOB    NOT NULL,             -- 16- or 32-byte dedupe hash of payload
@@ -41,10 +41,10 @@ CREATE TABLE jobs (
 ) STRICT;
 
 -- Enforces uniqueness of (namespace,payload) among live jobs.
-CREATE UNIQUE INDEX jobs_unique_live ON jobs(ns_id, key);
+CREATE UNIQUE INDEX IF NOT EXISTS jobs_unique_live ON jobs(ns_id, key);
 
 -- Optimizes claim queries (find oldest available task per queue).
-CREATE INDEX jobs_claim_idx ON jobs(ns_id, avail_s, id);
+CREATE INDEX IF NOT EXISTS jobs_claim_idx ON jobs(ns_id, avail_s, id);
 
 ----------------------------------------------------------------
 -- job_done
@@ -52,7 +52,7 @@ CREATE INDEX jobs_claim_idx ON jobs(ns_id, avail_s, id);
 -- Ensures true “never repeat” semantics across all time.
 -- WITHOUT ROWID because PRIMARY KEY(ns_id,key) is compact and fixed-width.
 ----------------------------------------------------------------
-CREATE TABLE job_done (
+CREATE TABLE IF NOT EXISTS job_done (
                           ns_id  INTEGER NOT NULL,            -- namespace id (queue,name pair)
                           key    BLOB    NOT NULL,            -- same hash as jobs.key
                           status INTEGER NOT NULL,            -- 1=success, 2=dead-letter, etc.
@@ -68,7 +68,7 @@ CREATE TABLE job_done (
 -- Optional dead-letter queue retaining permanently failed jobs.
 -- Does not participate in dedupe enforcement unless desired.
 ----------------------------------------------------------------
-CREATE TABLE job_dead (
+CREATE TABLE IF NOT EXISTS job_dead (
                           id        INTEGER PRIMARY KEY,      -- preserves original job id for tracing
                           ns_id     INTEGER NOT NULL,         -- namespace (queue,name)
                           key       BLOB    NOT NULL,         -- dedupe hash
