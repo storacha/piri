@@ -9,10 +9,12 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/storacha/piri/lib/jobqueue/logger"
 
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/worker"
+	"github.com/storacha/piri/lib/jobqueue/dedup"
+	"github.com/storacha/piri/lib/jobqueue/queue"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/worker"
 )
 
 var log = logging.Logger("jobqueue")
@@ -25,14 +27,17 @@ type Service[T any] interface {
 }
 
 type Config struct {
-	Logger     worker.StandardLogger
-	MaxWorkers uint
-	MaxRetries uint
-	MaxTimeout time.Duration
+	Logger        logger.StandardLogger
+	MaxWorkers    uint
+	MaxRetries    uint
+	MaxTimeout    time.Duration
+	ExtendDelay   time.Duration
+	queueProvider QueueProvider
+	isDedupQueue  bool
 }
 type Option func(c *Config) error
 
-func WithLogger(l worker.StandardLogger) Option {
+func WithLogger(l logger.StandardLogger) Option {
 	return func(c *Config) error {
 		if l == nil {
 			return errors.New("job queue logger cannot be nil")
@@ -69,9 +74,99 @@ func WithMaxTimeout(maxTimeout time.Duration) Option {
 	}
 }
 
+func WithExtendDelay(extendDelay time.Duration) Option {
+	return func(c *Config) error {
+		if extendDelay == 0 {
+			return errors.New("extend delay cannot be 0")
+		}
+		c.ExtendDelay = extendDelay
+		return nil
+	}
+}
+
+func defaultQueueProvider() QueueProvider {
+	return QueueProvider{
+		Setup: queue.Setup,
+		New: func(name string, db *sql.DB, opts QueueProviderOpts) (queue.Interface, error) {
+			return queue.New(queue.NewOpts{
+				DB:         db,
+				MaxReceive: opts.MaxReceive,
+				Name:       name,
+				Timeout:    opts.Timeout,
+			})
+		},
+	}
+}
+
+type QueueProviderOpts struct {
+	MaxReceive int
+	Timeout    time.Duration
+	Logger     logger.StandardLogger
+}
+
+type QueueProvider struct {
+	Setup func(context.Context, *sql.DB) error
+	New   func(name string, db *sql.DB, opts QueueProviderOpts) (queue.Interface, error)
+}
+
+func WithQueueProvider(provider QueueProvider) Option {
+	return func(c *Config) error {
+		if provider.Setup == nil {
+			return errors.New("queue provider setup cannot be nil")
+		}
+		if provider.New == nil {
+			return errors.New("queue provider new cannot be nil")
+		}
+		c.queueProvider = provider
+		c.isDedupQueue = false // Reset to false when using custom provider
+		return nil
+	}
+}
+
+type DedupQueueConfig struct {
+	DedupeEnabled     *bool
+	BlockRepeatsOnDLQ *bool
+	HashFunc          dedup.HashFunc
+}
+
+func WithDedupQueue(cfg *DedupQueueConfig) Option {
+	return func(c *Config) error {
+		dedupCfg := DedupQueueConfig{}
+		if cfg != nil {
+			dedupCfg = *cfg
+		}
+
+		provider := QueueProvider{
+			Setup: dedup.Setup,
+			New: func(name string, db *sql.DB, opts QueueProviderOpts) (queue.Interface, error) {
+				dOpts := dedup.NewOpts{
+					DB:         db,
+					Name:       name,
+					MaxReceive: opts.MaxReceive,
+					Timeout:    opts.Timeout,
+					Logger:     opts.Logger,
+					HashFunc:   dedupCfg.HashFunc,
+				}
+				if dedupCfg.DedupeEnabled != nil {
+					dOpts.DedupeEnabled = dedupCfg.DedupeEnabled
+				}
+				if dedupCfg.BlockRepeatsOnDLQ != nil {
+					dOpts.BlockRepeatsOnDLQ = dedupCfg.BlockRepeatsOnDLQ
+				}
+				return dedup.New(dOpts)
+			},
+		}
+
+		c.queueProvider = provider
+
+		c.isDedupQueue = true
+		return nil
+	}
+}
+
 type JobQueue[T any] struct {
 	worker *worker.Worker[T]
-	queue  *queue.Queue
+	queue  queue.Interface
 	name   string
 
 	// shutdown management
@@ -85,10 +180,12 @@ type JobQueue[T any] struct {
 func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...Option) (*JobQueue[T], error) {
 	// set defaults
 	c := &Config{
-		Logger:     &worker.DiscardLogger{},
-		MaxWorkers: 1,
-		MaxRetries: 3,
-		MaxTimeout: 5 * time.Second,
+		Logger:        &logger.DiscardLogger{},
+		MaxWorkers:    1,
+		MaxRetries:    3,
+		MaxTimeout:    5 * time.Second,
+		ExtendDelay:   5 * time.Second,
+		queueProvider: defaultQueueProvider(),
 	}
 	// apply overrides of defaults
 	for _, opt := range opts {
@@ -97,26 +194,47 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 		}
 	}
 
+	if c.queueProvider.Setup == nil || c.queueProvider.New == nil {
+		return nil, errors.New("queue provider is not configured")
+	}
+
+	if c.MaxWorkers == 0 {
+		return nil, errors.New("max workers cannot be 0")
+	}
+	if c.MaxTimeout == 0 {
+		return nil, errors.New("max timeout cannot be 0")
+	}
+	if c.ExtendDelay == 0 {
+		return nil, errors.New("extend delay cannot be 0")
+	}
+	// Check for both pointer and value types of JSON serializer
+	switch ser.(type) {
+	case serializer.JSON[T], *serializer.JSON[T]:
+		if c.isDedupQueue {
+			// TODO enforce this with an actual error
+			log.Error("JSON serializer cannot be used with dedupe queue due to non-deterministic serialization")
+		}
+	}
+
 	// instantiate queue schema in the database, this should be fairly quick
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
-	if err := queue.Setup(ctx, db); err != nil {
+	if err := c.queueProvider.Setup(ctx, db); err != nil {
 		return nil, err
 	}
 
 	// instantiate queue
-	q, err := queue.New(queue.NewOpts{
-		DB:         db,
+	q, err := c.queueProvider.New(name, db, QueueProviderOpts{
 		MaxReceive: int(c.MaxRetries),
-		Name:       name,
 		Timeout:    c.MaxTimeout,
+		Logger:     c.Logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create queue: %w", err)
 	}
 
 	// instantiate worker which consumes from queue
-	w := worker.New[T](q, ser, worker.WithLog(c.Logger), worker.WithLimit(int(c.MaxWorkers)))
+	w := worker.New[T](q, ser, worker.WithLog(c.Logger), worker.WithLimit(int(c.MaxWorkers)), worker.WithExtend(c.ExtendDelay))
 
 	return &JobQueue[T]{
 		queue:  q,

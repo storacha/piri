@@ -26,8 +26,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/logger"
+	"github.com/storacha/piri/lib/jobqueue/queue"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
 )
 
 // JobFn is the job function to run.
@@ -43,28 +44,57 @@ type jobRegistration[T any] struct {
 }
 
 type Worker[T any] struct {
-	queue         *queue.Queue
+	queue         queue.Interface
 	jobs          map[string]*jobRegistration[T]
 	pollInterval  time.Duration
 	extend        time.Duration
 	jobCount      int
 	jobCountLimit int
 	jobCountLock  sync.RWMutex
-	log           StandardLogger
+	log           logger.StandardLogger
 	serializer    serializer.Serializer[T]
 }
 
-type NewOpts struct {
-	Loger         StandardLogger
+// Config holds all parameters needed to initialize a Worker.
+type Config struct {
+	Log           logger.StandardLogger
 	JobCountLimit int
 	PollInterval  time.Duration
 	Extend        time.Duration
 }
 
-func New[T any](q *queue.Queue, ser serializer.Serializer[T], options ...Option) *Worker[T] {
+// Option modifies a Config before creating the Worker.
+type Option func(*Config)
+
+func WithLog(l logger.StandardLogger) Option {
+	return func(cfg *Config) {
+		cfg.Log = l
+	}
+}
+
+func WithLimit(limit int) Option {
+	return func(cfg *Config) {
+		cfg.JobCountLimit = limit
+	}
+}
+
+func WithPollInterval(interval time.Duration) Option {
+	return func(cfg *Config) {
+		cfg.PollInterval = interval
+	}
+}
+
+// WithExtend configures the frequency running jobs are polled for completion
+func WithExtend(d time.Duration) Option {
+	return func(cfg *Config) {
+		cfg.Extend = d
+	}
+}
+
+func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Option) *Worker[T] {
 	// Default config
 	cfg := &Config{
-		Log:           &DiscardLogger{},
+		Log:           &logger.DiscardLogger{},
 		JobCountLimit: runtime.GOMAXPROCS(0),
 		PollInterval:  100 * time.Millisecond,
 		Extend:        5 * time.Second,

@@ -11,9 +11,9 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
 
+	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 )
 
 func NewLinkQueue(db *sql.DB) (*jobqueue.JobQueue[datamodel.Link], error) {

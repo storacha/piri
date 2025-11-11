@@ -1,43 +1,4 @@
-package worker
-
-import (
-	"time"
-)
-
-// Config holds all parameters needed to initialize a Worker.
-type Config struct {
-	Log           StandardLogger
-	JobCountLimit int
-	PollInterval  time.Duration
-	Extend        time.Duration
-}
-
-// Option modifies a Config before creating the Worker.
-type Option func(*Config)
-
-func WithLog(l StandardLogger) Option {
-	return func(cfg *Config) {
-		cfg.Log = l
-	}
-}
-
-func WithLimit(limit int) Option {
-	return func(cfg *Config) {
-		cfg.JobCountLimit = limit
-	}
-}
-
-func WithPollInterval(interval time.Duration) Option {
-	return func(cfg *Config) {
-		cfg.PollInterval = interval
-	}
-}
-
-func WithExtend(d time.Duration) Option {
-	return func(cfg *Config) {
-		cfg.Extend = d
-	}
-}
+package logger
 
 // subset from ipfs go-log v2
 type StandardLogger interface {

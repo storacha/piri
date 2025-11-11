@@ -15,7 +15,8 @@ import (
 	"fmt"
 	"time"
 
-	internalsql "github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/internal/sql"
+	internalsql "github.com/storacha/piri/lib/jobqueue/internal/sql"
+	"github.com/storacha/piri/lib/jobqueue/logger"
 )
 
 //go:embed schema.sql
@@ -30,6 +31,7 @@ type NewOpts struct {
 	MaxReceive int // Max receive count for messages before they cannot be received anymore.
 	Name       string
 	Timeout    time.Duration // Default timeout for messages before they can be re-received.
+	Logger     logger.StandardLogger
 }
 
 // New Queue with the given options.
@@ -62,12 +64,16 @@ func New(opts NewOpts) (*Queue, error) {
 	if opts.Timeout == 0 {
 		opts.Timeout = 5 * time.Second
 	}
+	if opts.Logger == nil {
+		opts.Logger = &logger.DiscardLogger{}
+	}
 
 	return &Queue{
 		db:         opts.DB,
 		name:       opts.Name,
 		maxReceive: opts.MaxReceive,
 		timeout:    opts.Timeout,
+		logger:     opts.Logger,
 	}, nil
 }
 
@@ -76,6 +82,7 @@ type Queue struct {
 	maxReceive int
 	name       string
 	timeout    time.Duration
+	logger     logger.StandardLogger
 }
 
 type ID string
@@ -85,6 +92,19 @@ type Message struct {
 	Delay    time.Duration
 	Received int
 	Body     []byte
+}
+
+type Interface interface {
+	MaxReceive() int
+	Timeout() time.Duration
+	Send(context.Context, Message) error
+	SendTx(context.Context, *sql.Tx, Message) error
+	SendAndGetID(context.Context, Message) (ID, error)
+	Receive(context.Context) (*Message, error)
+	ReceiveAndWait(context.Context, time.Duration) (*Message, error)
+	Extend(context.Context, ID, time.Duration) error
+	Delete(context.Context, ID) error
+	MoveToDeadLetter(context.Context, ID, string, string, string) error
 }
 
 func (q *Queue) MaxReceive() int {
@@ -236,6 +256,7 @@ func (q *Queue) deleteTx(ctx context.Context, tx *sql.Tx, id ID) error {
 // MoveToDeadLetter moves a message from the main queue to the dead letter queue.
 // This is used for jobs that fail permanently or exceed max retries.
 func (q *Queue) MoveToDeadLetter(ctx context.Context, id ID, jobName, failureReason, errorMsg string) error {
+	q.logger.Warnw("moving job to dead letter queue", "job", jobName, "failure_reason", failureReason, "error_msg", errorMsg)
 	return internalsql.InTx(q.db, func(tx *sql.Tx) error {
 		return q.moveToDeadLetterTx(ctx, tx, id, jobName, failureReason, errorMsg)
 	})

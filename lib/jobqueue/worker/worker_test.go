@@ -16,10 +16,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	internalsql "github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/internal/sql"
-	internaltesting "github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/internal/testing"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/queue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/worker"
+	internalsql "github.com/storacha/piri/lib/jobqueue/internal/sql"
+	internaltesting "github.com/storacha/piri/lib/jobqueue/internal/testing"
+	"github.com/storacha/piri/lib/jobqueue/queue"
+	"github.com/storacha/piri/lib/jobqueue/worker"
 )
 
 func TestRunner_Register(t *testing.T) {

@@ -15,10 +15,10 @@ import (
 	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/internal/ipldstore"
+	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/pkg/database"
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )

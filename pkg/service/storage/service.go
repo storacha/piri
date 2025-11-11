@@ -19,10 +19,10 @@ import (
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/validator"
 
+	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
