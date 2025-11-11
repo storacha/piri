@@ -11,11 +11,11 @@ import (
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 )
 
 const (
@@ -42,7 +42,7 @@ type QueuesParams struct {
 	Config app.AggregationConfig
 }
 
-func NewQueues(params QueuesParams) (*QueuesOut, error) {
+func NewQueues(lc fx.Lifecycle, params QueuesParams) (QueuesOut, error) {
 	commpQueue, err := jobqueue.New[multihash.Multihash](
 		CommpQueueName,
 		params.DB,
@@ -56,7 +56,7 @@ func NewQueues(params QueuesParams) (*QueuesOut, error) {
 		jobqueue.WithMaxTimeout(params.Config.CommpCalculator.Queue.RetryDelay),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("creating commp queue: %w", err)
+		return QueuesOut{}, fmt.Errorf("creating commp queue: %w", err)
 	}
 
 	// Never aggregate a piece that has already been aggregated, these are the default value, coded here for documentation.
@@ -80,7 +80,7 @@ func NewQueues(params QueuesParams) (*QueuesOut, error) {
 		jobqueue.WithMaxTimeout(params.Config.Aggregator.Queue.RetryDelay),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("creating piece_link job-queue: %w", err)
+		return QueuesOut{}, fmt.Errorf("creating piece_link job-queue: %w", err)
 	}
 
 	managerQueue, err := jobqueue.New[[]datamodel.Link](
@@ -96,10 +96,10 @@ func NewQueues(params QueuesParams) (*QueuesOut, error) {
 		jobqueue.WithMaxTimeout(params.Config.AggregateManager.Queue.RetryDelay),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("creating piece_link job-queue: %w", err)
+		return QueuesOut{}, fmt.Errorf("creating piece_link job-queue: %w", err)
 	}
 
-	return &QueuesOut{
+	return QueuesOut{
 		CommpQueue:      commpQueue,
 		AggregatorQueue: aggregatorQueue,
 		SubmissionQueue: managerQueue,

@@ -28,7 +28,7 @@ type Comper struct {
 	queue jobqueue.Service[multihash.Multihash]
 }
 
-func NewQueuingCommpCalculator(params ComperParams) (CommpQueue, error) {
+func NewQueuingCommpCalculator(lc fx.Lifecycle, params ComperParams) (CommpQueue, error) {
 	c := &Comper{
 		queue: params.Queue,
 	}
@@ -49,6 +49,17 @@ func NewQueuingCommpCalculator(params ComperParams) (CommpQueue, error) {
 		})); err != nil {
 		return nil, fmt.Errorf("registering comper task handler: %w", err)
 	}
+
+	queueCtx, cancel := context.WithCancel(context.Background())
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return c.queue.Start(queueCtx)
+		},
+		OnStop: func(ctx context.Context) error {
+			cancel()
+			return c.queue.Stop(queueCtx)
+		},
+	})
 	return c, nil
 }
 

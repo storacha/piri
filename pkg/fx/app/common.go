@@ -23,6 +23,10 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 		fx.Supply(cfg.PDPService),
 		fx.Supply(cfg.Replicator),
 		fx.Supply(cfg.PDPService.SigningServiceConfig),
+		fx.Supply(cfg.PDPService.Aggregation),
+		fx.Supply(cfg.PDPService.Aggregation.Aggregator),
+		fx.Supply(cfg.PDPService.Aggregation.CommpCalculator),
+		fx.Supply(cfg.PDPService.Aggregation.AggregateManager),
 
 		identity.Module, // Provides principal.Signer
 		echo.Module,     // Provides Echo server with route registration

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/storacha/piri/lib/jobqueue/types"
 
 	"github.com/storacha/piri/lib/jobqueue/dedup"
 	"github.com/storacha/piri/lib/jobqueue/queue"
@@ -26,7 +27,7 @@ type Service[T any] interface {
 }
 
 type Config struct {
-	Logger        worker.StandardLogger
+	Logger        types.StandardLogger
 	MaxWorkers    uint
 	MaxRetries    uint
 	MaxTimeout    time.Duration
@@ -34,7 +35,7 @@ type Config struct {
 }
 type Option func(c *Config) error
 
-func WithLogger(l worker.StandardLogger) Option {
+func WithLogger(l types.StandardLogger) Option {
 	return func(c *Config) error {
 		if l == nil {
 			return errors.New("job queue logger cannot be nil")
@@ -80,6 +81,7 @@ func defaultQueueProvider() QueueProvider {
 				MaxReceive: opts.MaxReceive,
 				Name:       name,
 				Timeout:    opts.Timeout,
+				Logger:     opts.Logger,
 			})
 		},
 	}
@@ -88,6 +90,7 @@ func defaultQueueProvider() QueueProvider {
 type QueueProviderOpts struct {
 	MaxReceive int
 	Timeout    time.Duration
+	Logger     types.StandardLogger
 }
 
 type QueueProvider struct {
@@ -130,6 +133,7 @@ func WithDedupQueue(cfg *DedupQueueConfig) Option {
 					MaxReceive: opts.MaxReceive,
 					Timeout:    opts.Timeout,
 					HashFunc:   dedupCfg.HashFunc,
+					Logger:     opts.Logger,
 				}
 				if dedupCfg.DedupeEnabled != nil {
 					dOpts.DedupeEnabled = dedupCfg.DedupeEnabled
@@ -162,7 +166,7 @@ type JobQueue[T any] struct {
 func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...Option) (*JobQueue[T], error) {
 	// set defaults
 	c := &Config{
-		Logger:        &worker.DiscardLogger{},
+		Logger:        &types.DiscardLogger{},
 		MaxWorkers:    1,
 		MaxRetries:    3,
 		MaxTimeout:    5 * time.Second,
@@ -190,6 +194,7 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 	q, err := c.queueProvider.New(name, db, QueueProviderOpts{
 		MaxReceive: int(c.MaxRetries),
 		Timeout:    c.MaxTimeout,
+		Logger:     c.Logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create queue: %w", err)

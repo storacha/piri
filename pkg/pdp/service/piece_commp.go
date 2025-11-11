@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	commp "github.com/filecoin-project/go-fil-commp-hashhash"
@@ -88,6 +89,10 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihas
 }
 
 func doCommp(blob multihash.Multihash, data io.Reader, size uint64) (cid.Cid, uint64, error) {
+	start := time.Now()
+	defer func() {
+		log.Infow("calculated commp", "duration", time.Since(start), "size", size)
+	}()
 	piece, err := multihash.Decode(blob)
 	if err != nil {
 		return cid.Undef, 0, fmt.Errorf("invalid multihash: %w", err)

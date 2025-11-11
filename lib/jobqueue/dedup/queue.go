@@ -13,6 +13,7 @@ import (
 
 	internalsql "github.com/storacha/piri/lib/jobqueue/internal/sql"
 	"github.com/storacha/piri/lib/jobqueue/queue"
+	"github.com/storacha/piri/lib/jobqueue/types"
 )
 
 //go:embed schema.sql
@@ -40,6 +41,7 @@ type NewOpts struct {
 	DedupeEnabled     *bool
 	BlockRepeatsOnDLQ *bool
 	HashFunc          HashFunc
+	Logger            types.StandardLogger
 }
 
 type Queue struct {
@@ -50,6 +52,7 @@ type Queue struct {
 	dedupeEnabled     bool
 	blockRepeatsOnDLQ bool
 	hash              HashFunc
+	log               types.StandardLogger
 }
 
 func Setup(ctx context.Context, db *sql.DB) error {
@@ -96,6 +99,9 @@ func New(opts NewOpts) (*Queue, error) {
 	if opts.HashFunc == nil {
 		opts.HashFunc = defaultHashFunc
 	}
+	if opts.Logger == nil {
+		opts.Logger = &types.DiscardLogger{}
+	}
 
 	err := ensureQueueConfigured(opts.DB, opts.Name, dedupeEnabled)
 	if err != nil {
@@ -110,6 +116,7 @@ func New(opts NewOpts) (*Queue, error) {
 		dedupeEnabled:     dedupeEnabled,
 		blockRepeatsOnDLQ: blockRepeatsOnDLQ,
 		hash:              opts.HashFunc,
+		log:               opts.Logger,
 	}, nil
 }
 
@@ -186,6 +193,7 @@ func (q *Queue) sendAndGetIDTx(ctx context.Context, tx *sql.Tx, m queue.Message)
 			return "", err
 		}
 		if done {
+			q.log.Infow("skipping duplicate job", "name", env.Name)
 			return "", nil
 		}
 	}
@@ -202,6 +210,7 @@ func (q *Queue) sendAndGetIDTx(ctx context.Context, tx *sql.Tx, m queue.Message)
 	err = tx.QueryRowContext(ctx, insertQuery, nsID, key, m.Body, available).Scan(&id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			q.log.Infow("skipping duplicate job", "name", env.Name)
 			return "", nil
 		}
 		return "", fmt.Errorf("insert job: %w", err)

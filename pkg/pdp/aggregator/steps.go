@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/namespace"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/principal"
+	"go.uber.org/fx"
 
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
@@ -46,9 +49,14 @@ func (i *inProgressWorkSpace) PutBuffer(ctx context.Context, buffer fns.Buffer) 
 	return i.store.Put(ctx, bufferKey{}, buffer)
 }
 
-func NewInProgressWorkspace(store store.SimpleStore) InProgressWorkspace {
+type InProgressWorkspaceParams struct {
+	fx.In
+	Datastore datastore.Datastore `name:"aggregator_datastore"`
+}
+
+func NewInProgressWorkspace(params InProgressWorkspaceParams) InProgressWorkspace {
 	return &inProgressWorkSpace{
-		ipldstore.IPLDStore[bufferKey, fns.Buffer](store, fns.BufferType(), captypes.Converters...),
+		ipldstore.IPLDStore[bufferKey, fns.Buffer](store.SimpleStoreFromDatastore(namespace.Wrap(params.Datastore, datastore.NewKey(WorkspaceKey))), fns.BufferType(), captypes.Converters...),
 	}
 }
 

@@ -29,13 +29,26 @@ type AggregatorParams struct {
 	TaskHandler TaskHandler[piece.PieceLink]
 }
 
-func NewAggregator(params AggregatorParams) (Aggregator, error) {
+func NewAggregator(lc fx.Lifecycle, params AggregatorParams) (Aggregator, error) {
 	if err := params.Queue.Register(AggregatorTaskName, params.TaskHandler.Handle); err != nil {
 		return nil, err
 	}
-	return &LocalAggregator{
+
+	a := &LocalAggregator{
 		queue: params.Queue,
-	}, nil
+	}
+
+	queueCtx, cancel := context.WithCancel(context.Background())
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return a.queue.Start(queueCtx)
+		},
+		OnStop: func(ctx context.Context) error {
+			cancel()
+			return a.queue.Stop(queueCtx)
+		},
+	})
+	return a, nil
 }
 
 // LocalAggregator is a local aggregator running directly on the storage node
@@ -73,17 +86,19 @@ func WithAggregatorHandler(a BufferedAggregator) AggregatorHandlerOption {
 type AggregatorHandler struct {
 	workspace  InProgressWorkspace
 	store      AggregateStore
-	queue      LinkQueue
+	queue      jobqueue.Service[piece.PieceLink]
 	aggregator BufferedAggregator
+	Manager    *Manager
 }
 
-func NewAggregatorHandler(workspace InProgressWorkspace, store AggregateStore, queueSubmission LinkQueue, opts ...AggregatorHandlerOption) TaskHandler[[]piece.PieceLink] {
+func NewAggregatorHandler(workspace InProgressWorkspace, store AggregateStore, manager *Manager, queueSubmission jobqueue.Service[piece.PieceLink], opts ...AggregatorHandlerOption) TaskHandler[piece.PieceLink] {
 	pa := &AggregatorHandler{
 		workspace: workspace,
 		store:     store,
 		queue:     queueSubmission,
 		// default aggregator is BufferingAggregator, it can be overridden via options.
 		aggregator: &BufferingAggregator{},
+		Manager:    manager,
 	}
 
 	for _, opt := range opts {
@@ -92,12 +107,12 @@ func NewAggregatorHandler(workspace InProgressWorkspace, store AggregateStore, q
 	return pa
 }
 
-func (pa *AggregatorHandler) Handle(ctx context.Context, pieces []piece.PieceLink) error {
+func (pa *AggregatorHandler) Handle(ctx context.Context, p piece.PieceLink) error {
 	buffer, err := pa.workspace.GetBuffer(ctx)
 	if err != nil {
 		return fmt.Errorf("reading in progress pieces from work space: %w", err)
 	}
-	buffer, aggregates, err := pa.aggregator.AggregatePieces(buffer, pieces)
+	buffer, aggregates, err := pa.aggregator.AggregatePieces(buffer, []piece.PieceLink{p})
 	if err != nil {
 		return fmt.Errorf("calculating aggegates: %w", err)
 	}
@@ -109,7 +124,7 @@ func (pa *AggregatorHandler) Handle(ctx context.Context, pieces []piece.PieceLin
 		if err != nil {
 			return fmt.Errorf("storing aggregate: %w", err)
 		}
-		if err := pa.queue.Enqueue(ctx, AggregatorTaskName, a.Root.Link()); err != nil {
+		if err := pa.Manager.Submit(ctx, a.Root.Link()); err != nil {
 			return fmt.Errorf("queueing aggregates for submission: %w", err)
 		}
 	}

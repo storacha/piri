@@ -28,6 +28,7 @@ import (
 
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/types"
 )
 
 // JobFn is the job function to run.
@@ -50,12 +51,12 @@ type Worker[T any] struct {
 	jobCount      int
 	jobCountLimit int
 	jobCountLock  sync.RWMutex
-	log           StandardLogger
+	log           types.StandardLogger
 	serializer    serializer.Serializer[T]
 }
 
 type NewOpts struct {
-	Loger         StandardLogger
+	Loger         types.StandardLogger
 	JobCountLimit int
 	PollInterval  time.Duration
 	Extend        time.Duration
@@ -64,7 +65,7 @@ type NewOpts struct {
 func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Option) *Worker[T] {
 	// Default config
 	cfg := &Config{
-		Log:           &DiscardLogger{},
+		Log:           &types.DiscardLogger{},
 		JobCountLimit: runtime.GOMAXPROCS(0),
 		PollInterval:  100 * time.Millisecond,
 		Extend:        5 * time.Second,

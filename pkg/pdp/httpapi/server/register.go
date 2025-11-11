@@ -56,4 +56,6 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 	// /pdp/provider
 	e.POST(path.Join(PDPRoutePath, "/provider/register"), p.handleRegisterProvider)
 	e.GET(path.Join(PDPRoutePath, "/provider/status"), p.handleGetProviderStatus)
+	// NB(forrest): I am leaving this here for debugging since I can't download a piece given current retrieval setup
+	//e.GET("giveme/:cid", p.handleDownloadByPieceCid)
 }

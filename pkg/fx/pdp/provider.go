@@ -36,8 +36,8 @@ var Module = fx.Module("pdp-service",
 			fx.As(new(types.API)), // also provide the server as the interface(s) it implements
 			fx.As(new(types.ProofSetAPI)),
 			fx.As(new(types.PieceAPI)),
-			fx.As(new(types.PieceResolverAPI)),
-			fx.As(new(types.PieceReaderAPI)),
+			//fx.As(new(types.PieceResolverAPI)),
+			//fx.As(new(types.PieceReaderAPI)),
 			fx.As(new(types.PieceWriterAPI)),
 		),
 		fx.Annotate(
@@ -55,6 +55,12 @@ var Module = fx.Module("pdp-service",
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 	),
+	/*
+		fx.Invoke(func(p pdp.PDP) pdp.PDP {
+			return p
+		}),
+
+	*/
 )
 
 // TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface

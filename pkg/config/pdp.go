@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/storacha/piri/pkg/config/app"
 )
 
@@ -45,6 +44,7 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		ContractAddress:      common.HexToAddress(c.ContractAddress),
 		LotusEndpoint:        lotusEndpoint,
 		SigningServiceConfig: signingServiceConfig,
+		Aggregation:          c.AggregationService.ToAppConfig(),
 	}, nil
 }
 
@@ -105,23 +105,92 @@ type AggregationConfig struct {
 	AggregateManager AggregateManagerConfig `mapstructure:"aggregate_manager"`
 }
 
+func (c AggregationConfig) ToAppConfig() app.AggregationConfig {
+	// TODO at a later time we can uncomment this and replace the hard coded default values
+	/*
+		return app.AggregationConfig{
+			CommpCalculator:  c.CommpCalculator.ToAppConfig(),
+			Aggregator:       c.Aggregator.ToAppConfig(),
+			AggregateManager: c.AggregateManager.ToAppConfig(),
+		}
+	*/
+
+	return app.AggregationConfig{
+		CommpCalculator: app.CommpCalculatorConfig{
+			Queue: app.QueueConfig{
+				Retries:          10,
+				Workers:          2,
+				RetryDelay:       30 * time.Second,
+				ExtensionTimeout: 5 * time.Second,
+			},
+		},
+		Aggregator: app.AggregatorConfig{
+			Queue: app.QueueConfig{
+				Retries:          10,
+				Workers:          2,
+				RetryDelay:       30 * time.Second,
+				ExtensionTimeout: 5 * time.Second,
+			},
+		},
+		AggregateManager: app.AggregateManagerConfig{
+			Queue: app.QueueConfig{
+				Retries:          50,
+				Workers:          1, //NB(forrest): must be one until AddRoots supports non-sequential IDs
+				RetryDelay:       2 * time.Minute,
+				ExtensionTimeout: 4 * time.Minute,
+			},
+			PollInterval: 30 * time.Second,
+			BatchSize:    10,
+		},
+	}
+}
+
 type CommpCalculatorConfig struct {
 	Queue QueueConfig `mapstructure:"queue" toml:"queue,omitempty"`
+}
+
+func (c CommpCalculatorConfig) ToAppConfig() app.CommpCalculatorConfig {
+	return app.CommpCalculatorConfig{
+		Queue: c.Queue.ToAppConfig(),
+	}
 }
 
 type AggregatorConfig struct {
 	Queue QueueConfig `mapstructure:"queue" toml:"queue,omitempty"`
 }
 
+func (c AggregatorConfig) ToAppConfig() app.AggregatorConfig {
+	return app.AggregatorConfig{
+		Queue: c.Queue.ToAppConfig(),
+	}
+}
+
 type AggregateManagerConfig struct {
 	Queue        QueueConfig   `mapstructure:"queue" toml:"queue,omitempty"`
 	PollInterval time.Duration `mapstructure:"poll_interval" toml:"poll_interval,omitempty"`
-	BatchSize    int           `mapstructure:"batch_size" toml:"batch_size,omitempty"`
+	BatchSize    uint          `mapstructure:"batch_size" toml:"batch_size,omitempty"`
+}
+
+func (c AggregateManagerConfig) ToAppConfig() app.AggregateManagerConfig {
+	return app.AggregateManagerConfig{
+		Queue:        c.Queue.ToAppConfig(),
+		PollInterval: c.PollInterval,
+		BatchSize:    c.BatchSize,
+	}
 }
 
 type QueueConfig struct {
-	Retries          int           `mapstructure:"retries" toml:"retries,omitempty"`
-	Workers          int           `mapstructure:"workers" toml:"workers,omitempty"`
+	Retries          uint          `mapstructure:"retries" toml:"retries,omitempty"`
+	Workers          uint          `mapstructure:"workers" toml:"workers,omitempty"`
 	RetryDelay       time.Duration `mapstructure:"retry_delay" toml:"retry_delay,omitempty"`
 	ExtensionTimeout time.Duration `mapstructure:"extension_timeout" toml:"extension_timeout,omitempty"`
+}
+
+func (q QueueConfig) ToAppConfig() app.QueueConfig {
+	return app.QueueConfig{
+		Retries:          q.Retries,
+		Workers:          q.Workers,
+		RetryDelay:       q.RetryDelay,
+		ExtensionTimeout: q.ExtensionTimeout,
+	}
 }
