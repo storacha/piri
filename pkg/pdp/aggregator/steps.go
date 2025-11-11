@@ -13,7 +13,6 @@ import (
 	"github.com/storacha/piri/internal/ipldstore"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
 	"github.com/storacha/piri/pkg/pdp/aggregator/fns"
-	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
@@ -57,114 +56,6 @@ type AggregateStore ipldstore.KVStore[datamodel.Link, aggregate.Aggregate]
 
 type LinkQueue interface {
 	Enqueue(ctx context.Context, name string, msg datamodel.Link) error
-}
-
-type PieceAggregatorOption func(pa *PieceAggregator)
-
-func WithAggregator(a BufferedAggregator) PieceAggregatorOption {
-	return func(pa *PieceAggregator) {
-		pa.aggregator = a
-	}
-}
-
-type PieceAggregator struct {
-	workspace  InProgressWorkspace
-	store      AggregateStore
-	queue      LinkQueue
-	aggregator BufferedAggregator
-}
-
-func NewPieceAggregator(workspace InProgressWorkspace, store AggregateStore, queueSubmission LinkQueue, opts ...PieceAggregatorOption) *PieceAggregator {
-	pa := &PieceAggregator{
-		workspace: workspace,
-		store:     store,
-		queue:     queueSubmission,
-		// default aggregator is BufferingAggregator, it can be overridden via options.
-		aggregator: &BufferingAggregator{},
-	}
-
-	for _, opt := range opts {
-		opt(pa)
-	}
-	return pa
-}
-
-func (pa *PieceAggregator) AggregatePieces(ctx context.Context, pieces []piece.PieceLink) error {
-	buffer, err := pa.workspace.GetBuffer(ctx)
-	if err != nil {
-		return fmt.Errorf("reading in progress pieces from work space: %w", err)
-	}
-	buffer, aggregates, err := pa.aggregator.AggregatePieces(buffer, pieces)
-	if err != nil {
-		return fmt.Errorf("calculating aggegates: %w", err)
-	}
-	if err := pa.workspace.PutBuffer(ctx, buffer); err != nil {
-		return fmt.Errorf("updating work space: %w", err)
-	}
-	for _, a := range aggregates {
-		err := pa.store.Put(ctx, a.Root.Link(), a)
-		if err != nil {
-			return fmt.Errorf("storing aggregate: %w", err)
-		}
-		if err := pa.queue.Enqueue(ctx, PieceSubmitTask, a.Root.Link()); err != nil {
-			return fmt.Errorf("queueing aggregates for submission: %w", err)
-		}
-	}
-	return nil
-}
-
-type AggregateSubmitter struct {
-	psp    ProofSetIDProvider
-	store  AggregateStore
-	client types.ProofSetAPI
-	queue  LinkQueue
-}
-
-func NewAggregateSubmitter(psp ProofSetIDProvider, store AggregateStore, client types.ProofSetAPI, queuePieceAccept LinkQueue) *AggregateSubmitter {
-	return &AggregateSubmitter{
-		psp:    psp,
-		store:  store,
-		client: client,
-		queue:  queuePieceAccept,
-	}
-}
-
-func (as *AggregateSubmitter) SubmitAggregates(ctx context.Context, aggregateLinks []datamodel.Link) error {
-	proofSetID, err := as.psp.ProofSetID(ctx)
-	if err != nil {
-		return fmt.Errorf("getting proof set ID from proof set provider: %w", err)
-	}
-	log.Infow("Submit aggregates", "count", len(aggregateLinks))
-	aggregates := make([]aggregate.Aggregate, 0, len(aggregateLinks))
-	for _, aggregateLink := range aggregateLinks {
-		aggregate, err := as.store.Get(ctx, aggregateLink)
-		if err != nil {
-			return fmt.Errorf("reading aggregates: %w", err)
-		}
-		aggregates = append(aggregates, aggregate)
-	}
-	// TODO this call will block until the transaction is confirmed on-chain.
-	// in the event it blocking whe should consider buffering the aggregates being added
-	// into a single add root call. Otherwise time scales linearly here with roots to add.
-	// Sadly, all this queue logic sends one root per aggregated piece, there is room
-	// to improve here, we should instead try and batch as many add root calls as we can into one in order to save gas
-	// Imagine this case:
-	// 1. User adds 256 MiB of data, it gets aggregated, and we beging adding a root, blocking till conformation is received
-	// 2. User adds N*256Mib of data shortly after 1., currently we block and add each aggregate (with one root) sequentially
-	// 3. Instead, we begin buffering aggregates into a single addRoot call that goes through once 1. is complete
-	// This should help with burst workflows. Continuous trickles of data will be challenging, we can improve there with
-	// a time based buffer. Performance here comes down to how we expect this network to be used, idk if we'll be
-	// adding data in bursts, or as a trickle, or both?
-	if err := fns.SubmitAggregates(ctx, as.client, proofSetID, aggregates); err != nil {
-		return fmt.Errorf("submitting aggregates to Curio: %w", err)
-	}
-	for _, aggregateLink := range aggregateLinks {
-		err := as.queue.Enqueue(ctx, PieceAcceptTask, aggregateLink)
-		if err != nil {
-			return fmt.Errorf("queuing piece acceptance: %w", err)
-		}
-	}
-	return nil
 }
 
 // Step 3: generate receipts for piece accept

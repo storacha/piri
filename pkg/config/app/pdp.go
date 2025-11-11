@@ -3,6 +3,7 @@ package app
 import (
 	"crypto/ecdsa"
 	"net/url"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -16,6 +17,8 @@ type PDPServiceConfig struct {
 	LotusEndpoint *url.URL
 	// Signing service configuration used to sign PDP operations
 	SigningServiceConfig SigningServiceConfig
+	// Aggregation service configuration for aggregating data for PDP operations
+	Aggregation AggregationConfig
 }
 
 // SigningServiceConfig configures the signing service for PDP operations
@@ -26,4 +29,31 @@ type SigningServiceConfig struct {
 	// This should be a hex-encoded private key string
 	// NB: this should only be used for development purposes
 	PrivateKey *ecdsa.PrivateKey
+}
+
+type AggregationConfig struct {
+	CommpCalculator  CommpCalculatorConfig
+	Aggregator       AggregatorConfig
+	AggregateManager AggregateManagerConfig
+}
+
+type CommpCalculatorConfig struct {
+	Queue QueueConfig
+}
+
+type AggregatorConfig struct {
+	Queue QueueConfig
+}
+
+type AggregateManagerConfig struct {
+	Queue        QueueConfig
+	PollInterval time.Duration
+	BatchSize    uint
+}
+
+type QueueConfig struct {
+	Retries          uint
+	Workers          uint
+	RetryDelay       time.Duration
+	ExtensionTimeout time.Duration
 }

@@ -2,7 +2,6 @@ package aggregator
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -11,8 +10,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/raulk/clock"
-	captypes "github.com/storacha/go-libstoracha/capabilities/types"
-	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
 
@@ -25,56 +23,15 @@ const (
 	DefaultMaxBatchSizeBytes = 10
 	// DefaultPollInterval is the frequency the manager will flush its buffer to submit roots
 	DefaultPollInterval = 30 * time.Second
-	ManagerQueueName    = "manager"
-	ManagerTaskName     = "add_roots"
 )
-
-var ManagerModule = fx.Module("aggregator/manager",
-	fx.Provide(
-		NewManager,
-		NewSubmissionWorkspace,
-		NewAddRootsTaskHandler,
-		NewManagerQueue,
-	),
-)
-
-type ManagerQueueParams struct {
-	fx.In
-	DB *sql.DB `name:"aggregator_db"`
-}
-
-func NewManagerQueue(params ManagerQueueParams) (jobqueue.Service[[]datamodel.Link], error) {
-	managerQueue, err := jobqueue.New[[]datamodel.Link](
-		ManagerQueueName,
-		params.DB,
-		&serializer.IPLDCBOR[[]datamodel.Link]{
-			Typ:  bufferTS.TypeByName("AggregateLinks"),
-			Opts: captypes.Converters,
-		},
-		jobqueue.WithLogger(log.With("queue", ManagerQueueName)),
-		jobqueue.WithMaxRetries(50),
-		// NB: must remain one to keep submissions serial to AddRoots
-		jobqueue.WithMaxWorkers(uint(1)),
-		// wait for twice a filecoin epoch to submit
-		jobqueue.WithMaxTimeout(time.Minute),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating piece_link job-queue: %w", err)
-	}
-	// NB: queue lifecycle is handled by manager since it must register with queue before starting it
-	return managerQueue, nil
-}
 
 // TaskHandler is a function that processes a batch of aggregate links
 // It encapsulates the logic for how aggregates are submitted to the blockchain
-type TaskHandler interface {
-	Handle(ctx context.Context, links []datamodel.Link) error
-}
 
 // Manager handles batched submission of aggregates to the blockchain
 type Manager struct {
 	// input parameters
-	taskHandler TaskHandler
+	taskHandler TaskHandler[[]datamodel.Link]
 	buffer      BufferStore
 	queue       jobqueue.Service[[]datamodel.Link]
 
@@ -97,9 +54,10 @@ type ManagerParams struct {
 	fx.In
 
 	Queue       jobqueue.Service[[]datamodel.Link]
-	TaskHandler TaskHandler
+	TaskHandler TaskHandler[[]datamodel.Link]
 	Buffer      BufferStore
 	Options     []ManagerOption `optional:"true"`
+	Config      app.AggregateManagerConfig
 }
 
 type ManagerOption func(*Manager)
@@ -131,8 +89,8 @@ func NewManager(lc fx.Lifecycle, params ManagerParams) (*Manager, error) {
 		queue:       params.Queue,
 
 		// can override with options
-		pollInterval: DefaultPollInterval,
-		maxBatchSize: DefaultMaxBatchSizeBytes,
+		pollInterval: params.Config.PollInterval,
+		maxBatchSize: int(params.Config.BatchSize),
 		clock:        clock.New(),
 
 		ctx:    ctx,
@@ -366,7 +324,7 @@ func NewAddRootsTaskHandler(
 	api types.ProofSetAPI,
 	proofSet ProofSetIDProvider,
 	store AggregateStore,
-) TaskHandler {
+) TaskHandler[[]datamodel.Link] {
 	return &AddRootsTaskHandler{
 		api:      api,
 		proofSet: proofSet,

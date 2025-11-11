@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -17,6 +18,7 @@ type PDPServiceConfig struct {
 	ContractAddress      string               `mapstructure:"contract_address" validate:"required" flag:"contract-address" toml:"contract_address"`
 	LotusEndpoint        string               `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
 	SigningServiceConfig SigningServiceConfig `mapstructure:"signing_service" toml:"signing_service,omitempty"`
+	AggregationService   AggregationConfig    `mapstructure:"aggregation_service" toml:"aggregation_service,omitempty"`
 }
 
 func (c PDPServiceConfig) Validate() error {
@@ -95,4 +97,31 @@ func (c SigningServiceConfig) ToAppConfig() (app.SigningServiceConfig, error) {
 			PrivateKey: privateKey,
 		}, nil
 	}
+}
+
+type AggregationConfig struct {
+	CommpCalculator  CommpCalculatorConfig  `mapstructure:"commp_calculator"`
+	Aggregator       AggregatorConfig       `mapstructure:"aggregator"`
+	AggregateManager AggregateManagerConfig `mapstructure:"aggregate_manager"`
+}
+
+type CommpCalculatorConfig struct {
+	Queue QueueConfig `mapstructure:"queue" toml:"queue,omitempty"`
+}
+
+type AggregatorConfig struct {
+	Queue QueueConfig `mapstructure:"queue" toml:"queue,omitempty"`
+}
+
+type AggregateManagerConfig struct {
+	Queue        QueueConfig   `mapstructure:"queue" toml:"queue,omitempty"`
+	PollInterval time.Duration `mapstructure:"poll_interval" toml:"poll_interval,omitempty"`
+	BatchSize    int           `mapstructure:"batch_size" toml:"batch_size,omitempty"`
+}
+
+type QueueConfig struct {
+	Retries          int           `mapstructure:"retries" toml:"retries,omitempty"`
+	Workers          int           `mapstructure:"workers" toml:"workers,omitempty"`
+	RetryDelay       time.Duration `mapstructure:"retry_delay" toml:"retry_delay,omitempty"`
+	ExtensionTimeout time.Duration `mapstructure:"extension_timeout" toml:"extension_timeout,omitempty"`
 }

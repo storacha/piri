@@ -1,77 +1,27 @@
-package piece
+package aggregator
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"runtime"
 
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipld/go-ipld-prime/schema"
 	"github.com/multiformats/go-multihash"
-	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/piri/pkg/pdp/aggregator"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
+
+	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 type Calculator interface {
 	Enqueue(ctx context.Context, blob multihash.Multihash) error
 }
 
-type CommpQueueParams struct {
-	fx.In
-	DB *sql.DB `name:"aggregator_db"`
-}
-
-const (
-	CommpQueueName = "commp"
-	CommpTaskName  = "compute_commp"
-)
-
-func NewCommpQueue(lc fx.Lifecycle, params CommpQueueParams) (jobqueue.Service[multihash.Multihash], error) {
-	commpQueue, err := jobqueue.New[multihash.Multihash](
-		CommpTaskName,
-		params.DB,
-		&serializer.IPLDCBOR[multihash.Multihash]{
-			Typ:  &schema.TypeBytes{},
-			Opts: captypes.Converters,
-		},
-		jobqueue.WithLogger(log.With("queue", CommpQueueName)),
-		// TODO(forrest) make these configuration parameters.
-		jobqueue.WithMaxRetries(50),
-		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating commp queue: %w", err)
-	}
-
-	queueCtx, cancel := context.WithCancel(context.Background())
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			return commpQueue.Start(queueCtx)
-		},
-		OnStop: func(ctx context.Context) error {
-			cancel()
-			return commpQueue.Stop(ctx)
-		},
-	})
-
-	return commpQueue, nil
-}
-
-type TaskHandler interface {
-	Handle(ctx context.Context, blob multihash.Multihash) error
-}
-
 type ComperParams struct {
 	fx.In
 
 	Queue   jobqueue.Service[multihash.Multihash]
-	Handler TaskHandler
+	Handler TaskHandler[multihash.Multihash]
 }
 
 type Comper struct {
@@ -106,13 +56,13 @@ func (c *Comper) Enqueue(ctx context.Context, blob multihash.Multihash) error {
 	return c.queue.Enqueue(ctx, CommpTaskName, blob)
 }
 
-func NewComperTaskHandler(api types.PieceAPI, a aggregator.Aggregator) TaskHandler {
+func NewComperTaskHandler(api types.PieceAPI, a Aggregator) TaskHandler[multihash.Multihash] {
 	return &ComperTaskHandler{api: api, aggregator: a}
 }
 
 type ComperTaskHandler struct {
 	api        types.PieceAPI
-	aggregator aggregator.Aggregator
+	aggregator Aggregator
 }
 
 func (h *ComperTaskHandler) Handle(ctx context.Context, blob multihash.Multihash) error {

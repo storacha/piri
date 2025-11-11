@@ -22,3 +22,7 @@ type BufferedAggregator interface {
 type ProofSetIDProvider interface {
 	ProofSetID(ctx context.Context) (uint64, error)
 }
+
+type TaskHandler[T any] interface {
+	Handle(ctx context.Context, data T) error
+}

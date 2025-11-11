@@ -24,7 +24,7 @@ import (
 
 // mockQueue is a simple implementation of jobqueue.Service for testing
 type mockQueue struct {
-	taskHandler   aggregator.TaskHandler
+	taskHandler   aggregator.TaskHandler[[]datamodel.Link]
 	delay         time.Duration // Simulated processing delay
 	failRate      float32       // Failure rate (0-1) for error injection
 	enqueuedCount atomic.Int64
@@ -112,7 +112,7 @@ func setupTestManager(t *testing.T, opts ...aggregator.ManagerOption) (*aggregat
 				fx.As(new(jobqueue.Service[[]datamodel.Link])),
 			),
 		),
-		fx.Provide(func() aggregator.TaskHandler {
+		fx.Provide(func() aggregator.TaskHandler[[]datamodel.Link] {
 			return taskHandler
 		}),
 		fx.Provide(func() aggregator.BufferStore {
