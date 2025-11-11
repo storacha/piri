@@ -52,7 +52,7 @@ func TestPieceAggregator_StoreAndSubmit(t *testing.T) {
 
 	workspaceMock, storeMock, queueSubMock, baMock := setupPieceAggregatorDependencies(ctrl)
 
-	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
+	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregatorHandler(baMock))
 	// the below makes assertion that when three aggregates are returned by the aggregator of the piece-aggregator
 	// three writes are made to the aggregate-store and three submissions are made to the queue-submission function.
 	p1 := testutil.RandomPiece(t, MB)
@@ -82,7 +82,7 @@ func TestPieceAggregator_GetBufferError(t *testing.T) {
 
 	workspaceMock, storeMock, queueSubMock, baMock := setupPieceAggregatorDependencies(ctrl)
 
-	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
+	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregatorHandler(baMock))
 	workspaceMock.EXPECT().GetBuffer(ctx).Return(fns.Buffer{}, fmt.Errorf("get buffer error"))
 
 	err := pa.Handle(ctx, nil)
@@ -98,7 +98,7 @@ func TestPieceAggregator_PutBufferError(t *testing.T) {
 
 	workspaceMock, storeMock, queueSubMock, baMock := setupPieceAggregatorDependencies(ctrl)
 
-	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
+	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregatorHandler(baMock))
 	p1 := testutil.RandomPiece(t, MB)
 	p2 := testutil.RandomPiece(t, MB)
 	p3 := testutil.RandomPiece(t, MB)
@@ -123,7 +123,7 @@ func TestPieceAggregator_AggregatePieceError(t *testing.T) {
 
 	workspaceMock, storeMock, queueSubMock, baMock := setupPieceAggregatorDependencies(ctrl)
 
-	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
+	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregatorHandler(baMock))
 	p1 := testutil.RandomPiece(t, MB)
 	p2 := testutil.RandomPiece(t, MB)
 	p3 := testutil.RandomPiece(t, MB)
@@ -146,7 +146,7 @@ func TestPieceAggregator_StorePutError(t *testing.T) {
 
 	workspaceMock, storeMock, queueSubMock, baMock := setupPieceAggregatorDependencies(ctrl)
 
-	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregator(baMock))
+	pa := aggregator.NewAggregatorHandler(workspaceMock, storeMock, queueSubMock, aggregator.WithAggregatorHandler(baMock))
 	p1 := testutil.RandomPiece(t, MB)
 	p2 := testutil.RandomPiece(t, MB)
 	p3 := testutil.RandomPiece(t, MB)

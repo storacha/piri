@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/storacha/filecoin-services/go/eip712"
-	"github.com/storacha/piri/pkg/pdp/piece"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -60,11 +59,11 @@ var Module = fx.Module("pdp-service",
 
 // TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface
 type TODO_PDP_Impl struct {
-	commpCalc piece.Calculator
+	commpCalc aggregator.CommpQueue
 	api       types.PieceAPI
 }
 
-func (s *TODO_PDP_Impl) CommpCalculate() piece.Calculator {
+func (s *TODO_PDP_Impl) CommpCalculate() aggregator.CommpQueue {
 	return s.commpCalc
 }
 
@@ -74,7 +73,7 @@ func (s *TODO_PDP_Impl) API() types.PieceAPI {
 
 var _ pdp.PDP = (*TODO_PDP_Impl)(nil)
 
-func ProvideTODOPDPImplInterface(service types.API, commpCalc piece.Calculator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
+func ProvideTODOPDPImplInterface(service types.API, commpCalc aggregator.CommpQueue, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
 	return &TODO_PDP_Impl{
 		commpCalc: commpCalc,
 		api:       service,

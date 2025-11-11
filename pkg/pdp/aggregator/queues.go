@@ -59,6 +59,10 @@ func NewQueues(params QueuesParams) (*QueuesOut, error) {
 		return nil, fmt.Errorf("creating commp queue: %w", err)
 	}
 
+	// Never aggregate a piece that has already been aggregated, these are the default value, coded here for documentation.
+	enableDeDup := true
+	blockDQLRetries := true
+	// this queue will skip tasks for pieces that have already been or are being processed.
 	aggregatorQueue, err := jobqueue.New[piece.PieceLink](
 		AggregatorQueueName,
 		params.DB,
@@ -66,6 +70,10 @@ func NewQueues(params QueuesParams) (*QueuesOut, error) {
 			Typ:  aggregate.PieceLinkType(),
 			Opts: types.Converters,
 		},
+		jobqueue.WithDedupQueue(&jobqueue.DedupQueueConfig{
+			DedupeEnabled:     &enableDeDup,
+			BlockRepeatsOnDLQ: &blockDQLRetries,
+		}),
 		jobqueue.WithLogger(log.With("queue", AggregatorQueueName)),
 		jobqueue.WithMaxRetries(params.Config.Aggregator.Queue.Retries),
 		jobqueue.WithMaxWorkers(params.Config.Aggregator.Queue.Workers),

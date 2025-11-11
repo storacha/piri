@@ -13,7 +13,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-type Calculator interface {
+type CommpQueue interface {
 	Enqueue(ctx context.Context, blob multihash.Multihash) error
 }
 
@@ -28,7 +28,7 @@ type Comper struct {
 	queue jobqueue.Service[multihash.Multihash]
 }
 
-func NewQueuingCommpCalculator(params ComperParams) (Calculator, error) {
+func NewQueuingCommpCalculator(params ComperParams) (CommpQueue, error) {
 	c := &Comper{
 		queue: params.Queue,
 	}
