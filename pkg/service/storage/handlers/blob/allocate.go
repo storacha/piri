@@ -141,20 +141,8 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 		return nil, fmt.Errorf("putting allocation: %w", err)
 	}
 
-	a, err := s.Blobs().Allocations().List(ctx, req.Blob.Digest)
-	if err != nil {
-		log.Errorw("listing allocation after put", "error", err)
-		return nil, fmt.Errorf("listing allocation after put: %w", err)
-	}
-	if len(a) < 1 {
-		log.Error("failed to read allocation after write")
-		return nil, fmt.Errorf("failed to read allocation after write")
-	}
-	log.Info("successfully read allocation after write")
-
 	return &AllocateResponse{
 		Size:    size,
 		Address: address,
 	}, nil
-
 }
