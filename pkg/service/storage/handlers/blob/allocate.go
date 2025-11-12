@@ -9,10 +9,13 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
-	"github.com/storacha/go-libstoracha/capabilities/types"
+	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/ucan"
+	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/presets"
 
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/piri/pkg/pdp"
@@ -30,7 +33,7 @@ type AllocateService interface {
 
 type AllocateRequest struct {
 	Space did.DID
-	Blob  types.Blob
+	Blob  captypes.Blob
 	Cause ucan.Link
 }
 
@@ -62,16 +65,20 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 	// check if we received the blob (only possible if we have an allocation)
 	if len(allocs) > 0 {
 		if s.PDP() != nil {
-			_, err = s.PDP().PieceFinder().FindPiece(ctx, req.Blob.Digest, req.Blob.Size)
+			has, err := s.PDP().API().Has(ctx, req.Blob.Digest)
+			if err != nil {
+				return nil, fmt.Errorf("getting blob: %w", err)
+			}
+			received = has
 		} else {
 			_, err = s.Blobs().Store().Get(ctx, req.Blob.Digest)
-		}
-		if err == nil {
-			received = true
-		}
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			log.Errorw("getting blob", "error", err)
-			return nil, fmt.Errorf("getting blob: %w", err)
+			if err != nil && !errors.Is(err, store.ErrNotFound) {
+				log.Errorw("getting blob", "error", err)
+				return nil, fmt.Errorf("getting blob: %w", err)
+			}
+			if err == nil {
+				received = true
+			}
 		}
 	}
 
@@ -111,15 +118,35 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*Al
 				return nil, fmt.Errorf("signing upload URL: %w", err)
 			}
 		} else {
+			dmh, err := multihash.Decode(req.Blob.Digest)
+			if err != nil {
+				log.Errorw("decoding digest", "error", err)
+				return nil, fmt.Errorf("decoding digest: %w", err)
+			}
+			if _, ok := presets.HasherRegistry[dmh.Name]; !ok {
+				return nil, fmt.Errorf("unsupported hash: %s", dmh.Name)
+			}
 			// use pdp service upload
 			// TODO we need to provide backpressure to the upload service here
 			// based on the number of roots we are currently allocating.
-			urlP, err := s.PDP().PieceAdder().AddPiece(ctx, req.Blob.Digest, req.Blob.Size)
+			resp, err := s.PDP().API().AllocatePiece(ctx, types.PieceAllocation{
+				Piece: types.Piece{
+					Name: dmh.Name,
+					Hash: req.Blob.Digest,
+					Size: int64(req.Blob.Size),
+				},
+			})
 			if err != nil {
 				log.Errorw("adding to pdp service", "error", err)
 				return nil, fmt.Errorf("adding to pdp service: %w", err)
 			}
-			uploadURL = *urlP
+			if resp.Allocated {
+				uploadURL, err = s.PDP().API().WritePieceURL(resp.UploadID)
+				if err != nil {
+					log.Errorw("getting piece write URL", "error", err)
+					return nil, fmt.Errorf("getting piece write URL: %w", err)
+				}
+			}
 		}
 		address = &blob.Address{
 			URL:     uploadURL,

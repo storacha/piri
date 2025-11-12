@@ -12,7 +12,6 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/capabilities/types"
-	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/dag/blockstore"
 	"github.com/storacha/go-ucanto/core/delegation"
@@ -186,14 +185,14 @@ func (s *Client) BlobAccept(ctx context.Context, space did.DID, digest multihash
 	return result, nil
 }
 
-func (s *Client) PDPInfo(ctx context.Context, pieceLink piece.PieceLink) (pdp.InfoOk, error) {
+func (s *Client) PDPInfo(ctx context.Context, blob multihash.Multihash) (pdp.InfoOk, error) {
 
 	inv, err := pdp.Info.Invoke(
 		s.cfg.ID,
 		s.cfg.StorageNodeID,
 		s.cfg.StorageNodeID.DID().String(),
 		pdp.InfoCaveats{
-			Piece: pieceLink,
+			Blob: blob,
 		},
 		delegation.WithProof(s.cfg.StorageProof),
 	)
