@@ -37,8 +37,6 @@ var Module = fx.Module("pdp-service",
 			fx.As(new(types.API)), // also provide the server as the interface(s) it implements
 			fx.As(new(types.ProofSetAPI)),
 			fx.As(new(types.PieceAPI)),
-			fx.As(new(types.PieceResolverAPI)),
-			fx.As(new(types.PieceReaderAPI)),
 			fx.As(new(types.PieceWriterAPI)),
 			fx.As(new(types.PieceCommPAPI)),
 		),
