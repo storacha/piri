@@ -11,11 +11,12 @@ import (
 	"github.com/multiformats/go-multihash"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/piri/pkg/pdp/aggregator"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
+
+	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/pkg/pdp/aggregator"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 type Calculator interface {
