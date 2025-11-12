@@ -10,6 +10,7 @@ import (
 	"github.com/multiformats/go-multihash"
 	blobcaps "github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
+	"github.com/storacha/go-libstoracha/failure"
 	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/go-ucanto/client"
 	rclient "github.com/storacha/go-ucanto/client/retrieval"
@@ -18,7 +19,6 @@ import (
 	"github.com/storacha/go-ucanto/core/ipld"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/result"
-	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/go-ucanto/server/retrieval"
 	"github.com/storacha/go-ucanto/transport/headercar"
@@ -115,7 +115,7 @@ func TestBlobRetrieve(t *testing.T) {
 			expectStatus: http.StatusOK,
 			expectBody:   []byte{},
 			assertError: func(n ipld.Node) {
-				x, err := ipld.Rebind[fdm.FailureModel](n, fdm.FailureType())
+				x, err := ipld.Rebind[failure.FailureModel](n, failure.FailureType())
 				require.NoError(t, err)
 				require.Equal(t, "Unauthorized", *x.Name)
 			},
@@ -144,7 +144,7 @@ func TestBlobRetrieve(t *testing.T) {
 			expectStatus: http.StatusOK,
 			expectBody:   []byte{},
 			assertError: func(n ipld.Node) {
-				x, err := ipld.Rebind[fdm.FailureModel](n, fdm.FailureType())
+				x, err := ipld.Rebind[failure.FailureModel](n, failure.FailureType())
 				require.NoError(t, err)
 				require.Equal(t, InvalidResourceErrorName, *x.Name)
 			},

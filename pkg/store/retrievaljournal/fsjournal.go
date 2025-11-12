@@ -19,8 +19,8 @@ import (
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
+	"github.com/storacha/go-libstoracha/failure"
 	"github.com/storacha/go-ucanto/core/receipt"
-	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 )
 
 var log = logging.Logger("retrievaljournal")
@@ -134,7 +134,7 @@ func (j *fsJournal) newBatch(truncate bool) error {
 	return nil
 }
 
-func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) (bool, cid.Cid, error) {
+func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, failure.FailureModel]) (bool, cid.Cid, error) {
 	if rcpt == nil {
 		return false, cid.Cid{}, fmt.Errorf("receipt is nil")
 	}
