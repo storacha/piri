@@ -11,6 +11,7 @@ import (
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	ipldprime "github.com/ipld/go-ipld-prime"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/schema"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/piece/piece"
@@ -23,7 +24,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
-	types2 "github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 var log = logging.Logger("fns")
@@ -114,7 +115,7 @@ func AggregatePieces(buffer Buffer, pieces []piece.PieceLink) (Buffer, []aggrega
 	return buffer, aggregates, nil
 }
 
-func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet uint64, aggregates []aggregate.Aggregate) error {
+func SubmitAggregates(ctx context.Context, client types.ProofSetAPI, proofSet uint64, aggregates []aggregate.Aggregate) error {
 	log.Infow("submitting aggregates",
 		zap.Array("aggregates", zapcore.ArrayMarshalerFunc(func(arr zapcore.ArrayEncoder) error {
 			for _, agg := range aggregates { // aggregates is []Aggregate
@@ -125,7 +126,7 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 			return nil
 		})),
 	)
-	newRoots := make([]types2.RootAdd, 0, len(aggregates))
+	newRoots := make([]types.RootAdd, 0, len(aggregates))
 	for _, a := range aggregates {
 		rootCID, err := cid.Decode(a.Root.Link().String())
 		if err != nil {
@@ -139,7 +140,7 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 			}
 			subRoots = append(subRoots, pcid)
 		}
-		newRoots = append(newRoots, types2.RootAdd{
+		newRoots = append(newRoots, types.RootAdd{
 			Root:     rootCID,
 			SubRoots: subRoots,
 		})
@@ -151,12 +152,20 @@ func SubmitAggregates(ctx context.Context, client types2.ProofSetAPI, proofSet u
 	return nil
 }
 
-func GenerateReceipts(issuer ucan.Signer, aggregate aggregate.Aggregate) ([]receipt.AnyReceipt, error) {
+func GenerateReceipts(ctx context.Context, issuer ucan.Signer, aggregate aggregate.Aggregate, resolver types.PieceResolverAPI) ([]receipt.AnyReceipt, error) {
 	receipts := make([]receipt.AnyReceipt, 0, len(aggregate.Pieces))
 	for _, aggregatePiece := range aggregate.Pieces {
+		blob, found, err := resolver.ResolveToBlob(ctx, aggregatePiece.Link.Link().(cidlink.Link).Cid.Hash())
+		if err != nil {
+			return nil, fmt.Errorf("resolving piece for receipt: %w", err)
+		}
+		if !found {
+			return nil, fmt.Errorf("piece not found for receipt generation: %s", aggregatePiece.Link.Link().String())
+		}
 		inv, err := pdp.Accept.Invoke(issuer, issuer, issuer.DID().String(), pdp.AcceptCaveats{
-			Piece: aggregatePiece.Link,
+			Blob: blob,
 		})
+
 		if err != nil {
 			return nil, fmt.Errorf("generating invocation: %w", err)
 		}
@@ -174,14 +183,14 @@ func GenerateReceipts(issuer ucan.Signer, aggregate aggregate.Aggregate) ([]rece
 	return receipts, nil
 }
 
-func GenerateReceiptsForAggregates(issuer ucan.Signer, aggregates []aggregate.Aggregate) ([]receipt.AnyReceipt, error) {
+func GenerateReceiptsForAggregates(ctx context.Context, issuer ucan.Signer, aggregates []aggregate.Aggregate, resolver types.PieceResolverAPI) ([]receipt.AnyReceipt, error) {
 	size := 0
 	for _, aggregate := range aggregates {
 		size += len(aggregate.Pieces)
 	}
 	receipts := make([]receipt.AnyReceipt, 0, size)
 	for _, aggregate := range aggregates {
-		aggregateReceipts, err := GenerateReceipts(issuer, aggregate)
+		aggregateReceipts, err := GenerateReceipts(ctx, issuer, aggregate, resolver)
 		if err != nil {
 			return nil, err
 		}

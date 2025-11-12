@@ -9,6 +9,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/piri/cmd/lambda"
 	"github.com/storacha/piri/internal/ipldstore"
@@ -22,6 +23,20 @@ func main() {
 	lambda.StartSQSEventHandler(makeHandler)
 }
 
+type NoopResolver struct{}
+
+func (n *NoopResolver) Resolve(ctx context.Context, data multihash.Multihash) (multihash.Multihash, bool, error) {
+	return data, true, nil
+}
+
+func (n *NoopResolver) ResolveToPiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error) {
+	return blob, true, nil
+}
+
+func (n *NoopResolver) ResolveToBlob(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error) {
+	return piece, true, nil
+}
+
 func makeHandler(cfg aws.Config) (lambda.SQSEventHandler, error) {
 	aggregateStore := ipldstore.IPLDStore[datamodel.Link, aggregate.Aggregate](
 		aws.NewS3Store(cfg.Config, cfg.AggregatesBucket, cfg.AggregatesPrefix),
@@ -32,7 +47,7 @@ func makeHandler(cfg aws.Config) (lambda.SQSEventHandler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("setting up receipt store: %w", err)
 	}
-	pieceAccepter := aggregator.NewPieceAccepter(cfg.Signer, aggregateStore, receiptStore)
+	pieceAccepter := aggregator.NewPieceAccepter(cfg.Signer, aggregateStore, receiptStore, &NoopResolver{})
 
 	return func(ctx context.Context, sqsEvent events.SQSEvent) error {
 		// process messages in parallel
