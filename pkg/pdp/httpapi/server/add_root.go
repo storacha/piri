@@ -9,34 +9,29 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi"
-	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 func (p *PDPHandler) handleAddRootToProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
-	operation := "AddRootToProofSet"
 
 	proofSetIDStr := c.Param("proofSetID")
 	if proofSetIDStr == "" {
-		return middleware.NewError(operation, "missing proofSetID", nil, http.StatusBadRequest)
+		return types.NewError(types.KindInvalidInput, "proofSetID required")
 	}
 
 	id, err := strconv.ParseUint(proofSetIDStr, 10, 64)
 	if err != nil {
-		return middleware.NewError(operation, "invalid proofSetID format", err, http.StatusBadRequest).
-			WithContext("proofSetID", proofSetIDStr)
+		return types.WrapError(types.KindInvalidInput, "invalid proofset id", err)
 	}
 
 	var req httpapi.AddRootsRequest
 	if err := c.Bind(&req); err != nil {
-		return middleware.NewError(operation, "failed to parse request body", err, http.StatusBadRequest).
-			WithContext("proofSetID", id)
+		return types.WrapError(types.KindInvalidInput, "failed to bind request", err)
 	}
 
 	if len(req.Roots) == 0 {
-		return middleware.NewError(operation, "no roots provided", nil, http.StatusBadRequest).
-			WithContext("proofSetID", id)
+		return types.NewError(types.KindInvalidInput, "no roots provided")
 	}
 
 	t := make([]types.RootAdd, 0, len(req.Roots))
@@ -44,13 +39,13 @@ func (p *PDPHandler) handleAddRootToProofSet(c echo.Context) error {
 	for _, r := range req.Roots {
 		rcid, err := cid.Decode(r.RootCID)
 		if err != nil {
-			return middleware.NewError(operation, "invalid root CID", err, http.StatusBadRequest)
+			return types.WrapError(types.KindInvalidInput, "invalid root cid", err)
 		}
 		subroots := make([]cid.Cid, 0, len(r.Subroots))
 		for _, s := range r.Subroots {
 			scid, err := cid.Decode(s.SubrootCID)
 			if err != nil {
-				return middleware.NewError(operation, "invalid subroot CID", err, http.StatusBadRequest)
+				return types.WrapError(types.KindInvalidInput, "invalid subroot cid", err)
 			}
 			subroots = append(subroots, scid)
 		}
@@ -67,9 +62,7 @@ func (p *PDPHandler) handleAddRootToProofSet(c echo.Context) error {
 	start := time.Now()
 	txHash, err := p.Service.AddRoots(ctx, id, t)
 	if err != nil {
-		return middleware.NewError(operation, "failed to add root to proofSet", err, http.StatusInternalServerError).
-			WithContext("proofSetID", id).
-			WithContext("rootCount", len(req.Roots))
+		return err
 	}
 
 	log.Infow("Successfully added roots to proofSet",

@@ -6,19 +6,17 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi"
-	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 )
 
 // handleGetProviderStatus -> GET /pdp/provider/status
 func (p *PDPHandler) handleGetProviderStatus(c echo.Context) error {
 	ctx := c.Request().Context()
-	operation := "GetProviderStatus"
 
 	log.Debugw("Processing GetProviderStatus request")
 
 	result, err := p.Service.GetProviderStatus(ctx)
 	if err != nil {
-		return middleware.NewError(operation, "Failed to get provider status", err, http.StatusInternalServerError)
+		return err
 	}
 
 	resp := httpapi.GetProviderStatusResponse{
