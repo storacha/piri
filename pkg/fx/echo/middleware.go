@@ -7,8 +7,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// ErrorHandler is a middleware that logs errors to the provided logger.
-func ErrorHandler(log logging.EventLogger) echo.MiddlewareFunc {
+// ErrorLogger is a middleware that logs errors to the provided logger.
+func ErrorLogger(log logging.EventLogger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			err := next(c)

@@ -7,17 +7,16 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi"
-	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
+	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 // echoHandleCreateProofSet -> POST /pdp/proof-sets
 func (p *PDPHandler) handleCreateProofSet(c echo.Context) error {
 	ctx := c.Request().Context()
-	operation := "CreateProofSet"
 
 	var req httpapi.CreateProofSetRequest
 	if err := c.Bind(&req); err != nil {
-		return middleware.NewError(operation, "Invalid request body", err, http.StatusBadRequest)
+		return types.WrapError(types.KindInvalidInput, "invalid request body", err)
 	}
 
 	txHash, err := p.Service.CreateProofSet(ctx)
