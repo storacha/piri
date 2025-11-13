@@ -19,9 +19,9 @@ import (
 	"github.com/storacha/go-ucanto/ucan"
 )
 
-// minTTL is the minimum time a cached delegation should still be valid for
-// before it expires. If the TTL is less than this then consider it expired.
-var minTTL = time.Second * 5
+// defaultMinTTL is the minimum time a cached delegation should still be valid
+// for before it expires. If the TTL is less than this then consider it expired.
+var defaultMinTTL = time.Second * 5
 
 type CachingProofService struct {
 	id         ucan.Signer
@@ -83,6 +83,10 @@ func (ps *CachingProofService) RequestAccess(
 			if exp == nil {
 				ps.cacheMutex.RUnlock()
 				return d, nil
+			}
+			minTTL := defaultMinTTL
+			if cfg.minTTL != nil {
+				minTTL = *cfg.minTTL
 			}
 			// if not expired, we can reuse
 			if ucan.Now()+ucan.UTCUnixTimestamp(minTTL.Seconds()) < *exp {

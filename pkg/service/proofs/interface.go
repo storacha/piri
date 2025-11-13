@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
@@ -28,6 +29,7 @@ type requestConfig struct {
 	httpClient *http.Client
 	url        *url.URL
 	conn       client.Connection
+	minTTL     *time.Duration
 }
 
 type Option func(*requestConfig)
@@ -52,5 +54,12 @@ func WithServiceURL(url *url.URL) Option {
 func WithConnection(conn client.Connection) Option {
 	return func(cfg *requestConfig) {
 		cfg.conn = conn
+	}
+}
+
+// WithMinimumTTL configures the minimum TTL a cached delegation should have.
+func WithMinimumTTL(minTTL time.Duration) Option {
+	return func(cfg *requestConfig) {
+		cfg.minTTL = &minTTL
 	}
 }
