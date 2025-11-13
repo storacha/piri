@@ -25,6 +25,19 @@ func Retrieve(
 	blobs blobstore.BlobGetter,
 	inv invocation.Invocation,
 	digest multihash.Multihash,
+	byteRange *blobstore.Range,
+) (result.Result[content.RetrieveOk, failure.IPLDBuilderFailure], retrieval.Response, error) {
+	if byteRange == nil {
+		return doRetrieve(ctx, blobs, inv, digest)
+	}
+	return doRangeRetrieve(ctx, blobs, inv, digest, *byteRange)
+}
+
+func doRangeRetrieve(
+	ctx context.Context,
+	blobs blobstore.BlobGetter,
+	inv invocation.Invocation,
+	digest multihash.Multihash,
 	byteRange blobstore.Range,
 ) (result.Result[content.RetrieveOk, failure.IPLDBuilderFailure], retrieval.Response, error) {
 	digestStr := digestutil.Format(digest)
@@ -84,4 +97,42 @@ func Retrieve(
 	log.Debugw("serving bytes", "status", status, "size", contentLength)
 	resp := retrieval.NewResponse(status, headers, blob.Body())
 	return res, resp, nil
+}
+
+func doRetrieve(
+	ctx context.Context,
+	blobs blobstore.BlobGetter,
+	inv invocation.Invocation,
+	digest multihash.Multihash,
+) (result.Result[content.RetrieveOk, failure.IPLDBuilderFailure], retrieval.Response, error) {
+	digestStr := digestutil.Format(digest)
+
+	cap := inv.Capabilities()[0]
+	log := log.With("iss", inv.Issuer().DID(), "can", cap.Can(), "with", cap.With(), "digest", digestStr)
+
+	blob, err := blobs.Get(ctx, digest)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			log.Debugw("blob not found", "status", http.StatusNotFound)
+			notFoundErr := content.NewNotFoundError(fmt.Sprintf("blob not found: %s", digestStr))
+			res := result.Error[content.RetrieveOk, failure.IPLDBuilderFailure](notFoundErr)
+			resp := retrieval.NewResponse(http.StatusNotFound, nil, nil)
+			return res, resp, nil
+		}
+		log.Errorw("getting blob", "error", err)
+		return nil, retrieval.Response{}, fmt.Errorf("getting blob: %w", err)
+	}
+
+	res := result.Ok[content.RetrieveOk, failure.IPLDBuilderFailure](content.RetrieveOk{})
+	status := http.StatusOK
+	headers := http.Header{}
+	headers.Set("Content-Length", fmt.Sprintf("%d", blob.Size()))
+	headers.Set("Content-Type", "application/octet-stream")
+	headers.Set("Cache-Control", "public, max-age=29030400, immutable")
+	headers.Set("Etag", fmt.Sprintf(`"%s"`, digestStr))
+	headers.Set("Vary", "Accept-Encoding")
+	log.Debugw("serving bytes", "status", status, "size", blob.Size())
+	resp := retrieval.NewResponse(status, headers, blob.Body())
+	return res, resp, nil
+
 }

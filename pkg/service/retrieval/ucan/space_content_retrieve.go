@@ -68,7 +68,7 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 					return nil, nil, retrieval.Response{}, fmt.Errorf("getting allocation: %w", err)
 				}
 
-				res, resp, err := spacecontent.Retrieve(ctx, retrievalService.Blobs(), inv, digest, blobstore.Range{Start: start, End: &end})
+				res, resp, err := spacecontent.Retrieve(ctx, retrievalService.Blobs(), inv, digest, &blobstore.Range{Start: start, End: &end})
 				if err != nil {
 					return nil, nil, retrieval.Response{}, err
 				}
