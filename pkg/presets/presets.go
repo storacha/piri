@@ -17,7 +17,7 @@ var (
 	UploadServiceURL        *url.URL
 	UploadServiceDID        did.DID
 	PrincipalMapping        map[string]string
-	SigningServiceEndpoint  url.URL
+	SigningServiceEndpoint  *url.URL
 )
 
 var (
@@ -53,7 +53,7 @@ func init() {
 		UploadServiceURL = stagingUploadServiceURL
 		UploadServiceDID = stagingUploadServiceDID
 		PrincipalMapping = stagingPrincipalMapping
-	default:
+	case "warm-staging":
 		IPNIAnnounceURLs = warmStageIPNIAnnounceURLs
 		IndexingServiceURL = warmStageIndexingServiceURL
 		IndexingServiceDID = warmStageIndexingServiceDID
@@ -62,11 +62,44 @@ func init() {
 		UploadServiceURL = warmStageUploadServiceURL
 		UploadServiceDID = warmStageUploadServiceDID
 		PrincipalMapping = warmStagePrincipalMapping
-		SigningServiceEndpoint = *warmStageSigningServiceURL
+		SigningServiceEndpoint = warmStageSigningServiceURL
+	default:
+		IPNIAnnounceURLs = forgeProdIPNIAnnounceURLs
+		IndexingServiceURL = forgeProdIndexingServiceURL
+		IndexingServiceDID = forgeProdIndexingServiceDID
+		EgressTrackerServiceURL = forgeProdEgressTrackerServiceURL
+		EgressTrackerServiceDID = forgeProdEgressTrackerServiceDID
+		UploadServiceURL = forgeProdUploadServiceURL
+		UploadServiceDID = forgeProdUploadServiceDID
+		PrincipalMapping = forgeProdPrincipalMapping
+		SigningServiceEndpoint = forgeProdSigningServiceURL
 	}
 }
 
-// Warm Staging preset values (default)
+// Forge Production preset values (default)
+var (
+	forgeProdStorachaIPNIAnnounceURL = lo.Must(url.Parse("https://ipni.forge.storacha.network"))
+	forgeProdIPNIAnnounceURLs        = []url.URL{*defaultIPNIAnnounceURL, *forgeProdStorachaIPNIAnnounceURL}
+
+	forgeProdIndexingServiceURL = lo.Must(url.Parse("https://indexer.forge.storacha.network/claims"))
+	forgeProdIndexingServiceDID = lo.Must(did.Parse("did:web:indexer.forge.storacha.network"))
+
+	forgeProdEgressTrackerServiceURL = lo.Must(url.Parse("https://etracker.forge.storacha.network"))
+	forgeProdEgressTrackerServiceDID = lo.Must(did.Parse("did:web:etracker.forge.storacha.network"))
+
+	forgeProdUploadServiceURL = lo.Must(url.Parse("https://up.forge.storacha.network"))
+	forgeProdUploadServiceDID = lo.Must(did.Parse("did:web:up.forge.storacha.network"))
+
+	forgeProdPrincipalMapping = map[string]string{
+		forgeProdUploadServiceDID.String():        "did:key:z6MkgSttS3n3R56yGX2Eufvbwc58fphomhAsLoBCZpZJzQbr",
+		forgeProdIndexingServiceDID.String():      "did:key:z6Mkj8WmJQRy5jEnFN97uuc2qsjFdsYCuD5wE384Z1AMCFN7",
+		forgeProdEgressTrackerServiceDID.String(): "did:key:z6MkuGS213fJGP7qGRG8Pn9mffCDU2vXgnSRY4JL1sumgpFX",
+	}
+
+	forgeProdSigningServiceURL = lo.Must(url.Parse("https://signer.forge.storacha.network"))
+)
+
+// Warm Staging preset values
 var (
 	warmStageStorachaIPNIAnnounceURL = lo.Must(url.Parse("https://staging.ipni.warm.storacha.network"))
 	warmStageIPNIAnnounceURLs        = []url.URL{*defaultIPNIAnnounceURL, *warmStageStorachaIPNIAnnounceURL}
