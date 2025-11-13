@@ -124,6 +124,7 @@ type Config struct {
 	SentryDSN                      string
 	SentryEnvironment              string
 	AllocationsTableName           string
+	AcceptanceTableName            string
 	BlobStoreBucketEndpoint        string
 	BlobStoreBucketRegion          string
 	BlobStoreBucketAccessKeyID     string
@@ -285,6 +286,7 @@ func FromEnv(ctx context.Context) Config {
 		ClaimStoreBucket:               mustGetEnv("CLAIM_STORE_BUCKET_NAME"),
 		ClaimStorePrefix:               os.Getenv("CLAIM_STORE_KEY_REFIX"),
 		AllocationsTableName:           mustGetEnv("ALLOCATIONS_TABLE_NAME"),
+		AcceptanceTableName:            mustGetEnv("ACCEPTANCE_TABLE_NAME"),
 		BlobStoreBucketEndpoint:        os.Getenv("BLOB_STORE_BUCKET_ENDPOINT"),
 		BlobStoreBucketRegion:          os.Getenv("BLOB_STORE_BUCKET_REGION"),
 		BlobStoreBucketAccessKeyID:     secrets[os.Getenv("BLOB_STORE_BUCKET_ACCESS_KEY_ID")],
@@ -335,6 +337,7 @@ func Construct(cfg Config) (storage.Service, error) {
 	}
 	blobStore := NewS3BlobStore(cfg.Config, cfg.BlobStoreBucket, formatKey, blobStoreOpts...)
 	allocationStore := NewDynamoAllocationStore(cfg.Config, cfg.AllocationsTableName, cfg.DynamoOptions...)
+	acceptanceStore := NewDynamoAcceptanceStore(cfg.Config, cfg.AcceptanceTableName, cfg.DynamoOptions...)
 	claimStore, err := delegationstore.NewDelegationStore(NewS3Store(cfg.Config, cfg.ClaimStoreBucket, cfg.ClaimStorePrefix, cfg.S3Options...))
 	if err != nil {
 		return nil, fmt.Errorf("constructing claim store: %w", err)
@@ -403,6 +406,7 @@ func Construct(cfg Config) (storage.Service, error) {
 		storage.WithIdentity(cfg.Signer),
 		storage.WithBlobstore(blobStore),
 		storage.WithAllocationStore(allocationStore),
+		storage.WithAcceptanceStore(acceptanceStore),
 		storage.WithClaimStore(claimStore),
 		storage.WithPublisherStore(publisherStore),
 		storage.WithAsyncPublisher(queuePublisher),
