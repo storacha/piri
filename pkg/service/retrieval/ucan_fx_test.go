@@ -132,6 +132,72 @@ func TestFXSpaceContentRetrieve(t *testing.T) {
 		assertContentRetrieveOK(t, inv.Link(), xres, hres, blob.bytes[:2], len(blob.bytes))
 	})
 
+	t.Run("space/content/retrieve without range", func(t *testing.T) {
+		space := testutil.RandomSigner(t)
+		randBytes := testutil.RandomBytes(t, 256)
+		blob := struct {
+			bytes []byte
+			cid   cid.Cid
+		}{randBytes, cid.NewCidV1(cid.Raw, testutil.MultihashFromBytes(t, randBytes))}
+
+		require.NoError(t, svc.Blobs().Allocations().Put(t.Context(), allocation.Allocation{
+			Blob: allocation.Blob{
+				Digest: blob.cid.Hash(),
+				Size:   uint64(len(blob.bytes)),
+			},
+			Space:   space.DID(),
+			Expires: 0,
+			Cause:   testutil.RandomCID(t),
+		}))
+		err := svc.Blobs().Store().Put(
+			t.Context(),
+			blob.cid.Hash(),
+			uint64(len(blob.bytes)),
+			bytes.NewReader(blob.bytes),
+		)
+		require.NoError(t, err)
+
+		prf := delegation.FromDelegation(
+			testutil.Must(
+				delegation.Delegate(
+					space,
+					testutil.Bob,
+					[]ucan.Capability[content.RetrieveCaveats]{
+						ucan.NewCapability(
+							content.RetrieveAbility,
+							space.DID().String(),
+							content.RetrieveCaveats{
+								Blob: content.BlobDigest{Digest: blob.cid.Hash()},
+							},
+						),
+					},
+				),
+			)(t),
+		)
+
+		url := appConfig.Server.PublicURL.JoinPath("piece", blob.cid.String())
+		conn, err := retrievalclient.NewConnection(testutil.Alice, url)
+		require.NoError(t, err)
+
+		inv, err := invocation.Invoke(
+			testutil.Bob,
+			testutil.Alice,
+			content.Retrieve.New(
+				space.DID().String(),
+				content.RetrieveCaveats{
+					Blob: content.BlobDigest{Digest: blob.cid.Hash()},
+				},
+			),
+			delegation.WithProof(prf),
+		)
+		require.NoError(t, err)
+
+		xres, hres, err := retrievalclient.Execute(t.Context(), inv, conn)
+		require.NoError(t, err)
+
+		assertContentRetrieveOKNoRange(t, inv.Link(), xres, hres, blob.bytes, len(blob.bytes))
+	})
+
 	t.Run("space/content/retrieve with trusted upload service attestation", func(t *testing.T) {
 		space := testutil.RandomSigner(t)
 		randBytes := testutil.RandomBytes(t, 256)
@@ -232,6 +298,36 @@ func assertContentRetrieveOK(
 	expectHeaders := http.Header{
 		http.CanonicalHeaderKey("Content-Length"): []string{fmt.Sprintf("%d", 2)},
 		http.CanonicalHeaderKey("Content-Range"):  []string{fmt.Sprintf("bytes %d-%d/%d", 0, 1, expectTotalSize)},
+	}
+
+	require.Equal(t, expectStatus, hres.Status())
+	for k, v := range expectHeaders {
+		require.Equal(t, v, hres.Headers().Values(k))
+	}
+	require.Equal(t, expectBody, testutil.Must(io.ReadAll(hres.Body()))(t))
+
+	rcptLink, ok := xres.Get(task)
+	require.True(t, ok)
+
+	rcpt, err := receipt.NewAnyReceiptReader().Read(rcptLink, xres.Blocks())
+	require.NoError(t, err)
+
+	_, x := result.Unwrap(rcpt.Out())
+	require.Nil(t, x)
+}
+
+func assertContentRetrieveOKNoRange(
+	t *testing.T,
+	task ucan.Link,
+	xres client.ExecutionResponse,
+	hres transport.HTTPResponse,
+	expectBody []byte,
+	expectTotalSize int,
+) {
+	expectStatus := http.StatusPartialContent
+	expectHeaders := http.Header{
+		http.CanonicalHeaderKey("Content-Length"): []string{fmt.Sprintf("%d", len(expectBody))},
+		http.CanonicalHeaderKey("Content-Range"):  []string{fmt.Sprintf("bytes %d-%d/%d", 0, len(expectBody)-1, expectTotalSize)},
 	}
 
 	require.Equal(t, expectStatus, hres.Status())
