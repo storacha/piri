@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/storacha/go-ucanto/client"
-	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	ucan_http "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/piri/pkg/config/app"
@@ -55,8 +54,6 @@ type SigningServiceConfig struct {
 	DID string `mapstructure:"did" toml:"did,omitempty"`
 	// URL endpoint for remote signing service (if using HTTP client)
 	URL string `mapstructure:"url" toml:"url,omitempty"`
-	// Proof that the storage node can use the signing service
-	Proof string `mapstructure:"proof" flag:"signing-service-proof" toml:"proof,omitempty"`
 	// Private key for in-process signing (if using local signer)
 	// This should be a hex-encoded private key string
 	// NB: this should only be used for development purposes
@@ -85,10 +82,6 @@ func (c SigningServiceConfig) ToAppConfig() (app.SigningServiceConfig, error) {
 		if err != nil {
 			return app.SigningServiceConfig{}, fmt.Errorf("parsing signing service DID: %s: %w", c.DID, err)
 		}
-		dlg, err := delegation.Parse(c.Proof)
-		if err != nil {
-			return app.SigningServiceConfig{}, fmt.Errorf("parsing signing service delegation: %w", err)
-		}
 
 		channel := ucan_http.NewChannel(url)
 		conn, err := client.NewConnection(id, channel)
@@ -98,7 +91,6 @@ func (c SigningServiceConfig) ToAppConfig() (app.SigningServiceConfig, error) {
 
 		return app.SigningServiceConfig{
 			Connection: conn,
-			Proofs:     delegation.Proofs{delegation.FromDelegation(dlg)},
 		}, nil
 	} else {
 		// we should only use this for development and local testing.
