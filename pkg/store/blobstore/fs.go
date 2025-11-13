@@ -100,7 +100,7 @@ func (b *FsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 	}
 
 	if !rangeSatisfiable(o.ByteRange.Start, o.ByteRange.End, uint64(inf.Size())) {
-		return nil, ErrRangeNotSatisfiable
+		return nil, ErrRangeNotSatisfiable{Range: o.ByteRange}
 	}
 
 	return FileObject{name: n, size: inf.Size(), byteRange: o.ByteRange}, nil

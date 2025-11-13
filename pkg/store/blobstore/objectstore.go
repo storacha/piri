@@ -32,8 +32,9 @@ func (d *ObjectBlobstore) Get(ctx context.Context, digest multihash.Multihash, o
 		if errors.Is(err, objectstore.ErrNotExist) {
 			return nil, store.ErrNotFound
 		}
-		if errors.Is(err, objectstore.ErrRangeNotSatisfiable) {
-			return nil, ErrRangeNotSatisfiable
+		var erns objectstore.ErrRangeNotSatisfiable
+		if errors.As(err, &erns) {
+			return nil, ErrRangeNotSatisfiable{Range: Range{Start: erns.Range.Start, End: erns.Range.End}}
 		}
 		return nil, err
 	}
