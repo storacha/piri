@@ -44,6 +44,7 @@ func PDPInfo(storageService PDPInfoService) server.Option {
 					return nil, nil, failure.FromError(fmt.Errorf("PDP service not avaliable"))
 				}
 
+				// TODO I think this is backwards, we will get pieces from the nodes for the signing service
 				// try and resolve the blob to its derived pieceCID (commp)
 				resolvedCommp, found, err := storageService.PDP().API().ResolveToPiece(ctx, cap.Nb().Blob)
 				if err != nil {

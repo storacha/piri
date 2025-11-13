@@ -57,7 +57,6 @@ func (a *AddRootsTaskHandler) Handle(ctx context.Context, links []datamodel.Link
 	}
 
 	// build the set of roots we will add
-	// TODO we should be de-deduplicating roots here as is done in add_roots already of pdp service
 	roots := make([]pdptypes.RootAdd, len(links))
 	for i, aggregateLink := range links {
 		// fetch each aggregate to submit

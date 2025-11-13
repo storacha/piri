@@ -25,16 +25,16 @@ type ComperParams struct {
 }
 
 type Comper struct {
-	queue jobqueue.Service[multihash.Multihash]
+	queue   jobqueue.Service[multihash.Multihash]
+	handler jobqueue.TaskHandler[multihash.Multihash]
 }
 
 func NewQueuingCommpCalculator(lc fx.Lifecycle, params ComperParams) (Calculator, error) {
 	c := &Comper{
 		queue: params.Queue,
 	}
-	if err := c.queue.Register(
-		TaskName,
-		params.Handler.Handle,
+	if err := c.queue.RegisterHandler(
+		params.Handler,
 		jobqueue.WithOnFailure(func(ctx context.Context, msg multihash.Multihash, err error) error {
 			// NB(forrest): failed tasks will go to the dead-letter queue, meaning the failure is detectable,
 			// and could be retried later.
@@ -66,5 +66,5 @@ func NewQueuingCommpCalculator(lc fx.Lifecycle, params ComperParams) (Calculator
 
 func (c *Comper) Enqueue(ctx context.Context, blob multihash.Multihash) error {
 	log.Infow("enqueuing commp", "blob", blob.String())
-	return c.queue.Enqueue(ctx, TaskName, blob)
+	return c.queue.Enqueue(ctx, c.handler.Name(), blob)
 }

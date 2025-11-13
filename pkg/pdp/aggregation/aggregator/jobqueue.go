@@ -80,7 +80,7 @@ func NewQueue(params QueueParams) (jobqueue.Service[piece.PieceLink], error) {
 	// Do not allow successfully complete jobs to run again.
 	dedupEnabled := true
 	// Allow jobs in dead letter queue (failed) to run again.
-	blockDLQRetrues := false
+	blockDLQRetries := false
 	linkQueue, err := jobqueue.New[piece.PieceLink](
 		QueueName,
 		params.DB,
@@ -97,7 +97,7 @@ func NewQueue(params QueueParams) (jobqueue.Service[piece.PieceLink], error) {
 		// we enable de-duplication for this queue since we only want to aggregate a piece once.
 		jobqueue.WithDedupQueue(&jobqueue.DedupQueueConfig{
 			DedupeEnabled:     &dedupEnabled,
-			BlockRepeatsOnDLQ: &blockDLQRetrues,
+			BlockRepeatsOnDLQ: &blockDLQRetries,
 		}),
 	)
 	if err != nil {
