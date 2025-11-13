@@ -13,6 +13,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
 	"github.com/samber/lo"
+	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"gorm.io/gorm"
 
@@ -428,10 +429,12 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	// Use clientDataSetId from FilecoinWarmStorageService (not PDPVerifier's setId)
 	// Use nextPieceId as firstAdded (this is what PDPVerifier will pass to the callback)
 	signature, err := p.signingService.SignAddPieces(ctx,
+		p.id,
 		datasetInfo.ClientDataSetId, // Use FilecoinWarmStorageService clientDataSetId
 		nextPieceId,                 // firstAdded is the next piece ID
 		pieceDataBytes,
 		metadata,
+		[][]receipt.AnyReceipt{}, // TODO: extract blob/accept receipts, include pdp/accept receipts
 	)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to sign AddPieces: %w", err)

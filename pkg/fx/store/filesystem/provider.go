@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
@@ -42,6 +43,7 @@ var Module = fx.Module("filesystem-store",
 			fx.As(new(store.EncodeableStore)),
 		),
 		NewAllocationStore,
+		NewAcceptanceStore,
 		fx.Annotate(
 			NewBlobStore,
 			// provide as Blobstore (self)
@@ -123,6 +125,25 @@ func NewAllocationStore(cfg app.AllocationStorageConfig, lc fx.Lifecycle) (alloc
 	})
 
 	return allocationstore.NewDsAllocationStore(ds)
+}
+
+func NewAcceptanceStore(cfg app.AcceptanceStorageConfig, lc fx.Lifecycle) (acceptancestore.AcceptanceStore, error) {
+	if cfg.Dir == "" {
+		return nil, fmt.Errorf("no data dir provided for acceptance store")
+	}
+
+	ds, err := newDs(cfg.Dir)
+	if err != nil {
+		return nil, fmt.Errorf("creating allocation store: %w", err)
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return ds.Close()
+		},
+	})
+
+	return acceptancestore.NewDsAcceptanceStore(ds)
 }
 
 func NewBlobStore(cfg app.BlobStorageConfig) (blobstore.Blobstore, error) {

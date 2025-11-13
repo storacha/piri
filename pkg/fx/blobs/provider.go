@@ -11,6 +11,7 @@ import (
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/service/blobs"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
@@ -38,6 +39,7 @@ func NewService(
 	ps presigner.RequestPresigner,
 	blobStore blobstore.Blobstore,
 	allocationStore allocationstore.AllocationStore,
+	acceptanceStore acceptancestore.AcceptanceStore,
 ) (*blobs.BlobService, error) {
 	if cfg.Server.PublicURL.Scheme == "" {
 		return nil, fmt.Errorf("public URL required for blob service")
@@ -59,5 +61,6 @@ func NewService(
 		blobs.WithPresigner(ps),
 		blobs.WithBlobstore(blobStore),
 		blobs.WithAllocationStore(allocationStore),
+		blobs.WithAcceptanceStore(acceptanceStore),
 	)
 }

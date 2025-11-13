@@ -20,6 +20,7 @@ import (
 	"github.com/storacha/piri/pkg/access"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/presigner"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
@@ -35,6 +36,8 @@ type config struct {
 	blobsAccess           access.Access
 	allocationStore       allocationstore.AllocationStore
 	allocationDatastore   datastore.Datastore
+	acceptanceStore       acceptancestore.AcceptanceStore
+	acceptanceDatastore   datastore.Datastore
 	claimStore            claimstore.ClaimStore
 	claimDatastore        datastore.Datastore
 	asyncPublisher        publisher.AsyncPublisher
@@ -122,6 +125,24 @@ func WithAllocationStore(allocationStore allocationstore.AllocationStore) Option
 func WithAllocationDatastore(dstore datastore.Datastore) Option {
 	return func(c *config) error {
 		c.allocationDatastore = dstore
+		return nil
+	}
+}
+
+// WithAcceptanceStore configures the acceptance store directly
+func WithAcceptanceStore(acceptanceStore acceptancestore.AcceptanceStore) Option {
+	return func(c *config) error {
+		c.acceptanceStore = acceptanceStore
+		return nil
+	}
+}
+
+// WithAcceptanceDatastore configures the underlying datastore to use for
+// storing acceptance records. Note: the datastore MUST have efficient support
+// for prefix queries.
+func WithAcceptanceDatastore(dstore datastore.Datastore) Option {
+	return func(c *config) error {
+		c.acceptanceDatastore = dstore
 		return nil
 	}
 }

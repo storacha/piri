@@ -50,6 +50,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 	var metadataEntries []eip712.MetadataEntry
 	// request a signature for creating the dataset from the signing service
 	signature, err := p.signingService.SignCreateDataSet(ctx,
+		p.id,
 		nextClientDataSetId,
 		p.address, // Use the nodes address as the address receiving payment for storage
 		metadataEntries,

@@ -11,15 +11,17 @@ import (
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/piri/pkg/access"
 	"github.com/storacha/piri/pkg/presigner"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
 type options struct {
-	access     access.Access
-	allocStore allocationstore.AllocationStore
-	blobStore  blobstore.Blobstore
-	presigner  presigner.RequestPresigner
+	access      access.Access
+	allocStore  allocationstore.AllocationStore
+	acceptStore acceptancestore.AcceptanceStore
+	blobStore   blobstore.Blobstore
+	presigner   presigner.RequestPresigner
 }
 
 type Option func(*options) error
@@ -80,6 +82,7 @@ func WithPublicURLPresigner(id principal.Signer, publicURL url.URL) Option {
 		return nil
 	}
 }
+
 func WithAllocationStore(allocationStore allocationstore.AllocationStore) Option {
 	return func(o *options) error {
 		o.allocStore = allocationStore
@@ -94,6 +97,13 @@ func WithDSAllocationStore(allocsDatastore datastore.Datastore) Option {
 			return err
 		}
 		o.allocStore = allocStore
+		return nil
+	}
+}
+
+func WithAcceptanceStore(acceptanceStore acceptancestore.AcceptanceStore) Option {
+	return func(o *options) error {
+		o.acceptStore = acceptanceStore
 		return nil
 	}
 }

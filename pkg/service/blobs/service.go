@@ -3,6 +3,7 @@ package blobs
 import (
 	"github.com/storacha/piri/pkg/access"
 	"github.com/storacha/piri/pkg/presigner"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
@@ -17,6 +18,10 @@ func (b *BlobService) Access() access.Access {
 
 func (b *BlobService) Allocations() allocationstore.AllocationStore {
 	return b.allocStore
+}
+
+func (b *BlobService) Acceptances() acceptancestore.AcceptanceStore {
+	return b.acceptStore
 }
 
 func (b *BlobService) Presigner() presigner.RequestPresigner {
