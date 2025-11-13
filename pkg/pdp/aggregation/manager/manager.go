@@ -1,23 +1,21 @@
-package aggregator
+package manager
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/raulk/clock"
-	captypes "github.com/storacha/go-libstoracha/capabilities/types"
-	"github.com/storacha/piri/lib/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/lib/jobqueue"
 )
+
+var log = logging.Logger("aggregator/manager")
 
 // DefaultMaxBatchSizeBytes is the maximum size of batch.
 const (
@@ -25,57 +23,13 @@ const (
 	DefaultMaxBatchSizeBytes = 10
 	// DefaultPollInterval is the frequency the manager will flush its buffer to submit roots
 	DefaultPollInterval = 30 * time.Second
-	ManagerQueueName    = "manager"
-	ManagerTaskName     = "add_roots"
 )
-
-var ManagerModule = fx.Module("aggregator/manager",
-	fx.Provide(
-		NewManager,
-		NewSubmissionWorkspace,
-		NewAddRootsTaskHandler,
-		NewManagerQueue,
-	),
-)
-
-type ManagerQueueParams struct {
-	fx.In
-	DB *sql.DB `name:"aggregator_db"`
-}
-
-func NewManagerQueue(params ManagerQueueParams) (jobqueue.Service[[]datamodel.Link], error) {
-	managerQueue, err := jobqueue.New[[]datamodel.Link](
-		ManagerQueueName,
-		params.DB,
-		&serializer.IPLDCBOR[[]datamodel.Link]{
-			Typ:  bufferTS.TypeByName("AggregateLinks"),
-			Opts: captypes.Converters,
-		},
-		jobqueue.WithLogger(log.With("queue", ManagerQueueName)),
-		jobqueue.WithMaxRetries(50),
-		// NB: must remain one to keep submissions serial to AddRoots
-		jobqueue.WithMaxWorkers(uint(1)),
-		// wait for twice a filecoin epoch to submit
-		jobqueue.WithMaxTimeout(time.Minute),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating piece_link job-queue: %w", err)
-	}
-	// NB: queue lifecycle is handled by manager since it must register with queue before starting it
-	return managerQueue, nil
-}
-
-// TaskHandler is a function that processes a batch of aggregate links
-// It encapsulates the logic for how aggregates are submitted to the blockchain
-type TaskHandler interface {
-	Handle(ctx context.Context, links []datamodel.Link) error
-}
 
 // Manager handles batched submission of aggregates to the blockchain
 type Manager struct {
 	// input parameters
-	taskHandler TaskHandler
 	buffer      BufferStore
+	taskHandler jobqueue.TaskHandler[[]datamodel.Link]
 	queue       jobqueue.Service[[]datamodel.Link]
 
 	// options
@@ -97,7 +51,7 @@ type ManagerParams struct {
 	fx.In
 
 	Queue       jobqueue.Service[[]datamodel.Link]
-	TaskHandler TaskHandler
+	TaskHandler jobqueue.TaskHandler[[]datamodel.Link]
 	Buffer      BufferStore
 	Options     []ManagerOption `optional:"true"`
 }
@@ -265,7 +219,7 @@ func (m *Manager) Start() error {
 	log.Info("Starting submission manager")
 
 	// Register the injected task handler with the queue
-	if err := m.queue.Register(ManagerTaskName, m.taskHandler.Handle); err != nil {
+	if err := m.queue.RegisterHandler(m.taskHandler); err != nil {
 		return fmt.Errorf("failed to register batch queue submit_roots task: %w", err)
 	}
 
@@ -348,7 +302,7 @@ func (m *Manager) doSubmit(aggregates Aggregation) error {
 	// before submitting
 	// or 2. the signing service should reject signing data that has already been added.
 	// if either 1. or 2. are implemented, the task fill eventually leave the queue, moving to deadletter
-	if err := m.queue.Enqueue(m.ctx, ManagerTaskName, aggregates.Roots); err != nil {
+	if err := m.queue.Enqueue(m.ctx, m.taskHandler.Name(), aggregates.Roots); err != nil {
 		return fmt.Errorf("failed to enqueue batch submission roots: %w", err)
 	}
 
@@ -357,68 +311,5 @@ func (m *Manager) doSubmit(aggregates Aggregation) error {
 		return fmt.Errorf("failed to clear batch submission roots: %w", err)
 	}
 
-	return nil
-}
-
-// NewAddRootsTaskHandler creates a TaskHandler that submits aggregate roots to the blockchain
-// This factory function encapsulates the API dependencies needed for the task
-func NewAddRootsTaskHandler(
-	api types.ProofSetAPI,
-	proofSet ProofSetIDProvider,
-	store AggregateStore,
-) TaskHandler {
-	return &AddRootsTaskHandler{
-		api:      api,
-		proofSet: proofSet,
-		store:    store,
-	}
-}
-
-type AddRootsTaskHandler struct {
-	api      types.ProofSetAPI
-	proofSet ProofSetIDProvider
-	store    AggregateStore
-}
-
-func (a *AddRootsTaskHandler) Handle(ctx context.Context, links []datamodel.Link) error {
-	proofSetID, err := a.proofSet.ProofSetID(ctx)
-	if err != nil {
-		return fmt.Errorf("getting proof set ID from proof set provider: %w", err)
-	}
-
-	// build the set of roots we will add
-	// TODO we should be de-deduplicating roots here as is done in add_roots already of pdp service
-	roots := make([]types.RootAdd, len(links))
-	for i, aggregateLink := range links {
-		// fetch each aggregate to submit
-		a, err := a.store.Get(ctx, aggregateLink)
-		if err != nil {
-			return fmt.Errorf("reading aggregates: %w", err)
-		}
-		// record its root
-		rootCID, err := cid.Decode(a.Root.Link().String())
-		if err != nil {
-			return fmt.Errorf("failed to decode aggregate root CID: %w", err)
-		}
-		// subroots
-		subRoots := make([]cid.Cid, len(a.Pieces))
-		for j, p := range a.Pieces {
-			pcid, err := cid.Decode(p.Link.Link().String())
-			if err != nil {
-				return fmt.Errorf("failed to decode piece CID: %w", err)
-			}
-			subRoots[j] = pcid
-		}
-		roots[i] = types.RootAdd{
-			Root:     rootCID,
-			SubRoots: subRoots,
-		}
-	}
-
-	txHash, err := a.api.AddRoots(ctx, proofSetID, roots)
-	if err != nil {
-		return fmt.Errorf("adding roots: %w", err)
-	}
-	log.Infow("added roots", "count", len(roots), "tx", txHash)
 	return nil
 }
