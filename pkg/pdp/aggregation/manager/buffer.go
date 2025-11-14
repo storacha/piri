@@ -1,4 +1,4 @@
-package aggregator
+package manager
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	"github.com/storacha/piri/internal/ipldstore"
 )
 
-//go:embed aggregate_buffer.ipldsch
+//go:embed buffer.ipldsch
 var bufferSchema []byte
 
 var bufferTS *schema.TypeSystem

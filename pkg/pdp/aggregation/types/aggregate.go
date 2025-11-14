@@ -1,9 +1,8 @@
-package aggregate
+package types
 
 import (
 	// for go:embed
 	_ "embed"
-	"errors"
 	"fmt"
 
 	"github.com/filecoin-project/go-data-segment/merkletree"
@@ -33,8 +32,6 @@ func AggregateType() schema.Type {
 func PieceLinkType() schema.Type {
 	return aggregateTS.TypeByName("PieceLink")
 }
-
-var ErrIncorrectTree = errors.New("tree leave does not match piece link")
 
 type AggregatePiece struct {
 	Link           piece.PieceLink

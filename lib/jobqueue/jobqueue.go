@@ -23,6 +23,7 @@ type Service[T any] interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	Register(name string, fn func(context.Context, T) error, opts ...worker.JobOption[T]) error
+	RegisterHandler(handler TaskHandler[T], opts ...worker.JobOption[T]) error
 	Enqueue(ctx context.Context, name string, msg T) error
 }
 
@@ -271,6 +272,21 @@ func (j *JobQueue[T]) Register(name string, fn func(context.Context, T) error, o
 	}
 	j.mu.Unlock()
 	return j.worker.Register(name, fn, opts...)
+}
+
+type TaskHandler[T any] interface {
+	Handle(ctx context.Context, payload T) error
+	Name() string
+}
+
+func (j *JobQueue[T]) RegisterHandler(handler TaskHandler[T], opts ...worker.JobOption[T]) error {
+	j.mu.Lock()
+	if j.startCtx != nil {
+		j.mu.Unlock()
+		return fmt.Errorf("JobQueue[%s] already started, cannot register job on running job queue", j.name)
+	}
+	j.mu.Unlock()
+	return j.worker.Register(handler.Name(), handler.Handle, opts...)
 }
 
 func (j *JobQueue[T]) Enqueue(ctx context.Context, name string, msg T) error {

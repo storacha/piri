@@ -1,4 +1,4 @@
-package aggregate
+package aggregator
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"github.com/storacha/go-libstoracha/piece/digest"
 	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-libstoracha/piece/size"
+	"github.com/storacha/piri/pkg/pdp/aggregation/types"
 )
 
 // This code is adapted from
@@ -35,10 +36,10 @@ func (s stackFrame) isLeaf() bool {
 
 // NewAggregate generates an aggregate for a list of pieces that combine in size, and are sorted
 // largest to smallest. It returns the aggregate piece link and proof trees for all pieces
-func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
+func NewAggregate(pieceLinks []piece.PieceLink) (types.Aggregate, error) {
 
 	if len(pieceLinks) == 0 {
-		return Aggregate{}, errors.New("no pieces provided")
+		return types.Aggregate{}, errors.New("no pieces provided")
 	}
 
 	todo := make([]stackFrame, len(pieceLinks))
@@ -47,10 +48,10 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 	lastSize := uint64(0)
 	for i, p := range pieceLinks {
 		if p.PaddedSize() < 128 {
-			return Aggregate{}, fmt.Errorf("invalid Size of PieceInfo %d: value %d is too small", i, p.PaddedSize())
+			return types.Aggregate{}, fmt.Errorf("invalid Size of PieceInfo %d: value %d is too small", i, p.PaddedSize())
 		}
 		if lastSize > 0 && p.PaddedSize() > lastSize {
-			return Aggregate{}, fmt.Errorf("pieces are not sorted correctly largest to smallest")
+			return types.Aggregate{}, fmt.Errorf("pieces are not sorted correctly largest to smallest")
 		}
 		todo[i] = stackFrame{size: p.PaddedSize(), commP: p.DataCommitment()}
 		lastSize = p.PaddedSize()
@@ -88,14 +89,14 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 		)
 	}
 
-	aggregatePieces := make([]AggregatePiece, 0, len(pieceLinks))
+	aggregatePieces := make([]types.AggregatePiece, 0, len(pieceLinks))
 	pieceIndex := 0
 	err := visitLeaves(&stack[0], func(parents []*stackFrame, index uint64, commP []byte) (bool, error) {
 		if !bytes.Equal(pieceLinks[pieceIndex].DataCommitment(), commP) {
-			return false, ErrIncorrectTree
+			return false, fmt.Errorf("tree leave does not match piece link")
 		}
 
-		aggregatePieces = append(aggregatePieces, AggregatePiece{
+		aggregatePieces = append(aggregatePieces, types.AggregatePiece{
 			Link: pieceLinks[pieceIndex],
 			InclusionProof: merkletree.ProofData{
 				Path:  getProof(parents, index),
@@ -106,7 +107,7 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 		return pieceIndex < len(pieceLinks), nil
 	})
 	if err != nil {
-		return Aggregate{}, err
+		return types.Aggregate{}, err
 	}
 
 	// Ensure the unpadded size for aggregates are calculate as:
@@ -127,12 +128,12 @@ func NewAggregate(pieceLinks []piece.PieceLink) (Aggregate, error) {
 	// Use actual data size, not padded tree size
 	digest, err := digest.FromCommitmentAndSize(stack[0].commP, size.MaxDataSize(actualDataSize))
 	if err != nil {
-		return Aggregate{}, fmt.Errorf("error building aggregate link: %w", err)
+		return types.Aggregate{}, fmt.Errorf("error building aggregate link: %w", err)
 	}
 
 	aggregateLink := piece.FromPieceDigest(digest)
 
-	return Aggregate{
+	return types.Aggregate{
 		Root:   aggregateLink,
 		Pieces: aggregatePieces,
 	}, nil

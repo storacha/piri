@@ -283,3 +283,7 @@ type ProviderAPI interface {
 	RegisterProvider(ctx context.Context, params RegisterProviderParams) (RegisterProviderResults, error)
 	GetProviderStatus(ctx context.Context) (GetProviderStatusResults, error)
 }
+
+type ProofSetIDProvider interface {
+	ProofSetID(ctx context.Context) (uint64, error)
+}

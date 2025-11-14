@@ -1,4 +1,4 @@
-package aggregator_test
+package manager_test
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/lib/jobqueue/worker"
-	"github.com/storacha/piri/pkg/pdp/aggregator"
+	"github.com/storacha/piri/pkg/pdp/aggregation/manager"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -24,7 +24,7 @@ import (
 
 // mockQueue is a simple implementation of jobqueue.Service for testing
 type mockQueue struct {
-	taskHandler   aggregator.TaskHandler
+	taskHandler   jobqueue.TaskHandler[[]datamodel.Link]
 	delay         time.Duration // Simulated processing delay
 	failRate      float32       // Failure rate (0-1) for error injection
 	enqueuedCount atomic.Int64
@@ -33,6 +33,10 @@ type mockQueue struct {
 func (mq *mockQueue) Start(ctx context.Context) error { return nil }
 func (mq *mockQueue) Stop(ctx context.Context) error  { return nil }
 func (mq *mockQueue) Register(name string, fn func(context.Context, []datamodel.Link) error, opts ...worker.JobOption[[]datamodel.Link]) error {
+	// registration happens at constructions, kinda gross, ohh weell.
+	return nil
+}
+func (mq *mockQueue) RegisterHandler(h jobqueue.TaskHandler[[]datamodel.Link], opts ...worker.JobOption[[]datamodel.Link]) error {
 	// registration happens at constructions, kinda gross, ohh weell.
 	return nil
 }
@@ -52,9 +56,9 @@ func (mq *mockQueue) Enqueue(ctx context.Context, name string, msg []datamodel.L
 	return mq.taskHandler.Handle(ctx, msg)
 }
 
-func newBufferStore(t *testing.T) aggregator.BufferStore {
+func newBufferStore(t *testing.T) manager.BufferStore {
 	ds := ds_sync.MutexWrap(datastore.NewMapDatastore())
-	buf, err := aggregator.NewSubmissionWorkspace(aggregator.SubmissionWorkspaceParams{
+	buf, err := manager.NewSubmissionWorkspace(manager.SubmissionWorkspaceParams{
 		Datastore: ds,
 	})
 	require.NoError(t, err)
@@ -88,8 +92,12 @@ func (f *fakeTaskHandler) Handle(ctx context.Context, links []datamodel.Link) er
 	return nil
 }
 
+func (f *fakeTaskHandler) Name() string {
+	return "fakeTaskHandler"
+}
+
 // setupTestManager creates a test manager with mocked dependencies
-func setupTestManager(t *testing.T, opts ...aggregator.ManagerOption) (*aggregator.Manager, aggregator.BufferStore, *fakeTaskHandler) {
+func setupTestManager(t *testing.T, opts ...manager.ManagerOption) (*manager.Manager, manager.BufferStore, *fakeTaskHandler) {
 	t.Helper()
 
 	// Create real buffer store
@@ -103,7 +111,7 @@ func setupTestManager(t *testing.T, opts ...aggregator.ManagerOption) (*aggregat
 	queue := &mockQueue{taskHandler: taskHandler}
 
 	// Create test app with fx for lifecycle management
-	var manager *aggregator.Manager
+	var m *manager.Manager
 	app := fxtest.New(t,
 		fx.NopLogger,
 		fx.Supply(
@@ -112,15 +120,15 @@ func setupTestManager(t *testing.T, opts ...aggregator.ManagerOption) (*aggregat
 				fx.As(new(jobqueue.Service[[]datamodel.Link])),
 			),
 		),
-		fx.Provide(func() aggregator.TaskHandler {
+		fx.Provide(func() jobqueue.TaskHandler[[]datamodel.Link] {
 			return taskHandler
 		}),
-		fx.Provide(func() aggregator.BufferStore {
+		fx.Provide(func() manager.BufferStore {
 			return bufferStore
 		}),
 		fx.Supply(opts),
-		fx.Provide(aggregator.NewManager),
-		fx.Populate(&manager),
+		fx.Provide(manager.NewManager),
+		fx.Populate(&m),
 	)
 
 	app.RequireStart()
@@ -128,7 +136,7 @@ func setupTestManager(t *testing.T, opts ...aggregator.ManagerOption) (*aggregat
 		app.RequireStop()
 	})
 
-	return manager, bufferStore, taskHandler
+	return m, bufferStore, taskHandler
 }
 
 // TestManagerInitialization tests the manager initialization
@@ -156,10 +164,10 @@ func TestManagerSubmit(t *testing.T) {
 
 	t.Run("single link task spawned after poll interval", func(t *testing.T) {
 		tClock := clock.NewMock()
-		manager, buffer, handler := setupTestManager(t, aggregator.WithClock(tClock))
+		m, buffer, handler := setupTestManager(t, manager.WithClock(tClock))
 
 		link := testutil.RandomCID(t)
-		err := manager.Submit(t.Context(), link)
+		err := m.Submit(t.Context(), link)
 		require.NoError(t, err)
 
 		aggs, err := buffer.Aggregation(t.Context())
@@ -171,7 +179,7 @@ func TestManagerSubmit(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// advance clock one poll interval
 			// NB(forrest): we do this internally to ensure the ticker fires before checking
-			tClock.Add(aggregator.DefaultPollInterval + 1)
+			tClock.Add(manager.DefaultPollInterval + 1)
 
 			aggs, err = buffer.Aggregation(t.Context())
 			t.Logf("waiting on %d aggregats to clearn", len(aggs.Roots))
@@ -184,12 +192,12 @@ func TestManagerSubmit(t *testing.T) {
 		tClock := clock.NewMock()
 		batchSize := 3
 
-		manager, buffer, handler := setupTestManager(t, aggregator.WithMaxBatchSize(batchSize), aggregator.WithClock(tClock))
+		m, buffer, handler := setupTestManager(t, manager.WithMaxBatchSize(batchSize), manager.WithClock(tClock))
 
 		// add a batch size
 		for i := 1; i < batchSize+1; i++ {
 			link := testutil.RandomCID(t)
-			err := manager.Submit(t.Context(), link)
+			err := m.Submit(t.Context(), link)
 			require.NoError(t, err)
 
 			aggs, err := buffer.Aggregation(t.Context())
@@ -200,7 +208,7 @@ func TestManagerSubmit(t *testing.T) {
 
 		// add one more link, for submission
 		link := testutil.RandomCID(t)
-		err := manager.Submit(t.Context(), link)
+		err := m.Submit(t.Context(), link)
 		require.NoError(t, err)
 
 		aggs, err := buffer.Aggregation(t.Context())
@@ -212,7 +220,7 @@ func TestManagerSubmit(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// advance clock one poll interval
 			// NB(forrest): we do this internally to ensure the ticker fires before checking
-			tClock.Add(aggregator.DefaultPollInterval)
+			tClock.Add(manager.DefaultPollInterval)
 
 			aggs, err = buffer.Aggregation(t.Context())
 			require.NoError(t, err)
@@ -224,13 +232,13 @@ func TestManagerSubmit(t *testing.T) {
 		tClock := clock.NewMock()
 		batchSize := 10
 
-		manager, buffer, handler := setupTestManager(t, aggregator.WithMaxBatchSize(batchSize), aggregator.WithClock(tClock))
+		m, buffer, handler := setupTestManager(t, manager.WithMaxBatchSize(batchSize), manager.WithClock(tClock))
 
 		// First, add some links to partially fill the buffer
 		initialLinks := 3
 		for i := 0; i < initialLinks; i++ {
 			link := testutil.RandomCID(t)
-			err := manager.Submit(t.Context(), link)
+			err := m.Submit(t.Context(), link)
 			require.NoError(t, err)
 		}
 
@@ -250,7 +258,7 @@ func TestManagerSubmit(t *testing.T) {
 			largeInput[i] = testutil.RandomCID(t)
 		}
 
-		err = manager.Submit(t.Context(), largeInput...)
+		err = m.Submit(t.Context(), largeInput...)
 		require.NoError(t, err)
 
 		// Verify:
@@ -270,7 +278,7 @@ func TestManagerParallelSubmit(t *testing.T) {
 	t.Run("10 concurrent submits", func(t *testing.T) {
 		// Use a large batch size to prevent immediate submissions
 		maxBatchSize := 500 // Can hold ~2000 links
-		manager, buffer, handler := setupTestManager(t, aggregator.WithMaxBatchSize(maxBatchSize))
+		m, buffer, handler := setupTestManager(t, manager.WithMaxBatchSize(maxBatchSize))
 
 		numGoroutines := 10
 		linksPerGoroutine := maxBatchSize
@@ -287,7 +295,7 @@ func TestManagerParallelSubmit(t *testing.T) {
 				defer wg.Done()
 				for j := 0; j < linksPerGoroutine; j++ {
 					link := testutil.RandomCID(t)
-					err := manager.Submit(context.Background(), link)
+					err := m.Submit(context.Background(), link)
 					if err != nil {
 						errorCount.Add(1)
 						t.Logf("goroutine %d failed to submit link %d: %v", id, j, err)
@@ -322,13 +330,13 @@ func TestManagerParallelSubmit(t *testing.T) {
 
 	t.Run("submit while processLoop is submitting", func(t *testing.T) {
 		tClock := clock.NewMock()
-		manager, buffer, handler := setupTestManager(t,
-			aggregator.WithClock(tClock),
-			aggregator.WithPollInterval(100*time.Millisecond))
+		m, buffer, handler := setupTestManager(t,
+			manager.WithClock(tClock),
+			manager.WithPollInterval(100*time.Millisecond))
 
 		// Add initial links
 		for i := 0; i < 5; i++ {
-			err := manager.Submit(context.Background(), testutil.RandomCID(t))
+			err := m.Submit(context.Background(), testutil.RandomCID(t))
 			require.NoError(t, err)
 		}
 
@@ -348,7 +356,7 @@ func TestManagerParallelSubmit(t *testing.T) {
 			defer wg.Done()
 			time.Sleep(15 * time.Millisecond) // Submit during processLoop
 			for i := 0; i < 10; i++ {
-				err := manager.Submit(context.Background(), testutil.RandomCID(t))
+				err := m.Submit(context.Background(), testutil.RandomCID(t))
 				require.NoError(t, err)
 			}
 		}()
@@ -375,9 +383,9 @@ func TestManagerParallelSubmit(t *testing.T) {
 func TestManagerShutdownUnderLoad(t *testing.T) {
 	t.Run("stop while submitting", func(t *testing.T) {
 		tClock := clock.NewMock()
-		manager, buffer, handler := setupTestManager(t,
-			aggregator.WithClock(tClock),
-			aggregator.WithPollInterval(50*time.Millisecond))
+		m, buffer, handler := setupTestManager(t,
+			manager.WithClock(tClock),
+			manager.WithPollInterval(50*time.Millisecond))
 
 		// Start continuous submissions
 		stopSubmitting := make(chan struct{})
@@ -393,7 +401,7 @@ func TestManagerShutdownUnderLoad(t *testing.T) {
 						return
 					default:
 						link := testutil.RandomCID(t)
-						_ = manager.Submit(context.Background(), link)
+						_ = m.Submit(context.Background(), link)
 						time.Sleep(time.Millisecond)
 					}
 				}
@@ -420,7 +428,7 @@ func TestManagerShutdownUnderLoad(t *testing.T) {
 		// Stop the manager
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		err = manager.Stop(ctx)
+		err = m.Stop(ctx)
 		require.NoError(t, err)
 
 		// Verify no data loss after shutdown
@@ -440,15 +448,15 @@ func TestManagerShutdownUnderLoad(t *testing.T) {
 func TestManagerSustainedLoadPatterns(t *testing.T) {
 	t.Run("burst load pattern", func(t *testing.T) {
 		tClock := clock.NewMock()
-		manager, buffer, handler := setupTestManager(t,
-			aggregator.WithClock(tClock),
-			aggregator.WithPollInterval(100*time.Millisecond),
-			aggregator.WithMaxBatchSize(1024))
+		m, buffer, handler := setupTestManager(t,
+			manager.WithClock(tClock),
+			manager.WithPollInterval(100*time.Millisecond),
+			manager.WithMaxBatchSize(1024))
 
 		// Burst phase: submit many links quickly
 		burstSize := 500
 		for i := 0; i < burstSize; i++ {
-			err := manager.Submit(context.Background(), testutil.RandomCID(t))
+			err := m.Submit(context.Background(), testutil.RandomCID(t))
 			require.NoError(t, err)
 		}
 
@@ -475,10 +483,10 @@ func TestManagerSustainedLoadPatterns(t *testing.T) {
 	t.Run("steady load pattern", func(t *testing.T) {
 		tClock := clock.NewMock()
 		pollInterval := 50 * time.Millisecond
-		manager, _, handler := setupTestManager(t,
-			aggregator.WithClock(tClock),
-			aggregator.WithPollInterval(pollInterval),
-			aggregator.WithMaxBatchSize(512))
+		m, _, handler := setupTestManager(t,
+			manager.WithClock(tClock),
+			manager.WithPollInterval(pollInterval),
+			manager.WithMaxBatchSize(512))
 
 		// Simulate steady load over multiple poll intervals
 		stop := make(chan struct{})
@@ -490,7 +498,7 @@ func TestManagerSustainedLoadPatterns(t *testing.T) {
 				case <-stop:
 					return
 				case <-ticker.C:
-					_ = manager.Submit(context.Background(), testutil.RandomCID(t))
+					_ = m.Submit(context.Background(), testutil.RandomCID(t))
 				}
 			}
 		}()
@@ -511,13 +519,13 @@ func TestManagerSustainedLoadPatterns(t *testing.T) {
 
 	t.Run("variable load pattern", func(t *testing.T) {
 		tClock := clock.NewMock()
-		manager, _, handler := setupTestManager(t,
-			aggregator.WithClock(tClock),
-			aggregator.WithPollInterval(50*time.Millisecond))
+		m, _, handler := setupTestManager(t,
+			manager.WithClock(tClock),
+			manager.WithPollInterval(50*time.Millisecond))
 
 		// High load phase
 		for i := 0; i < 100; i++ {
-			err := manager.Submit(context.Background(), testutil.RandomCID(t))
+			err := m.Submit(context.Background(), testutil.RandomCID(t))
 			require.NoError(t, err)
 		}
 
@@ -529,7 +537,7 @@ func TestManagerSustainedLoadPatterns(t *testing.T) {
 
 		// Low load phase
 		for i := 0; i < 10; i++ {
-			err := manager.Submit(context.Background(), testutil.RandomCID(t))
+			err := m.Submit(context.Background(), testutil.RandomCID(t))
 			require.NoError(t, err)
 			time.Sleep(time.Millisecond)
 		}
@@ -540,7 +548,7 @@ func TestManagerSustainedLoadPatterns(t *testing.T) {
 
 		// Another high load phase
 		for i := 0; i < 100; i++ {
-			err := manager.Submit(context.Background(), testutil.RandomCID(t))
+			err := m.Submit(context.Background(), testutil.RandomCID(t))
 			require.NoError(t, err)
 		}
 
@@ -563,10 +571,10 @@ func TestManagerLongRunningStress(t *testing.T) {
 
 	t.Run("extended continuous load", func(t *testing.T) {
 		tClock := clock.NewMock()
-		manager, buffer, handler := setupTestManager(t,
-			aggregator.WithClock(tClock),
-			aggregator.WithPollInterval(50*time.Millisecond),
-			aggregator.WithMaxBatchSize(2048))
+		m, buffer, handler := setupTestManager(t,
+			manager.WithClock(tClock),
+			manager.WithPollInterval(50*time.Millisecond),
+			manager.WithMaxBatchSize(2048))
 
 		// Track initial goroutine count
 		initialGoroutines := runtime.NumGoroutine()
@@ -588,7 +596,7 @@ func TestManagerLongRunningStress(t *testing.T) {
 						return
 					default:
 						link := testutil.RandomCID(t)
-						if err := manager.Submit(context.Background(), link); err == nil {
+						if err := m.Submit(context.Background(), link); err == nil {
 							submissionCount.Add(1)
 						}
 						// Vary submission rate

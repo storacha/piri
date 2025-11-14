@@ -23,7 +23,6 @@ import (
 	awspublisherqueue "github.com/storacha/go-libstoracha/ipnipublisher/queue/aws"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
-	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
@@ -52,15 +51,6 @@ func mustGetEnv(envVar string) string {
 }
 
 var ErrIndexingServiceProofsMissing = errors.New("indexing service proofs are missing")
-
-type AWSAggregator struct {
-	pieceAggregatorQueue *SQSPieceQueue
-}
-
-// AggregatePiece is the frontend to aggregation
-func (aa *AWSAggregator) AggregatePiece(ctx context.Context, pieceLink piece.PieceLink) error {
-	return aa.pieceAggregatorQueue.Queue(ctx, pieceLink)
-}
 
 type Config struct {
 	Config                         aws.Config

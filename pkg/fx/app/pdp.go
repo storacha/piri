@@ -8,12 +8,12 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
+	"github.com/storacha/piri/pkg/pdp/aggregation"
 	"github.com/storacha/piri/pkg/pdp/piece"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/fx/aggregator"
 	"github.com/storacha/piri/pkg/fx/pdp"
 	"github.com/storacha/piri/pkg/fx/scheduler"
 	"github.com/storacha/piri/pkg/fx/wallet"
@@ -35,7 +35,7 @@ var PDPModule = fx.Module("pdp",
 		),
 	),
 	smartcontracts.Module,
-	aggregator.Module,
+	aggregation.Module,
 	scheduler.Module,
 	pdp.Module,
 	piece.Module,

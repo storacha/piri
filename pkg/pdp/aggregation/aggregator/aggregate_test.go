@@ -1,4 +1,4 @@
-package aggregate_test
+package aggregator_test
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	commp "github.com/filecoin-project/go-fil-commp-hashhash"
 	"github.com/storacha/go-libstoracha/piece/digest"
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
+	"github.com/storacha/piri/pkg/pdp/aggregation/aggregator"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +26,7 @@ func TestAggregate(t *testing.T) {
 	out, err := json.MarshalIndent(pieceLinks, "", "  ")
 	require.NoError(t, err)
 	t.Log("piece links\n", string(out))
-	agg, err := aggregate.NewAggregate(pieceLinks)
+	agg, err := aggregator.NewAggregate(pieceLinks)
 	require.NoError(t, err)
 	rootNode := (*merkletree.Node)(agg.Root.DataCommitment())
 	for _, aggPiece := range agg.Pieces {

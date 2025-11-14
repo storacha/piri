@@ -76,6 +76,7 @@ func NewProveTask(
 		api:       api,
 		bs:        bs,
 		reader:    reader,
+		resolver:  resolver,
 	}
 
 	// ProveTasks are created on pdp_proof_sets entries where
