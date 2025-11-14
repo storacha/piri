@@ -73,15 +73,16 @@ func (r *serviceProviderRegistry) GetProviderByAddress(ctx context.Context, prov
 }
 
 func (r *serviceProviderRegistry) EncodePDPOffering(ctx context.Context, pdpOffering ServiceProviderRegistryStoragePDPOffering) ([]byte, error) {
-	return r.registryContract.EncodePDPOffering(&bind.CallOpts{Context: ctx}, bindings.ServiceProviderRegistryStoragePDPOffering{
-		ServiceURL:                 pdpOffering.ServiceURL,
-		MinPieceSizeInBytes:        pdpOffering.MinPieceSizeInBytes,
-		MaxPieceSizeInBytes:        pdpOffering.MaxPieceSizeInBytes,
-		IpniPiece:                  pdpOffering.IpniPiece,
-		IpniIpfs:                   pdpOffering.IpniIpfs,
-		StoragePricePerTibPerMonth: pdpOffering.StoragePricePerTibPerMonth,
-		MinProvingPeriodInEpochs:   pdpOffering.MinProvingPeriodInEpochs,
-		Location:                   pdpOffering.Location,
-		PaymentTokenAddress:        pdpOffering.PaymentTokenAddress,
-	})
+	panic("needs https://github.com/storacha/piri/pull/347")
+	// return r.registryContract.EncodePDPOffering(&bind.CallOpts{Context: ctx}, bindings.ServiceProviderRegistryStoragePDPOffering{
+	// 	ServiceURL:                 pdpOffering.ServiceURL,
+	// 	MinPieceSizeInBytes:        pdpOffering.MinPieceSizeInBytes,
+	// 	MaxPieceSizeInBytes:        pdpOffering.MaxPieceSizeInBytes,
+	// 	IpniPiece:                  pdpOffering.IpniPiece,
+	// 	IpniIpfs:                   pdpOffering.IpniIpfs,
+	// 	StoragePricePerTibPerMonth: pdpOffering.StoragePricePerTibPerMonth,
+	// 	MinProvingPeriodInEpochs:   pdpOffering.MinProvingPeriodInEpochs,
+	// 	Location:                   pdpOffering.Location,
+	// 	PaymentTokenAddress:        pdpOffering.PaymentTokenAddress,
+	// })
 }
