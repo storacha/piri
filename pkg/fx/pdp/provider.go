@@ -86,7 +86,7 @@ func ProvideTODOPDPImplInterface(service types.API, commpCalc piece.Calculator, 
 type Params struct {
 	fx.In
 
-  ID           app.IdentityConfig
+	ID           app.IdentityConfig
 	ServerConfig app.ServerConfig
 	DB           *gorm.DB `name:"engine_db"`
 	Config       app.PDPServiceConfig
