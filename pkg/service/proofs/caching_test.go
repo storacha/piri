@@ -83,6 +83,12 @@ func TestCachingProofsService(t *testing.T) {
 	// if nonce is different it went back to the server
 	require.Equal(t, dlg.Nonce(), cacheDlg.Nonce())
 
+	otherDlg, err := proofsService.RequestAccess(t.Context(), testutil.Bob, webService, ability, nil, proofs.WithConnection(conn))
+	require.NoError(t, err)
+
+	// same ability but different issuer should fetch new delegation
+	require.NotEqual(t, dlg.Link(), otherDlg.Link())
+
 	// should get a fresh one if existing TTL is less than passed minimum
 	freshDlg, err := proofsService.RequestAccess(
 		t.Context(),
