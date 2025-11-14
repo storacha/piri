@@ -14,7 +14,6 @@ import (
 	"github.com/storacha/filecoin-services/go/eip712"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
-	"github.com/storacha/piri/pkg/service/proofs"
 	"gorm.io/gorm"
 
 	"github.com/storacha/go-ucanto/ucan"
@@ -43,7 +42,7 @@ type EthClient interface {
 }
 
 type PDPService struct {
-  id          ucan.Signer
+	id          ucan.Signer
 	endpoint    url.URL
 	address     common.Address
 	blobstore   blobstore.Blobstore
@@ -59,7 +58,6 @@ type PDPService struct {
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
 	signingService signer.SigningService
-	proofService   proofs.ProofService
 
 	edc              *eip712.ExtraDataEncoder
 	verifierContract smartcontracts.Verifier
