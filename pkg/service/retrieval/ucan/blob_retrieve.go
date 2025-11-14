@@ -39,7 +39,8 @@ func BlobRetrieve(service BlobRetrievalService) retrieval.Option {
 						Message:   fmt.Sprintf("resource is %s not %s", cap.With(), service.ID().DID()),
 					}), nil, retrieval.Response{}, nil
 				}
-				res, resp, err := spacecontent.Retrieve(ctx, service.Blobs(), inv, cap.Nb().Blob.Digest, blobstore.Range{})
+				// no range, pass nil for byteRange
+				res, resp, err := spacecontent.Retrieve(ctx, service.Blobs(), inv, cap.Nb().Blob.Digest, nil)
 				if err != nil {
 					return nil, nil, retrieval.Response{}, err
 				}

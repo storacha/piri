@@ -96,7 +96,7 @@ func TestBlobstore(t *testing.T) {
 
 			end := uint64(15)
 			_, err = s.Get(t.Context(), digest, WithRange(5, &end))
-			require.ErrorIs(t, err, ErrRangeNotSatisfiable)
+			require.ErrorIs(t, err, NewRangeNotSatisfiableError(Range{Start: 5, End: &end}))
 		})
 	}
 }

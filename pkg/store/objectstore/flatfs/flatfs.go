@@ -414,7 +414,7 @@ func (fs *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpt
 	}
 
 	if !rangeSatisfiable(cfg.Range().Start, cfg.Range().End, uint64(size)) {
-		return nil, objectstore.ErrRangeNotSatisfiable
+		return nil, objectstore.ErrRangeNotSatisfiable{Range: cfg.Range()}
 	}
 
 	_, path := fs.encode(key)

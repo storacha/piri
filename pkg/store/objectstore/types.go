@@ -3,6 +3,7 @@ package objectstore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"go.uber.org/zap/zapcore"
@@ -10,10 +11,23 @@ import (
 
 var (
 	ErrNotExist = errors.New("object does not exist")
-	// ErrRangeNotSatisfiable is returned when the byte range option falls outside
-	// of the total size of the object.
-	ErrRangeNotSatisfiable = errors.New("range not satisfiable")
 )
+
+// ErrRangeNotSatisfiable is returned when the byte range option falls outside
+// of the total size of the object.
+type ErrRangeNotSatisfiable struct {
+	Range Range
+}
+
+func (e ErrRangeNotSatisfiable) Error() string {
+	var rangeStr string
+	if e.Range.End != nil {
+		rangeStr = fmt.Sprintf("%d-%d", e.Range.Start, *e.Range.End)
+	} else {
+		rangeStr = fmt.Sprintf("%d-", e.Range.Start)
+	}
+	return fmt.Sprintf("range not satisfiable: %s", rangeStr)
+}
 
 type Store interface {
 	// Put stores an object with the given key and size from the provided reader.
