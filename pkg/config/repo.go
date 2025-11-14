@@ -58,6 +58,9 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		Allocations: app.AllocationStorageConfig{
 			Dir: filepath.Join(r.DataDir, "allocation"),
 		},
+		Acceptance: app.AcceptanceStorageConfig{
+			Dir: filepath.Join(r.DataDir, "acceptance"),
+		},
 		Replicator: app.ReplicatorStorageConfig{
 			DBPath: filepath.Join(r.DataDir, "replicator", "replicator.db"),
 		},

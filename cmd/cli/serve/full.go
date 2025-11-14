@@ -181,13 +181,20 @@ func init() {
 	cobra.CheckErr(viper.BindPFlag("pdp.contract_address", FullCmd.Flags().Lookup("contract-address")))
 
 	FullCmd.Flags().String(
-		"contract-signing-service-endpoint",
-		presets.SigningServiceEndpoint.String(),
+		"contract-signing-service-did",
+		presets.SigningServiceDID.String(),
+		"DID of the contract signing service",
+	)
+	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.did", FullCmd.Flags().Lookup("contract-signing-service-did")))
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-did"))
+
+	FullCmd.Flags().String(
+		"contract-signing-service-url",
+		presets.SigningServiceURL.String(),
 		"Endpoint of the contract signing service",
 	)
-	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.endpoint", FullCmd.Flags().Lookup("contract-signing-service-endpoint")))
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-endpoint"))
-
+	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.url", FullCmd.Flags().Lookup("contract-signing-service-url")))
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-url"))
 }
 
 func fullServer(cmd *cobra.Command, _ []string) error {

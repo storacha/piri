@@ -335,6 +335,14 @@ func TestFXServer(t *testing.T) {
 		result.MatchResultR0(rcpt.Out(), func(ok blob.AcceptOk) {
 			fmt.Printf("%+v\n", ok)
 
+			acc, err := svc.Blobs().Acceptances().Get(t.Context(), digest, space)
+			require.NoError(t, err)
+
+			require.Equal(t, digest, acc.Blob.Digest)
+			require.Equal(t, space, acc.Space)
+			require.Equal(t, acceptInv.Link(), acc.Cause)
+			require.Nil(t, acc.PDPAccept)
+
 			claim, err := svc.Claims().Store().Get(context.Background(), ok.Site)
 			require.NoError(t, err)
 
@@ -462,6 +470,10 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 						testutil.WebService.DID().String(): testutil.WebService.Unwrap().DID().String(),
 					}))(t)
 				}),
+				// // use the mocked proof service
+				// fx.Decorate(func() proofs.ProofService {
+				// 	return
+				// }),
 				// replace the default replicator config with one that causes failures to happen faster
 				fx.Replace(appconfig.ReplicatorConfig{
 					MaxRetries: 2,

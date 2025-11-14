@@ -22,7 +22,6 @@ import (
 	piritestutil "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/service/storage"
-	strucan "github.com/storacha/piri/pkg/service/storage/ucan"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -131,7 +130,7 @@ func TestFXAccessGrant(t *testing.T) {
 					},
 				),
 			)(t),
-			expectError: strucan.UnauthorizedCauseErrorName,
+			expectError: access.UnauthorizedCauseErrorName,
 		},
 		{
 			name:    "grant blob/retrieve for assert/index",
@@ -180,7 +179,7 @@ func TestFXAccessGrant(t *testing.T) {
 					},
 				),
 			)(t),
-			expectError: strucan.UnauthorizedCauseErrorName,
+			expectError: access.UnauthorizedCauseErrorName,
 		},
 		{
 			name:    "cause audience mismatch",
@@ -216,7 +215,7 @@ func TestFXAccessGrant(t *testing.T) {
 					),
 				),
 			)(t),
-			expectError: strucan.InvalidCauseErrorName,
+			expectError: access.InvalidCauseErrorName,
 		},
 		{
 			name:    "cause issuer mismatch",
@@ -239,14 +238,14 @@ func TestFXAccessGrant(t *testing.T) {
 					},
 				),
 			)(t),
-			expectError: strucan.InvalidCauseErrorName,
+			expectError: access.InvalidCauseErrorName,
 		},
 		{
 			name:        "request grant for unknown capability",
 			granter:     granter,
 			grantee:     strnde,
 			ability:     "unknown/ability",
-			expectError: strucan.UnknownAbilityErrorName,
+			expectError: access.UnknownAbilityErrorName,
 		},
 		{
 			name:    "unknown cause invocation",
@@ -277,14 +276,14 @@ func TestFXAccessGrant(t *testing.T) {
 					),
 				),
 			)(t),
-			expectError: strucan.UnknownCauseErrorName,
+			expectError: access.UnknownCauseErrorName,
 		},
 		{
 			name:        "missing cause",
 			granter:     granter,
 			grantee:     strnde,
 			ability:     blob.RetrieveAbility,
-			expectError: strucan.MissingCauseErrorName,
+			expectError: access.MissingCauseErrorName,
 		},
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
 
+	"github.com/storacha/go-ucanto/ucan"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
@@ -41,6 +42,7 @@ type EthClient interface {
 }
 
 type PDPService struct {
+	id          ucan.Signer
 	endpoint    url.URL
 	address     common.Address
 	blobstore   blobstore.Blobstore
@@ -66,6 +68,7 @@ type PDPService struct {
 }
 
 func New(
+	id ucan.Signer,
 	endpoint url.URL,
 	db *gorm.DB,
 	address common.Address,
@@ -83,6 +86,7 @@ func New(
 	registryContract smartcontracts.Registry,
 ) (*PDPService, error) {
 	return &PDPService{
+		id:               id,
 		endpoint:         endpoint,
 		address:          address,
 		db:               db,

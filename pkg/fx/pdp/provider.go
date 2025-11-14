@@ -8,10 +8,9 @@ import (
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
-	signerclient "github.com/storacha/piri-signing-service/pkg/client"
 	signerimpl "github.com/storacha/piri-signing-service/pkg/inprocess"
 	signingservice "github.com/storacha/piri-signing-service/pkg/signer"
-	signer "github.com/storacha/piri-signing-service/pkg/types"
+	signertypes "github.com/storacha/piri-signing-service/pkg/types"
 
 	"github.com/storacha/piri/pkg/config/app"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
@@ -24,13 +23,15 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/service/proofs"
+	"github.com/storacha/piri/pkg/service/signer"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
 var Module = fx.Module("pdp-service",
 	fx.Provide(
 		eip712.NewExtraDataEncoder,
-		ProviderSigningService,
+		ProvideSigningService,
 		fx.Annotate(
 			ProvidePDPService,
 			fx.As(fx.Self()),      // provide service as concrete type
@@ -85,6 +86,7 @@ func ProvideTODOPDPImplInterface(service types.API, commpCalc piece.Calculator, 
 type Params struct {
 	fx.In
 
+	ID           app.IdentityConfig
 	ServerConfig app.ServerConfig
 	DB           *gorm.DB `name:"engine_db"`
 	Config       app.PDPServiceConfig
@@ -96,7 +98,7 @@ type Params struct {
 	Engine           *scheduler.TaskEngine
 	ChainScheduler   *chainsched.Scheduler
 	ChainClient      service.ChainClient
-	SigningService   signer.SigningService
+	SigningService   signertypes.SigningService
 	ExtraDataEncoder *eip712.ExtraDataEncoder
 	Verifier         smartcontracts.Verifier
 	Service          smartcontracts.Service
@@ -105,6 +107,7 @@ type Params struct {
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
 	return service.New(
+		params.ID.Signer,
 		params.ServerConfig.PublicURL,
 		params.DB,
 		params.Config.OwnerAddress,
@@ -127,9 +130,9 @@ func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (*aggregator.Configure
 	return &aggregator.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
 }
 
-func ProviderSigningService(cfg app.SigningServiceConfig) (signer.SigningService, error) {
-	if cfg.Endpoint != nil {
-		return signerclient.New(cfg.Endpoint.String()), nil
+func ProvideSigningService(cfg app.SigningServiceConfig, proofService proofs.ProofService) (signertypes.SigningService, error) {
+	if cfg.Connection != nil {
+		return signer.NewProofServiceSigner(cfg.Connection, proofService), nil
 	} else if cfg.PrivateKey != nil {
 		s := signingservice.NewSigner(
 			cfg.PrivateKey,

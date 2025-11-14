@@ -14,6 +14,7 @@ type StorageConfig struct {
 	Receipts         ReceiptStorageConfig
 	EgressTracker    EgressTrackerStorageConfig
 	Allocations      AllocationStorageConfig
+	Acceptance       AcceptanceStorageConfig
 	Replicator       ReplicatorStorageConfig
 	KeyStore         KeyStoreConfig
 	StashStore       StashStoreConfig
@@ -56,6 +57,11 @@ type EgressTrackerStorageConfig struct {
 
 // AllocationStorageConfig contains allocation-specific storage paths
 type AllocationStorageConfig struct {
+	Dir string
+}
+
+// AcceptanceStorageConfig contains acceptance-specific storage paths
+type AcceptanceStorageConfig struct {
 	Dir string
 }
 

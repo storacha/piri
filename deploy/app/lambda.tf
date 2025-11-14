@@ -66,6 +66,7 @@ resource "aws_lambda_function" "lambda" {
       IPNI_STORE_BUCKET_REGIONAL_DOMAIN   = aws_s3_bucket.ipni_store_bucket.bucket_regional_domain_name
       CLAIM_STORE_BUCKET_NAME             = aws_s3_bucket.claim_store_bucket.bucket
       ALLOCATIONS_TABLE_NAME              = aws_dynamodb_table.allocation_store.id
+      ACCEPTANCE_TABLE_NAME               = aws_dynamodb_table.acceptance_store.id
       BLOB_STORE_BUCKET_ENDPOINT          = var.use_external_blob_bucket ? var.external_blob_bucket_endpoint : ""
       BLOB_STORE_BUCKET_REGION            = var.use_external_blob_bucket ? var.external_blob_bucket_region : aws_s3_bucket.blob_store_bucket.region
       BLOB_STORE_BUCKET_ACCESS_KEY_ID     = var.use_external_blob_bucket ? aws_ssm_parameter.external_blob_bucket_access_key_id[0].name : ""
@@ -139,7 +140,8 @@ data "aws_iam_policy_document" "lambda_dynamodb_put_get_document" {
       aws_dynamodb_table.chunk_links.arn,
       aws_dynamodb_table.metadata.arn,
       aws_dynamodb_table.ran_link_index.arn,
-      aws_dynamodb_table.allocation_store.arn
+      aws_dynamodb_table.allocation_store.arn,
+      aws_dynamodb_table.acceptance_store.arn
     ]
   }
 }

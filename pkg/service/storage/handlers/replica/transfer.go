@@ -355,6 +355,7 @@ func transferBlobFromSource(ctx context.Context, service TransferService, reques
 				Link:     request.Cause.Link(),
 			},
 		},
+		Cause: request.Cause.Link(),
 	})
 }
 

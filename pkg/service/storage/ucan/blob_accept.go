@@ -48,6 +48,7 @@ func BlobAccept(storageService BlobAcceptService) server.Option {
 					Space: cap.Nb().Space,
 					Blob:  cap.Nb().Blob,
 					Put:   cap.Nb().Put,
+					Cause: inv.Link(),
 				})
 				if err != nil {
 					return nil, nil, err

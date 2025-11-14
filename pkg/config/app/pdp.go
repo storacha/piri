@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/storacha/go-ucanto/client"
 )
 
 type PDPServiceConfig struct {
@@ -20,10 +21,9 @@ type PDPServiceConfig struct {
 
 // SigningServiceConfig configures the signing service for PDP operations
 type SigningServiceConfig struct {
-	// URL endpoint for remote signing service (if using HTTP client)
-	Endpoint *url.URL
+	// Connection to the signing service backend.
+	Connection client.Connection
 	// Private key for in-process signing (if using local signer)
-	// This should be a hex-encoded private key string
 	// NB: this should only be used for development purposes
 	PrivateKey *ecdsa.PrivateKey
 }

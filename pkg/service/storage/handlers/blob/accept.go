@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipld/go-ipld-prime"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	pdp_cap "github.com/storacha/go-libstoracha/capabilities/pdp"
@@ -21,6 +23,7 @@ import (
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
 	"github.com/storacha/piri/pkg/store"
+	"github.com/storacha/piri/pkg/store/acceptancestore/acceptance"
 )
 
 type AcceptService interface {
@@ -34,6 +37,8 @@ type AcceptRequest struct {
 	Space did.DID
 	Blob  types.Blob
 	Put   blob.Promise
+	// Cause is a link to the `blob/accept` or `blob/replica/transfer` invocation.
+	Cause ipld.Link
 }
 
 type AcceptResponse struct {
@@ -120,6 +125,29 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 	if err != nil {
 		log.Errorw("creating location commitment", "error", err)
 		return nil, fmt.Errorf("creating location commitment: %w", err)
+	}
+
+	acc := acceptance.Acceptance{
+		Space: req.Space,
+		Blob: acceptance.Blob{
+			Digest: req.Blob.Digest,
+			Size:   req.Blob.Size,
+		},
+		ExecutedAt: uint64(time.Now().Unix()),
+		Cause:      req.Cause,
+	}
+	if pdpAcceptInv != nil {
+		acc.PDPAccept = &acceptance.Promise{
+			UcanAwait: acceptance.Await{
+				Selector: ".out.ok",
+				Link:     pdpAcceptInv.Link(),
+			},
+		}
+	}
+	err = s.Blobs().Acceptances().Put(ctx, acc)
+	if err != nil {
+		log.Errorw("putting acceptance for blob", "error", err)
+		return nil, fmt.Errorf("putting acceptance for blob: %w", err)
 	}
 
 	err = s.Claims().Store().Put(ctx, claim)
