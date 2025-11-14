@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/ipld/go-ipld-prime"
 	"github.com/ipfs/go-cid"
+	"github.com/ipld/go-ipld-prime"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	pdp_cap "github.com/storacha/go-libstoracha/capabilities/pdp"
