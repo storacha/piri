@@ -42,7 +42,7 @@ func (d *DsBlobstore) Get(ctx context.Context, digest multihash.Multihash, opts 
 	}
 
 	if !rangeSatisfiable(o.ByteRange.Start, o.ByteRange.End, uint64(len(b))) {
-		return nil, ErrRangeNotSatisfiable{Range: o.ByteRange}
+		return nil, NewRangeNotSatisfiableError(o.ByteRange)
 	}
 
 	obj := DsObject{bytes: b, byteRange: o.ByteRange}

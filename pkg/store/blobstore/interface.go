@@ -20,13 +20,17 @@ var ErrTooLarge = errors.New("payload too large")
 // ErrTooSmall is returned when the data being written is smaller than expected.
 var ErrTooSmall = errors.New("payload too small")
 
-// ErrRangeNotSatisfiable is returned when the byte range option falls outside
+// RangeNotSatisfiableError is returned when the byte range option falls outside
 // of the total size of the blob.
-type ErrRangeNotSatisfiable struct {
+type RangeNotSatisfiableError struct {
 	Range Range
 }
 
-func (e ErrRangeNotSatisfiable) Error() string {
+func NewRangeNotSatisfiableError(r Range) RangeNotSatisfiableError {
+	return RangeNotSatisfiableError{Range: r}
+}
+
+func (e RangeNotSatisfiableError) Error() string {
 	var rangeStr string
 	if e.Range.End != nil {
 		rangeStr = fmt.Sprintf("%d-%d", e.Range.Start, *e.Range.End)

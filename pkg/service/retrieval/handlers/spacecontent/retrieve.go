@@ -50,7 +50,7 @@ func Retrieve(
 
 	blob, err := blobs.Get(ctx, digest, getOpts...)
 	if err != nil {
-		var erns blobstore.ErrRangeNotSatisfiable
+		var erns blobstore.RangeNotSatisfiableError
 		if errors.Is(err, store.ErrNotFound) {
 			log.Debugw("blob not found", "status", http.StatusNotFound)
 			notFoundErr := content.NewNotFoundError(fmt.Sprintf("blob not found: %s", digestStr))

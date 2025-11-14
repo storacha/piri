@@ -52,7 +52,7 @@ func (mb *MapBlobstore) Get(ctx context.Context, digest multihash.Multihash, opt
 	}
 
 	if !rangeSatisfiable(o.ByteRange.Start, o.ByteRange.End, uint64(len(b))) {
-		return nil, ErrRangeNotSatisfiable{Range: o.ByteRange}
+		return nil, NewRangeNotSatisfiableError(o.ByteRange)
 	}
 
 	obj := MapObject{bytes: b, byteRange: o.ByteRange}
