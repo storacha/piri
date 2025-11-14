@@ -44,28 +44,35 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 		return types.RegisterProviderResults{}, fmt.Errorf("failed to get ABI: %w", err)
 	}
 
-	productData, err := p.registryContract.EncodePDPOffering(ctx, smartcontracts.ServiceProviderRegistryStoragePDPOffering{
+	capabilityKeys, capabilityValues, err := smartcontracts.BuildPDPCapabilities(smartcontracts.ServiceProviderRegistryStoragePDPOffering{
 		// None of these fields except PaymentTokenAddress are used by the service contract, they simply serve as an
 		// unused on-chain registy of data.
 		// TODO: later, we way want to allow node providers to pick these themselves, unsure what value that adds currently
 		// but this does represent information that are advertising on chain.
-		ServiceURL:                 "https://storacha.network",
-		MinPieceSizeInBytes:        big.NewInt(1),
-		MaxPieceSizeInBytes:        big.NewInt(1),
-		IpniPiece:                  false,
-		IpniIpfs:                   false,
-		StoragePricePerTibPerMonth: big.NewInt(1),
-		MinProvingPeriodInEpochs:   big.NewInt(1),
-		Location:                   "earth",
+		ServiceURL:               "https://storacha.network",
+		MinPieceSizeInBytes:      big.NewInt(1),
+		MaxPieceSizeInBytes:      big.NewInt(1),
+		IpniPiece:                false,
+		IpniIpfs:                 false,
+		StoragePricePerTibPerDay: big.NewInt(1),
+		MinProvingPeriodInEpochs: big.NewInt(1),
+		Location:                 "earth",
 		// This field DOES matter as it's the address payment will be issued to by the contract.
 		PaymentTokenAddress: p.address,
 	})
 	if err != nil {
-		return types.RegisterProviderResults{}, fmt.Errorf("failed to encode product data: %w", err)
+		return types.RegisterProviderResults{}, fmt.Errorf("failed to encode capability data: %w", err)
 	}
 
-	data, err := abiData.Pack("registerProvider", p.address, params.Name, params.Description, types.ProductTypePDP,
-		productData, []string{}, []string{})
+	data, err := abiData.Pack(
+		"registerProvider",
+		p.address,
+		params.Name,
+		params.Description,
+		types.ProductTypePDP,
+		capabilityKeys,
+		capabilityValues,
+	)
 	if err != nil {
 		return types.RegisterProviderResults{}, fmt.Errorf("failed to pack register message abi: %w", err)
 	}
