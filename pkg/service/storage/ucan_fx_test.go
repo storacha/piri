@@ -470,6 +470,10 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 						testutil.WebService.DID().String(): testutil.WebService.Unwrap().DID().String(),
 					}))(t)
 				}),
+				// // use the mocked proof service
+				// fx.Decorate(func() proofs.ProofService {
+				// 	return
+				// }),
 				// replace the default replicator config with one that causes failures to happen faster
 				fx.Replace(appconfig.ReplicatorConfig{
 					MaxRetries: 2,

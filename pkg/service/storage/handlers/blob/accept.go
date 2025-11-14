@@ -37,7 +37,7 @@ type AcceptRequest struct {
 	Space did.DID
 	Blob  types.Blob
 	Put   blob.Promise
-	// Cause is a link to the `blob/accept` invocation.
+	// Cause is a link to the `blob/accept` or `blob/replica/transfer` invocation.
 	Cause ipld.Link
 }
 
