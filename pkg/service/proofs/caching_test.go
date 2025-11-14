@@ -66,10 +66,10 @@ func TestCachingProofsService(t *testing.T) {
 	conn, err := client.NewConnection(webService, server)
 	require.NoError(t, err)
 
-	proofsService := proofs.NewCachingProofService(testutil.Alice)
+	proofsService := proofs.NewCachingProofService()
 
 	ability := "test/test"
-	dlg, err := proofsService.RequestAccess(t.Context(), webService, ability, nil, proofs.WithConnection(conn))
+	dlg, err := proofsService.RequestAccess(t.Context(), testutil.Alice, webService, ability, nil, proofs.WithConnection(conn))
 	require.NoError(t, err)
 
 	require.Len(t, dlg.Capabilities(), 1)
@@ -77,7 +77,7 @@ func TestCachingProofsService(t *testing.T) {
 	require.Equal(t, webService.DID().String(), dlg.Capabilities()[0].With())
 
 	// delegation should be cached
-	cacheDlg, err := proofsService.RequestAccess(t.Context(), webService, ability, nil, proofs.WithConnection(conn))
+	cacheDlg, err := proofsService.RequestAccess(t.Context(), testutil.Alice, webService, ability, nil, proofs.WithConnection(conn))
 	require.NoError(t, err)
 
 	// if nonce is different it went back to the server
@@ -86,6 +86,7 @@ func TestCachingProofsService(t *testing.T) {
 	// should get a fresh one if existing TTL is less than passed minimum
 	freshDlg, err := proofsService.RequestAccess(
 		t.Context(),
+		testutil.Alice,
 		webService,
 		ability,
 		nil,

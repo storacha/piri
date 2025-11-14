@@ -24,14 +24,12 @@ import (
 var defaultMinTTL = time.Second * 5
 
 type CachingProofService struct {
-	id         ucan.Signer
 	cache      map[did.DID]map[ucan.Ability]delegation.Delegation
 	cacheMutex sync.RWMutex
 }
 
-func NewCachingProofService(id ucan.Signer) *CachingProofService {
+func NewCachingProofService() *CachingProofService {
 	service := CachingProofService{
-		id:    id,
 		cache: map[did.DID]map[ucan.Ability]delegation.Delegation{},
 	}
 	return &service
@@ -41,6 +39,7 @@ func NewCachingProofService(id ucan.Signer) *CachingProofService {
 // A cached delegation may be returned if not expired.
 func (ps *CachingProofService) RequestAccess(
 	ctx context.Context,
+	issuer ucan.Signer,
 	audience ucan.Principal,
 	ability ucan.Ability,
 	cause invocation.Invocation,
@@ -98,7 +97,7 @@ func (ps *CachingProofService) RequestAccess(
 	ps.cacheMutex.RUnlock()
 
 	// if not in cache we need to fetch
-	d, err := requestDelegation(ctx, conn, ps.id, audience, ability, cause)
+	d, err := requestDelegation(ctx, conn, issuer, audience, ability, cause)
 	if err != nil {
 		return nil, fmt.Errorf("requesting %s access from %s", ability, audience)
 	}

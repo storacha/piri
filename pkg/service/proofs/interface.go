@@ -18,6 +18,7 @@ type ProofService interface {
 	// Request access to be granted from the service for the passed ability.
 	RequestAccess(
 		ctx context.Context,
+		issuer ucan.Signer,
 		audience ucan.Principal,
 		ability ucan.Ability,
 		cause invocation.Invocation,

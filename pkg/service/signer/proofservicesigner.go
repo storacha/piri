@@ -43,6 +43,7 @@ func (c *Client) SignCreateDataSet(
 ) (*eip712.AuthSignature, error) {
 	dlg, err := c.proofService.RequestAccess(
 		ctx,
+		issuer,
 		c.Client.Connection.ID(),
 		sign.DataSetCreateAbility,
 		nil,
@@ -69,6 +70,7 @@ func (c *Client) SignAddPieces(
 ) (*eip712.AuthSignature, error) {
 	dlg, err := c.proofService.RequestAccess(
 		ctx,
+		issuer,
 		c.Client.Connection.ID(),
 		sign.PiecesAddAbility,
 		nil,
@@ -92,6 +94,7 @@ func (c *Client) SignSchedulePieceRemovals(
 ) (*eip712.AuthSignature, error) {
 	dlg, err := c.proofService.RequestAccess(
 		ctx,
+		issuer,
 		c.Client.Connection.ID(),
 		sign.PiecesRemoveScheduleAbility,
 		nil,
@@ -114,6 +117,7 @@ func (c *Client) SignDeleteDataSet(
 ) (*eip712.AuthSignature, error) {
 	dlg, err := c.proofService.RequestAccess(
 		ctx,
+		issuer,
 		c.Client.Connection.ID(),
 		sign.DataSetDeleteAbility,
 		nil,
