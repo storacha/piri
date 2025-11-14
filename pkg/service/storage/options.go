@@ -2,7 +2,6 @@ package storage
 
 import (
 	"database/sql"
-	"fmt"
 	"net/url"
 
 	"github.com/ipfs/go-datastore"
@@ -18,7 +17,6 @@ import (
 	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/pkg/access"
-	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
@@ -53,10 +51,6 @@ type config struct {
 	uploadService         client.Connection
 	replicatorDB          *sql.DB
 	claimCtx              validator.ClaimContext
-
-	// to be used exclusively
-	pdpCfg  *pdp.Config
-	pdpImpl pdp.PDP
 }
 
 type Option func(*config) error
@@ -284,27 +278,6 @@ func WithPublisherIndexingServiceProof(proof ...delegation.Proof) Option {
 func WithLogLevel(name string, level string) Option {
 	return func(c *config) error {
 		logging.SetLogLevel(name, level)
-		return nil
-	}
-}
-
-// WithPDPConfig causes the service to run through Curio and do PDP proofs
-func WithPDPConfig(pdpConfig pdp.Config) Option {
-	return func(c *config) error {
-		if c.pdpImpl != nil {
-			return fmt.Errorf("cannot set PDP config when pdpImpl is set")
-		}
-		c.pdpCfg = &pdpConfig
-		return nil
-	}
-}
-
-func WithPDPImpl(pdpImpl pdp.PDP) Option {
-	return func(c *config) error {
-		if c.pdpCfg != nil {
-			return fmt.Errorf("cannot set PDP impl when pdpCfg is set")
-		}
-		c.pdpImpl = pdpImpl
 		return nil
 	}
 }

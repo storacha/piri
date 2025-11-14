@@ -7,9 +7,9 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/labstack/echo/v4"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi"
-	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 	"github.com/storacha/piri/pkg/pdp/proof"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
@@ -19,17 +19,14 @@ var PieceSizeLimit = abi.PaddedPieceSize(proof.MaxMemtreeSize).Unpadded()
 // handlePreparePiece -> POST /pdp/piece
 func (p *PDPHandler) handlePreparePiece(c echo.Context) error {
 	ctx := c.Request().Context()
-	operation := "PreparePiece"
 
 	var req httpapi.AddPieceRequest
 	if err := c.Bind(&req); err != nil {
-		return middleware.NewError(operation, "Invalid request body", err, http.StatusBadRequest)
+		return types.WrapError(types.KindInvalidInput, "invalid request body", err)
 	}
 
 	if abi.UnpaddedPieceSize(req.Check.Size) > PieceSizeLimit {
-		return middleware.NewError(operation, "Piece size exceeds maximum allowed size", nil, http.StatusBadRequest).
-			WithContext("allowed size", PieceSizeLimit).
-			WithContext("requested size", req.Check.Size)
+		return types.NewErrorf(types.KindInvalidInput, "piece size too large. expected: %d actual: %d", PieceSizeLimit, req.Check.Size)
 	}
 
 	log.Debugw("Processing prepare piece request",
@@ -40,7 +37,7 @@ func (p *PDPHandler) handlePreparePiece(c echo.Context) error {
 	params := types.PieceAllocation{
 		Piece: types.Piece{
 			Name: req.Check.Name,
-			Hash: req.Check.Hash,
+			Hash: multihash.Multihash(req.Check.Hash),
 			Size: req.Check.Size,
 		},
 	}
@@ -48,12 +45,12 @@ func (p *PDPHandler) handlePreparePiece(c echo.Context) error {
 		var err error
 		params.Notify, err = url.Parse(req.Notify)
 		if err != nil {
-			return middleware.NewError(operation, "Invalid notify URL", err, http.StatusBadRequest)
+			return types.WrapError(types.KindInvalidInput, "invalid notify url", err)
 		}
 	}
 	res, err := p.Service.AllocatePiece(ctx, params)
 	if err != nil {
-		return middleware.NewError(operation, "Failed to prepare piece", err, http.StatusInternalServerError)
+		return err
 	}
 
 	resp := httpapi.AddPieceResponse{

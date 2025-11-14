@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/printer"
 	"github.com/storacha/go-libstoracha/capabilities/access"
@@ -234,10 +235,13 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 func checkBlobExists(ctx context.Context, service TransferService, blob types.Blob) (bool, error) {
 	var err error
 	if service.PDP() != nil {
-		_, err = service.PDP().PieceFinder().FindPiece(ctx, blob.Digest, blob.Size)
-	} else {
-		_, err = service.Blobs().Store().Get(ctx, blob.Digest)
+		has, err := service.PDP().API().Has(ctx, blob.Digest)
+		if err != nil {
+			return false, fmt.Errorf("resolving Piece: %w", err)
+		}
+		return has, nil
 	}
+	_, err = service.Blobs().Store().Get(ctx, blob.Digest)
 	if err == nil {
 		return true, nil
 	}
@@ -463,24 +467,28 @@ func createLocationAssertion(ctx context.Context, service TransferService, reque
 		}
 	} else {
 		// Locate the piece from the PDP service
-		pdpPiece, err := service.PDP().PieceFinder().FindPiece(ctx, request.Blob.Digest, request.Blob.Size)
+		has, err := service.PDP().API().Has(ctx, request.Blob.Digest)
 		if err != nil {
 			return nil, nil, fmt.Errorf("finding piece for blob: %w", err)
 		}
+		if !has {
+			return nil, nil, fmt.Errorf("piece not found")
+		}
 
-		loc, err = service.PDP().PieceFinder().URLForPiece(ctx, pdpPiece)
+		blobCID := cid.NewCidV1(cid.Raw, request.Blob.Digest)
+		loc, err = service.PDP().API().ReadPieceURL(blobCID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
-
 		// Generate the invocation for piece acceptance
 		pieceAccept, err := pdp_cap.Accept.Invoke(
 			service.ID(),
 			service.ID(),
 			service.ID().DID().String(),
 			pdp_cap.AcceptCaveats{
-				Piece: pdpPiece,
+				Blob: blobCID.Hash(),
 			}, delegation.WithNoExpiration())
+
 		if err != nil {
 			return nil, nil, fmt.Errorf("creating piece accept invocation: %w", err)
 		}

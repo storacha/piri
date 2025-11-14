@@ -23,7 +23,7 @@ ExecStartPre=/bin/bash -c '/usr/local/bin/piri init \
   --public-url="${public_url}" \
   > /etc/piri/config.toml'
 
-ExecStart=/usr/local/bin/piri serve full --config=/etc/piri/config.toml
+ExecStart=/usr/local/bin/piri serve --config=/etc/piri/config.toml
 
 Restart=on-failure
 RestartSec=10

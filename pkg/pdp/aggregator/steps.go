@@ -173,13 +173,15 @@ type PieceAccepter struct {
 	issuer         principal.Signer
 	aggregateStore AggregateStore
 	receiptStore   receiptstore.ReceiptStore
+	resolver       types.PieceResolverAPI
 }
 
-func NewPieceAccepter(issuer principal.Signer, aggregateStore AggregateStore, receiptStore receiptstore.ReceiptStore) *PieceAccepter {
+func NewPieceAccepter(issuer principal.Signer, aggregateStore AggregateStore, receiptStore receiptstore.ReceiptStore, resolver types.PieceResolverAPI) *PieceAccepter {
 	return &PieceAccepter{
 		issuer:         issuer,
 		aggregateStore: aggregateStore,
 		receiptStore:   receiptStore,
+		resolver:       resolver,
 	}
 }
 
@@ -193,7 +195,7 @@ func (pa *PieceAccepter) AcceptPieces(ctx context.Context, aggregateLinks []data
 		aggregates = append(aggregates, aggregate)
 	}
 	// TODO: Should we actually send a piece accept invocation? It seems unnecessary it's all the same machine
-	receipts, err := fns.GenerateReceiptsForAggregates(pa.issuer, aggregates)
+	receipts, err := fns.GenerateReceiptsForAggregates(ctx, pa.issuer, aggregates, pa.resolver)
 	if err != nil {
 		return fmt.Errorf("generating receipts: %w", err)
 	}

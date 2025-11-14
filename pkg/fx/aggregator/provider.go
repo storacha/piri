@@ -14,9 +14,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/internal/ipldstore"
+	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/pkg/pdp/aggregator"
 	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 )
 
 var Module = fx.Module("aggregator",

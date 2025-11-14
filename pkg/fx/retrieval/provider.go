@@ -2,9 +2,9 @@ package retrieval
 
 import (
 	"github.com/storacha/go-ucanto/principal"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
 
-	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/pdp/store/adapter"
 	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/retrieval/ucan"
@@ -29,7 +29,7 @@ type RetrievalServiceParams struct {
 	ID          principal.Signer
 	Allocations allocationstore.AllocationStore
 	Blobs       blobstore.BlobGetter
-	PDP         pdp.PDP `optional:"true"`
+	API         types.PieceReaderAPI `optional:"true"`
 }
 
 func NewRetrievalService(params RetrievalServiceParams) *retrieval.RetrievalService {
@@ -37,11 +37,8 @@ func NewRetrievalService(params RetrievalServiceParams) *retrieval.RetrievalServ
 	// When PDP is enabled, blobs are stored in the piece store and keyed by piece
 	// hash. We need to adapt it to resolve a blob hash to a piece hash before
 	// fetching.
-	if params.PDP != nil {
-		finder := params.PDP.PieceFinder()
-		reader := params.PDP.PieceReader()
-		sizer := allocationstore.NewBlobSizer(params.Allocations)
-		blobs = adapter.NewBlobGetterAdapter(finder, reader, sizer)
+	if params.API != nil {
+		blobs = adapter.NewBlobGetterAdapter(params.API)
 	}
 	return retrieval.New(params.ID, blobs, params.Allocations)
 }

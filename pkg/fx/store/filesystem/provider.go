@@ -22,7 +22,6 @@ import (
 	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
-	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var Module = fx.Module("filesystem-store",
@@ -55,7 +54,6 @@ var Module = fx.Module("filesystem-store",
 		NewReceiptStore,
 		NewRetrievalJournal,
 		NewKeyStore,
-		NewStashStore,
 		NewPDPStore,
 	),
 )
@@ -260,13 +258,6 @@ func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, er
 		},
 	})
 	return keystore.NewKeyStore(ds)
-}
-
-func NewStashStore(cfg app.StashStoreConfig) (stashstore.Stash, error) {
-	if cfg.Dir == "" {
-		return nil, fmt.Errorf("no data dir provided for stash store")
-	}
-	return stashstore.NewStashStore(cfg.Dir)
 }
 
 // TODO whenever we are done with https://github.com/storacha/piri/issues/140

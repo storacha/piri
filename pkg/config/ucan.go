@@ -7,11 +7,10 @@ import (
 )
 
 type UCANServerConfig struct {
-	Identity     IdentityConfig    `mapstructure:"identity"`
-	Repo         RepoConfig        `mapstructure:"repo"`
-	Server       ServerConfig      `mapstructure:"server"`
-	UCANService  UCANServiceConfig `mapstructure:"ucan"`
-	PDPServerURL string            `mapstructure:"pdp_server_url"`
+	Identity    IdentityConfig    `mapstructure:"identity"`
+	Repo        RepoConfig        `mapstructure:"repo"`
+	Server      ServerConfig      `mapstructure:"server"`
+	UCANService UCANServiceConfig `mapstructure:"ucan"`
 }
 
 func (u UCANServerConfig) Validate() error {

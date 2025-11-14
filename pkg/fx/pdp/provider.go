@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/storacha/filecoin-services/go/eip712"
+	"github.com/storacha/piri/pkg/pdp/piece"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -18,9 +19,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/httpapi/server"
-	"github.com/storacha/piri/pkg/pdp/pieceadder"
-	"github.com/storacha/piri/pkg/pdp/piecefinder"
-	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
@@ -28,7 +26,6 @@ import (
 	"github.com/storacha/piri/pkg/service/proofs"
 	"github.com/storacha/piri/pkg/service/signer"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var Module = fx.Module("pdp-service",
@@ -41,6 +38,10 @@ var Module = fx.Module("pdp-service",
 			fx.As(new(types.API)), // also provide the server as the interface(s) it implements
 			fx.As(new(types.ProofSetAPI)),
 			fx.As(new(types.PieceAPI)),
+			fx.As(new(types.PieceResolverAPI)),
+			fx.As(new(types.PieceReaderAPI)),
+			fx.As(new(types.PieceWriterAPI)),
+			fx.As(new(types.PieceCommPAPI)),
 		),
 		fx.Annotate(
 			ProvideProofSetIDProvider,
@@ -61,55 +62,42 @@ var Module = fx.Module("pdp-service",
 
 // TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface
 type TODO_PDP_Impl struct {
-	aggregator  aggregator.Aggregator
-	pieceFinder piecefinder.PieceFinder
-	pieceAdder  pieceadder.PieceAdder
-	pieceReader piecereader.PieceReader
+	commpCalc piece.Calculator
+	api       types.PieceAPI
 }
 
-func (s *TODO_PDP_Impl) PieceReader() piecereader.PieceReader {
-	return s.pieceReader
+func (s *TODO_PDP_Impl) CommpCalculate() piece.Calculator {
+	return s.commpCalc
 }
 
-func (s *TODO_PDP_Impl) PieceAdder() pieceadder.PieceAdder {
-	return s.pieceAdder
-}
-
-func (s *TODO_PDP_Impl) PieceFinder() piecefinder.PieceFinder {
-	return s.pieceFinder
-}
-
-func (s *TODO_PDP_Impl) Aggregator() aggregator.Aggregator {
-	return s.aggregator
+func (s *TODO_PDP_Impl) API() types.PieceAPI {
+	return s.api
 }
 
 var _ pdp.PDP = (*TODO_PDP_Impl)(nil)
 
-func ProvideTODOPDPImplInterface(service types.API, agg aggregator.Aggregator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
-	finder := piecefinder.New(service, &cfg.Server.PublicURL)
-	adder := pieceadder.New(service, &cfg.Server.PublicURL)
-	reader := piecereader.New(service, &cfg.Server.PublicURL)
+func ProvideTODOPDPImplInterface(service types.API, commpCalc piece.Calculator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
 	return &TODO_PDP_Impl{
-		aggregator:  agg,
-		pieceFinder: finder,
-		pieceAdder:  adder,
-		pieceReader: reader,
+		commpCalc: commpCalc,
+		api:       service,
 	}, nil
 }
 
 type Params struct {
 	fx.In
 
-	ID               app.IdentityConfig
-	DB               *gorm.DB `name:"engine_db"`
-	Config           app.PDPServiceConfig
-	Store            blobstore.PDPStore
-	Stash            stashstore.Stash
+  ID           app.IdentityConfig
+	ServerConfig app.ServerConfig
+	DB           *gorm.DB `name:"engine_db"`
+	Config       app.PDPServiceConfig
+	Store        blobstore.PDPStore
+	Resolver     types.PieceResolverAPI
+	Reader       types.PieceReaderAPI
+	// TODO remove stash store, its unused.
 	Sender           ethereum.Sender
 	Engine           *scheduler.TaskEngine
 	ChainScheduler   *chainsched.Scheduler
 	ChainClient      service.ChainClient
-	ContractBackend  service.EthClient
 	SigningService   signertypes.SigningService
 	ExtraDataEncoder *eip712.ExtraDataEncoder
 	Verifier         smartcontracts.Verifier
@@ -120,15 +108,16 @@ type Params struct {
 func ProvidePDPService(params Params) (*service.PDPService, error) {
 	return service.New(
 		params.ID.Signer,
+		params.ServerConfig.PublicURL,
 		params.DB,
 		params.Config.OwnerAddress,
 		params.Store,
-		params.Stash,
+		params.Resolver,
+		params.Reader,
 		params.Sender,
 		params.Engine,
 		params.ChainScheduler,
 		params.ChainClient,
-		params.ContractBackend,
 		params.SigningService,
 		params.ExtraDataEncoder,
 		params.Verifier,

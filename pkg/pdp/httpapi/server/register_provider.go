@@ -6,18 +6,16 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/storacha/piri/pkg/pdp/httpapi"
-	"github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 // handleRegisterProvider -> POST /pdp/provider
 func (p *PDPHandler) handleRegisterProvider(c echo.Context) error {
 	ctx := c.Request().Context()
-	operation := "RegisterProvider"
 
 	var req httpapi.RegisterProviderRequest
 	if err := c.Bind(&req); err != nil {
-		return middleware.NewError(operation, "Invalid request body", err, http.StatusBadRequest)
+		return types.WrapError(types.KindInvalidInput, "invalid request body", err)
 	}
 
 	log.Debugw("Processing RegisterProvider request", "name", req.Name, "description", req.Description)

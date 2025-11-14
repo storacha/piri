@@ -1,58 +1,30 @@
 locals {
-  all_functions = {
-    aggregatesubmitter = {
-      name      = "aggregatesubmitter"
-      pdponly   = true
-      nopdponly = false
-    }
+  functions = {
     getclaim = {
-      name      = "GETclaim"
-      pdponly   = false
-      nopdponly = false
-      route     = "GET /claim/{cid}"
+      name  = "GETclaim"
+      route = "GET /claim/{cid}"
     }
     getroot = {
-      name      = "GETroot"
-      pdponly   = false
-      nopdponly = false
-      route     = "GET /"
-    }
-    pieceaccepter = {
-      name      = "pieceaccepter"
-      pdponly   = true
-      nopdponly = false
-    }
-    pieceaggregator = {
-      name      = "pieceaggregator"
-      pdponly   = true
-      nopdponly = false
+      name  = "GETroot"
+      route = "GET /"
     }
     publisher = {
       name        = "publisher"
-      pdponly     = false
-      nopdponly   = false
       concurrency = 1
     }
     postad = {
-      name      = "POSTad"
-      pdponly   = false
-      nopdponly = false
-      route     = "POST /ad"
+      name  = "POSTad"
+      route = "POST /ad"
     }
     postroot = {
-      name      = "POSTroot"
-      pdponly   = false
-      nopdponly = false
-      route     = "POST /"
+      name  = "POSTroot"
+      route = "POST /"
     }
     putblob = {
-      name      = "PUTblob"
-      pdponly   = false
-      nopdponly = true
-      route     = "PUT /blob/{blob}"
+      name  = "PUTblob"
+      route = "PUT /blob/{blob}"
     }
   }
-  functions = { for k, v in local.all_functions : k => v if(var.use_pdp && !v.nopdponly) || (!var.use_pdp && !v.pdponly) }
 }
 
 // zip the binary, as we can use only zip files to AWS lambda
@@ -102,20 +74,13 @@ resource "aws_lambda_function" "lambda" {
       BLOB_STORE_BUCKET_REGIONAL_DOMAIN   = var.use_external_blob_bucket ? var.external_blob_bucket_domain : aws_s3_bucket.blob_store_bucket.bucket_regional_domain_name
       BLOB_STORE_BUCKET_NAME              = var.use_external_blob_bucket ? var.external_blob_bucket_name : aws_s3_bucket.blob_store_bucket.bucket
       BLOB_STORE_BUCKET_KEY_PATTERN       = var.blob_bucket_key_pattern
-      BUFFER_BUCKET_NAME                  = var.use_pdp ? aws_s3_bucket.buffer_bucket[0].bucket : ""
-      AGGREGATES_BUCKET_NAME              = var.use_pdp ? aws_s3_bucket.aggregates_bucket[0].bucket : ""
       INDEXING_SERVICE_DID                = var.indexing_service_did
       INDEXING_SERVICE_URL                = var.indexing_service_url
       INDEXING_SERVICE_PROOF              = var.indexing_service_proof
       RAN_LINK_INDEX_TABLE_NAME           = aws_dynamodb_table.ran_link_index.id
       RECEIPT_STORE_BUCKET_NAME           = aws_s3_bucket.receipt_store_bucket.id
-      PIECE_AGGREGATOR_QUEUE_URL          = var.use_pdp ? aws_sqs_queue.piece_aggregator[0].id : ""
-      AGGREGATE_SUBMITTER_QUEUE_URL       = var.use_pdp ? aws_sqs_queue.aggregate_submitter[0].id : ""
-      PIECE_ACCEPTER_QUEUE_URL            = var.use_pdp ? aws_sqs_queue.piece_accepter[0].id : ""
       IPNI_PUBLISHER_QUEUE_ID             = aws_sqs_queue.ipni_publisher.id
       IPNI_PUBLISHER_BUCKET_NAME          = aws_s3_bucket.ipni_publisher.bucket
-      PDP_PROOFSET                        = var.pdp_proofset,
-      CURIO_URL                           = var.curio_url,
       PRINCIPAL_MAPPING                   = var.principal_mapping,
       PIRI_PRESETS                        = var.presets,
     }
@@ -297,14 +262,7 @@ data "aws_iam_policy_document" "lambda_sqs_document" {
       "sqs:GetQueueAttributes"
     ]
 
-    resources = var.use_pdp ? [
-      aws_sqs_queue.aggregate_submitter[0].arn,
-      aws_sqs_queue.piece_accepter[0].arn,
-      aws_sqs_queue.piece_aggregator[0].arn,
-      aws_sqs_queue.ipni_publisher.arn,
-      ] : [
-      aws_sqs_queue.ipni_publisher.arn,
-    ]
+    resources = [aws_sqs_queue.ipni_publisher.arn]
   }
 }
 
@@ -321,29 +279,6 @@ resource "aws_iam_role_policy_attachment" "lambda_sqs" {
 
 # event source mappings
 
-resource "aws_lambda_event_source_mapping" "piece_aggregator_source_mapping" {
-  count            = var.use_pdp ? 1 : 0
-  event_source_arn = aws_sqs_queue.piece_aggregator[0].arn
-  enabled          = true
-  function_name    = aws_lambda_function.lambda["pieceaggregator"].arn
-  batch_size       = terraform.workspace == "prod" ? 10 : 1
-}
-
-resource "aws_lambda_event_source_mapping" "pieceaccepter_source_mapping" {
-  count            = var.use_pdp ? 1 : 0
-  event_source_arn = aws_sqs_queue.piece_accepter[0].arn
-  enabled          = true
-  function_name    = aws_lambda_function.lambda["pieceaccepter"].arn
-  batch_size       = terraform.workspace == "prod" ? 10 : 1
-}
-
-resource "aws_lambda_event_source_mapping" "aggregate_submitter_source_mapping" {
-  count            = var.use_pdp ? 1 : 0
-  event_source_arn = aws_sqs_queue.aggregate_submitter[0].arn
-  enabled          = true
-  function_name    = aws_lambda_function.lambda["aggregatesubmitter"].arn
-  batch_size       = terraform.workspace == "prod" ? 10 : 1
-}
 
 resource "aws_lambda_event_source_mapping" "ipni_publisher_source_mapping" {
   event_source_arn = aws_sqs_queue.ipni_publisher.arn
