@@ -24,13 +24,13 @@ import (
 var defaultMinTTL = time.Second * 5
 
 type CachingProofService struct {
-	cache      map[did.DID]map[ucan.Ability]delegation.Delegation
+	cache      map[did.DID]map[did.DID]map[ucan.Ability]delegation.Delegation
 	cacheMutex sync.RWMutex
 }
 
 func NewCachingProofService() *CachingProofService {
 	service := CachingProofService{
-		cache: map[did.DID]map[ucan.Ability]delegation.Delegation{},
+		cache: map[did.DID]map[did.DID]map[ucan.Ability]delegation.Delegation{},
 	}
 	return &service
 }
@@ -73,24 +73,27 @@ func (ps *CachingProofService) RequestAccess(
 	}
 
 	ps.cacheMutex.RLock()
-	serviceProofs, ok := ps.cache[audience.DID()]
+	issuerProofs, ok := ps.cache[issuer.DID()]
 	if ok {
-		d, ok := serviceProofs[ability]
+		serviceProofs, ok := issuerProofs[audience.DID()]
 		if ok {
-			exp := d.Expiration()
-			// if no expiration we can reuse
-			if exp == nil {
-				ps.cacheMutex.RUnlock()
-				return d, nil
-			}
-			minTTL := defaultMinTTL
-			if cfg.minTTL != nil {
-				minTTL = *cfg.minTTL
-			}
-			// if not expired, we can reuse
-			if ucan.Now()+ucan.UTCUnixTimestamp(minTTL.Seconds()) < *exp {
-				ps.cacheMutex.RUnlock()
-				return d, nil
+			d, ok := serviceProofs[ability]
+			if ok {
+				exp := d.Expiration()
+				// if no expiration we can reuse
+				if exp == nil {
+					ps.cacheMutex.RUnlock()
+					return d, nil
+				}
+				minTTL := defaultMinTTL
+				if cfg.minTTL != nil {
+					minTTL = *cfg.minTTL
+				}
+				// if not expired, we can reuse
+				if ucan.Now()+ucan.UTCUnixTimestamp(minTTL.Seconds()) < *exp {
+					ps.cacheMutex.RUnlock()
+					return d, nil
+				}
 			}
 		}
 	}
@@ -103,10 +106,15 @@ func (ps *CachingProofService) RequestAccess(
 	}
 
 	ps.cacheMutex.Lock()
-	serviceProofs, ok = ps.cache[audience.DID()]
+	issuerProofs, ok = ps.cache[issuer.DID()]
+	if !ok {
+		issuerProofs = map[did.DID]map[ucan.Ability]delegation.Delegation{}
+		ps.cache[issuer.DID()] = issuerProofs
+	}
+	serviceProofs, ok := issuerProofs[audience.DID()]
 	if !ok {
 		serviceProofs = map[ucan.Ability]delegation.Delegation{}
-		ps.cache[audience.DID()] = serviceProofs
+		issuerProofs[audience.DID()] = serviceProofs
 	}
 	serviceProofs[ability] = d
 	ps.cacheMutex.Unlock()
