@@ -29,10 +29,14 @@ func (p *PDPService) GetProviderStatus(ctx context.Context) (types.GetProviderSt
 		if err != nil {
 			return types.GetProviderStatusResults{}, fmt.Errorf("failed to get provider by address: %w", err)
 		}
-		approved, err := p.serviceContract.IsProviderApproved(ctx, providerInfoView.ID)
-		if err != nil {
-			return types.GetProviderStatusResults{}, fmt.Errorf("failed to check if provider is approved: %w", err)
-		}
+		approved := true
+		/*
+			approved, err := p.serviceContract.IsProviderApproved(ctx, providerInfoView.ID)
+			if err != nil {
+				return types.GetProviderStatusResults{}, fmt.Errorf("failed to check if provider is approved: %w", err)
+			}
+
+		*/
 		status := "registered"
 		if approved {
 			status = "approved"
