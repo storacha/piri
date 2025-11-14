@@ -335,6 +335,14 @@ func TestFXServer(t *testing.T) {
 		result.MatchResultR0(rcpt.Out(), func(ok blob.AcceptOk) {
 			fmt.Printf("%+v\n", ok)
 
+			acc, err := svc.Blobs().Acceptances().Get(t.Context(), digest, space)
+			require.NoError(t, err)
+
+			require.Equal(t, digest, acc.Blob.Digest)
+			require.Equal(t, space, acc.Space)
+			require.Equal(t, acceptInv.Link(), acc.Cause)
+			require.Nil(t, acc.PDPAccept)
+
 			claim, err := svc.Claims().Store().Get(context.Background(), ok.Site)
 			require.NoError(t, err)
 
