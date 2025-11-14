@@ -12,14 +12,13 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-libstoracha/capabilities/types"
+	"github.com/storacha/go-libstoracha/failure"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/dag/blockstore"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/result"
-	"github.com/storacha/go-ucanto/core/result/failure"
-	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 	uhttp "github.com/storacha/go-ucanto/transport/http"
@@ -72,7 +71,7 @@ func (s *Client) BlobAllocate(ctx context.Context, space did.DID, digest multiha
 	if err != nil {
 		return nil, fmt.Errorf("sending invocation: %w", err)
 	}
-	reader, err := receipt.NewReceiptReaderFromTypes[blob.AllocateOk, fdm.FailureModel](blob.AllocateOkType(), fdm.FailureType(), types.Converters...)
+	reader, err := receipt.NewReceiptReaderFromTypes[blob.AllocateOk, failure.FailureModel](blob.AllocateOkType(), failure.FailureType(), types.Converters...)
 	if err != nil {
 		return nil, fmt.Errorf("generating receipt reader: %w", err)
 	}
@@ -128,7 +127,7 @@ func (s *Client) BlobAccept(ctx context.Context, space did.DID, digest multihash
 		return nil, fmt.Errorf("sending invocation: %w", err)
 	}
 
-	reader, err := receipt.NewReceiptReaderFromTypes[blob.AcceptOk, fdm.FailureModel](blob.AcceptOkType(), fdm.FailureType(), types.Converters...)
+	reader, err := receipt.NewReceiptReaderFromTypes[blob.AcceptOk, failure.FailureModel](blob.AcceptOkType(), failure.FailureType(), types.Converters...)
 	if err != nil {
 		return nil, fmt.Errorf("generating receipt reader: %w", err)
 	}
@@ -206,7 +205,7 @@ func (s *Client) PDPInfo(ctx context.Context, blob multihash.Multihash) (pdp.Inf
 		return pdp.InfoOk{}, fmt.Errorf("sending invocation: %w", err)
 	}
 
-	reader, err := receipt.NewReceiptReaderFromTypes[pdp.InfoOk, fdm.FailureModel](pdp.InfoOkType(), fdm.FailureType(), types.Converters...)
+	reader, err := receipt.NewReceiptReaderFromTypes[pdp.InfoOk, failure.FailureModel](pdp.InfoOkType(), failure.FailureType(), types.Converters...)
 	if err != nil {
 		return pdp.InfoOk{}, fmt.Errorf("generating receipt reader: %w", err)
 	}
