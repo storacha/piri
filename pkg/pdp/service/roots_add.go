@@ -12,6 +12,7 @@ import (
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	"github.com/samber/lo"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/ipld"
@@ -552,9 +553,14 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	return txHash, nil
 }
 
+// just the bit of the piece resolver API that we need
+type blobResolvable interface {
+	ResolveToBlob(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
+}
+
 func getAddPieceProofs(
 	ctx context.Context,
-	resolver types.PieceResolverAPI,
+	resolver blobResolvable,
 	accStore acceptancestore.AcceptanceStore,
 	rcptStore receiptstore.ReceiptStore,
 	piece cid.Cid,
