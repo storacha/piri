@@ -439,7 +439,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		for _, subroot := range req.SubRoots {
 			task, msg, err := getAddPieceProofs(ctx, p.pieceResolver, p.acceptanceStore, p.receiptStore, subroot)
 			if err != nil {
-				return common.Hash{}, fmt.Errorf("getting acceptance receipt for %s: %w", subroot, err)
+				return common.Hash{}, fmt.Errorf("getting proofs to add piece %s: %w", subroot, err)
 			}
 			tasks = append(tasks, task)
 			msgs = append(msgs, msg)
