@@ -437,7 +437,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		tasks := make([]ipld.Link, 0, len(req.SubRoots))
 		msgs := make([]message.AgentMessage, 0, len(req.SubRoots))
 		for _, subroot := range req.SubRoots {
-			task, msg, err := getAcceptanceReceipt(ctx, p.pieceResolver, p.acceptanceStore, p.receiptStore, subroot)
+			task, msg, err := getAddPieceProofs(ctx, p.pieceResolver, p.acceptanceStore, p.receiptStore, subroot)
 			if err != nil {
 				return common.Hash{}, fmt.Errorf("getting acceptance receipt for %s: %w", subroot, err)
 			}
@@ -552,7 +552,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	return txHash, nil
 }
 
-func getAcceptanceReceipt(
+func getAddPieceProofs(
 	ctx context.Context,
 	resolver types.PieceResolverAPI,
 	accStore acceptancestore.AcceptanceStore,
