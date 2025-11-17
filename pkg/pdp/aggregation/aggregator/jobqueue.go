@@ -13,11 +13,12 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
+	"go.uber.org/fx"
+
 	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/pdp/aggregation/manager"
 	"github.com/storacha/piri/pkg/pdp/aggregation/types"
-	"go.uber.org/fx"
 )
 
 var log = logging.Logger("aggregation/aggregator")
@@ -73,10 +74,10 @@ type QueueParams struct {
 }
 
 func NewQueue(params QueueParams) (jobqueue.Service[piece.PieceLink], error) {
-	// The deduping is required to ensure we don't produce an aggregate with the same sub root as another aggregate
+	// The deduping is required to ensure we don't produce an aggregate with sub roots that exist in another aggregate
 	// the behavior here is to ignore duplicate pieces we have already aggregated
 	// this is required to ensure roots are added with distinct sub roots from existing roots.
-	// While the chain logic permits this, it can lead to duplicate data being proved and thus paied for.
+	// While the chain logic permits this, it can lead to duplicate data being proved and thus paid for.
 	// Do not allow successfully complete jobs to run again.
 	dedupEnabled := true
 	// Allow jobs in dead letter queue (failed) to run again.

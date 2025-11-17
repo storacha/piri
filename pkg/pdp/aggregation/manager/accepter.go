@@ -20,15 +20,15 @@ import (
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
-type PieceAccepter struct {
+type PieceAcceptor struct {
 	issuer         principal.Signer
 	aggregateStore ipldstore.KVStore[datamodel.Link, types.Aggregate]
 	receiptStore   receiptstore.ReceiptStore
 	resolver       apitypes.PieceResolverAPI
 }
 
-func NewPieceAccepter(issuer principal.Signer, aggregateStore types.Store, receiptStore receiptstore.ReceiptStore, resolver apitypes.PieceResolverAPI) *PieceAccepter {
-	return &PieceAccepter{
+func NewPieceAccepter(issuer principal.Signer, aggregateStore types.Store, receiptStore receiptstore.ReceiptStore, resolver apitypes.PieceResolverAPI) *PieceAcceptor {
+	return &PieceAcceptor{
 		issuer:         issuer,
 		aggregateStore: aggregateStore,
 		receiptStore:   receiptStore,
@@ -36,7 +36,7 @@ func NewPieceAccepter(issuer principal.Signer, aggregateStore types.Store, recei
 	}
 }
 
-func (pa *PieceAccepter) AcceptPieces(ctx context.Context, aggregateLinks []datamodel.Link) error {
+func (pa *PieceAcceptor) AcceptPieces(ctx context.Context, aggregateLinks []datamodel.Link) error {
 	// TODO we can run this in parallel since receipt generation requires resolving pdp pieces in links to blobs
 	aggregates := make([]types.Aggregate, 0, len(aggregateLinks))
 	for _, aggregateLink := range aggregateLinks {

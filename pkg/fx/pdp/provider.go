@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	"github.com/storacha/filecoin-services/go/eip712"
-	"github.com/storacha/piri/pkg/pdp/aggregation/commp"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
+
+	"github.com/storacha/piri/pkg/pdp/aggregation/commp"
 
 	signerclient "github.com/storacha/piri-signing-service/pkg/client"
 	signerimpl "github.com/storacha/piri-signing-service/pkg/inprocess"
@@ -53,9 +54,6 @@ var Module = fx.Module("pdp-service",
 			fx.ResultTags(`group:"route_registrar"`),
 		),
 	),
-	fx.Invoke(func(p pdp.PDP) {
-		return
-	}),
 )
 
 // TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface

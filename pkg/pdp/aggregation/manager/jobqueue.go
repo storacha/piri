@@ -9,11 +9,12 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
+	"go.uber.org/fx"
+
 	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/pdp/aggregation/types"
 	pdptypes "github.com/storacha/piri/pkg/pdp/types"
-	"go.uber.org/fx"
 )
 
 const (
@@ -26,13 +27,13 @@ func NewAddRootsTaskHandler(
 	api pdptypes.ProofSetAPI,
 	proofSet pdptypes.ProofSetIDProvider,
 	store types.Store,
-	accepter *PieceAccepter,
+	accepter *PieceAcceptor,
 ) jobqueue.TaskHandler[[]datamodel.Link] {
 	return &AddRootsTaskHandler{
 		api:           api,
 		proofSet:      proofSet,
 		store:         store,
-		pieceAccepter: accepter,
+		pieceAcceptor: accepter,
 	}
 }
 
@@ -40,7 +41,7 @@ type AddRootsTaskHandler struct {
 	api           pdptypes.ProofSetAPI
 	proofSet      pdptypes.ProofSetIDProvider
 	store         types.Store
-	pieceAccepter *PieceAccepter
+	pieceAcceptor *PieceAcceptor
 }
 
 func (a *AddRootsTaskHandler) Name() string {
@@ -48,7 +49,7 @@ func (a *AddRootsTaskHandler) Name() string {
 }
 
 func (a *AddRootsTaskHandler) Handle(ctx context.Context, links []datamodel.Link) error {
-	if err := a.pieceAccepter.AcceptPieces(ctx, links); err != nil {
+	if err := a.pieceAcceptor.AcceptPieces(ctx, links); err != nil {
 		return fmt.Errorf("failed to accept pieces: %w", err)
 	}
 	proofSetID, err := a.proofSet.ProofSetID(ctx)
