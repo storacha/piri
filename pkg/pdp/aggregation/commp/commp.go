@@ -31,7 +31,8 @@ type Comper struct {
 
 func NewQueuingCommpCalculator(lc fx.Lifecycle, params ComperParams) (Calculator, error) {
 	c := &Comper{
-		queue: params.Queue,
+		queue:   params.Queue,
+		handler: params.Handler,
 	}
 	if err := c.queue.RegisterHandler(
 		params.Handler,
