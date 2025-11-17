@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math/big"
@@ -407,12 +408,6 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		return common.Hash{}, fmt.Errorf("failed to get dataset info: %w", err)
 	}
 
-	// Get the next piece ID to use as firstAdded in signature
-	nextPieceId, err := p.verifierContract.GetNextPieceId(ctx, proofSetID)
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to get next piece ID for dataset %d: %w", id, err)
-	}
-
 	// Convert pieceDataArray to [][]byte for signing
 	pieceDataBytes := make([][]byte, len(pieceDataArray))
 	for i, piece := range pieceDataArray {
@@ -425,21 +420,30 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		metadata[i] = []eip712.MetadataEntry{}
 	}
 
-	// Request a signature for adding pieces from the signing service
-	// Use clientDataSetId from FilecoinWarmStorageService (not PDPVerifier's setId)
-	// Use nextPieceId as firstAdded (this is what PDPVerifier will pass to the callback)
+	// Request a signature for adding pieces from the signing service.
+	// Use clientDataSetId from FilecoinWarmStorageService (not PDPVerifier's setId).
+	// Generate a random nonce so it never collides with values stored in clientNonces during createDataSet.
+	nonceBytes := make([]byte, 32)
+	if _, err := rand.Read(nonceBytes); err != nil {
+		return common.Hash{}, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+	nonce := new(big.Int).SetBytes(nonceBytes)
+	// TODO(ash/forrst): nil is bad mkay, don't do this in the release....
 	signature, err := p.signingService.SignAddPieces(ctx,
+		nil,
 		datasetInfo.ClientDataSetId, // Use FilecoinWarmStorageService clientDataSetId
-		nextPieceId,                 // firstAdded is the next piece ID
+		nonce,                       // client-chosen nonce, disjoint from createDataSet clientDataSetId
 		pieceDataBytes,
 		metadata,
+		nil,
+		nil,
 	)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to sign AddPieces: %w", err)
 	}
 
 	// Encode the extraData with signature and metadata
-	extraDataBytes, err := p.edc.EncodeAddPiecesExtraData(signature, metadata)
+	extraDataBytes, err := p.edc.EncodeAddPiecesExtraData(nonce, signature, metadata)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to encode extraData: %w", err)
 	}

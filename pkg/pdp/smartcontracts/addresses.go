@@ -31,12 +31,12 @@ func Addresses() PDPContracts {
 	// the PDP Service address of the calibration contract, defined at URL above.
 	return PDPContracts{
 		// PDPVerifier contract address
-		Verifier: common.HexToAddress("0xB020524bdE8926cD430A4F79B2AaccFd2694793b"),
+		Verifier: common.HexToAddress("0x85e366Cf9DD2c0aE37E963d9556F5f4718d6417C"),
 		// This contract and its address are owned by storacha
-		ProviderRegistry: common.HexToAddress("0x8D0560F93022414e7787207682a8D562de02D62f"),
+		ProviderRegistry: common.HexToAddress("0x6A96aaB210B75ee733f0A291B5D8d4A053643979"),
 		// This contract and its address are owned by storacha, and uses ProviderRegistry for membership
-		Service:     common.HexToAddress("0xB9753937D3Bc1416f7d741d75b1671A1edb3e10A"),
-		ServiceView: common.HexToAddress("0xb2eC3e67753F1c05e8B318298Bd0eD89046a3031"),
+		Service:     common.HexToAddress("0x0c6875983B20901a7C3c86871f43FdEE77946424"),
+		ServiceView: common.HexToAddress("0xEAD67d775f36D1d2894854D20e042C77A3CC20a5"),
 	}
 }
 
