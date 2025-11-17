@@ -7,7 +7,6 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/ipfs/go-cid"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"go.uber.org/fx"
@@ -25,8 +24,6 @@ import (
 // 100,000 entries assuming each piece references a ~128MiB blob allows the
 // cache to store ~1.5 TiB worth of referenced data
 const DefaultResolverCacheSize = 100_000
-
-var log = logging.Logger("pdp/piece")
 
 type StoreResolver struct {
 	db    *gorm.DB
