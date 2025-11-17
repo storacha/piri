@@ -109,8 +109,8 @@ func NewQueue(params QueueParams) (jobqueue.Service[[]datamodel.Link], error) {
 		},
 		jobqueue.WithLogger(log.With("queue", QueueName)),
 		jobqueue.WithMaxRetries(50),
-		// NB: must remain one to keep submissions serial to AddRoots
-		jobqueue.WithMaxWorkers(uint(1)),
+		// 3 workers means 3 roots can be added in parallel.
+		jobqueue.WithMaxWorkers(uint(3)),
 		// wait for twice a filecoin epoch to submit
 		jobqueue.WithMaxTimeout(time.Minute),
 	)

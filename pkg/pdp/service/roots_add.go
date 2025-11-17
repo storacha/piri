@@ -14,10 +14,12 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
 	"github.com/samber/lo"
-	"github.com/storacha/piri/pkg/pdp/tasks"
 	"gorm.io/gorm"
 
+	"github.com/storacha/piri/pkg/pdp/tasks"
+
 	"github.com/storacha/filecoin-services/go/eip712"
+
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
@@ -97,11 +99,6 @@ import (
 */
 
 func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (res common.Hash, retErr error) {
-	// ensure this method can never be called in parallel, else nextPieceId will be wrong from one of the parallel calls and
-	// produce an invalid signature
-	p.addRootMu.Lock()
-	defer p.addRootMu.Unlock()
-
 	log.Infow("adding roots", "id", id, "request", request)
 	defer func() {
 		if retErr != nil {
