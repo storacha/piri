@@ -10,7 +10,8 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/pdp/sign"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
-	"github.com/storacha/go-ucanto/core/receipt"
+	"github.com/storacha/go-ucanto/core/ipld"
+	"github.com/storacha/go-ucanto/core/message"
 	"github.com/storacha/go-ucanto/ucan"
 	signerclient "github.com/storacha/piri-signing-service/pkg/client"
 	signertypes "github.com/storacha/piri-signing-service/pkg/types"
@@ -65,7 +66,8 @@ func (c *Client) SignAddPieces(
 	firstAdded *big.Int,
 	pieceData [][]byte,
 	metadata [][]eip712.MetadataEntry,
-	prfs [][]receipt.AnyReceipt,
+	prfs [][]ipld.Link,
+	prfData [][]message.AgentMessage,
 	options ...delegation.Option,
 ) (*eip712.AuthSignature, error) {
 	dlg, err := c.proofService.RequestAccess(
@@ -81,7 +83,7 @@ func (c *Client) SignAddPieces(
 	}
 	var opts []delegation.Option
 	opts = append(append(opts, options...), delegation.WithProof(delegation.FromDelegation(dlg)))
-	return c.Client.SignAddPieces(ctx, issuer, dataSet, firstAdded, pieceData, metadata, prfs, opts...)
+	return c.Client.SignAddPieces(ctx, issuer, dataSet, firstAdded, pieceData, metadata, prfs, prfData, opts...)
 }
 
 // SignSchedulePieceRemovals signs a SchedulePieceRemovals operation via UCAN invocation

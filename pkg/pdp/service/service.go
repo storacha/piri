@@ -22,7 +22,9 @@ import (
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 var log = logging.Logger("pdp/service")
@@ -42,12 +44,14 @@ type EthClient interface {
 }
 
 type PDPService struct {
-	id          ucan.Signer
-	endpoint    url.URL
-	address     common.Address
-	blobstore   blobstore.Blobstore
-	sender      ethereum.Sender
-	chainClient ChainClient
+	id              ucan.Signer
+	endpoint        url.URL
+	address         common.Address
+	blobstore       blobstore.Blobstore
+	acceptanceStore acceptancestore.AcceptanceStore
+	receiptStore    receiptstore.ReceiptStore
+	sender          ethereum.Sender
+	chainClient     ChainClient
 
 	db   *gorm.DB
 	name string
@@ -73,6 +77,8 @@ func New(
 	db *gorm.DB,
 	address common.Address,
 	bs blobstore.PDPStore,
+	acceptanceStore acceptancestore.AcceptanceStore,
+	receiptStore receiptstore.ReceiptStore,
 	resolver types.PieceResolverAPI,
 	reader types.PieceReaderAPI,
 	sender ethereum.Sender,
@@ -94,6 +100,8 @@ func New(
 		pieceResolver:    resolver,
 		pieceReader:      reader,
 		blobstore:        bs,
+		acceptanceStore:  acceptanceStore,
+		receiptStore:     receiptStore,
 		sender:           sender,
 		engine:           engine,
 		chainScheduler:   chainScheduler,

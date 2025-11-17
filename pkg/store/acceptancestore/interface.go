@@ -24,7 +24,7 @@ func WithLimit(max int) ListOption {
 
 // AcceptanceStore tracks the items that have been stored on the storage node.
 type AcceptanceStore interface {
-	// Get retrieves an acceptanc for a blob (digest) in a space (DID). It
+	// Get retrieves an acceptance for a blob (digest) in a space (DID). It
 	// returns [github.com/storacha/piri/pkg/store.ErrNotFound] if the allocation
 	// does not exist.
 	Get(context.Context, multihash.Multihash, did.DID) (acceptance.Acceptance, error)

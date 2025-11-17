@@ -25,7 +25,9 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/service/proofs"
 	"github.com/storacha/piri/pkg/service/signer"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 var Module = fx.Module("pdp-service",
@@ -86,13 +88,15 @@ func ProvideTODOPDPImplInterface(service types.API, commpCalc piece.Calculator, 
 type Params struct {
 	fx.In
 
-	ID           app.IdentityConfig
-	ServerConfig app.ServerConfig
-	DB           *gorm.DB `name:"engine_db"`
-	Config       app.PDPServiceConfig
-	Store        blobstore.PDPStore
-	Resolver     types.PieceResolverAPI
-	Reader       types.PieceReaderAPI
+	ID              app.IdentityConfig
+	ServerConfig    app.ServerConfig
+	DB              *gorm.DB `name:"engine_db"`
+	Config          app.PDPServiceConfig
+	BlobStore       blobstore.PDPStore
+	AcceptanceStore acceptancestore.AcceptanceStore
+	ReceiptStore    receiptstore.ReceiptStore
+	Resolver        types.PieceResolverAPI
+	Reader          types.PieceReaderAPI
 	// TODO remove stash store, its unused.
 	Sender           ethereum.Sender
 	Engine           *scheduler.TaskEngine
@@ -111,7 +115,9 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 		params.ServerConfig.PublicURL,
 		params.DB,
 		params.Config.OwnerAddress,
-		params.Store,
+		params.BlobStore,
+		params.AcceptanceStore,
+		params.ReceiptStore,
 		params.Resolver,
 		params.Reader,
 		params.Sender,

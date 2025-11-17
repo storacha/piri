@@ -13,8 +13,13 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
 	"github.com/samber/lo"
+	"github.com/storacha/go-ucanto/core/invocation"
+	"github.com/storacha/go-ucanto/core/ipld"
+	"github.com/storacha/go-ucanto/core/message"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/piri/pkg/pdp/tasks"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
+	"github.com/storacha/piri/pkg/store/receiptstore"
 	"gorm.io/gorm"
 
 	"github.com/storacha/filecoin-services/go/eip712"
@@ -426,6 +431,23 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		metadata[i] = []eip712.MetadataEntry{}
 	}
 
+	proofs := make([][]ipld.Link, 0, len(request))
+	proofData := make([][]message.AgentMessage, 0, len(request))
+	for _, req := range request {
+		tasks := make([]ipld.Link, 0, len(req.SubRoots))
+		msgs := make([]message.AgentMessage, 0, len(req.SubRoots))
+		for _, subroot := range req.SubRoots {
+			task, msg, err := getAcceptanceReceipt(ctx, p.pieceResolver, p.acceptanceStore, p.receiptStore, subroot)
+			if err != nil {
+				return common.Hash{}, fmt.Errorf("getting acceptance receipt for %s: %w", subroot, err)
+			}
+			tasks = append(tasks, task)
+			msgs = append(msgs, msg)
+		}
+		proofs = append(proofs, tasks)
+		proofData = append(proofData, msgs)
+	}
+
 	// Request a signature for adding pieces from the signing service
 	// Use clientDataSetId from FilecoinWarmStorageService (not PDPVerifier's setId)
 	// Use nextPieceId as firstAdded (this is what PDPVerifier will pass to the callback)
@@ -435,7 +457,8 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		nextPieceId,                 // firstAdded is the next piece ID
 		pieceDataBytes,
 		metadata,
-		[][]receipt.AnyReceipt{}, // TODO: extract blob/accept receipts, include pdp/accept receipts
+		proofs,
+		proofData,
 	)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to sign AddPieces: %w", err)
@@ -527,4 +550,73 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 
 	log.Infow("AddRoots transaction confirmed successfully", "txHash", txHash.Hex(), "proofSetID", proofSetID)
 	return txHash, nil
+}
+
+func getAcceptanceReceipt(
+	ctx context.Context,
+	resolver types.PieceResolverAPI,
+	accStore acceptancestore.AcceptanceStore,
+	rcptStore receiptstore.ReceiptStore,
+	piece cid.Cid,
+) (ipld.Link, message.AgentMessage, error) {
+	blob, ok, err := resolver.ResolveToBlob(ctx, piece.Hash())
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolving piece to blob hash: %w", err)
+	}
+	if !ok {
+		return nil, nil, fmt.Errorf("missing piece to blob mapping: %s", piece)
+	}
+
+	// We can accept the same blob in multiple _spaces_, but we only add a root
+	// for the blob to PDP once. So it doesn't really matter which acceptance
+	// record we retrieve here, but there will only be one anyway, since this will
+	// be the first (and only) time this blob is added to PDP.
+	accs, err := accStore.List(ctx, blob)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listing acceptances: %w", err)
+	}
+	if len(accs) == 0 {
+		return nil, nil, fmt.Errorf("missing acceptance: %w", err)
+	}
+	acc := accs[0]
+	if acc.PDPAccept == nil {
+		return nil, nil, errors.New("missing PDP accept promise")
+	}
+
+	// The `blob/accept` invocation and receipt proves the node was asked to store
+	// the data, or more accurately, it was asked _and_ it confirmed it received
+	// the data.
+	blobAccRcpt, err := rcptStore.GetByRan(ctx, acc.Cause)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting blob/accept receipt: %w", err)
+	}
+	// expect invocation to be attached to receipt
+	blobAccInv, ok := blobAccRcpt.Ran().Invocation()
+	if !ok {
+		return nil, nil, fmt.Errorf("missing blob/accept invocation: %w", err)
+	}
+
+	// The `pdp/accept` invocation and receipt proves the node calculated a CommP
+	// for the blob and aggregated it into an aggregate piece. Note: It doesn't
+	// prove the equality relationship between the blob hash and the piece CID.
+	pdpAccRcpt, err := rcptStore.GetByRan(ctx, acc.PDPAccept.UcanAwait.Link)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting pdp/accept receipt: %w", err)
+	}
+	pdpAccInv, ok := pdpAccRcpt.Ran().Invocation()
+	if !ok {
+		return nil, nil, fmt.Errorf("missing pdp/accept invocation: %w", err)
+	}
+
+	// The blob/accept receipt contains the link to the pdp/accept invocation in
+	// effects. Here we combine the blocks of these two related receipts (and
+	// invocations) in an agent message.
+	msg, err := message.Build(
+		[]invocation.Invocation{blobAccInv, pdpAccInv},
+		[]receipt.AnyReceipt{blobAccRcpt, pdpAccRcpt},
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("building agent message: %w", err)
+	}
+	return acc.Cause, msg, nil
 }
