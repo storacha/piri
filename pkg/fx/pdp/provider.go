@@ -123,9 +123,9 @@ func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (types.ProofSetIDProvi
 	return &service.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
 }
 
-func ProviderSigningService(cfg app.SigningServiceConfig) (signer.SigningService, error) {
+func ProviderSigningService(cfg app.SigningServiceConfig, idcfg app.IdentityConfig) (signer.SigningService, error) {
 	if cfg.Endpoint != nil {
-		return signerclient.New(cfg.Endpoint.String()), nil
+		return signerclient.New(idcfg.Signer, cfg.Endpoint.String())
 	} else if cfg.PrivateKey != nil {
 		s := signingservice.NewSigner(
 			cfg.PrivateKey,
