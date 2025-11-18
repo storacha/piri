@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/storacha/filecoin-services/go/eip712"
+
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )

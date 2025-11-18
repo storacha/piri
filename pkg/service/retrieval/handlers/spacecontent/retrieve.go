@@ -25,35 +25,41 @@ func Retrieve(
 	blobs blobstore.BlobGetter,
 	inv invocation.Invocation,
 	digest multihash.Multihash,
-	byteRange blobstore.Range,
+	byteRange *blobstore.Range,
 ) (result.Result[content.RetrieveOk, failure.IPLDBuilderFailure], retrieval.Response, error) {
 	digestStr := digestutil.Format(digest)
-	start := byteRange.Start
-	end := byteRange.End
-	rangeStr := fmt.Sprintf("%d-", start)
-	if end != nil {
-		rangeStr += fmt.Sprintf("%d", end)
-	}
 
 	cap := inv.Capabilities()[0]
-	log := log.With("iss", inv.Issuer().DID(), "can", cap.Can(), "with", cap.With(), "digest", digestStr, "range", rangeStr)
+	log := log.With("iss", inv.Issuer().DID(), "can", cap.Can(), "with", cap.With(), "digest", digestStr)
 
 	var getOpts []blobstore.GetOption
-	if start > 0 || end != nil {
-		getOpts = append(getOpts, blobstore.WithRange(start, end))
+
+	if byteRange != nil {
+		start := byteRange.Start
+		end := byteRange.End
+		rangeStr := fmt.Sprintf("%d-", start)
+		if end != nil {
+			rangeStr += fmt.Sprintf("%d", end)
+		}
+		log = log.With("range", rangeStr)
+
+		if start > 0 || end != nil {
+			getOpts = append(getOpts, blobstore.WithRange(start, end))
+		}
 	}
 
 	blob, err := blobs.Get(ctx, digest, getOpts...)
 	if err != nil {
+		var erns blobstore.RangeNotSatisfiableError
 		if errors.Is(err, store.ErrNotFound) {
 			log.Debugw("blob not found", "status", http.StatusNotFound)
 			notFoundErr := content.NewNotFoundError(fmt.Sprintf("blob not found: %s", digestStr))
 			res := result.Error[content.RetrieveOk, failure.IPLDBuilderFailure](notFoundErr)
 			resp := retrieval.NewResponse(http.StatusNotFound, nil, nil)
 			return res, resp, nil
-		} else if errors.Is(err, blobstore.ErrRangeNotSatisfiable) {
+		} else if errors.As(err, &erns) {
 			log.Debugw("range not satisfiable", "status", http.StatusRequestedRangeNotSatisfiable)
-			rangeNotSatisfiableErr := content.NewRangeNotSatisfiableError(fmt.Sprintf("range not satisfiable: %d-%d", start, end))
+			rangeNotSatisfiableErr := content.NewRangeNotSatisfiableError(erns.Error())
 			res := result.Error[content.RetrieveOk, failure.IPLDBuilderFailure](rangeNotSatisfiableErr)
 			resp := retrieval.NewResponse(http.StatusRequestedRangeNotSatisfiable, nil, nil)
 			return res, resp, nil
@@ -62,26 +68,34 @@ func Retrieve(
 		return nil, retrieval.Response{}, fmt.Errorf("getting blob: %w", err)
 	}
 
-	if end == nil {
-		rend := uint64(blob.Size() - 1)
-		end = &rend
-	}
-
 	res := result.Ok[content.RetrieveOk, failure.IPLDBuilderFailure](content.RetrieveOk{})
 	status := http.StatusOK
-	contentLength := *end - start + 1
 	headers := http.Header{}
+	contentLength := uint64(blob.Size())
+
+	if byteRange != nil {
+		start := byteRange.Start
+		// end is inclusive
+		end := uint64(blob.Size() - 1)
+		if byteRange.End != nil {
+			end = *byteRange.End
+		}
+		contentLength = end - start + 1
+
+		if contentLength != uint64(blob.Size()) {
+			status = http.StatusPartialContent
+			headers.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, blob.Size()))
+			headers.Add("Vary", "Range")
+		}
+	}
+
 	headers.Set("Content-Length", fmt.Sprintf("%d", contentLength))
+	log.Debugw("serving bytes", "status", status, "size", contentLength)
+
 	headers.Set("Content-Type", "application/octet-stream")
 	headers.Set("Cache-Control", "public, max-age=29030400, immutable")
 	headers.Set("Etag", fmt.Sprintf(`"%s"`, digestStr))
 	headers.Set("Vary", "Accept-Encoding")
-	if contentLength != uint64(blob.Size()) {
-		status = http.StatusPartialContent
-		headers.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, *end, blob.Size()))
-		headers.Add("Vary", "Range")
-	}
-	log.Debugw("serving bytes", "status", status, "size", contentLength)
 	resp := retrieval.NewResponse(status, headers, blob.Body())
 	return res, resp, nil
 }

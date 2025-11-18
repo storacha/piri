@@ -1,14 +1,14 @@
-package fns_test
+package aggregator_test
 
 import (
 	"testing"
 
 	"github.com/storacha/go-libstoracha/testutil"
+	"github.com/storacha/piri/pkg/pdp/aggregation/aggregator"
+	"github.com/storacha/piri/pkg/pdp/aggregation/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/storacha/go-libstoracha/piece/piece"
-	"github.com/storacha/piri/pkg/pdp/aggregator/aggregate"
-	"github.com/storacha/piri/pkg/pdp/aggregator/fns"
 )
 
 // Human-friendly byte sizes
@@ -172,8 +172,8 @@ func TestAggregatePieces(t *testing.T) {
 			// NB(forrest): run these in parallel since creating MBs of data isn't exactly "fast".
 			t.Parallel()
 			var (
-				buf        fns.Buffer
-				aggregates []aggregate.Aggregate
+				buf        types.Buffer
+				aggregates []types.Aggregate
 				err        error
 				pieces     []piece.PieceLink
 			)
@@ -185,7 +185,7 @@ func TestAggregatePieces(t *testing.T) {
 			}
 
 			// Call the function under test
-			buf, aggregates, err = fns.AggregatePieces(buf, pieces)
+			buf, aggregates, err = aggregator.AggregatePieces(buf, pieces)
 			require.NoError(t, err, "AggregatePieces returned an unexpected error")
 
 			// Check buffer size after all pieces are processed

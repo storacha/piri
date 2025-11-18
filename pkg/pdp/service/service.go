@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"net/url"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -11,15 +10,16 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/storacha/filecoin-services/go/eip712"
-	signer "github.com/storacha/piri-signing-service/pkg/types"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
 
+	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/go-ucanto/ucan"
+	signer "github.com/storacha/piri-signing-service/pkg/types"
+
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/store/acceptancestore"
@@ -67,8 +67,6 @@ type PDPService struct {
 	verifierContract smartcontracts.Verifier
 	serviceContract  smartcontracts.Service
 	registryContract smartcontracts.Registry
-
-	addRootMu sync.Mutex
 }
 
 func New(

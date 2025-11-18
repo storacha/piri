@@ -12,7 +12,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.50
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.49.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.4
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.8
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.5
 	github.com/aws/smithy-go v1.23.0
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
@@ -22,7 +21,6 @@ require (
 	github.com/ethereum/go-ethereum v1.16.7
 	github.com/filecoin-project/go-address v1.2.0
 	github.com/filecoin-project/go-commp-utils v0.1.4
-	github.com/filecoin-project/go-commp-utils/nonffi v0.0.0-20240802040721-2a04ffc8ffe8
 	github.com/filecoin-project/go-commp-utils/v2 v2.1.0
 	github.com/filecoin-project/go-data-segment v0.0.1
 	github.com/filecoin-project/go-fil-commcid v0.3.1
@@ -64,10 +62,10 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.21.0
 	github.com/storacha/delegator v0.0.2-0.20251027182137-7d26b5ae9a70
-	github.com/storacha/filecoin-services/go v0.0.2
-	github.com/storacha/go-libstoracha v0.5.1
+	github.com/storacha/filecoin-services/go v0.0.3
+	github.com/storacha/go-libstoracha v0.5.2-0.20251117212508-5dabefbf03c8
 	github.com/storacha/go-ucanto v0.7.1
-	github.com/storacha/piri-signing-service v0.0.2-0.20251117123302-33ef6c7e21b5
+	github.com/storacha/piri-signing-service v0.0.2-0.20251117211248-71ca808befa6
 	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/testcontainers/testcontainers-go v0.39.0
@@ -112,6 +110,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.28.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.33.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0 // indirect

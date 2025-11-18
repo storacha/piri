@@ -16,16 +16,16 @@ import (
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
+	"github.com/storacha/go-libstoracha/failure"
 	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/receipt/ran"
 	"github.com/storacha/go-ucanto/core/result"
-	"github.com/storacha/go-ucanto/core/result/failure"
-	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
+	ufailure "github.com/storacha/go-ucanto/core/result/failure"
 	"github.com/stretchr/testify/require"
 )
 
-func createTestReceipt(t *testing.T) receipt.Receipt[content.RetrieveOk, fdm.FailureModel] {
+func createTestReceipt(t *testing.T) receipt.Receipt[content.RetrieveOk, failure.FailureModel] {
 	client := testutil.Alice
 	node := testutil.Service
 	space := testutil.RandomDID(t)
@@ -46,7 +46,7 @@ func createTestReceipt(t *testing.T) receipt.Receipt[content.RetrieveOk, fdm.Fai
 	require.NoError(t, err)
 
 	ran := ran.FromInvocation(inv)
-	ok := result.Ok[content.RetrieveOk, failure.IPLDBuilderFailure](content.RetrieveOk{})
+	ok := result.Ok[content.RetrieveOk, ufailure.IPLDBuilderFailure](content.RetrieveOk{})
 	rcpt, err := receipt.Issue(
 		node,
 		ok,
@@ -54,7 +54,7 @@ func createTestReceipt(t *testing.T) receipt.Receipt[content.RetrieveOk, fdm.Fai
 	)
 	require.NoError(t, err)
 
-	retrieveRcpt, err := receipt.Rebind[content.RetrieveOk, fdm.FailureModel](rcpt, content.RetrieveOkType(), fdm.FailureType(), captypes.Converters...)
+	retrieveRcpt, err := receipt.Rebind[content.RetrieveOk, failure.FailureModel](rcpt, content.RetrieveOkType(), failure.FailureType(), captypes.Converters...)
 	require.NoError(t, err)
 
 	return retrieveRcpt
@@ -97,7 +97,7 @@ func TestAppend(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a few test receipts
-		var rcpts []receipt.Receipt[content.RetrieveOk, fdm.FailureModel]
+		var rcpts []receipt.Receipt[content.RetrieveOk, failure.FailureModel]
 		for range 10 {
 			rcpts = append(rcpts, createTestReceipt(t))
 		}

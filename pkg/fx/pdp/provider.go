@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/storacha/filecoin-services/go/eip712"
-	"github.com/storacha/piri/pkg/pdp/piece"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
@@ -15,7 +14,7 @@ import (
 	"github.com/storacha/piri/pkg/config/app"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/pdp"
-	"github.com/storacha/piri/pkg/pdp/aggregator"
+	"github.com/storacha/piri/pkg/pdp/aggregation/commp"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/httpapi/server"
@@ -40,14 +39,11 @@ var Module = fx.Module("pdp-service",
 			fx.As(new(types.API)), // also provide the server as the interface(s) it implements
 			fx.As(new(types.ProofSetAPI)),
 			fx.As(new(types.PieceAPI)),
-			fx.As(new(types.PieceResolverAPI)),
-			fx.As(new(types.PieceReaderAPI)),
 			fx.As(new(types.PieceWriterAPI)),
 			fx.As(new(types.PieceCommPAPI)),
 		),
 		fx.Annotate(
 			ProvideProofSetIDProvider,
-			fx.As(new(aggregator.ProofSetIDProvider)),
 		),
 
 		fx.Annotate(
@@ -64,11 +60,11 @@ var Module = fx.Module("pdp-service",
 
 // TODO(forrest): this interface and it's impls need to be removed, renamed, or merged with the blob interface
 type TODO_PDP_Impl struct {
-	commpCalc piece.Calculator
+	commpCalc commp.Calculator
 	api       types.PieceAPI
 }
 
-func (s *TODO_PDP_Impl) CommpCalculate() piece.Calculator {
+func (s *TODO_PDP_Impl) CommpCalculate() commp.Calculator {
 	return s.commpCalc
 }
 
@@ -78,7 +74,7 @@ func (s *TODO_PDP_Impl) API() types.PieceAPI {
 
 var _ pdp.PDP = (*TODO_PDP_Impl)(nil)
 
-func ProvideTODOPDPImplInterface(service types.API, commpCalc piece.Calculator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
+func ProvideTODOPDPImplInterface(service types.API, commpCalc commp.Calculator, cfg app.AppConfig) (*TODO_PDP_Impl, error) {
 	return &TODO_PDP_Impl{
 		commpCalc: commpCalc,
 		api:       service,
@@ -88,16 +84,15 @@ func ProvideTODOPDPImplInterface(service types.API, commpCalc piece.Calculator, 
 type Params struct {
 	fx.In
 
-	ID              app.IdentityConfig
-	ServerConfig    app.ServerConfig
-	DB              *gorm.DB `name:"engine_db"`
-	Config          app.PDPServiceConfig
-	BlobStore       blobstore.PDPStore
-	AcceptanceStore acceptancestore.AcceptanceStore
-	ReceiptStore    receiptstore.ReceiptStore
-	Resolver        types.PieceResolverAPI
-	Reader          types.PieceReaderAPI
-	// TODO remove stash store, its unused.
+	ID               app.IdentityConfig
+	ServerConfig     app.ServerConfig
+	DB               *gorm.DB `name:"engine_db"`
+	Config           app.PDPServiceConfig
+	BlobStore        blobstore.PDPStore
+	AcceptanceStore  acceptancestore.AcceptanceStore
+	ReceiptStore     receiptstore.ReceiptStore
+	Resolver         types.PieceResolverAPI
+	Reader           types.PieceReaderAPI
 	Sender           ethereum.Sender
 	Engine           *scheduler.TaskEngine
 	ChainScheduler   *chainsched.Scheduler
@@ -132,8 +127,8 @@ func ProvidePDPService(params Params) (*service.PDPService, error) {
 	)
 }
 
-func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (*aggregator.ConfiguredProofSetProvider, error) {
-	return &aggregator.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
+func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (types.ProofSetIDProvider, error) {
+	return &service.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
 }
 
 func ProvideSigningService(cfg app.SigningServiceConfig, proofService proofs.ProofService) (signertypes.SigningService, error) {

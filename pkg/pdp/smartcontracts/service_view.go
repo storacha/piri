@@ -34,27 +34,10 @@ type serviceContract struct {
 // NewServiceView creates a new view contract helper
 // It first gets the view contract address from the main service contract, then connects to it
 func NewServiceView(client bind.ContractBackend) (Service, error) {
-	// Get the main service contract
-	sc, err := bindings.NewFilecoinWarmStorageService(Addresses().Service, client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to bind service contract: %w", err)
-	}
-
-	// Get the view contract address from the service contract
-	viewAddress, err := sc.ViewContractAddress(&bind.CallOpts{Context: context.TODO()})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get view contract address: %w", err)
-	}
-
-	// Check if view contract address is set
-	if viewAddress == (common.Address{}) {
-		return nil, fmt.Errorf("view contract not set on service contract at %s", Addresses().Service)
-	}
-
 	// Connect to the view contract
-	viewContract, err := bindings.NewFilecoinWarmStorageServiceStateView(viewAddress, client)
+	viewContract, err := bindings.NewFilecoinWarmStorageServiceStateView(Addresses().ServiceView, client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind view contract at %s: %w", viewAddress.Hex(), err)
+		return nil, fmt.Errorf("failed to bind view contract at %s: %w", Addresses().ServiceView, err)
 	}
 
 	return &serviceContract{
