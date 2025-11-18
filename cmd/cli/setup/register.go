@@ -26,6 +26,8 @@ import (
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
 
 	"github.com/storacha/piri/pkg/store/keystore"
@@ -247,7 +249,8 @@ func registerWithContract(ctx context.Context, id principal.Signer, pdpSvc *serv
 		return 0, fmt.Errorf("registering provider: %w", err)
 	}
 	// then wait for transaction to be applied
-	if err := pdpSvc.WaitForConfirmation(ctx, res.TransactionHash, (30*time.Second)*4); err != nil {
+	if err := pdpSvc.WaitForConfirmation(ctx, res.TransactionHash,
+		(tasks.MinConfidence+2)*smartcontracts.FilecoinEpoch); err != nil {
 		return 0, fmt.Errorf("waiting for confirmation of registration: %w", err)
 	}
 	// so that we may then query for our provider ID
