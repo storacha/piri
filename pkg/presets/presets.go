@@ -21,13 +21,13 @@ var (
 )
 
 // Setting this env var will enable certain presets.
-var PresetsEnvVar = "PIRI_PRESETS"
+var NetworkEnvVar = "PIRI_NETWORK"
 
 // URL of the original and best IPNI node cid.contact.
 var defaultIPNIAnnounceURL = lo.Must(url.Parse("https://cid.contact/announce"))
 
 func init() {
-	switch os.Getenv(PresetsEnvVar) {
+	switch os.Getenv(NetworkEnvVar) {
 	case "prod":
 		IPNIAnnounceURLs = prodIPNIAnnounceURLs
 		IndexingServiceURL = prodIndexingServiceURL

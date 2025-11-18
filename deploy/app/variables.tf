@@ -51,8 +51,8 @@ variable "private_key" {
   type        = string
 }
 
-variable "presets" {
-  description = "presets to use for the deployment"
+variable "network" {
+  description = "network the deployment targets"
   type        = string
   default     = "prod"
 }
