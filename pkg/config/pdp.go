@@ -11,6 +11,7 @@ import (
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/did"
 	ucan_http "github.com/storacha/go-ucanto/transport/http"
+
 	"github.com/storacha/piri/pkg/config/app"
 )
 
@@ -74,7 +75,7 @@ func (c SigningServiceConfig) ToAppConfig() (app.SigningServiceConfig, error) {
 	}
 
 	if c.URL != "" && c.DID != "" {
-		url, err := url.Parse(c.URL)
+		ep, err := url.Parse(c.URL)
 		if err != nil {
 			return app.SigningServiceConfig{}, fmt.Errorf("invalid signing service URL: %s: %w", c.URL, err)
 		}
@@ -83,7 +84,7 @@ func (c SigningServiceConfig) ToAppConfig() (app.SigningServiceConfig, error) {
 			return app.SigningServiceConfig{}, fmt.Errorf("parsing signing service DID: %s: %w", c.DID, err)
 		}
 
-		channel := ucan_http.NewChannel(url)
+		channel := ucan_http.NewChannel(ep)
 		conn, err := client.NewConnection(id, channel)
 		if err != nil {
 			return app.SigningServiceConfig{}, fmt.Errorf("creating signing service connection: %w", err)

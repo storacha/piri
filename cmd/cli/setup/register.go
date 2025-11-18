@@ -22,10 +22,11 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/principal"
-	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/storacha/piri/pkg/pdp/types"
 
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/wallet"
@@ -164,6 +165,10 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			OwnerAddress:    walletKey.Address.String(),
 			ContractAddress: presets.PDPRecordKeeperAddress,
 			LotusEndpoint:   flags.lotusEndpoint,
+			SigningServiceConfig: config.SigningServiceConfig{
+				DID: presets.SigningServiceDID.String(),
+				URL: presets.SigningServiceURL.String(),
+			},
 		}.ToAppConfig()),
 		Replicator: appcfg.DefaultReplicatorConfig(),
 	}
