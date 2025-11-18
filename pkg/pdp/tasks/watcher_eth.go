@@ -23,12 +23,11 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/models"
 )
 
-// TODO allow this to be tuned based on network and user preferences for risk.
-// original value from curio is 6, but a lower value is nice when testing against calibration network
+// TODO allow this to be tuned based on network and user preferences for risk, ideally through config
 
 // MinConfidence defines how many blocks must be applied before we accept the message as applied.
 // Synonymous with finality
-const MinConfidence = 2
+const MinConfidence = 6
 
 // Retry and concurrency configuration
 const (
