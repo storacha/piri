@@ -70,6 +70,7 @@ type Configs struct {
 	KeyStore      app.KeyStoreConfig
 	Stash         app.StashStoreConfig
 	PDP           app.PDPStoreConfig
+	Acceptance    app.AcceptanceStorageConfig
 }
 
 // ProvideConfigs provides the fields of a storage config
@@ -85,6 +86,7 @@ func ProvideConfigs(cfg app.StorageConfig) Configs {
 		KeyStore:      cfg.KeyStore,
 		Stash:         cfg.StashStore,
 		PDP:           cfg.PDPStore,
+		Acceptance:    cfg.Acceptance,
 	}
 }
 
