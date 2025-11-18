@@ -3,6 +3,7 @@ package app
 import (
 	"go.uber.org/fx"
 
+	"github.com/storacha/piri/pkg/admin"
 	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/database"
 	"github.com/storacha/piri/pkg/fx/echo"
@@ -29,6 +30,8 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 		proofs.Module,   // Provides service for requesting service proofs
 		echo.Module,     // Provides Echo server with route registration
 		database.Module, // Provides SQLite database for job queues
+
+		admin.Module, // Provides admin module with http routes.
 	}
 
 	if cfg.Storage.DataDir == "" {
