@@ -50,8 +50,8 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 	// the caller of this will be the operator, we could encode a did here or something
 	var metadataEntries []eip712.MetadataEntry
 	// request a signature for creating the dataset from the signing service
-	// TODO(ash/forrest): bad nil, don't pass nil, be good developer
-	signature, err := p.signingService.SignCreateDataSet(ctx, nil,
+	signature, err := p.signingService.SignCreateDataSet(ctx,
+		p.id,
 		nextClientDataSetId,
 		p.address, // Use the nodes address as the address receiving payment for storage
 		metadataEntries,

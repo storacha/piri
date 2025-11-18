@@ -164,9 +164,6 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			OwnerAddress:    walletKey.Address.String(),
 			ContractAddress: presets.PDPRecordKeeperAddress,
 			LotusEndpoint:   flags.lotusEndpoint,
-			SigningServiceConfig: config.SigningServiceConfig{
-				Endpoint: presets.SigningServiceEndpoint.String(),
-			},
 		}.ToAppConfig()),
 		Replicator: appcfg.DefaultReplicatorConfig(),
 	}

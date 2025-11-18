@@ -12,6 +12,7 @@ import (
 	"github.com/storacha/go-libstoracha/metadata"
 	"go.uber.org/fx"
 
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
@@ -38,6 +39,7 @@ var Module = fx.Module("memory-store",
 			fx.As(new(store.EncodeableStore)),
 		),
 		NewAllocationStore,
+		NewAcceptanceStore,
 		fx.Annotate(
 			NewBlobStore,
 			// provide as Blobstore (self)
@@ -60,6 +62,11 @@ func NewAggregatorDatastore() datastore.Datastore {
 func NewAllocationStore() (allocationstore.AllocationStore, error) {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	return allocationstore.NewDsAllocationStore(ds)
+}
+
+func NewAcceptanceStore() (acceptancestore.AcceptanceStore, error) {
+	ds := sync.MutexWrap(datastore.NewMapDatastore())
+	return acceptancestore.NewDsAcceptanceStore(ds)
 }
 
 func NewBlobStore() blobstore.Blobstore {

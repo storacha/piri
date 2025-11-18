@@ -28,6 +28,7 @@ import (
 	"github.com/storacha/piri/pkg/service/claims"
 	"github.com/storacha/piri/pkg/service/replicator"
 	replicahandler "github.com/storacha/piri/pkg/service/storage/handlers/replica"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
@@ -134,6 +135,22 @@ func New(opts ...Option) (*StorageService, error) {
 		blobOpts = append(blobOpts, blobs.WithDSAllocationStore(allocDs))
 	} else {
 		blobOpts = append(blobOpts, blobs.WithAllocationStore(c.allocationStore))
+	}
+
+	if c.acceptanceStore == nil {
+		acceptDs := c.acceptanceDatastore
+		if acceptDs == nil {
+			acceptDs = datastore.NewMapDatastore()
+			log.Warn("Acceptance datastore not configured, using in-memory datastore")
+		}
+		closeFuncs = append(closeFuncs, func(context.Context) error { return acceptDs.Close() })
+		acceptanceStore, err := acceptancestore.NewDsAcceptanceStore(acceptDs)
+		if err != nil {
+			return nil, err
+		}
+		blobOpts = append(blobOpts, blobs.WithAcceptanceStore(acceptanceStore))
+	} else {
+		blobOpts = append(blobOpts, blobs.WithAcceptanceStore(c.acceptanceStore))
 	}
 
 	claimStore := c.claimStore

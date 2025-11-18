@@ -8,7 +8,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-
+	"github.com/storacha/go-ucanto/client"
+	"github.com/storacha/go-ucanto/did"
+	ucan_http "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/piri/pkg/config/app"
 )
 
@@ -48,8 +50,10 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 
 // SigningServiceConfig configures the signing service for PDP operations
 type SigningServiceConfig struct {
+	// Identity of the signing service
+	DID string `mapstructure:"did" toml:"did,omitempty"`
 	// URL endpoint for remote signing service (if using HTTP client)
-	Endpoint string `mapstructure:"endpoint" toml:"endpoint,omitempty"`
+	URL string `mapstructure:"url" toml:"url,omitempty"`
 	// Private key for in-process signing (if using local signer)
 	// This should be a hex-encoded private key string
 	// NB: this should only be used for development purposes
@@ -62,21 +66,31 @@ func (c SigningServiceConfig) Validate() error {
 
 func (c SigningServiceConfig) ToAppConfig() (app.SigningServiceConfig, error) {
 	// one and only one must be set
-	if c.PrivateKey == "" && c.Endpoint == "" {
-		return app.SigningServiceConfig{}, fmt.Errorf("signing service requires private_key or endpoint")
+	if c.PrivateKey == "" && (c.URL == "" || c.DID == "") {
+		return app.SigningServiceConfig{}, fmt.Errorf("signing service requires private_key or URL+DID")
 	}
-	if c.PrivateKey != "" && c.Endpoint != "" {
-		return app.SigningServiceConfig{}, fmt.Errorf("signing service private_key and endpoint are mutually exclusive")
+	if c.PrivateKey != "" && (c.URL != "" || c.DID != "") {
+		return app.SigningServiceConfig{}, fmt.Errorf("signing service private_key and URL+DID are mutually exclusive")
 	}
 
-	if c.Endpoint != "" {
-		ep, err := url.Parse(c.Endpoint)
+	if c.URL != "" && c.DID != "" {
+		url, err := url.Parse(c.URL)
 		if err != nil {
-			return app.SigningServiceConfig{}, fmt.Errorf("invalid signing service endpoint: %s: %w", c.Endpoint, err)
+			return app.SigningServiceConfig{}, fmt.Errorf("invalid signing service URL: %s: %w", c.URL, err)
+		}
+		id, err := did.Parse(c.DID)
+		if err != nil {
+			return app.SigningServiceConfig{}, fmt.Errorf("parsing signing service DID: %s: %w", c.DID, err)
+		}
+
+		channel := ucan_http.NewChannel(url)
+		conn, err := client.NewConnection(id, channel)
+		if err != nil {
+			return app.SigningServiceConfig{}, fmt.Errorf("creating signing service connection: %w", err)
 		}
 
 		return app.SigningServiceConfig{
-			Endpoint: ep,
+			Connection: conn,
 		}, nil
 	} else {
 		// we should only use this for development and local testing.

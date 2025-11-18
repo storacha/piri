@@ -7,16 +7,14 @@ import (
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
-	"github.com/storacha/piri/pkg/pdp/aggregation/commp"
-
-	signerclient "github.com/storacha/piri-signing-service/pkg/client"
 	signerimpl "github.com/storacha/piri-signing-service/pkg/inprocess"
 	signingservice "github.com/storacha/piri-signing-service/pkg/signer"
-	signer "github.com/storacha/piri-signing-service/pkg/types"
+	signertypes "github.com/storacha/piri-signing-service/pkg/types"
 
 	"github.com/storacha/piri/pkg/config/app"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/pdp"
+	"github.com/storacha/piri/pkg/pdp/aggregation/commp"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/httpapi/server"
@@ -24,13 +22,17 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/service/proofs"
+	"github.com/storacha/piri/pkg/service/signer"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 var Module = fx.Module("pdp-service",
 	fx.Provide(
 		eip712.NewExtraDataEncoder,
-		ProviderSigningService,
+		ProvideSigningService,
 		fx.Annotate(
 			ProvidePDPService,
 			fx.As(fx.Self()),      // provide service as concrete type
@@ -82,17 +84,20 @@ func ProvideTODOPDPImplInterface(service types.API, commpCalc commp.Calculator, 
 type Params struct {
 	fx.In
 
+	ID               app.IdentityConfig
 	ServerConfig     app.ServerConfig
 	DB               *gorm.DB `name:"engine_db"`
 	Config           app.PDPServiceConfig
-	Store            blobstore.PDPStore
+	BlobStore        blobstore.PDPStore
+	AcceptanceStore  acceptancestore.AcceptanceStore
+	ReceiptStore     receiptstore.ReceiptStore
 	Resolver         types.PieceResolverAPI
 	Reader           types.PieceReaderAPI
 	Sender           ethereum.Sender
 	Engine           *scheduler.TaskEngine
 	ChainScheduler   *chainsched.Scheduler
 	ChainClient      service.ChainClient
-	SigningService   signer.SigningService
+	SigningService   signertypes.SigningService
 	ExtraDataEncoder *eip712.ExtraDataEncoder
 	Verifier         smartcontracts.Verifier
 	Service          smartcontracts.Service
@@ -101,10 +106,13 @@ type Params struct {
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
 	return service.New(
+		params.ID.Signer,
 		params.ServerConfig.PublicURL,
 		params.DB,
 		params.Config.OwnerAddress,
-		params.Store,
+		params.BlobStore,
+		params.AcceptanceStore,
+		params.ReceiptStore,
 		params.Resolver,
 		params.Reader,
 		params.Sender,
@@ -123,9 +131,9 @@ func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (types.ProofSetIDProvi
 	return &service.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
 }
 
-func ProviderSigningService(cfg app.SigningServiceConfig, idcfg app.IdentityConfig) (signer.SigningService, error) {
-	if cfg.Endpoint != nil {
-		return signerclient.New(idcfg.Signer, cfg.Endpoint.String())
+func ProvideSigningService(cfg app.SigningServiceConfig, proofService proofs.ProofService) (signertypes.SigningService, error) {
+	if cfg.Connection != nil {
+		return signer.NewProofServiceSigner(cfg.Connection, proofService), nil
 	} else if cfg.PrivateKey != nil {
 		s := signingservice.NewSigner(
 			cfg.PrivateKey,

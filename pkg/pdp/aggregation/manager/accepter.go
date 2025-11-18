@@ -7,6 +7,7 @@ import (
 	"github.com/ipld/go-ipld-prime/datamodel"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
+	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/ipld"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/receipt/ran"
@@ -71,7 +72,7 @@ func GenerateReceipts(ctx context.Context, issuer ucan.Signer, aggregate types.A
 		}
 		inv, err := pdp.Accept.Invoke(issuer, issuer, issuer.DID().String(), pdp.AcceptCaveats{
 			Blob: blob,
-		})
+		}, delegation.WithNoExpiration())
 
 		if err != nil {
 			return nil, fmt.Errorf("generating invocation: %w", err)

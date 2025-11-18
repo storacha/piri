@@ -10,18 +10,21 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/storacha/filecoin-services/go/eip712"
-	signer "github.com/storacha/piri-signing-service/pkg/types"
 	"gorm.io/gorm"
 
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/filecoin-services/go/eip712"
+	"github.com/storacha/go-ucanto/ucan"
+	signer "github.com/storacha/piri-signing-service/pkg/types"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 var log = logging.Logger("pdp/service")
@@ -41,11 +44,14 @@ type EthClient interface {
 }
 
 type PDPService struct {
-	endpoint    url.URL
-	address     common.Address
-	blobstore   blobstore.Blobstore
-	sender      ethereum.Sender
-	chainClient ChainClient
+	id              ucan.Signer
+	endpoint        url.URL
+	address         common.Address
+	blobstore       blobstore.Blobstore
+	acceptanceStore acceptancestore.AcceptanceStore
+	receiptStore    receiptstore.ReceiptStore
+	sender          ethereum.Sender
+	chainClient     ChainClient
 
 	db   *gorm.DB
 	name string
@@ -64,10 +70,13 @@ type PDPService struct {
 }
 
 func New(
+	id ucan.Signer,
 	endpoint url.URL,
 	db *gorm.DB,
 	address common.Address,
 	bs blobstore.PDPStore,
+	acceptanceStore acceptancestore.AcceptanceStore,
+	receiptStore receiptstore.ReceiptStore,
 	resolver types.PieceResolverAPI,
 	reader types.PieceReaderAPI,
 	sender ethereum.Sender,
@@ -81,6 +90,7 @@ func New(
 	registryContract smartcontracts.Registry,
 ) (*PDPService, error) {
 	return &PDPService{
+		id:               id,
 		endpoint:         endpoint,
 		address:          address,
 		db:               db,
@@ -88,6 +98,8 @@ func New(
 		pieceResolver:    resolver,
 		pieceReader:      reader,
 		blobstore:        bs,
+		acceptanceStore:  acceptanceStore,
+		receiptStore:     receiptStore,
 		sender:           sender,
 		engine:           engine,
 		chainScheduler:   chainScheduler,

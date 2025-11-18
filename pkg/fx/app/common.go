@@ -7,6 +7,7 @@ import (
 	"github.com/storacha/piri/pkg/fx/database"
 	"github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/fx/identity"
+	"github.com/storacha/piri/pkg/fx/proofs"
 	"github.com/storacha/piri/pkg/fx/store"
 )
 
@@ -25,6 +26,7 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 		fx.Supply(cfg.PDPService.SigningServiceConfig),
 
 		identity.Module, // Provides principal.Signer
+		proofs.Module,   // Provides service for requesting service proofs
 		echo.Module,     // Provides Echo server with route registration
 		database.Module, // Provides SQLite database for job queues
 	}

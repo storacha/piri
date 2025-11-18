@@ -151,6 +151,14 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	acceptDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "acceptance")
+	if err != nil {
+		return err
+	}
+	acceptDs, err := leveldb.NewDatastore(acceptDir, nil)
+	if err != nil {
+		return err
+	}
 	claimsDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "claim")
 	if err != nil {
 		return err
@@ -257,6 +265,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		storage.WithIdentity(id),
 		storage.WithBlobstore(blobStore),
 		storage.WithAllocationDatastore(allocDs),
+		storage.WithAcceptanceDatastore(acceptDs),
 		storage.WithClaimDatastore(claimDs),
 		storage.WithPublisherDatastore(publisherDs),
 		storage.WithPublicURL(*pubURL),
