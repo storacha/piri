@@ -8,9 +8,10 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	"github.com/ipld/go-ipld-prime/codec/dagcbor"
-	multihash "github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/go-ucanto/did"
+
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/acceptancestore/acceptance"
 )
@@ -25,7 +26,7 @@ func (d *DsAcceptanceStore) Get(ctx context.Context, digest multihash.Multihash,
 		if errors.Is(err, datastore.ErrNotFound) {
 			return acceptance.Acceptance{}, store.ErrNotFound
 		}
-		return acceptance.Acceptance{}, fmt.Errorf("getting from datastore: %w", err)
+		return acceptance.Acceptance{}, fmt.Errorf("getting %s from datastore: %w", digest.String(), err)
 	}
 	return acceptance.Decode(value, dagcbor.Decode)
 }

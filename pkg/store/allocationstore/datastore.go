@@ -8,9 +8,10 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	"github.com/ipld/go-ipld-prime/codec/dagcbor"
-	multihash "github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/go-ucanto/did"
+
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 )
@@ -45,7 +46,7 @@ func (d *DsAllocationStore) Get(ctx context.Context, digest multihash.Multihash,
 		if errors.Is(err, datastore.ErrNotFound) {
 			return allocation.Allocation{}, store.ErrNotFound
 		}
-		return allocation.Allocation{}, fmt.Errorf("getting from datastore: %w", err)
+		return allocation.Allocation{}, fmt.Errorf("getting %s from datastore: %w", digest.String(), err)
 	}
 	return allocation.Decode(value, dagcbor.Decode)
 }
