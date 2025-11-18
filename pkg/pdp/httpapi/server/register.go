@@ -1,11 +1,16 @@
 package server
 
 import (
+	"crypto/ed25519"
+	"fmt"
 	"path"
 
+	"github.com/golang-jwt/jwt/v4"
 	logging "github.com/ipfs/go-log/v2"
+	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 
+	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/pdp/service"
 )
 
@@ -17,19 +22,33 @@ const (
 	PiecePrefix      = "/piece"
 )
 
-func NewPDPHandler(service *service.PDPService) *PDPHandler {
-	return &PDPHandler{
-		Service: service,
-	}
+type PDPHandler struct {
+	Service       *service.PDPService
+	jwtMiddleware echo.MiddlewareFunc
 }
 
-type PDPHandler struct {
-	Service *service.PDPService
+func NewPDPHandler(service *service.PDPService, identity app.IdentityConfig) (*PDPHandler, error) {
+	if identity.Signer == nil {
+		return nil, fmt.Errorf("missing identity signer for jwt auth")
+	}
+	publicKey := ed25519.PublicKey(identity.Signer.Verifier().Raw())
+	jwtMiddleware := echojwt.WithConfig(echojwt.Config{
+		SigningKey:    publicKey,
+		SigningMethod: jwt.SigningMethodEdDSA.Alg(),
+	})
+
+	return &PDPHandler{
+		Service:       service,
+		jwtMiddleware: jwtMiddleware,
+	}, nil
 }
 
 func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
+	pdpGroup := e.Group(PDPRoutePath)
+	authenticated := pdpGroup.Group("", p.jwtMiddleware)
+
 	// /pdp/proof-sets
-	proofSets := e.Group(path.Join(PDPRoutePath, PRoofSetRoutPath))
+	proofSets := authenticated.Group(PRoofSetRoutPath)
 	proofSets.POST("", p.handleCreateProofSet)
 	proofSets.GET("/created/:txHash", p.handleGetProofSetCreationStatus)
 
@@ -46,14 +65,14 @@ func (p *PDPHandler) RegisterRoutes(e *echo.Echo) {
 	roots.DELETE("/:rootID", p.handleDeleteRootFromProofSet)
 
 	// /pdp/ping
-	e.GET("/pdp/ping", p.handlePing)
+	pdpGroup.GET("/ping", p.handlePing)
 
 	// /pdp/piece
-	e.POST(path.Join(PDPRoutePath, PiecePrefix), p.handlePreparePiece)
-	e.PUT(path.Join(PDPRoutePath, PiecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload)
-	e.GET(path.Join(PDPRoutePath, PiecePrefix), p.handleFindPiece)
+	authenticated.POST(PiecePrefix, p.handlePreparePiece)
+	pdpGroup.PUT(path.Join(PiecePrefix, "/upload/:uploadUUID"), p.handlePieceUpload)
+	authenticated.GET(PiecePrefix, p.handleFindPiece)
 
 	// /pdp/provider
-	e.POST(path.Join(PDPRoutePath, "/provider/register"), p.handleRegisterProvider)
-	e.GET(path.Join(PDPRoutePath, "/provider/status"), p.handleGetProviderStatus)
+	authenticated.POST(path.Join("/provider/register"), p.handleRegisterProvider)
+	authenticated.GET(path.Join("/provider/status"), p.handleGetProviderStatus)
 }
