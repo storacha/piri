@@ -113,12 +113,6 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		}
 	}()
 
-	// Check if the provider is both registered and approved
-	// TODO we can't make an API call everytime here, need to cache.
-	if err := p.RequireProviderApproved(ctx); err != nil {
-		return common.Hash{}, err
-	}
-
 	// Check if the proof set exists
 	var proofSet models.PDPProofSet
 	if err := p.db.WithContext(ctx).Where("id = ?", id).First(&proofSet).Error; err != nil {
@@ -371,7 +365,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 			return common.Hash{}, fmt.Errorf("computing height and padding: %w", err)
 		}
 		// NB: defined here: https://github.com/FilOzone/pdp/blob/main/src/PDPVerifier.sol#L44
-		maxPieceSizeLog2, err := p.verifierContract.MaxPieceSizeLog2(ctx)
+		maxPieceSizeLog2, err := p.cachedMaxPieceSizeLog2(ctx)
 		if err != nil {
 			return common.Hash{}, err
 		}
