@@ -67,6 +67,8 @@ type PDPService struct {
 	verifierContract smartcontracts.Verifier
 	serviceContract  smartcontracts.Service
 	registryContract smartcontracts.Registry
+
+	maxPieceSizeLog2Cache bigIntCache
 }
 
 func New(

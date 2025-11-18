@@ -18,7 +18,6 @@ import (
 var log = logging.Logger("smartcontracts")
 
 type Verifier interface {
-	GetChallengeFinality(ctx context.Context) (*big.Int, error)
 	GetDataSetLeafCount(ctx context.Context, setId *big.Int) (*big.Int, error)
 	GetNextChallengeEpoch(ctx context.Context, setId *big.Int) (*big.Int, error)
 	GetDataSetListener(ctx context.Context, setId *big.Int) (common.Address, error)
@@ -26,7 +25,6 @@ type Verifier interface {
 	GetChallengeRange(ctx context.Context, setId *big.Int) (*big.Int, error)
 	GetScheduledRemovals(ctx context.Context, setId *big.Int) ([]*big.Int, error)
 	FindPieceIds(ctx context.Context, setId *big.Int, leafIndexs []*big.Int) ([]bindings.IPDPTypesPieceIdAndOffset, error)
-	GetNextPieceId(ctx context.Context, setId *big.Int) (*big.Int, error)
 	CalculateProofFee(ctx context.Context, setId *big.Int) (*big.Int, error)
 	MaxPieceSizeLog2(ctx context.Context) (*big.Int, error)
 
@@ -61,10 +59,6 @@ func NewVerifierContract(backend bind.ContractBackend) (Verifier, error) {
 
 func (v *verifierContract) MaxPieceSizeLog2(ctx context.Context) (*big.Int, error) {
 	return v.verifier.MAXPIECESIZELOG2(&bind.CallOpts{Context: ctx})
-}
-
-func (v *verifierContract) GetChallengeFinality(ctx context.Context) (*big.Int, error) {
-	return v.verifier.GetChallengeFinality(&bind.CallOpts{Context: ctx})
 }
 
 func (v *verifierContract) GetDataSetLeafCount(ctx context.Context, setId *big.Int) (*big.Int, error) {
@@ -112,10 +106,6 @@ func (v *verifierContract) FindPieceIds(ctx context.Context, setId *big.Int, lea
 	}
 	log.Infow("FindPieceIds", "setId", setId, "leafIndexs", leafIndexs, "pieces", pieceInfo)
 	return out, nil
-}
-
-func (v *verifierContract) GetNextPieceId(ctx context.Context, setId *big.Int) (*big.Int, error) {
-	return v.verifier.GetNextPieceId(&bind.CallOpts{Context: ctx}, setId)
 }
 
 func (v *verifierContract) CalculateProofFee(ctx context.Context, setId *big.Int) (*big.Int, error) {

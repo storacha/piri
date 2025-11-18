@@ -31,7 +31,7 @@ func (d *delegationStore) Get(ctx context.Context, root ucan.Link) (delegation.D
 
 	r, err := d.data.Get(ctx, root.String())
 	if err != nil {
-		return nil, fmt.Errorf("getting from datastore: %w", err)
+		return nil, fmt.Errorf("getting %s from datastore: %w", root.String(), err)
 	}
 	defer r.Close()
 	data, err := io.ReadAll(r)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
@@ -11,6 +13,11 @@ import (
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
+
+type bigIntCache struct {
+	mu  sync.Mutex
+	val *big.Int
+}
 
 func (p *PDPService) GetProviderStatus(ctx context.Context) (types.GetProviderStatusResults, error) {
 	// Check if provider is registered on-chain
@@ -88,4 +95,27 @@ func (p *PDPService) RequireProviderApproved(ctx context.Context) error {
 	}
 
 	return fmt.Errorf("provider is not approved")
+}
+
+// cachedMaxPieceSizeLog2 returns the verifier max piece size and caches the first successful lookup.
+func (p *PDPService) cachedMaxPieceSizeLog2(ctx context.Context) (*big.Int, error) {
+	p.maxPieceSizeLog2Cache.mu.Lock()
+	if p.maxPieceSizeLog2Cache.val != nil {
+		val := new(big.Int).Set(p.maxPieceSizeLog2Cache.val)
+		p.maxPieceSizeLog2Cache.mu.Unlock()
+		return val, nil
+	}
+	p.maxPieceSizeLog2Cache.mu.Unlock()
+
+	val, err := p.verifierContract.MaxPieceSizeLog2(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get max piece size: %w", err)
+	}
+
+	p.maxPieceSizeLog2Cache.mu.Lock()
+	p.maxPieceSizeLog2Cache.val = new(big.Int).Set(val)
+	cached := new(big.Int).Set(p.maxPieceSizeLog2Cache.val)
+	p.maxPieceSizeLog2Cache.mu.Unlock()
+
+	return cached, nil
 }
