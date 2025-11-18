@@ -234,15 +234,16 @@ func TestCheckTransaction_Success(t *testing.T) {
 		maxEthAPIRetries: 3,
 	}
 
+	currentBlkNumber := int64(100)
 	txHash := common.HexToHash("0x123")
-	receipt := createTestReceipt(100, 1)
+	receipt := createTestReceipt(currentBlkNumber, 1)
 	tx := createTestTransaction(1)
 
 	client.addReceipt(txHash, receipt, 0)
 	client.addTransaction(txHash, tx, 0)
 
 	ctx := t.Context()
-	bestBlockNumber := big.NewInt(105) // More than MinConfidence ahead
+	bestBlockNumber := big.NewInt(currentBlkNumber + MinConfidence) // More than MinConfidence ahead
 
 	result, err := mw.checkTransaction(ctx, txHash, bestBlockNumber)
 
@@ -251,7 +252,7 @@ func TestCheckTransaction_Success(t *testing.T) {
 	assert.Equal(t, txHash.Hex(), result.TxHash)
 	assert.Equal(t, receipt, result.Receipt)
 	assert.Equal(t, tx, result.Transaction)
-	assert.Equal(t, int64(100), result.ConfirmedBlockNumber)
+	assert.Equal(t, currentBlkNumber, result.ConfirmedBlockNumber)
 	assert.True(t, result.TxSuccess)
 	assert.NotEmpty(t, result.TxDataJSON)
 	assert.NotEmpty(t, result.ReceiptJSON)
