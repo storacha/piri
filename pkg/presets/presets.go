@@ -20,13 +20,6 @@ var (
 	SigningServiceEndpoint  *url.URL
 )
 
-var (
-	// PDPRecordKeeperAddress is the address of the PDP Service contract: https://github.com/FilOzone/pdp/?tab=readme-ov-file#v110
-	// NB(forrest): for now we hardcode to the address to the calibnet service contract address
-	// later this may be configured to the mainnet contract address for production settings.
-	PDPRecordKeeperAddress = "0x6170dE2b09b404776197485F3dc6c968Ef948505"
-)
-
 // Setting this env var will enable certain presets.
 var PresetsEnvVar = "PIRI_PRESETS"
 

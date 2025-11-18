@@ -14,7 +14,6 @@ import (
 
 type PDPServiceConfig struct {
 	OwnerAddress         string               `mapstructure:"owner_address" validate:"required" flag:"owner-address" toml:"owner_address"`
-	ContractAddress      string               `mapstructure:"contract_address" validate:"required" flag:"contract-address" toml:"contract_address"`
 	LotusEndpoint        string               `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
 	SigningServiceConfig SigningServiceConfig `mapstructure:"signing_service" toml:"signing_service,omitempty"`
 }
@@ -25,10 +24,7 @@ func (c PDPServiceConfig) Validate() error {
 
 func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 	if !common.IsHexAddress(c.OwnerAddress) {
-		return app.PDPServiceConfig{}, fmt.Errorf("invalid owner address: %s", c.ContractAddress)
-	}
-	if !common.IsHexAddress(c.ContractAddress) {
-		return app.PDPServiceConfig{}, fmt.Errorf("invalid contract address: %s", c.ContractAddress)
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid owner address: %s", c.OwnerAddress)
 	}
 	lotusEndpoint, err := url.Parse(c.LotusEndpoint)
 	if err != nil {
@@ -40,7 +36,6 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 	}
 	return app.PDPServiceConfig{
 		OwnerAddress:         common.HexToAddress(c.OwnerAddress),
-		ContractAddress:      common.HexToAddress(c.ContractAddress),
 		LotusEndpoint:        lotusEndpoint,
 		SigningServiceConfig: signingServiceConfig,
 	}, nil

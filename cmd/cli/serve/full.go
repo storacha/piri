@@ -175,10 +175,10 @@ func init() {
 
 	FullCmd.Flags().String(
 		"contract-address",
-		presets.PDPRecordKeeperAddress,
+		"",
 		"The ethereum address of the PDP Contract",
 	)
-	cobra.CheckErr(viper.BindPFlag("pdp.contract_address", FullCmd.Flags().Lookup("contract-address")))
+	cobra.CheckErr(FullCmd.Flags().MarkDeprecated("contract-address", ""))
 
 	FullCmd.Flags().String(
 		"contract-signing-service-endpoint",

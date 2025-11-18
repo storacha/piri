@@ -161,9 +161,8 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			TempDir: flags.tempDir,
 		}.ToAppConfig()),
 		PDPService: lo.Must(config.PDPServiceConfig{
-			OwnerAddress:    walletKey.Address.String(),
-			ContractAddress: presets.PDPRecordKeeperAddress,
-			LotusEndpoint:   flags.lotusEndpoint,
+			OwnerAddress:  walletKey.Address.String(),
+			LotusEndpoint: flags.lotusEndpoint,
 			SigningServiceConfig: config.SigningServiceConfig{
 				Endpoint: presets.SigningServiceEndpoint.String(),
 			},
@@ -257,7 +256,7 @@ func registerWithContract(ctx context.Context, id principal.Signer, pdpSvc *serv
 }
 
 // setupProofSet creates or finds an existing proof set
-func setupProofSet(ctx context.Context, cmd *cobra.Command, pdpSvc *service.PDPService, contractAddress common.Address) (uint64, error) {
+func setupProofSet(ctx context.Context, cmd *cobra.Command, pdpSvc *service.PDPService) (uint64, error) {
 	proofSets, err := pdpSvc.ListProofSets(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("listing proof sets: %w", err)
@@ -402,9 +401,8 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 			PublicURL: flags.publicURL.String(),
 		},
 		PDPService: config.PDPServiceConfig{
-			OwnerAddress:    ownerAddress.String(),
-			ContractAddress: presets.PDPRecordKeeperAddress,
-			LotusEndpoint:   flags.lotusEndpoint,
+			OwnerAddress:  ownerAddress.String(),
+			LotusEndpoint: flags.lotusEndpoint,
 		},
 		UCANService: config.UCANServiceConfig{
 			Services: config.ServicesConfig{
@@ -466,7 +464,7 @@ func doInit(cmd *cobra.Command, _ []string) error {
 
 	// Step 5: Create or find proof set (must be approved in step 4 to succeed here)
 	cmd.PrintErrln("[5/7] Setting up proof set...")
-	proofSetID, err := setupProofSet(ctx, cmd, pdpSvc, cfg.PDPService.ContractAddress)
+	proofSetID, err := setupProofSet(ctx, cmd, pdpSvc)
 	if err != nil {
 		return err
 	}
