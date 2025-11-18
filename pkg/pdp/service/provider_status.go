@@ -14,11 +14,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
-type approvalCache struct {
-	mu       sync.Mutex
-	approved bool
-}
-
 type bigIntCache struct {
 	mu  sync.Mutex
 	val *big.Int
