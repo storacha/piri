@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/storacha/piri/cmd/cli/client/admin"
 	"github.com/storacha/piri/cmd/cli/client/pdp"
 	"github.com/storacha/piri/cmd/cli/client/ucan"
 )
@@ -20,5 +21,6 @@ func init() {
 	cobra.CheckErr(viper.BindPFlag("api.endpoint", Cmd.PersistentFlags().Lookup("node-url")))
 
 	Cmd.AddCommand(ucan.Cmd)
+	Cmd.AddCommand(admin.Cmd)
 	Cmd.AddCommand(pdp.Cmd)
 }
