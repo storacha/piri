@@ -67,7 +67,7 @@ require (
 	github.com/storacha/filecoin-services/go v0.0.2
 	github.com/storacha/go-libstoracha v0.5.1
 	github.com/storacha/go-ucanto v0.7.1
-	github.com/storacha/piri-signing-service v0.0.2-0.20251114135741-5b662f128e17
+	github.com/storacha/piri-signing-service v0.0.2-0.20251117123302-33ef6c7e21b5
 	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/testcontainers/testcontainers-go v0.39.0

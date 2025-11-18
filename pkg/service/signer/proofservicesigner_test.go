@@ -15,7 +15,8 @@ import (
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
-	"github.com/storacha/go-ucanto/core/receipt"
+	"github.com/storacha/go-ucanto/core/ipld"
+	"github.com/storacha/go-ucanto/core/message"
 	"github.com/storacha/go-ucanto/core/receipt/fx"
 	"github.com/storacha/go-ucanto/core/result"
 	"github.com/storacha/go-ucanto/core/result/failure"
@@ -71,7 +72,8 @@ func TestProofServiceSigner(t *testing.T) {
 				{{Key: "size", Value: "1024"}},
 				{{Key: "size", Value: "2048"}},
 			},
-			[][]receipt.AnyReceipt{},
+			[][]ipld.Link{},
+			[][]message.AgentMessage{},
 		)
 		require.NoError(t, err)
 	})
