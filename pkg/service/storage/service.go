@@ -221,8 +221,8 @@ func New(opts ...Option) (*StorageService, error) {
 
 	var uploadServiceConnection client.Connection
 	if c.uploadService == nil {
-		channel := ucanhttp.NewChannel(presets.UploadServiceURL)
-		conn, err := client.NewConnection(presets.UploadServiceDID, channel)
+		channel := ucanhttp.NewChannel(presets.Services.UploadServiceURL)
+		conn, err := client.NewConnection(presets.Services.UploadServiceDID, channel)
 		if err != nil {
 			return nil, fmt.Errorf("creating upload service connection: %w", err)
 		}

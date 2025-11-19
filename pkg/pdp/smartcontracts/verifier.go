@@ -31,19 +31,21 @@ type Verifier interface {
 	MaxPieceSizeLog2(ctx context.Context) (*big.Int, error)
 
 	// not part of contract code, added for convience in testing and usage
+	Address() common.Address
 	GetDataSetIdFromReceipt(receipt *types.Receipt) (uint64, error)
 	GetPieceIdsFromReceipt(receipt *types.Receipt) ([]uint64, error)
 	GetABI() (*abi.ABI, error)
 }
 
 type verifierContract struct {
+	address  common.Address
 	verifier *bindings.PDPVerifier
 	client   bind.ContractBackend
 	abi      *abi.ABI
 }
 
-func NewVerifierContract(backend bind.ContractBackend) (Verifier, error) {
-	verifier, err := bindings.NewPDPVerifier(Addresses().Verifier, backend)
+func NewVerifierContract(address common.Address, backend bind.ContractBackend) (Verifier, error) {
+	verifier, err := bindings.NewPDPVerifier(address, backend)
 	if err != nil {
 		return nil, fmt.Errorf("creating verifier contract: %v", err)
 	}
@@ -53,6 +55,7 @@ func NewVerifierContract(backend bind.ContractBackend) (Verifier, error) {
 		return nil, fmt.Errorf("getting verifier ABI: %v", err)
 	}
 	return &verifierContract{
+		address:  address,
 		verifier: verifier,
 		client:   backend,
 		abi:      pdpABI,
@@ -120,6 +123,10 @@ func (v *verifierContract) GetNextPieceId(ctx context.Context, setId *big.Int) (
 
 func (v *verifierContract) CalculateProofFee(ctx context.Context, setId *big.Int) (*big.Int, error) {
 	return v.verifier.CalculateProofFee(&bind.CallOpts{Context: ctx}, setId)
+}
+
+func (v *verifierContract) Address() common.Address {
+	return v.address
 }
 
 // GetDataSetIdFromReceipt parses DataSetCreated event from transaction receipt

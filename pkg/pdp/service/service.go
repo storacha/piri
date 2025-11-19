@@ -12,6 +12,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/filecoin-services/go/eip712"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
+	appconfig "github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
 
@@ -41,6 +42,7 @@ type EthClient interface {
 }
 
 type PDPService struct {
+	cfg             appconfig.PDPServiceConfig
 	address         common.Address
 	blobstore       blobstore.Blobstore
 	storage         stashstore.Stash
@@ -65,7 +67,7 @@ type PDPService struct {
 
 func New(
 	db *gorm.DB,
-	address common.Address,
+	cfg appconfig.PDPServiceConfig,
 	bs blobstore.PDPStore,
 	stash stashstore.Stash,
 	sender ethereum.Sender,
@@ -80,7 +82,8 @@ func New(
 	registryContract smartcontracts.Registry,
 ) (*PDPService, error) {
 	return &PDPService{
-		address:          address,
+		cfg:              cfg,
+		address:          cfg.OwnerAddress,
 		db:               db,
 		name:             "storacha",
 		blobstore:        bs,

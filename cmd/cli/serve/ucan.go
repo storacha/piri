@@ -72,7 +72,7 @@ func init() {
 
 	UCANCmd.Flags().String(
 		"indexing-service-did",
-		presets.IndexingServiceDID.String(),
+		presets.Services.IndexingServiceDID.String(),
 		"DID of the indexing service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("indexing-service-did"))
@@ -82,7 +82,7 @@ func init() {
 
 	UCANCmd.Flags().String(
 		"indexing-service-url",
-		presets.IndexingServiceURL.String(),
+		presets.Services.IndexingServiceURL.String(),
 		"URL of the indexing service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("indexing-service-url"))
@@ -92,7 +92,7 @@ func init() {
 
 	UCANCmd.Flags().String(
 		"upload-service-did",
-		presets.UploadServiceDID.String(),
+		presets.Services.UploadServiceDID.String(),
 		"DID of the upload service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("upload-service-did"))
@@ -102,7 +102,7 @@ func init() {
 
 	UCANCmd.Flags().String(
 		"upload-service-url",
-		presets.UploadServiceURL.String(),
+		presets.Services.UploadServiceURL.String(),
 		"URL of the upload service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("upload-service-url"))
@@ -114,7 +114,7 @@ func init() {
 		"ipni-announce-urls",
 		func() []string {
 			out := make([]string, 0)
-			for _, u := range presets.IPNIAnnounceURLs {
+			for _, u := range presets.Services.IPNIAnnounceURLs {
 				out = append(out, u.String())
 			}
 			return out
@@ -127,7 +127,7 @@ func init() {
 
 	UCANCmd.Flags().StringToString(
 		"service-principal-mapping",
-		presets.PrincipalMapping,
+		presets.Services.PrincipalMapping,
 		"Mapping of service DIDs to principal DIDs",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("service-principal-mapping"))

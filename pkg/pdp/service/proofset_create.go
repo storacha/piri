@@ -39,11 +39,11 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 	}
 
 	// Get the next client dataset ID for this payer, each payer has their own ID, which is different from the data set ID
-	nextClientDataSetId, err := p.serviceContract.GetNextClientDataSetId(ctx, smartcontracts.PayerAddress)
+	nextClientDataSetId, err := p.serviceContract.GetNextClientDataSetId(ctx, p.cfg.PayerAddress)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to get next client dataset ID: %w", err)
 	}
-	log.Infof("Next client dataset ID for payer %s: %s", smartcontracts.PayerAddress, nextClientDataSetId)
+	log.Infof("Next client dataset ID for payer %s: %s", p.cfg.PayerAddress, nextClientDataSetId)
 
 	// TODO: limit, or remove the extra data that can be provided to this method
 	// the caller of this will be the operator, we could encode a did here or something
@@ -60,7 +60,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 
 	// Encode the extraData with payer, metadata, and signature
 	extraDataBytes, err := p.edc.EncodeCreateDataSetExtraData(
-		smartcontracts.PayerAddress,
+		p.cfg.PayerAddress,
 		nextClientDataSetId,
 		metadataEntries,
 		signature,
@@ -76,7 +76,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 	}
 
 	// Pack the method call data with listener address and extraData
-	data, err := abiData.Pack("createDataSet", smartcontracts.Addresses().Service, extraDataBytes)
+	data, err := abiData.Pack("createDataSet", p.cfg.Contracts.Service, extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack create proof set: %w", err)
 	}
@@ -84,8 +84,8 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	tx := ethtypes.NewTransaction(
 		0,
-		smartcontracts.Addresses().Verifier,
-		smartcontracts.SybilFee(),
+		p.cfg.Contracts.Verifier,
+		smartcontracts.SybilFee,
 		0,
 		nil,
 		data,

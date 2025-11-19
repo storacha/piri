@@ -21,6 +21,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/blob/replica"
 	"github.com/storacha/go-libstoracha/capabilities/pdp"
 	"github.com/storacha/go-ucanto/core/delegation"
+	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
@@ -51,8 +52,35 @@ var InitCmd = &cobra.Command{
 }
 
 func init() {
-	InitCmd.Flags().String("registrar-url", "https://staging.registrar.warm.storacha.network", "URL of the registrar service")
+	InitCmd.Flags().String("network", presets.DefaultNetwork.String(), "Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses.")
+
+	InitCmd.Flags().String(
+		"registrar-url",
+		func() string {
+			if presets.Services.RegistrarServiceURL != nil {
+				return presets.Services.RegistrarServiceURL.String()
+			}
+			return ""
+		}(),
+		"[Advanced] URL of the registrar service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
 	cobra.CheckErr(InitCmd.Flags().MarkHidden("registrar-url"))
+
+	InitCmd.Flags().String(
+		"signing-service-url",
+		func() string {
+			if presets.Services.SigningServiceEndpoint != nil {
+				return presets.Services.SigningServiceEndpoint.String()
+			}
+			return ""
+		}(),
+		"[Advanced] URL of the signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("signing-service-url"))
+
+	InitCmd.Flags().String(
+		"upload-service-did",
+		presets.Services.UploadServiceDID.String(),
+		"[Advanced] DID of the upload service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("upload-service-did"))
 
 	InitCmd.Flags().String("data-dir", "", "Path to a data directory Piri will maintain its permanent state in")
 	InitCmd.Flags().String("temp-dir", "", "Path to a temporary directory Piri will maintain ephemeral state in")
@@ -75,18 +103,60 @@ func init() {
 
 // initFlags holds all the parsed command flags
 type initFlags struct {
-	dataDir       string
-	tempDir       string
-	keyFile       string
-	publicURL     *url.URL
-	walletPath    string
-	lotusEndpoint string
-	operatorEmail string
-	delegatorURL  string
+	dataDir           string
+	tempDir           string
+	keyFile           string
+	publicURL         *url.URL
+	walletPath        string
+	lotusEndpoint     string
+	operatorEmail     string
+	delegatorURL      string
+	signingServiceURL string
+	uploadServiceDID  did.DID
+}
+
+// loadPresets loads network-specific presets and applies them to flags
+func loadPresets(cmd *cobra.Command) error {
+	// Load network presets if --network flag was explicitly set
+	if cmd.Flags().Changed("network") {
+		networkStr, _ := cmd.Flags().GetString("network")
+		network, err := presets.ParseNetwork(networkStr)
+		if err != nil {
+			return fmt.Errorf("invalid network %q: %w", networkStr, err)
+		}
+		preset := presets.GetPreset(network)
+		presets.Services = preset.Services
+		presets.SmartContracts = preset.SmartContracts
+
+		// Apply preset values for flags that weren't explicitly set
+		if !cmd.Flags().Changed("registrar-url") {
+			if preset.Services.RegistrarServiceURL != nil {
+				cmd.Flags().Set("registrar-url", preset.Services.RegistrarServiceURL.String())
+			} else {
+				cmd.Flags().Set("registrar-url", "")
+			}
+		}
+		if !cmd.Flags().Changed("signing-service-url") {
+			if preset.Services.SigningServiceEndpoint != nil {
+				cmd.Flags().Set("signing-service-url", preset.Services.SigningServiceEndpoint.String())
+			} else {
+				cmd.Flags().Set("signing-service-url", "")
+			}
+		}
+		if !cmd.Flags().Changed("upload-service-did") {
+			cmd.Flags().Set("upload-service-did", preset.Services.UploadServiceDID.String())
+		}
+	}
+	return nil
 }
 
 // parseAndValidateFlags parses command flags and validates them
 func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
+	// Load network presets first
+	if err := loadPresets(cmd); err != nil {
+		return nil, err
+	}
+
 	dataDir, err := cmd.Flags().GetString("data-dir")
 	if err != nil {
 		return nil, fmt.Errorf("error reading --data-dir: %w", err)
@@ -131,15 +201,31 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		return nil, fmt.Errorf("error reading --registrar-url: %w", err)
 	}
 
+	signingServiceURL, err := cmd.Flags().GetString("signing-service-url")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --signing-service-url: %w", err)
+	}
+
+	uploadServiceDIDStr, err := cmd.Flags().GetString("upload-service-did")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --upload-service-did: %w", err)
+	}
+	uploadServiceDID, err := did.Parse(uploadServiceDIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("parsing upload service DID: %w", err)
+	}
+
 	return &initFlags{
-		dataDir:       dataDir,
-		tempDir:       tempDir,
-		keyFile:       keyFile,
-		publicURL:     parsedURL,
-		walletPath:    walletPath,
-		lotusEndpoint: lotusEndpoint,
-		operatorEmail: operatorEmail,
-		delegatorURL:  delegatorURL,
+		dataDir:           dataDir,
+		tempDir:           tempDir,
+		keyFile:           keyFile,
+		publicURL:         parsedURL,
+		walletPath:        walletPath,
+		lotusEndpoint:     lotusEndpoint,
+		operatorEmail:     operatorEmail,
+		delegatorURL:      delegatorURL,
+		signingServiceURL: signingServiceURL,
+		uploadServiceDID:  uploadServiceDID,
 	}, nil
 }
 
@@ -164,7 +250,7 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			OwnerAddress:  walletKey.Address.String(),
 			LotusEndpoint: flags.lotusEndpoint,
 			SigningServiceConfig: config.SigningServiceConfig{
-				Endpoint: presets.SigningServiceEndpoint.String(),
+				Endpoint: flags.signingServiceURL,
 			},
 		}.ToAppConfig()),
 		Replicator: appcfg.DefaultReplicatorConfig(),
@@ -303,7 +389,7 @@ func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.
 	// Generate delegation proof for upload service
 	d, err := delegate.MakeDelegation(
 		cfg.Identity.Signer,
-		presets.UploadServiceDID,
+		flags.uploadServiceDID,
 		[]string{
 			blob.AllocateAbility,
 			blob.AcceptAbility,

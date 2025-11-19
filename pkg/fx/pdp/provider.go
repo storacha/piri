@@ -118,7 +118,7 @@ type Params struct {
 func ProvidePDPService(params Params) (*service.PDPService, error) {
 	return service.New(
 		params.DB,
-		params.Config.OwnerAddress,
+		params.Config,
 		params.Store,
 		params.Stash,
 		params.Sender,
@@ -138,14 +138,14 @@ func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (*aggregator.Configure
 	return &aggregator.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
 }
 
-func ProviderSigningService(cfg app.SigningServiceConfig) (signer.SigningService, error) {
-	if cfg.Endpoint != nil {
-		return signerclient.New(cfg.Endpoint.String()), nil
-	} else if cfg.PrivateKey != nil {
+func ProviderSigningService(cfg app.PDPServiceConfig) (signer.SigningService, error) {
+	if cfg.SigningServiceConfig.Endpoint != nil {
+		return signerclient.New(cfg.SigningServiceConfig.Endpoint.String()), nil
+	} else if cfg.SigningServiceConfig.PrivateKey != nil {
 		s := signingservice.NewSigner(
-			cfg.PrivateKey,
-			smartcontracts.ChainID,
-			smartcontracts.Addresses().Service,
+			cfg.SigningServiceConfig.PrivateKey,
+			cfg.ChainID,
+			cfg.Contracts.Service,
 		)
 		return signerimpl.New(s), nil
 	}

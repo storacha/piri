@@ -182,7 +182,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 
 	// Get the listener address for this proof set from the PDPVerifier contract
 	lg.Debugw("Getting PDP verifier contract",
-		"verifier_address", smartcontracts.Addresses().Verifier)
+		"verifier_address", ipp.verifierContract.Address())
 
 	// Check if the data set has any leaves (pieces) before attempting to initialize proving period
 	leafCount, err := ipp.verifierContract.GetDataSetLeafCount(ctx, big.NewInt(proofSetID))
@@ -229,12 +229,12 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 
 	// Prepare the transaction
 	txEth := types.NewTransaction(
-		0,                                   // nonce (will be set by sender)
-		smartcontracts.Addresses().Verifier, // to
-		big.NewInt(0),                       // value
-		0,                                   // gasLimit (to be estimated)
-		nil,                                 // gasPrice (to be set by sender)
-		data,                                // data
+		0,                              // nonce (will be set by sender)
+		ipp.verifierContract.Address(), // to
+		big.NewInt(0),                  // value
+		0,                              // gasLimit (to be estimated)
+		nil,                            // gasPrice (to be set by sender)
+		data,                           // data
 	)
 
 	lg.Debug("Getting data set storage provider")
@@ -259,7 +259,7 @@ func (ipp *InitProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err er
 	// Send the transaction
 	reason := "pdp-proving-init"
 	lg.Infow("Sending nextProvingPeriod transaction",
-		"to_address", smartcontracts.Addresses().Verifier,
+		"to_address", ipp.verifierContract.Address(),
 		"reason", reason)
 
 	txHash, err := ipp.sender.Send(ctx, fromAddress, txEth, reason)

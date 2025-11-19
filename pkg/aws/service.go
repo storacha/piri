@@ -241,7 +241,7 @@ func FromEnv(ctx context.Context) Config {
 	var principalMapping map[string]string
 	if os.Getenv("PRINCIPAL_MAPPING") != "" {
 		principalMapping = map[string]string{}
-		maps.Copy(principalMapping, presets.PrincipalMapping)
+		maps.Copy(principalMapping, presets.Services.PrincipalMapping)
 		var pm map[string]string
 		err := json.Unmarshal([]byte(os.Getenv("PRINCIPAL_MAPPING")), &pm)
 		if err != nil {
@@ -249,7 +249,7 @@ func FromEnv(ctx context.Context) Config {
 		}
 		maps.Copy(principalMapping, pm)
 	} else {
-		principalMapping = presets.PrincipalMapping
+		principalMapping = presets.Services.PrincipalMapping
 	}
 
 	var ipniAnnounceURLs []url.URL
@@ -267,7 +267,7 @@ func FromEnv(ctx context.Context) Config {
 			ipniAnnounceURLs = append(ipniAnnounceURLs, *url)
 		}
 	} else {
-		ipniAnnounceURLs = presets.IPNIAnnounceURLs
+		ipniAnnounceURLs = presets.Services.IPNIAnnounceURLs
 	}
 
 	return Config{

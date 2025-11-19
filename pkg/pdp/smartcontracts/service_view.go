@@ -23,19 +23,23 @@ type Service interface {
 	GetAllApprovedProviders(ctx context.Context) ([]*big.Int, error)
 	GetMaxProvingPeriod(ctx context.Context) (*big.Int, error)
 	GetChallengeWindow(ctx context.Context) (*big.Int, error)
+
+	// not part of contract code, added for convience in testing and usage
+	Address() common.Address
 }
 
 // serviceContract provides helper functions for interacting with FilecoinWarmStorageServiceStateView
 type serviceContract struct {
+	address      common.Address
 	viewContract *bindings.FilecoinWarmStorageServiceStateView
 	client       bind.ContractBackend
 }
 
 // NewServiceView creates a new view contract helper
 // It first gets the view contract address from the main service contract, then connects to it
-func NewServiceView(client bind.ContractBackend) (Service, error) {
+func NewServiceView(address common.Address, client bind.ContractBackend) (Service, error) {
 	// Get the main service contract
-	sc, err := bindings.NewFilecoinWarmStorageService(Addresses().Service, client)
+	sc, err := bindings.NewFilecoinWarmStorageService(address, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind service contract: %w", err)
 	}
@@ -48,7 +52,7 @@ func NewServiceView(client bind.ContractBackend) (Service, error) {
 
 	// Check if view contract address is set
 	if viewAddress == (common.Address{}) {
-		return nil, fmt.Errorf("view contract not set on service contract at %s", Addresses().Service)
+		return nil, fmt.Errorf("view contract not set on service contract at %s", address.Hex())
 	}
 
 	// Connect to the view contract
@@ -58,6 +62,7 @@ func NewServiceView(client bind.ContractBackend) (Service, error) {
 	}
 
 	return &serviceContract{
+		address:      viewAddress,
 		viewContract: viewContract,
 		client:       client,
 	}, nil
@@ -267,4 +272,8 @@ func (v *serviceContract) GetChallengeWindow(ctx context.Context) (*big.Int, err
 		return nil, fmt.Errorf("failed to get challenge window: %w", err)
 	}
 	return window, nil
+}
+
+func (v *serviceContract) Address() common.Address {
+	return v.address
 }
