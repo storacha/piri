@@ -17,8 +17,11 @@ import (
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/storacha/go-libstoracha/digestutil"
+
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -47,17 +50,30 @@ type AcceptResponse struct {
 	PDP invocation.Invocation
 }
 
-func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptResponse, error) {
+func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (resp *AcceptResponse, err error) {
+	ctx, span := tracer.Start(ctx, "blob.accept")
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
 	log := log.With("blob", digestutil.Format(req.Blob.Digest))
 	log.Infof("%s %s", blob.AcceptAbility, req.Space)
+	span.SetAttributes(
+		attribute.String("space.did", req.Space.String()),
+		attribute.String("blob.digest", digestutil.Format(req.Blob.Digest)),
+		attribute.Int64("blob.size", int64(req.Blob.Size)),
+	)
 
 	var (
-		err          error
 		loc          url.URL
 		pdpAcceptInv invocation.Invocation
 	)
 	if s.PDP() == nil {
-		_, err = s.Blobs().Store().Get(ctx, req.Blob.Digest)
+		_, err := s.Blobs().Store().Get(ctx, req.Blob.Digest)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
 				return nil, fmt.Errorf("blob not found: %w", err)
@@ -72,6 +88,7 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (*AcceptRe
 			return nil, fmt.Errorf("creating retrieval URL for blob: %w", err)
 		}
 	} else {
+		span.SetAttributes(attribute.Bool("pdp.enabled", true))
 		// ensure the blob exists, else it cannot be accepted.
 		found, err := s.PDP().API().Has(ctx, req.Blob.Digest)
 		if err != nil {
