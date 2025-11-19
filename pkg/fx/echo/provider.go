@@ -11,6 +11,9 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"go.uber.org/fx"
 
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel"
+
 	"github.com/storacha/piri/pkg/config/app"
 	pirimiddleware "github.com/storacha/piri/pkg/pdp/httpapi/server/middleware"
 )
@@ -46,6 +49,7 @@ func NewEcho() *echo.Echo {
 	e.Use(middleware.Recover())
 	// Custom middlewares
 	e.Use(ErrorLogger(log))
+	e.Use(otelecho.Middleware("piri", otelecho.WithPropagators(otel.GetTextMapPropagator())))
 
 	return e
 }
