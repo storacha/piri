@@ -39,7 +39,6 @@ import (
 	ucan_car "github.com/storacha/go-ucanto/transport/car"
 	"github.com/storacha/go-ucanto/transport/headercar"
 	ucan_http "github.com/storacha/go-ucanto/transport/http"
-	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
 	testutil2 "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -50,7 +49,7 @@ import (
 
 func TestServer(t *testing.T) {
 	ctx := t.Context()
-	uploadServiceConn := testutil.Must(client.NewConnection(testutil.Service.DID(), ucanhttp.NewChannel(testutil.TestURL)))(t)
+	uploadServiceConn := testutil.Must(client.NewConnection(testutil.Service.DID(), ucan_http.NewChannel(testutil.TestURL)))(t)
 	svc, err := New(uploadServiceConn, WithIdentity(testutil.Alice), WithLogLevel("*", "warn"))
 	require.NoError(t, err)
 	err = svc.Startup(ctx)
@@ -528,7 +527,7 @@ func setupService(
 	fakeBlobPresigner *FakePresigned,
 	uploadServiceURL *url.URL,
 ) *StorageService {
-	uploadServiceConn, err := client.NewConnection(testutil.Service.DID(), ucanhttp.NewChannel(uploadServiceURL))
+	uploadServiceConn, err := client.NewConnection(testutil.Service.DID(), ucan_http.NewChannel(uploadServiceURL))
 	require.NoError(t, err)
 
 	svc, err := New(uploadServiceConn,
