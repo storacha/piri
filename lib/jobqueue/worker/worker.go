@@ -29,6 +29,7 @@ import (
 	"github.com/storacha/piri/lib/jobqueue/logger"
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/traceutil"
 )
 
 // JobFn is the job function to run.
@@ -121,8 +122,9 @@ func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Opti
 }
 
 type message struct {
-	Name    string
-	Message []byte
+	Name    string                        `json:"name"`
+	Message []byte                        `json:"message"`
+	Trace   *traceutil.SpanContextPayload `json:"trace,omitempty"`
 }
 
 // Start the Worker, blocking until the given context is cancelled.
@@ -186,8 +188,15 @@ func (r *Worker[T]) Enqueue(ctx context.Context, name string, msg T) error {
 	if err != nil {
 		return fmt.Errorf("serializer error: %w", err)
 	}
+
+	traceInfo := traceutil.PayloadFromContext(ctx)
+
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(message{Name: name, Message: m}); err != nil {
+	if err := json.NewEncoder(&buf).Encode(message{
+		Name:    name,
+		Message: m,
+		Trace:   traceInfo,
+	}); err != nil {
 		return err
 	}
 	return r.queue.Send(ctx, queue.Message{Body: buf.Bytes()})
@@ -198,8 +207,15 @@ func (r *Worker[T]) EnqueueTx(ctx context.Context, tx *sql.Tx, name string, msg 
 	if err != nil {
 		return fmt.Errorf("serializer error: %w", err)
 	}
+
+	traceInfo := traceutil.PayloadFromContext(ctx)
+
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(message{Name: name, Message: m}); err != nil {
+	if err := json.NewEncoder(&buf).Encode(message{
+		Name:    name,
+		Message: m,
+		Trace:   traceInfo,
+	}); err != nil {
 		return err
 	}
 	return r.queue.SendTx(ctx, tx, queue.Message{Body: buf.Bytes()})
@@ -234,6 +250,10 @@ func (r *Worker[T]) receiveAndRun(ctx context.Context, wg *sync.WaitGroup) {
 	jm, jobInput, err := r.decodeMessage(m.Body)
 	if err != nil {
 		return // Error already logged
+	}
+
+	if sc, ok := traceutil.SpanContextFromPayload(jm.Trace); ok {
+		ctx = traceutil.ContextWithLink(ctx, sc)
 	}
 
 	// Get the job registration

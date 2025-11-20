@@ -59,8 +59,8 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (res
 	log := log.With("blob", digestutil.Format(req.Blob.Digest))
 	log.Infof("%s space: %s", blob.AllocateAbility, req.Space)
 	span.SetAttributes(
-		attribute.String("space.did", req.Space.String()),
-		attribute.String("blob.digest", digestutil.Format(req.Blob.Digest)),
+		attribute.Stringer("space.did", req.Space),
+		attribute.Stringer("blob.digest", req.Blob.Digest),
 		attribute.Int64("blob.size", int64(req.Blob.Size)),
 	)
 
