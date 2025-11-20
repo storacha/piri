@@ -12,11 +12,13 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/testutil"
+	"github.com/storacha/go-ucanto/client"
 	retrievalclient "github.com/storacha/go-ucanto/client/retrieval"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/result"
+	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
 	piritutil "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,8 @@ import (
 
 func TestSpaceContentRetrieve(t *testing.T) {
 	ctx := t.Context()
-	storageSvc, err := storage.New(storage.WithIdentity(testutil.Alice), storage.WithLogLevel("*", "warn"))
+	uploadServiceConn := testutil.Must(client.NewConnection(testutil.Service.DID(), ucanhttp.NewChannel(testutil.TestURL)))(t)
+	storageSvc, err := storage.New(uploadServiceConn, storage.WithIdentity(testutil.Alice), storage.WithLogLevel("*", "warn"))
 	require.NoError(t, err)
 	err = storageSvc.Startup(ctx)
 	require.NoError(t, err)

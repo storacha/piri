@@ -23,12 +23,14 @@ import (
 	awspublisherqueue "github.com/storacha/go-libstoracha/ipnipublisher/queue/aws"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
+	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
 	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
 	"github.com/storacha/go-ucanto/principal/signer"
+	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/pkg/access"
@@ -81,6 +83,8 @@ type Config struct {
 	IndexingServiceDID             string
 	IndexingServiceURL             string
 	IndexingServiceProof           string
+	UploadServiceDID               did.DID
+	UploadServiceURL               *url.URL
 	IPNIPublisherAnnounceAddress   string
 	BlobsPublicURL                 string
 	RanLinkIndexTableName          string
@@ -159,11 +163,21 @@ func FromEnv(ctx context.Context) Config {
 
 	ipniPublisherAnnounceAddress := fmt.Sprintf("/dns/%s/https", mustGetEnv("IPNI_STORE_BUCKET_REGIONAL_DOMAIN"))
 
+	network, err := presets.ParseNetwork(mustGetEnv("PIRI_NETWORK"))
+	if err != nil {
+		panic(fmt.Errorf("invalid network: %w. Valid values are: %q", err, presets.AvailableNetworks))
+	}
+
+	preset, err := presets.GetPreset(network)
+	if err != nil {
+		panic(fmt.Errorf("invalid network: %w", err))
+	}
+
 	blobsPublicURL := "https://" + mustGetEnv("BLOB_STORE_BUCKET_REGIONAL_DOMAIN")
 	var principalMapping map[string]string
 	if os.Getenv("PRINCIPAL_MAPPING") != "" {
 		principalMapping = map[string]string{}
-		maps.Copy(principalMapping, presets.Services.PrincipalMapping)
+		maps.Copy(principalMapping, preset.Services.PrincipalMapping)
 		var pm map[string]string
 		err := json.Unmarshal([]byte(os.Getenv("PRINCIPAL_MAPPING")), &pm)
 		if err != nil {
@@ -171,7 +185,7 @@ func FromEnv(ctx context.Context) Config {
 		}
 		maps.Copy(principalMapping, pm)
 	} else {
-		principalMapping = presets.Services.PrincipalMapping
+		principalMapping = preset.Services.PrincipalMapping
 	}
 
 	var ipniAnnounceURLs []url.URL
@@ -189,7 +203,7 @@ func FromEnv(ctx context.Context) Config {
 			ipniAnnounceURLs = append(ipniAnnounceURLs, *url)
 		}
 	} else {
-		ipniAnnounceURLs = presets.Services.IPNIAnnounceURLs
+		ipniAnnounceURLs = preset.Services.IPNIAnnounceURLs
 	}
 
 	return Config{
@@ -222,6 +236,8 @@ func FromEnv(ctx context.Context) Config {
 		IndexingServiceDID:             mustGetEnv("INDEXING_SERVICE_DID"),
 		IndexingServiceURL:             mustGetEnv("INDEXING_SERVICE_URL"),
 		IndexingServiceProof:           mustGetEnv("INDEXING_SERVICE_PROOF"),
+		UploadServiceDID:               preset.Services.UploadServiceDID,
+		UploadServiceURL:               preset.Services.UploadServiceURL,
 		RanLinkIndexTableName:          mustGetEnv("RAN_LINK_INDEX_TABLE_NAME"),
 		ReceiptStoreBucket:             mustGetEnv("RECEIPT_STORE_BUCKET_NAME"),
 		ReceiptStorePrefix:             os.Getenv("RECEIPT_STORE_KEY_PREFIX"),
@@ -232,6 +248,11 @@ func FromEnv(ctx context.Context) Config {
 }
 
 func Construct(cfg Config) (storage.Service, error) {
+	uploadServiceConn, err := client.NewConnection(cfg.UploadServiceDID, ucanhttp.NewChannel(cfg.UploadServiceURL))
+	if err != nil {
+		return nil, fmt.Errorf("creating upload service connection: %w", err)
+	}
+
 	blobStoreOpts := cfg.S3Options
 	if cfg.BlobStoreBucketAccessKeyID != "" && cfg.BlobStoreBucketSecretAccessKey != "" {
 		blobStoreOpts = append(blobStoreOpts, func(opts *s3.Options) {
@@ -361,5 +382,5 @@ func Construct(cfg Config) (storage.Service, error) {
 	if blobAddr != nil {
 		opts = append(opts, storage.WithPublisherBlobAddress(blobAddr))
 	}
-	return storage.New(opts...)
+	return storage.New(uploadServiceConn, opts...)
 }
