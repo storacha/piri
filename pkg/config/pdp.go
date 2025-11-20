@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/presets"
 )
 
 type ContractAddresses struct {
@@ -27,6 +26,7 @@ type PDPServiceConfig struct {
 	SigningServiceConfig SigningServiceConfig `mapstructure:"signing_service" toml:"signing_service,omitempty"`
 	Contracts            ContractAddresses    `mapstructure:"contracts" toml:"contracts,omitempty"`
 	ChainID              string               `mapstructure:"chain_id" toml:"chain_id,omitempty"`
+	PayerAddress         string               `mapstructure:"payer_address" validate:"required" toml:"payer_address"`
 }
 
 func (c PDPServiceConfig) Validate() error {
@@ -83,14 +83,17 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		}
 	}
 
+	if !common.IsHexAddress(c.PayerAddress) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid payer address: %s", c.PayerAddress)
+	}
+
 	return app.PDPServiceConfig{
 		OwnerAddress:         common.HexToAddress(c.OwnerAddress),
 		LotusEndpoint:        lotusEndpoint,
 		SigningServiceConfig: signingServiceConfig,
 		Contracts:            contracts,
 		ChainID:              chainID,
-		// Non-user-configurable fields set from presets
-		PayerAddress: presets.SmartContracts.PayerAddress,
+		PayerAddress:         common.HexToAddress(c.PayerAddress),
 	}, nil
 }
 

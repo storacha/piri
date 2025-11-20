@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
-	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
@@ -12,26 +11,22 @@ import (
 )
 
 // Network represents the network the node will operate on
-type Network int
+type Network string
 
 const (
-	ForgeProd Network = iota
-	Prod
-	Staging
-	WarmStaging
+	ForgeProd   Network = "forge-prod"
+	Prod        Network = "prod"
+	Staging     Network = "staging"
+	WarmStaging Network = "warm-staging"
 )
+
+var AvailableNetworks = []Network{ForgeProd, Prod, Staging, WarmStaging}
 
 // String returns the string representation of the network
 func (n Network) String() string {
 	switch n {
-	case ForgeProd:
-		return "forge-prod"
-	case Prod:
-		return "prod"
-	case Staging:
-		return "staging"
-	case WarmStaging:
-		return "warm-staging"
+	case ForgeProd, Prod, Staging, WarmStaging:
+		return string(n)
 	default:
 		return "unknown"
 	}
@@ -40,16 +35,16 @@ func (n Network) String() string {
 // ParseNetwork parses a string into a Network type
 func ParseNetwork(s string) (Network, error) {
 	switch s {
-	case "forge-prod":
+	case string(ForgeProd):
 		return ForgeProd, nil
-	case "prod":
+	case string(Prod):
 		return Prod, nil
-	case "staging":
+	case string(Staging):
 		return Staging, nil
-	case "warm-staging":
+	case string(WarmStaging):
 		return WarmStaging, nil
 	default:
-		return ForgeProd, fmt.Errorf("unknown network: %s", s)
+		return Network(""), fmt.Errorf("unknown network: %q", s)
 	}
 }
 
@@ -82,16 +77,6 @@ type Preset struct {
 	Services       ServiceSettings
 	SmartContracts SmartContractSettings
 }
-
-var (
-	Services       ServiceSettings
-	SmartContracts SmartContractSettings
-)
-
-// Setting this env var will enable certain presets.
-var NetworkEnvVar = "PIRI_NETWORK"
-
-const DefaultNetwork = ForgeProd
 
 // URL of the original and best IPNI node cid.contact.
 var defaultIPNIAnnounceURL = lo.Must(url.Parse("https://cid.contact/announce"))
@@ -272,39 +257,29 @@ var mainnetSettings = SmartContractSettings{
 }
 
 // GetPreset returns the complete preset configuration for a given network
-func GetPreset(network Network) Preset {
+func GetPreset(network Network) (Preset, error) {
 	switch network {
+	case ForgeProd:
+		return Preset{
+			Services:       forgeProdServiceSettings(),
+			SmartContracts: mainnetSettings,
+		}, nil
 	case Prod:
 		return Preset{
 			Services:       prodServiceSettings(),
 			SmartContracts: mainnetSettings,
-		}
+		}, nil
 	case Staging:
 		return Preset{
 			Services:       stagingServiceSettings(),
 			SmartContracts: calibnetSettings,
-		}
+		}, nil
 	case WarmStaging:
 		return Preset{
 			Services:       warmStagingServiceSettings(),
 			SmartContracts: calibnetSettings,
-		}
-	default: // ForgeProd
-		return Preset{
-			Services:       forgeProdServiceSettings(),
-			SmartContracts: mainnetSettings,
-		}
+		}, nil
+	default:
+		return Preset{}, fmt.Errorf("unknown network: %s", network)
 	}
-}
-
-func init() {
-	network, err := ParseNetwork(os.Getenv(NetworkEnvVar))
-	if err != nil {
-		network = DefaultNetwork
-	}
-
-	preset := GetPreset(network)
-
-	Services = preset.Services
-	SmartContracts = preset.SmartContracts
 }

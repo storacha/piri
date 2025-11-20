@@ -16,14 +16,12 @@ import (
 	"github.com/storacha/go-ucanto/principal"
 	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
 	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
-	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
 	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
-	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
 	"github.com/storacha/piri/pkg/service/replicator"
@@ -99,7 +97,7 @@ func (s *StorageService) ClaimValidationContext() validator.ClaimContext {
 
 var _ Service = (*StorageService)(nil)
 
-func New(opts ...Option) (*StorageService, error) {
+func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, error) {
 	c := &config{}
 	for _, opt := range opts {
 		err := opt(c)
@@ -219,16 +217,8 @@ func New(opts ...Option) (*StorageService, error) {
 		}
 	}
 
-	var uploadServiceConnection client.Connection
-	if c.uploadService == nil {
-		channel := ucanhttp.NewChannel(presets.Services.UploadServiceURL)
-		conn, err := client.NewConnection(presets.Services.UploadServiceDID, channel)
-		if err != nil {
-			return nil, fmt.Errorf("creating upload service connection: %w", err)
-		}
-		uploadServiceConnection = conn
-	} else {
-		uploadServiceConnection = c.uploadService
+	if uploadServiceConn == nil {
+		return nil, errors.New("upload service connection cannot be nil")
 	}
 
 	blobs, err := blobs.New(blobOpts...)
@@ -277,7 +267,7 @@ func New(opts ...Option) (*StorageService, error) {
 		return nil, fmt.Errorf("creating replication queue: %w", err)
 	}
 
-	repl, err := replicator.New(id, pdpImpl, blobs, claims, receiptStore, uploadServiceConnection, replicationQueue)
+	repl, err := replicator.New(id, pdpImpl, blobs, claims, receiptStore, uploadServiceConn, replicationQueue)
 	if err != nil {
 		return nil, fmt.Errorf("creating replicator service: %w", err)
 	}
@@ -326,7 +316,7 @@ func New(opts ...Option) (*StorageService, error) {
 		receiptStore:  receiptStore,
 		pdp:           pdpImpl,
 		replicator:    repl,
-		uploadService: uploadServiceConnection,
+		uploadService: uploadServiceConn,
 		claimCtx:      claimCtx,
 	}, nil
 }

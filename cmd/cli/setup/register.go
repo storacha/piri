@@ -52,36 +52,11 @@ var InitCmd = &cobra.Command{
 }
 
 func init() {
-	InitCmd.Flags().String("network", presets.DefaultNetwork.String(), "Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses.")
-
 	InitCmd.Flags().String(
-		"registrar-url",
-		func() string {
-			if presets.Services.RegistrarServiceURL != nil {
-				return presets.Services.RegistrarServiceURL.String()
-			}
-			return ""
-		}(),
-		"[Advanced] URL of the registrar service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("registrar-url"))
-
-	InitCmd.Flags().String(
-		"signing-service-url",
-		func() string {
-			if presets.Services.SigningServiceEndpoint != nil {
-				return presets.Services.SigningServiceEndpoint.String()
-			}
-			return ""
-		}(),
-		"[Advanced] URL of the signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("signing-service-url"))
-
-	InitCmd.Flags().String(
-		"upload-service-did",
-		presets.Services.UploadServiceDID.String(),
-		"[Advanced] DID of the upload service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("upload-service-did"))
-
+		"network",
+		"",
+		fmt.Sprintf("Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses. Available values are: %q", presets.AvailableNetworks),
+	)
 	InitCmd.Flags().String("data-dir", "", "Path to a data directory Piri will maintain its permanent state in")
 	InitCmd.Flags().String("temp-dir", "", "Path to a temporary directory Piri will maintain ephemeral state in")
 	InitCmd.Flags().String("key-file", "", "Path to a PEM file containing ed25519 private key used as Piri's identity on the Storacha network")
@@ -90,6 +65,7 @@ func init() {
 	InitCmd.Flags().String("operator-email", "", "Email address of the piri operator (your email address for contact with the Storacha team)")
 	InitCmd.Flags().String("public-url", "", "URL Piri will advertise to the Storacha network")
 
+	cobra.CheckErr(InitCmd.MarkFlagRequired("network"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("data-dir"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("temp-dir"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("key-file"))
@@ -97,6 +73,31 @@ func init() {
 	cobra.CheckErr(InitCmd.MarkFlagRequired("lotus-endpoint"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("operator-email"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("public-url"))
+
+	InitCmd.Flags().String(
+		"registrar-url",
+		"",
+		"[Advanced] URL of the registrar service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("registrar-url"))
+
+	InitCmd.Flags().String(
+		"signing-service-url",
+		"",
+		"[Advanced] URL of the signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("signing-service-url"))
+
+	InitCmd.Flags().String(
+		"upload-service-did",
+		"",
+		"[Advanced] DID of the upload service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("upload-service-did"))
+
+	InitCmd.Flags().String(
+		"payer-address",
+		"",
+		"[Advanced] Address of the payer. Only change if you know what you're doing. Use --network flag to set proper defaults.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("payer-address"))
+
 	InitCmd.SetOut(os.Stdout)
 	InitCmd.SetErr(os.Stderr)
 }
@@ -113,40 +114,40 @@ type initFlags struct {
 	delegatorURL      string
 	signingServiceURL string
 	uploadServiceDID  did.DID
+	payerAddress      string
 }
 
 // loadPresets loads network-specific presets and applies them to flags
 func loadPresets(cmd *cobra.Command) error {
-	// Load network presets if --network flag was explicitly set
-	if cmd.Flags().Changed("network") {
-		networkStr, _ := cmd.Flags().GetString("network")
-		network, err := presets.ParseNetwork(networkStr)
-		if err != nil {
-			return fmt.Errorf("invalid network %q: %w", networkStr, err)
-		}
-		preset := presets.GetPreset(network)
-		presets.Services = preset.Services
-		presets.SmartContracts = preset.SmartContracts
-
-		// Apply preset values for flags that weren't explicitly set
-		if !cmd.Flags().Changed("registrar-url") {
-			if preset.Services.RegistrarServiceURL != nil {
-				cmd.Flags().Set("registrar-url", preset.Services.RegistrarServiceURL.String())
-			} else {
-				cmd.Flags().Set("registrar-url", "")
-			}
-		}
-		if !cmd.Flags().Changed("signing-service-url") {
-			if preset.Services.SigningServiceEndpoint != nil {
-				cmd.Flags().Set("signing-service-url", preset.Services.SigningServiceEndpoint.String())
-			} else {
-				cmd.Flags().Set("signing-service-url", "")
-			}
-		}
-		if !cmd.Flags().Changed("upload-service-did") {
-			cmd.Flags().Set("upload-service-did", preset.Services.UploadServiceDID.String())
-		}
+	networkStr, err := cmd.Flags().GetString("network")
+	if err != nil {
+		return fmt.Errorf("error reading --network: %w", err)
 	}
+
+	network, err := presets.ParseNetwork(networkStr)
+	if err != nil {
+		return fmt.Errorf("loading presets: %w", err)
+	}
+
+	preset, err := presets.GetPreset(network)
+	if err != nil {
+		return fmt.Errorf("loading presets: %w", err)
+	}
+
+	// Apply preset values for flags that weren't explicitly set
+	if !cmd.Flags().Changed("registrar-url") && preset.Services.RegistrarServiceURL != nil {
+		cmd.Flags().Set("registrar-url", preset.Services.RegistrarServiceURL.String())
+	}
+	if !cmd.Flags().Changed("signing-service-url") && preset.Services.SigningServiceEndpoint != nil {
+		cmd.Flags().Set("signing-service-url", preset.Services.SigningServiceEndpoint.String())
+	}
+	if !cmd.Flags().Changed("upload-service-did") {
+		cmd.Flags().Set("upload-service-did", preset.Services.UploadServiceDID.String())
+	}
+	if !cmd.Flags().Changed("payer-address") {
+		cmd.Flags().Set("payer-address", preset.SmartContracts.PayerAddress.String())
+	}
+
 	return nil
 }
 
@@ -215,6 +216,11 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		return nil, fmt.Errorf("parsing upload service DID: %w", err)
 	}
 
+	payerAddress, err := cmd.Flags().GetString("payer-address")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --payer-address: %w", err)
+	}
+
 	return &initFlags{
 		dataDir:           dataDir,
 		tempDir:           tempDir,
@@ -226,6 +232,7 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		delegatorURL:      delegatorURL,
 		signingServiceURL: signingServiceURL,
 		uploadServiceDID:  uploadServiceDID,
+		payerAddress:      payerAddress,
 	}, nil
 }
 
@@ -252,6 +259,7 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			SigningServiceConfig: config.SigningServiceConfig{
 				Endpoint: flags.signingServiceURL,
 			},
+			PayerAddress: flags.payerAddress,
 		}.ToAppConfig()),
 		Replicator: appcfg.DefaultReplicatorConfig(),
 	}
