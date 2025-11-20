@@ -136,11 +136,13 @@ type WatcherProviderRegisterParams struct {
 	fx.In
 	DB        *gorm.DB `name:"engine_db"`
 	Scheduler *chainsched.Scheduler
+	Registry  smartcontracts.Registry
 }
 
 func StartWatcherProviderRegister(params WatcherProviderRegisterParams) error {
 	return tasks.NewWatcherProviderRegister(
 		params.DB,
 		params.Scheduler,
+		params.Registry.Address(),
 	)
 }

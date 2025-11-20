@@ -21,11 +21,11 @@ TF_VAR_domain=storacha.network
 # OPTIONAL
 ################################################################################
 
-# Presets config ###############################################################
+# Network config ###############################################################
 
-# Presents are the default values for some configurations and allow the node to
-# be configured correctly for a given deployment.
-TF_VAR_presets=prod
+# The network setting sets the default values for some configurations, allowing
+# the node to operate correctly in the given network.
+TF_VAR_network=prod
 
 # AWS config ###################################################################
 

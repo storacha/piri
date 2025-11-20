@@ -212,7 +212,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	txEth := ethtypes.NewTransaction(
 		0,
-		smartcontracts.Addresses().Verifier,
+		p.verifier.Address(),
 		proofFee,
 		0,
 		nil,

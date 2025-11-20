@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/presets"
 )
 
 // TestConfigOption is a function that modifies a test config
@@ -48,7 +47,12 @@ func NewTestConfig(t *testing.T, opts ...TestConfigOption) app.AppConfig {
 			Services: app.ExternalServicesConfig{
 				PrincipalMapping: map[string]string{},
 				Upload: app.UploadServiceConfig{
-					Connection: testutil.Must(client.NewConnection(presets.UploadServiceDID, ucanhttp.NewChannel(presets.UploadServiceURL)))(t),
+					Connection: testutil.Must(
+						client.NewConnection(
+							testutil.Must(did.Parse("did:web:up.test.storacha.network"))(t),
+							ucanhttp.NewChannel(testutil.Must(url.Parse("http://up.test.storacha.network"))(t)),
+						),
+					)(t),
 				},
 				Publisher: app.PublisherServiceConfig{
 					PublicMaddr:   testutil.Must(multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/http", port)))(t),

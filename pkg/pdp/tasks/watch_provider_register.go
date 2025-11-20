@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	chainyypes "github.com/filecoin-project/lotus/chain/types"
 	"golang.org/x/xerrors"
@@ -13,13 +14,12 @@ import (
 	"github.com/storacha/filecoin-services/go/bindings"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 // NewWatcherProviderRegister sets up the watcher for provider registrations
-func NewWatcherProviderRegister(db *gorm.DB, pcs *chainsched.Scheduler) error {
+func NewWatcherProviderRegister(db *gorm.DB, pcs *chainsched.Scheduler, contractAddr common.Address) error {
 	if err := pcs.AddHandler(func(ctx context.Context, revert, apply *chainyypes.TipSet) error {
-		err := processPendingProviderRegistrations(ctx, db)
+		err := processPendingProviderRegistrations(ctx, db, contractAddr)
 		if err != nil {
 			log.Errorf("Failed to process pending provider registrations: %v", err)
 		}
@@ -32,7 +32,7 @@ func NewWatcherProviderRegister(db *gorm.DB, pcs *chainsched.Scheduler) error {
 }
 
 // processPendingProviderRegistrations processes provider registrations that have been confirmed on-chain
-func processPendingProviderRegistrations(ctx context.Context, db *gorm.DB) error {
+func processPendingProviderRegistrations(ctx context.Context, db *gorm.DB, contractAddr common.Address) error {
 	// Query for pdp_provider_registrations entries where ok = TRUE and provider_registered = FALSE
 	var providerRegistrations []models.PDPProviderRegistration
 	err := db.WithContext(ctx).
@@ -49,7 +49,7 @@ func processPendingProviderRegistrations(ctx context.Context, db *gorm.DB) error
 
 	// Process each provider registration
 	for _, providerReg := range providerRegistrations {
-		err := processProviderRegistration(ctx, db, providerReg)
+		err := processProviderRegistration(ctx, db, providerReg, contractAddr)
 		if err != nil {
 			log.Warnf("Failed to process provider registration for tx %s: %v", providerReg.RegisterMessageHash, err)
 			continue
@@ -59,7 +59,7 @@ func processPendingProviderRegistrations(ctx context.Context, db *gorm.DB) error
 	return nil
 }
 
-func processProviderRegistration(ctx context.Context, db *gorm.DB, providerReg models.PDPProviderRegistration) error {
+func processProviderRegistration(ctx context.Context, db *gorm.DB, providerReg models.PDPProviderRegistration, contractAddr common.Address) error {
 	// Retrieve the tx_receipt from message_waits_eth
 	var msgWait models.MessageWaitsEth
 	err := db.WithContext(ctx).
@@ -79,7 +79,7 @@ func processProviderRegistration(ctx context.Context, db *gorm.DB, providerReg m
 	}
 
 	// Parse the logs to extract provider ID
-	providerID, err := extractProviderIDFromReceipt(&txReceipt)
+	providerID, err := extractProviderIDFromReceipt(&txReceipt, contractAddr)
 	if err != nil {
 		return xerrors.Errorf("failed to extract provider ID from receipt for tx %s: %w", providerReg.RegisterMessageHash, err)
 	}
@@ -92,7 +92,7 @@ func processProviderRegistration(ctx context.Context, db *gorm.DB, providerReg m
 	return nil
 }
 
-func extractProviderIDFromReceipt(receipt *types.Receipt) (uint64, error) {
+func extractProviderIDFromReceipt(receipt *types.Receipt, contractAddr common.Address) (uint64, error) {
 	// Parse the ServiceProviderRegistry contract ABI
 	contractABI, err := bindings.ServiceProviderRegistryMetaData.GetAbi()
 	if err != nil {
@@ -102,7 +102,7 @@ func extractProviderIDFromReceipt(receipt *types.Receipt) (uint64, error) {
 	// Look for the ProviderRegistered event
 	// event ProviderRegistered(uint256 indexed providerId, address indexed providerAddress, address payee);
 	for _, vLog := range receipt.Logs {
-		if vLog.Address != smartcontracts.Addresses().ProviderRegistry {
+		if vLog.Address != contractAddr {
 			continue
 		}
 

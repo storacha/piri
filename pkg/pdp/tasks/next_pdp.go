@@ -167,12 +167,12 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 
 	// Prepare the transaction
 	txEth := types.NewTransaction(
-		0,                                   // nonce (will be set by sender)
-		smartcontracts.Addresses().Verifier, // to
-		big.NewInt(0),                       // value
-		0,                                   // gasLimit (to be estimated)
-		nil,                                 // gasPrice (to be set by sender)
-		data,                                // data
+		0,                    // nonce (will be set by sender)
+		n.verifier.Address(), // to
+		big.NewInt(0),        // value
+		0,                    // gasLimit (to be estimated)
+		nil,                  // gasPrice (to be set by sender)
+		data,                 // data
 	)
 
 	fromAddress, _, err := n.verifier.GetDataSetStorageProvider(ctx, big.NewInt(proofSetID))

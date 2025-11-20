@@ -49,7 +49,8 @@ import (
 
 func TestServer(t *testing.T) {
 	ctx := t.Context()
-	svc, err := New(WithIdentity(testutil.Alice), WithLogLevel("*", "warn"))
+	uploadServiceConn := testutil.Must(client.NewConnection(testutil.Service.DID(), ucan_http.NewChannel(testutil.TestURL)))(t)
+	svc, err := New(uploadServiceConn, WithIdentity(testutil.Alice), WithLogLevel("*", "warn"))
 	require.NoError(t, err)
 	err = svc.Startup(ctx)
 	require.NoError(t, err)
@@ -526,11 +527,13 @@ func setupService(
 	fakeBlobPresigner *FakePresigned,
 	uploadServiceURL *url.URL,
 ) *StorageService {
-	svc, err := New(
+	uploadServiceConn, err := client.NewConnection(testutil.Service.DID(), ucan_http.NewChannel(uploadServiceURL))
+	require.NoError(t, err)
+
+	svc, err := New(uploadServiceConn,
 		WithIdentity(testutil.Alice),
 		WithLogLevel("*", "warn"),
 		WithBlobsPresigner(fakeBlobPresigner),
-		WithUploadServiceConfig(testutil.Alice, *uploadServiceURL),
 	)
 	require.NoError(t, err)
 	require.NoError(t, svc.Startup(ctx))

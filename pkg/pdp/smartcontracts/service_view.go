@@ -16,10 +16,14 @@ type Service interface {
 	GetDataSet(ctx context.Context, dataSetId *big.Int) (*DataSetInfo, error)
 	IsProviderApproved(ctx context.Context, providerId *big.Int) (bool, error)
 	NextPDPChallengeWindowStart(ctx context.Context, proofSetID *big.Int) (*big.Int, error)
+
+	// not part of contract code, added for convience in testing and usage
+	Address() common.Address
 }
 
 // serviceContract provides helper functions for interacting with FilecoinWarmStorageServiceStateView
 type serviceContract struct {
+	address      common.Address
 	viewContract *bindings.FilecoinWarmStorageServiceStateView
 	client       bind.ContractBackend
 	dataSets     sync.Map // cache dataset lookups by ID string
@@ -27,14 +31,15 @@ type serviceContract struct {
 
 // NewServiceView creates a new view contract helper
 // It first gets the view contract address from the main service contract, then connects to it
-func NewServiceView(client bind.ContractBackend) (Service, error) {
+func NewServiceView(address common.Address, client bind.ContractBackend) (Service, error) {
 	// Connect to the view contract
-	viewContract, err := bindings.NewFilecoinWarmStorageServiceStateView(Addresses().ServiceView, client)
+	viewContract, err := bindings.NewFilecoinWarmStorageServiceStateView(address, client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind view contract at %s: %w", Addresses().ServiceView, err)
+		return nil, fmt.Errorf("failed to bind view contract at %s: %w", address, err)
 	}
 
 	return &serviceContract{
+		address:      address,
 		viewContract: viewContract,
 		client:       client,
 	}, nil
@@ -126,4 +131,8 @@ func (v *serviceContract) IsProviderApproved(ctx context.Context, providerId *bi
 
 func (v *serviceContract) NextPDPChallengeWindowStart(ctx context.Context, proofSetID *big.Int) (*big.Int, error) {
 	return v.viewContract.NextPDPChallengeWindowStart(&bind.CallOpts{Context: ctx}, proofSetID)
+}
+
+func (v *serviceContract) Address() common.Address {
+	return v.address
 }

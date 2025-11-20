@@ -60,7 +60,6 @@ require (
 	github.com/raulk/clock v1.1.0
 	github.com/samber/lo v1.39.0
 	github.com/schollz/progressbar/v3 v3.18.0
-	github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.21.0
 	github.com/storacha/delegator v0.0.2-0.20251027182137-7d26b5ae9a70

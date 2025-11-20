@@ -13,6 +13,9 @@ import (
 type Registry interface {
 	IsRegisteredProvider(ctx context.Context, provider common.Address) (bool, error)
 	GetProviderByAddress(ctx context.Context, provider common.Address) (*ProviderInfo, error)
+
+	// not part of contract code, added for convience in testing and usage
+	Address() common.Address
 }
 
 type ServiceProviderRegistryStoragePDPOffering struct {
@@ -37,16 +40,18 @@ type ProviderInfo struct {
 }
 
 type serviceProviderRegistry struct {
+	address          common.Address
 	registryContract *bindings.ServiceProviderRegistry
 	client           bind.ContractBackend
 }
 
-func NewRegistry(client bind.ContractBackend) (Registry, error) {
-	registryContract, err := bindings.NewServiceProviderRegistry(Addresses().ProviderRegistry, client)
+func NewRegistry(address common.Address, client bind.ContractBackend) (Registry, error) {
+	registryContract, err := bindings.NewServiceProviderRegistry(address, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize registry contract: %w", err)
 	}
 	return &serviceProviderRegistry{
+		address:          address,
 		registryContract: registryContract,
 		client:           client,
 	}, nil
@@ -70,4 +75,8 @@ func (r *serviceProviderRegistry) GetProviderByAddress(ctx context.Context, prov
 		Description:     providerInfo.Info.Description,
 		IsActive:        providerInfo.Info.IsActive,
 	}, nil
+}
+
+func (r *serviceProviderRegistry) Address() common.Address {
+	return r.address
 }

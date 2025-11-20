@@ -10,7 +10,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID uint64) (res common.Hash, retErr error) {
@@ -44,7 +43,7 @@ func (p *PDPService) RemoveRoot(ctx context.Context, proofSetID uint64, rootID u
 	// Prepare the transaction
 	ethTx := types.NewTransaction(
 		0, // nonce will be set by SenderETH
-		smartcontracts.Addresses().Verifier,
+		p.cfg.Contracts.Verifier,
 		big.NewInt(0), // value
 		0,             // gas limit (will be estimated)
 		nil,           // gas price (will be set by SenderETH)

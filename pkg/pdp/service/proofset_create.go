@@ -51,7 +51,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 
 	// Encode the extraData with payer, metadata, and signature
 	extraDataBytes, err := p.edc.EncodeCreateDataSetExtraData(
-		smartcontracts.PayerAddress,
+		p.cfg.PayerAddress,
 		nonce,
 		metadataEntries,
 		signature,
@@ -67,7 +67,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 	}
 
 	// Pack the method call data with listener address and extraData
-	data, err := abiData.Pack("createDataSet", smartcontracts.Addresses().Service, extraDataBytes)
+	data, err := abiData.Pack("createDataSet", p.cfg.Contracts.Service, extraDataBytes)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to pack create proof set: %w", err)
 	}
@@ -75,8 +75,8 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	tx := ethtypes.NewTransaction(
 		0,
-		smartcontracts.Addresses().Verifier,
-		smartcontracts.SybilFee(),
+		p.cfg.Contracts.Verifier,
+		smartcontracts.SybilFee,
 		0,
 		nil,
 		data,

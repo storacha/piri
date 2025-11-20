@@ -1665,8 +1665,6 @@ github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337/go.mod h1:s
 github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
 github.com/smartystreets/goconvey v1.8.1 h1:qGjIddxOk4grTu9JPOU31tVfq3cNdBlNa5sSznIX1xY=
 github.com/smartystreets/goconvey v1.8.1/go.mod h1:+/u4qLyY6x1jReYOp7GOM2FSt8aP9CzCZL03bI28W60=
-github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb h1:78YgPq3NbWnO4xyNhLsn2zitc7NiZpjQZ560rsxVLm4=
-github.com/snadrus/must v0.0.0-20240605044437-98cedd57f8eb/go.mod h1:YnCEHk4UlWROjM3YzC2pbSTq+iynM3ZaLoVDUI8QGpE=
 github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 h1:+jumHNA0Wrelhe64i8F6HNlS8pkoyMv5sreGx2Ry5Rw=
 github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8/go.mod h1:3n1Cwaq1E1/1lhQhtRK2ts/ZwZEhjcQeJQ1RuC6Q/8U=
 github.com/spacemonkeygo/openssl v0.0.0-20181017203307-c2dcc5cca94a/go.mod h1:7AyxJNCJ7SBZ1MfVQCWD6Uqo2oubI2Eq2y2eqf+A5r0=

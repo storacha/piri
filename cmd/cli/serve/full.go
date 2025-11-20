@@ -46,6 +46,14 @@ func init() {
 	cobra.CheckErr(viper.BindEnv("ucan.proof_set", "PIRI_PROOF_SET"))
 
 	FullCmd.Flags().String(
+		"network",
+		"",
+		"Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses.",
+	)
+	cobra.CheckErr(FullCmd.MarkFlagRequired("network"))
+	cobra.CheckErr(viper.BindPFlag("network", FullCmd.Flags().Lookup("network")))
+
+	FullCmd.Flags().String(
 		"indexing-service-proof",
 		"",
 		"A delegation that allows the node to cache claims with the indexing service",
@@ -56,8 +64,8 @@ func init() {
 
 	FullCmd.Flags().String(
 		"indexing-service-did",
-		presets.IndexingServiceDID.String(),
-		"DID of the indexing service",
+		"",
+		"[Advanced] DID of the indexing service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("indexing-service-did"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.indexer.did", FullCmd.Flags().Lookup("indexing-service-did")))
@@ -66,8 +74,8 @@ func init() {
 
 	FullCmd.Flags().String(
 		"indexing-service-url",
-		presets.IndexingServiceURL.String(),
-		"URL of the indexing service",
+		"",
+		"[Advanced] URL of the indexing service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("indexing-service-url"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.indexer.url", FullCmd.Flags().Lookup("indexing-service-url")))
@@ -83,24 +91,24 @@ func init() {
 
 	FullCmd.Flags().String(
 		"egress-tracker-service-did",
-		presets.EgressTrackerServiceDID.String(),
-		"DID of the egress tracker service",
+		"",
+		"[Advanced] DID of the egress tracker service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-did"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.did", FullCmd.Flags().Lookup("egress-tracker-service-did")))
 
 	FullCmd.Flags().String(
 		"egress-tracker-service-url",
-		presets.EgressTrackerServiceURL.String(),
-		"URL of the egress tracker service",
+		"",
+		"[Advanced] URL of the egress tracker service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-url"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.url", FullCmd.Flags().Lookup("egress-tracker-service-url")))
 
 	FullCmd.Flags().String(
 		"egress-tracker-service-receipts-endpoint",
-		presets.EgressTrackerServiceURL.JoinPath("/receipts").String(),
-		"URL of the egress tracker service receipts endpoint",
+		"",
+		"[Advanced] URL of the egress tracker service receipts endpoint. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("egress-tracker-service-receipts-endpoint"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.etracker.receipts_endpoint", FullCmd.Flags().Lookup("egress-tracker-service-receipts-endpoint")))
@@ -116,8 +124,8 @@ func init() {
 
 	FullCmd.Flags().String(
 		"upload-service-did",
-		presets.UploadServiceDID.String(),
-		"DID of the upload service",
+		"",
+		"[Advanced] DID of the upload service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("upload-service-did"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.upload.did", FullCmd.Flags().Lookup("upload-service-did")))
@@ -126,8 +134,8 @@ func init() {
 
 	FullCmd.Flags().String(
 		"upload-service-url",
-		presets.UploadServiceURL.String(),
-		"URL of the upload service",
+		"",
+		"[Advanced] URL of the upload service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("upload-service-url"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.upload.url", FullCmd.Flags().Lookup("upload-service-url")))
@@ -136,14 +144,9 @@ func init() {
 
 	FullCmd.Flags().StringSlice(
 		"ipni-announce-urls",
-		func() []string {
-			out := make([]string, 0)
-			for _, u := range presets.IPNIAnnounceURLs {
-				out = append(out, u.String())
-			}
-			return out
-		}(),
-		"A list of IPNI announce URLs")
+		[]string{},
+		"[Advanced] A list of IPNI announce URLs. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("ipni-announce-urls"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.publisher.ipni_announce_urls", FullCmd.Flags().Lookup("ipni-announce-urls")))
 	// backwards compatibility
@@ -151,8 +154,8 @@ func init() {
 
 	FullCmd.Flags().StringToString(
 		"service-principal-mapping",
-		presets.PrincipalMapping,
-		"Mapping of service DIDs to principal DIDs",
+		map[string]string{},
+		"[Advanced] Mapping of service DIDs to principal DIDs. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("service-principal-mapping"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.principal_mapping", FullCmd.Flags().Lookup("service-principal-mapping")))
@@ -174,30 +177,157 @@ func init() {
 	cobra.CheckErr(viper.BindPFlag("pdp.owner_address", FullCmd.Flags().Lookup("owner-address")))
 
 	FullCmd.Flags().String(
+		"verifier-address",
+		"",
+		"[Advanced] PDP Verifier contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("verifier-address"))
+	cobra.CheckErr(viper.BindPFlag("pdp.contracts.verifier", FullCmd.Flags().Lookup("verifier-address")))
+
+	FullCmd.Flags().String(
+		"provider-registry-address",
+		"",
+		"[Advanced] Provider Registry contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("provider-registry-address"))
+	cobra.CheckErr(viper.BindPFlag("pdp.contracts.provider_registry", FullCmd.Flags().Lookup("provider-registry-address")))
+
+	FullCmd.Flags().String(
+		"service-address",
+		"",
+		"[Advanced] PDP Service contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("service-address"))
+	cobra.CheckErr(viper.BindPFlag("pdp.contracts.service", FullCmd.Flags().Lookup("service-address")))
+
+	FullCmd.Flags().String(
+		"service-view-address",
+		"",
+		"[Advanced] Service View contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("service-view-address"))
+	cobra.CheckErr(viper.BindPFlag("pdp.contracts.service_view", FullCmd.Flags().Lookup("service-view-address")))
+
+	FullCmd.Flags().String(
+		"chain-id",
+		"",
+		"[Advanced] Filecoin chain ID (314 for mainnet, 314159 for calibration). Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("chain-id"))
+	cobra.CheckErr(viper.BindPFlag("pdp.chain_id", FullCmd.Flags().Lookup("chain-id")))
+
+	FullCmd.Flags().String(
+		"payer-address",
+		"",
+		"[Advanced] Address of the wallet that pays SPs. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("payer-address"))
+	cobra.CheckErr(viper.BindPFlag("pdp.payer_address", FullCmd.Flags().Lookup("payer-address")))
+
+	FullCmd.Flags().String(
 		"contract-address",
-		presets.PDPRecordKeeperAddress,
+		"",
 		"The ethereum address of the PDP Contract",
 	)
-	cobra.CheckErr(viper.BindPFlag("pdp.contract_address", FullCmd.Flags().Lookup("contract-address")))
+	cobra.CheckErr(FullCmd.Flags().MarkDeprecated("contract-address", "The contract-address flag is deprecated. Use --verifier-address instead."))
 
 	FullCmd.Flags().String(
 		"contract-signing-service-did",
-		presets.SigningServiceDID.String(),
-		"DID of the contract signing service",
+		"",
+		"[Advanced] DID of the contract signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.did", FullCmd.Flags().Lookup("contract-signing-service-did")))
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-did"))
 
 	FullCmd.Flags().String(
 		"contract-signing-service-url",
-		presets.SigningServiceURL.String(),
-		"Endpoint of the contract signing service",
+		"",
+		"[Advanced] URL of the contract signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
 	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.url", FullCmd.Flags().Lookup("contract-signing-service-url")))
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-url"))
 }
 
+func loadPresets(cmd *cobra.Command) error {
+	networkStr := viper.GetString("network")
+	network, err := presets.ParseNetwork(networkStr)
+	if err != nil {
+		return err
+	}
+
+	preset, err := presets.GetPreset(network)
+	if err != nil {
+		return err
+	}
+
+	// Apply service presets only if flags weren't explicitly set by user
+	if !cmd.Flags().Changed("indexing-service-did") {
+		viper.Set("ucan.services.indexer.did", preset.Services.IndexingServiceDID.String())
+	}
+	if !cmd.Flags().Changed("indexing-service-url") {
+		viper.Set("ucan.services.indexer.url", preset.Services.IndexingServiceURL.String())
+	}
+	if !cmd.Flags().Changed("egress-tracker-service-did") {
+		viper.Set("ucan.services.etracker.did", preset.Services.EgressTrackerServiceDID.String())
+	}
+	if !cmd.Flags().Changed("egress-tracker-service-url") {
+		viper.Set("ucan.services.etracker.url", preset.Services.EgressTrackerServiceURL.String())
+	}
+	if !cmd.Flags().Changed("egress-tracker-service-receipts-endpoint") {
+		viper.Set("ucan.services.etracker.receipts_endpoint", preset.Services.EgressTrackerServiceURL.JoinPath("/receipts").String())
+	}
+	if !cmd.Flags().Changed("upload-service-did") {
+		viper.Set("ucan.services.upload.did", preset.Services.UploadServiceDID.String())
+	}
+	if !cmd.Flags().Changed("upload-service-url") {
+		viper.Set("ucan.services.upload.url", preset.Services.UploadServiceURL.String())
+	}
+	if !cmd.Flags().Changed("ipni-announce-urls") {
+		urls := make([]string, len(preset.Services.IPNIAnnounceURLs))
+		for i, u := range preset.Services.IPNIAnnounceURLs {
+			urls[i] = u.String()
+		}
+		viper.Set("ucan.services.publisher.ipni_announce_urls", urls)
+	}
+	if !cmd.Flags().Changed("service-principal-mapping") {
+		viper.Set("ucan.services.principal_mapping", preset.Services.PrincipalMapping)
+	}
+	if !cmd.Flags().Changed("contract-signing-service-did") {
+		viper.Set("pdp.signing_service.did", preset.Services.SigningServiceDID.String())
+	}
+	if !cmd.Flags().Changed("contract-signing-service-url") {
+		viper.Set("pdp.signing_service.url", preset.Services.SigningServiceURL.String())
+	}
+
+	// Apply smart contract presets only if flags weren't explicitly set by user
+	if !cmd.Flags().Changed("verifier-address") {
+		viper.Set("pdp.contracts.verifier", preset.SmartContracts.Verifier.Hex())
+	}
+	if !cmd.Flags().Changed("provider-registry-address") {
+		viper.Set("pdp.contracts.provider_registry", preset.SmartContracts.ProviderRegistry.Hex())
+	}
+	if !cmd.Flags().Changed("service-address") {
+		viper.Set("pdp.contracts.service", preset.SmartContracts.Service.Hex())
+	}
+	if !cmd.Flags().Changed("service-view-address") {
+		viper.Set("pdp.contracts.service_view", preset.SmartContracts.ServiceView.Hex())
+	}
+	if !cmd.Flags().Changed("chain-id") {
+		viper.Set("pdp.chain_id", preset.SmartContracts.ChainID.String())
+	}
+	if !cmd.Flags().Changed("payer-address") {
+		viper.Set("pdp.payer_address", preset.SmartContracts.PayerAddress.Hex())
+	}
+
+	return nil
+}
+
 func fullServer(cmd *cobra.Command, _ []string) error {
+	// Apply network presets before loading config, but only for flags that weren't explicitly set
+	if err := loadPresets(cmd); err != nil {
+		return fmt.Errorf("loading presets: %w", err)
+	}
+
 	userCfg, err := config.Load[config.FullServerConfig]()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)

@@ -106,10 +106,10 @@ type Params struct {
 
 func ProvidePDPService(params Params) (*service.PDPService, error) {
 	return service.New(
+		params.Config,
 		params.ID.Signer,
 		params.ServerConfig.PublicURL,
 		params.DB,
-		params.Config.OwnerAddress,
 		params.BlobStore,
 		params.AcceptanceStore,
 		params.ReceiptStore,
@@ -131,14 +131,14 @@ func ProvideProofSetIDProvider(cfg app.UCANServiceConfig) (types.ProofSetIDProvi
 	return &service.ConfiguredProofSetProvider{ID: cfg.ProofSetID}, nil
 }
 
-func ProvideSigningService(cfg app.SigningServiceConfig, proofService proofs.ProofService) (signertypes.SigningService, error) {
-	if cfg.Connection != nil {
-		return signer.NewProofServiceSigner(cfg.Connection, proofService), nil
-	} else if cfg.PrivateKey != nil {
+func ProvideSigningService(cfg app.PDPServiceConfig, proofService proofs.ProofService) (signertypes.SigningService, error) {
+	if cfg.SigningService.Connection != nil {
+		return signer.NewProofServiceSigner(cfg.SigningService.Connection, proofService), nil
+	} else if cfg.SigningService.PrivateKey != nil {
 		s := signingservice.NewSigner(
-			cfg.PrivateKey,
-			smartcontracts.ChainID,
-			smartcontracts.Addresses().Service,
+			cfg.SigningService.PrivateKey,
+			cfg.ChainID,
+			cfg.Contracts.Service,
 		)
 		return signerimpl.New(s), nil
 	}

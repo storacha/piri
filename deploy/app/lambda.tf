@@ -82,7 +82,7 @@ resource "aws_lambda_function" "lambda" {
       IPNI_PUBLISHER_QUEUE_ID             = aws_sqs_queue.ipni_publisher.id
       IPNI_PUBLISHER_BUCKET_NAME          = aws_s3_bucket.ipni_publisher.bucket
       PRINCIPAL_MAPPING                   = var.principal_mapping,
-      PIRI_PRESETS                        = var.presets,
+      PIRI_NETWORK                        = var.network,
     }
   }
 }
