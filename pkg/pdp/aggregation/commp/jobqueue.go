@@ -11,11 +11,16 @@ import (
 	"github.com/multiformats/go-multihash"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/fx"
+
 	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/traceutil"
 	"github.com/storacha/piri/pkg/pdp/aggregation/aggregator"
 	"github.com/storacha/piri/pkg/pdp/types"
-	"go.uber.org/fx"
 )
 
 type CommpQueueParams struct {
@@ -58,10 +63,17 @@ type ComperTaskHandler struct {
 }
 
 func (h *ComperTaskHandler) Handle(ctx context.Context, blob multihash.Multihash) error {
+	ctx, span := traceutil.StartSpan(ctx, tracer, "commp.Handle", trace.WithAttributes(attribute.Stringer("blob.digest", blob)))
+	defer span.End()
+
 	res, err := h.api.CalculateCommP(ctx, blob)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to calculate commp")
 		return fmt.Errorf("calculating commp: %w", err)
 	}
+	span.AddEvent("calculated commp")
+
 	log.Infow("calculated commp", "blob", blob.String(), "piece", res.PieceCID.Hash().String(), "link", res.PieceCID.String())
 	if err := h.api.ParkPiece(ctx, types.ParkPieceRequest{
 		Blob:       blob,
@@ -69,12 +81,24 @@ func (h *ComperTaskHandler) Handle(ctx context.Context, blob multihash.Multihash
 		RawSize:    res.RawSize,
 		PaddedSize: res.PaddedSize,
 	}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to park piece")
 		return fmt.Errorf("parking piece: %w", err)
 	}
+	span.AddEvent("parked piece")
+
 	p, err := piece.FromLink(cidlink.Link{Cid: res.PieceCID})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to convert piece")
 		return err
 	}
+	span.SetAttributes([]attribute.KeyValue{
+		attribute.Int64("blob.size", res.RawSize),
+		attribute.Stringer("piece", res.PieceCID),
+		attribute.Stringer("piece.digest", res.PieceCID.Hash()),
+		attribute.Int64("piece.padded_size", res.PaddedSize),
+	}...)
 	return h.aggregator.EnqueueAggregation(ctx, p)
 }
 

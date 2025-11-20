@@ -13,10 +13,14 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-libstoracha/piece/piece"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/traceutil"
 	"github.com/storacha/piri/pkg/pdp/aggregation/manager"
 	"github.com/storacha/piri/pkg/pdp/aggregation/types"
 )
@@ -128,7 +132,16 @@ type Handler struct {
 	manager   *manager.Manager
 }
 
-func (p *Handler) Handle(ctx context.Context, piece piece.PieceLink) error {
+func (p *Handler) Handle(ctx context.Context, piece piece.PieceLink) (retErr error) {
+	ctx, span := traceutil.StartSpan(ctx, tracer, "aggregator.Handle", trace.WithAttributes(attribute.String("piece", piece.Link().String())))
+	defer func() {
+		if retErr != nil {
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, "failed to aggregate piece")
+		}
+		span.End()
+	}()
+
 	log.Infow("aggregating piece", "link", piece.Link())
 	buffer, err := p.workspace.GetBuffer(ctx)
 	if err != nil {
@@ -142,6 +155,7 @@ func (p *Handler) Handle(ctx context.Context, piece piece.PieceLink) error {
 		return fmt.Errorf("updating work space: %w", err)
 	}
 	if a != nil {
+		span.AddEvent("aggregate created", trace.WithAttributes(attribute.String("aggregate.root", a.Root.Link().String())))
 		if err := p.store.Put(ctx, a.Root.Link(), *a); err != nil {
 			return fmt.Errorf("storing aggregate: %w", err)
 		}

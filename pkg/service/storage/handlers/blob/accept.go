@@ -20,8 +20,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
-	"github.com/storacha/go-libstoracha/digestutil"
-
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -60,11 +58,11 @@ func Accept(ctx context.Context, s AcceptService, req *AcceptRequest) (resp *Acc
 		span.End()
 	}()
 
-	log := log.With("blob", digestutil.Format(req.Blob.Digest))
+	log := log.With("blob", req.Blob.Digest)
 	log.Infof("%s %s", blob.AcceptAbility, req.Space)
 	span.SetAttributes(
-		attribute.String("space.did", req.Space.String()),
-		attribute.String("blob.digest", digestutil.Format(req.Blob.Digest)),
+		attribute.Stringer("space.did", req.Space),
+		attribute.Stringer("blob.digest", req.Blob.Digest),
 		attribute.Int64("blob.size", int64(req.Blob.Size)),
 	)
 
