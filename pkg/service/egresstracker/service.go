@@ -12,13 +12,13 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/capabilities/space/egress"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
+	"github.com/storacha/go-libstoracha/failure"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/dag/blockstore"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/result"
-	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
 
@@ -76,7 +76,7 @@ func New(
 	return svc, nil
 }
 
-func (s *Service) AddReceipt(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, fdm.FailureModel]) error {
+func (s *Service) AddReceipt(ctx context.Context, rcpt receipt.Receipt[content.RetrieveOk, failure.FailureModel]) error {
 	batchRotated, rotatedBatchCID, err := s.journal.Append(ctx, rcpt)
 	if err != nil {
 		return fmt.Errorf("adding receipt to store: %w", err)
@@ -126,7 +126,7 @@ func (s *Service) egressTrack(ctx context.Context, batchCID cid.Cid) error {
 		return fmt.Errorf("importing response blocks into blockstore: %w", err)
 	}
 
-	rcptReader, err := receipt.NewReceiptReaderFromTypes[egress.TrackOk, fdm.FailureModel](egress.TrackOkType(), fdm.FailureType(), captypes.Converters...)
+	rcptReader, err := receipt.NewReceiptReaderFromTypes[egress.TrackOk, failure.FailureModel](egress.TrackOkType(), failure.FailureType(), captypes.Converters...)
 	if err != nil {
 		return fmt.Errorf("constructing receipt reader: %w", err)
 	}
@@ -137,7 +137,7 @@ func (s *Service) egressTrack(ctx context.Context, batchCID cid.Cid) error {
 	}
 
 	_, x := result.Unwrap(rcpt.Out())
-	var emptyErr fdm.FailureModel
+	var emptyErr failure.FailureModel
 	if x != emptyErr {
 		return fmt.Errorf("invocation failed: %s", x.Message)
 	}

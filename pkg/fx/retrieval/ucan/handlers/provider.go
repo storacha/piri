@@ -7,9 +7,9 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
+	"github.com/storacha/go-libstoracha/failure"
 	"github.com/storacha/go-ucanto/core/invocation"
 	"github.com/storacha/go-ucanto/core/receipt"
-	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanretrieval "github.com/storacha/go-ucanto/server/retrieval"
 
@@ -80,7 +80,7 @@ func withReceiptLogger(ets *egresstracker.Service) ucanretrieval.Option {
 			return err
 		}
 
-		retrievalRcpt, err := receipt.Rebind[content.RetrieveOk, fdm.FailureModel](fullRcpt, content.RetrieveOkType(), fdm.FailureType())
+		retrievalRcpt, err := receipt.Rebind[content.RetrieveOk, failure.FailureModel](fullRcpt, content.RetrieveOkType(), failure.FailureType())
 		if err != nil {
 			return err
 		}

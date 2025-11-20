@@ -17,6 +17,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/capabilities/space/egress"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
+	"github.com/storacha/go-libstoracha/failure"
 	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
@@ -25,8 +26,7 @@ import (
 	"github.com/storacha/go-ucanto/core/receipt/fx"
 	"github.com/storacha/go-ucanto/core/receipt/ran"
 	"github.com/storacha/go-ucanto/core/result"
-	"github.com/storacha/go-ucanto/core/result/failure"
-	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
+	ufailure "github.com/storacha/go-ucanto/core/result/failure"
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
@@ -162,7 +162,7 @@ func TestAddReceipt(t *testing.T) {
 	})
 }
 
-func createTestReceipt(t *testing.T, client ucan.Signer, node ucan.Signer) receipt.Receipt[content.RetrieveOk, fdm.FailureModel] {
+func createTestReceipt(t *testing.T, client ucan.Signer, node ucan.Signer) receipt.Receipt[content.RetrieveOk, failure.FailureModel] {
 	space := testutil.RandomDID(t)
 	inv, err := content.Retrieve.Invoke(
 		client,
@@ -181,7 +181,7 @@ func createTestReceipt(t *testing.T, client ucan.Signer, node ucan.Signer) recei
 	require.NoError(t, err)
 
 	ran := ran.FromInvocation(inv)
-	ok := result.Ok[content.RetrieveOk, failure.IPLDBuilderFailure](content.RetrieveOk{})
+	ok := result.Ok[content.RetrieveOk, ufailure.IPLDBuilderFailure](content.RetrieveOk{})
 	rcpt, err := receipt.Issue(
 		node,
 		ok,
@@ -189,7 +189,7 @@ func createTestReceipt(t *testing.T, client ucan.Signer, node ucan.Signer) recei
 	)
 	require.NoError(t, err)
 
-	retrieveRcpt, err := receipt.Rebind[content.RetrieveOk, fdm.FailureModel](rcpt, content.RetrieveOkType(), fdm.FailureType(), captypes.Converters...)
+	retrieveRcpt, err := receipt.Rebind[content.RetrieveOk, failure.FailureModel](rcpt, content.RetrieveOkType(), failure.FailureType(), captypes.Converters...)
 	require.NoError(t, err)
 
 	return retrieveRcpt
@@ -273,7 +273,7 @@ func (m *MockEgressTrackerServer) egressTrack() ucanserver.Option {
 				cap ucan.Capability[egress.TrackCaveats],
 				inv invocation.Invocation,
 				iCtx ucanserver.InvocationContext,
-			) (result.Result[egress.TrackOk, failure.IPLDBuilderFailure], fx.Effects, error) {
+			) (result.Result[egress.TrackOk, ufailure.IPLDBuilderFailure], fx.Effects, error) {
 				// Record the invocation and batch CID
 				m.mu.Lock()
 				defer m.mu.Unlock()
@@ -292,12 +292,12 @@ func (m *MockEgressTrackerServer) egressTrack() ucanserver.Option {
 					delegation.WithNoExpiration(),
 				)
 				if err != nil {
-					return result.Error[egress.TrackOk, failure.IPLDBuilderFailure](egress.NewTrackError(err.Error())), nil, nil
+					return result.Error[egress.TrackOk, ufailure.IPLDBuilderFailure](egress.NewTrackError(err.Error())), nil, nil
 				}
 
 				effects := fx.NewEffects(fx.WithFork(fx.FromInvocation(consolidateInv)))
 
-				return result.Ok[egress.TrackOk, failure.IPLDBuilderFailure](egress.TrackOk{}), effects, nil
+				return result.Ok[egress.TrackOk, ufailure.IPLDBuilderFailure](egress.TrackOk{}), effects, nil
 			},
 		),
 	)

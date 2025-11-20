@@ -232,12 +232,20 @@ func init() {
 	cobra.CheckErr(FullCmd.Flags().MarkDeprecated("contract-address", "The contract-address flag is deprecated. Use --verifier-address instead."))
 
 	FullCmd.Flags().String(
-		"contract-signing-service-endpoint",
+		"contract-signing-service-did",
 		"",
-		"Endpoint of the contract signing service",
+		"[Advanced] DID of the contract signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
 	)
-	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-endpoint"))
-	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.endpoint", FullCmd.Flags().Lookup("contract-signing-service-endpoint")))
+	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.did", FullCmd.Flags().Lookup("contract-signing-service-did")))
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-did"))
+
+	FullCmd.Flags().String(
+		"contract-signing-service-url",
+		"",
+		"[Advanced] URL of the contract signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(viper.BindPFlag("pdp.signing_service.url", FullCmd.Flags().Lookup("contract-signing-service-url")))
+	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-url"))
 }
 
 func loadPresets(cmd *cobra.Command) error {
@@ -284,8 +292,11 @@ func loadPresets(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("service-principal-mapping") {
 		viper.Set("ucan.services.principal_mapping", preset.Services.PrincipalMapping)
 	}
-	if !cmd.Flags().Changed("contract-signing-service-endpoint") && preset.Services.SigningServiceEndpoint != nil {
-		viper.Set("pdp.signing_service.endpoint", preset.Services.SigningServiceEndpoint.String())
+	if !cmd.Flags().Changed("contract-signing-service-did") {
+		viper.Set("pdp.signing_service.did", preset.Services.SigningServiceDID.String())
+	}
+	if !cmd.Flags().Changed("contract-signing-service-url") {
+		viper.Set("pdp.signing_service.url", preset.Services.SigningServiceURL.String())
 	}
 
 	// Apply smart contract presets only if flags weren't explicitly set by user

@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 )
 
 type ProofSetStatus struct {
@@ -101,7 +102,7 @@ type Piece struct {
 	Name string
 
 	// hex encoded hash
-	Hash string
+	Hash multihash.Multihash
 
 	// Size of the piece in bytes
 	Size int64
@@ -120,7 +121,7 @@ type API interface {
 
 type AllocatedPiece struct {
 	Allocated bool
-	Piece     cid.Cid
+	Piece     multihash.Multihash
 	UploadID  uuid.UUID
 }
 
@@ -175,6 +176,19 @@ type GetProviderStatusResults struct {
 	IsApproved bool
 }
 
+type ParkPieceRequest struct {
+	Blob       multihash.Multihash
+	PieceCID   cid.Cid
+	RawSize    int64
+	PaddedSize int64
+}
+
+type CalculateCommPResponse struct {
+	PieceCID   cid.Cid
+	RawSize    int64
+	PaddedSize int64
+}
+
 const (
 	ProductTypePDP uint8 = 0
 	// TODO we need to generate type for this from the contract ABI
@@ -216,13 +230,60 @@ func WithRange(start uint64, end *uint64) ReadPieceOption {
 }
 
 type PieceAPI interface {
+	PieceReaderAPI
+	PieceResolverAPI
+	PieceWriterAPI
+	PieceCommPAPI
+
+	// ParkPiece persists a record of a commp cid to the database
+	ParkPiece(ctx context.Context, params ParkPieceRequest) error
+
+	// WritePieceURL returns the URL an allocated blob may be uploaded to.
+	WritePieceURL(blob uuid.UUID) (url.URL, error)
+	// ReadPieceURL returns the URL a blob may be retrieved from.
+	ReadPieceURL(blob cid.Cid) (url.URL, error)
+}
+
+type PieceWriterAPI interface {
 	AllocatePiece(ctx context.Context, allocation PieceAllocation) (*AllocatedPiece, error)
 	UploadPiece(ctx context.Context, upload PieceUpload) error
-	FindPiece(ctx context.Context, piece Piece) (cid.Cid, bool, error)
-	ReadPiece(ctx context.Context, piece cid.Cid, options ...ReadPieceOption) (*PieceReader, error)
+}
+
+type PieceResolverAPI interface {
+	// Resolve accepts any multihash and attempts to resolve it to its corresponding hash.
+	// For example, if the provided hash is a commp multihash the blob hash will be returned.
+	// if the provided hash is not a commp multihash the commp hash will be returned.
+	// false if returned if data doesn't exist.
+	Resolve(ctx context.Context, data multihash.Multihash) (multihash.Multihash, bool, error)
+	// ResolveToPiece accepts a non-commp multihash and returns the commp multihash it corresponds to.
+	// If the multihash doesn't exist false is returned without an error.
+	ResolveToPiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error)
+	// ResolveToBlob accepts a commp multihash and returns the blob multihash it corresponds to.
+	// If the commp multihash doesn't exist false is returned without an error.
+	ResolveToBlob(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
+}
+
+type PieceReaderAPI interface {
+	// Read returns a `PieceReader` for the provided `data` multihash. An error is returned if the value doesn't exist,
+	// of if reading from the store fails. `ReadPieceOption`s may be provided for range queries and resolution before read.
+	// Read expects `data` to be the multihash the data was uploaded with. If callers provide a commP multihash to Read
+	// they must also provide a resolver method for the operation to succeed, this will almost always be the ResoleToBlob
+	// resolver.
+	Read(ctx context.Context, data multihash.Multihash, options ...ReadPieceOption) (*PieceReader, error)
+	// Has returns true if the provided `data` multihash is present in the store, false otherwise
+	Has(ctx context.Context, blob multihash.Multihash) (bool, error)
+}
+
+type PieceCommPAPI interface {
+	// CalculateCommP accepts a blob multihash and returns a result containing its commp CID, raw and padded size.
+	CalculateCommP(ctx context.Context, blob multihash.Multihash) (CalculateCommPResponse, error)
 }
 
 type ProviderAPI interface {
 	RegisterProvider(ctx context.Context, params RegisterProviderParams) (RegisterProviderResults, error)
 	GetProviderStatus(ctx context.Context) (GetProviderStatusResults, error)
+}
+
+type ProofSetIDProvider interface {
+	ProofSetID(ctx context.Context) (uint64, error)
 }

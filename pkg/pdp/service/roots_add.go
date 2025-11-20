@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math/big"
@@ -12,14 +13,21 @@ import (
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	"github.com/samber/lo"
-	"github.com/storacha/piri/pkg/pdp/tasks"
+	"github.com/storacha/filecoin-services/go/eip712"
+	"github.com/storacha/go-ucanto/core/invocation"
+	"github.com/storacha/go-ucanto/core/ipld"
+	"github.com/storacha/go-ucanto/core/message"
+	"github.com/storacha/go-ucanto/core/receipt"
 	"gorm.io/gorm"
 
-	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
+	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 // TODO we need to define non-retryable errors for the add root method, like lack of auth, and lack of dataset else this retries ~50 times
@@ -96,11 +104,6 @@ import (
 */
 
 func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (res common.Hash, retErr error) {
-	// ensure this method can never be called in parallel, else nextPieceId will be wrong from one of the parallel calls and
-	// produce an invalid signature
-	p.addRootMu.Lock()
-	defer p.addRootMu.Unlock()
-
 	log.Infow("adding roots", "id", id, "request", request)
 	defer func() {
 		if retErr != nil {
@@ -109,11 +112,6 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 			log.Infow("added roots", "id", id, "request", request, "response", res)
 		}
 	}()
-
-	// Check if the provider is both registered and approved
-	if err := p.RequireProviderApproved(ctx); err != nil {
-		return common.Hash{}, err
-	}
 
 	// Check if the proof set exists
 	var proofSet models.PDPProofSet
@@ -367,7 +365,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 			return common.Hash{}, fmt.Errorf("computing height and padding: %w", err)
 		}
 		// NB: defined here: https://github.com/FilOzone/pdp/blob/main/src/PDPVerifier.sol#L44
-		maxPieceSizeLog2, err := p.verifierContract.MaxPieceSizeLog2(ctx)
+		maxPieceSizeLog2, err := p.cachedMaxPieceSizeLog2(ctx)
 		if err != nil {
 			return common.Hash{}, err
 		}
@@ -406,12 +404,6 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		return common.Hash{}, fmt.Errorf("failed to get dataset info: %w", err)
 	}
 
-	// Get the next piece ID to use as firstAdded in signature
-	nextPieceId, err := p.verifierContract.GetNextPieceId(ctx, proofSetID)
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to get next piece ID for dataset %d: %w", id, err)
-	}
-
 	// Convert pieceDataArray to [][]byte for signing
 	pieceDataBytes := make([][]byte, len(pieceDataArray))
 	for i, piece := range pieceDataArray {
@@ -424,21 +416,47 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 		metadata[i] = []eip712.MetadataEntry{}
 	}
 
-	// Request a signature for adding pieces from the signing service
-	// Use clientDataSetId from FilecoinWarmStorageService (not PDPVerifier's setId)
-	// Use nextPieceId as firstAdded (this is what PDPVerifier will pass to the callback)
+	proofs := make([][]ipld.Link, 0, len(request))
+	proofData := make([][]message.AgentMessage, 0, len(request))
+	for _, req := range request {
+		tasks := make([]ipld.Link, 0, len(req.SubRoots))
+		msgs := make([]message.AgentMessage, 0, len(req.SubRoots))
+		for _, subroot := range req.SubRoots {
+			task, msg, err := getAddPieceProofs(ctx, p.pieceResolver, p.acceptanceStore, p.receiptStore, subroot)
+			if err != nil {
+				return common.Hash{}, fmt.Errorf("getting proofs to add piece %s: %w", subroot, err)
+			}
+			tasks = append(tasks, task)
+			msgs = append(msgs, msg)
+		}
+		proofs = append(proofs, tasks)
+		proofData = append(proofData, msgs)
+	}
+
+	// Request a signature for adding pieces from the signing service.
+	// Use clientDataSetId from FilecoinWarmStorageService (not PDPVerifier's setId).
+	// Generate a random nonce so it never collides with values stored in clientNonces during createDataSet.
+	nonceBytes := make([]byte, 32)
+	if _, err := rand.Read(nonceBytes); err != nil {
+		return common.Hash{}, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+	nonce := new(big.Int).SetBytes(nonceBytes)
+	// TODO(ash/forrst): nil is bad mkay, don't do this in the release....
 	signature, err := p.signingService.SignAddPieces(ctx,
+		p.id,
 		datasetInfo.ClientDataSetId, // Use FilecoinWarmStorageService clientDataSetId
-		nextPieceId,                 // firstAdded is the next piece ID
+		nonce,                       // client-chosen nonce, disjoint from createDataSet clientDataSetId
 		pieceDataBytes,
 		metadata,
+		proofs,
+		proofData,
 	)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to sign AddPieces: %w", err)
 	}
 
 	// Encode the extraData with signature and metadata
-	extraDataBytes, err := p.edc.EncodeAddPiecesExtraData(signature, metadata)
+	extraDataBytes, err := p.edc.EncodeAddPiecesExtraData(nonce, signature, metadata)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to encode extraData: %w", err)
 	}
@@ -523,4 +541,78 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 
 	log.Infow("AddRoots transaction confirmed successfully", "txHash", txHash.Hex(), "proofSetID", proofSetID)
 	return txHash, nil
+}
+
+// just the bit of the piece resolver API that we need
+type blobResolvable interface {
+	ResolveToBlob(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error)
+}
+
+func getAddPieceProofs(
+	ctx context.Context,
+	resolver blobResolvable,
+	accStore acceptancestore.AcceptanceStore,
+	rcptStore receiptstore.ReceiptStore,
+	piece cid.Cid,
+) (ipld.Link, message.AgentMessage, error) {
+	blob, ok, err := resolver.ResolveToBlob(ctx, piece.Hash())
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolving piece to blob hash: %w", err)
+	}
+	if !ok {
+		return nil, nil, fmt.Errorf("missing piece to blob mapping: %s", piece)
+	}
+
+	// We can accept the same blob in multiple _spaces_, but we only add a root
+	// for the blob to PDP once. So it doesn't really matter which acceptance
+	// record we retrieve here, but there will only be one anyway, since this will
+	// be the first (and only) time this blob is added to PDP.
+	accs, err := accStore.List(ctx, blob)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listing acceptances: %w", err)
+	}
+	if len(accs) == 0 {
+		return nil, nil, fmt.Errorf("missing acceptance: %w", err)
+	}
+	acc := accs[0]
+	if acc.PDPAccept == nil {
+		return nil, nil, errors.New("missing PDP accept promise")
+	}
+
+	// The `blob/accept` invocation and receipt proves the node was asked to store
+	// the data, or more accurately, it was asked _and_ it confirmed it received
+	// the data.
+	blobAccRcpt, err := rcptStore.GetByRan(ctx, acc.Cause)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting blob/accept receipt: %w", err)
+	}
+	// expect invocation to be attached to receipt
+	blobAccInv, ok := blobAccRcpt.Ran().Invocation()
+	if !ok {
+		return nil, nil, fmt.Errorf("missing blob/accept invocation: %w", err)
+	}
+
+	// The `pdp/accept` invocation and receipt proves the node calculated a CommP
+	// for the blob and aggregated it into an aggregate piece. Note: It doesn't
+	// prove the equality relationship between the blob hash and the piece CID.
+	pdpAccRcpt, err := rcptStore.GetByRan(ctx, acc.PDPAccept.UcanAwait.Link)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting pdp/accept receipt: %w", err)
+	}
+	pdpAccInv, ok := pdpAccRcpt.Ran().Invocation()
+	if !ok {
+		return nil, nil, fmt.Errorf("missing pdp/accept invocation: %w", err)
+	}
+
+	// The blob/accept receipt contains the link to the pdp/accept invocation in
+	// effects. Here we combine the blocks of these two related receipts (and
+	// invocations) in an agent message.
+	msg, err := message.Build(
+		[]invocation.Invocation{blobAccInv, pdpAccInv},
+		[]receipt.AnyReceipt{blobAccRcpt, pdpAccRcpt},
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("building agent message: %w", err)
+	}
+	return acc.Cause, msg, nil
 }

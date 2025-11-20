@@ -23,10 +23,13 @@ import (
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
-	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
+	"github.com/storacha/piri/pkg/pdp/tasks"
+	"github.com/storacha/piri/pkg/pdp/types"
 
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/wallet"
@@ -112,6 +115,7 @@ type initFlags struct {
 	lotusEndpoint     string
 	operatorEmail     string
 	delegatorURL      string
+	signingServiceDID string
 	signingServiceURL string
 	uploadServiceDID  did.DID
 	payerAddress      string
@@ -138,8 +142,11 @@ func loadPresets(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("registrar-url") && preset.Services.RegistrarServiceURL != nil {
 		cmd.Flags().Set("registrar-url", preset.Services.RegistrarServiceURL.String())
 	}
-	if !cmd.Flags().Changed("signing-service-url") && preset.Services.SigningServiceEndpoint != nil {
-		cmd.Flags().Set("signing-service-url", preset.Services.SigningServiceEndpoint.String())
+	if !cmd.Flags().Changed("signing-service-did") {
+		cmd.Flags().Set("signing-service-did", preset.Services.SigningServiceDID.String())
+	}
+	if !cmd.Flags().Changed("signing-service-url") && preset.Services.SigningServiceURL != nil {
+		cmd.Flags().Set("signing-service-url", preset.Services.SigningServiceURL.String())
 	}
 	if !cmd.Flags().Changed("upload-service-did") {
 		cmd.Flags().Set("upload-service-did", preset.Services.UploadServiceDID.String())
@@ -202,6 +209,10 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		return nil, fmt.Errorf("error reading --registrar-url: %w", err)
 	}
 
+	signingServiceDID, err := cmd.Flags().GetString("signing-service-did")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --signing-service-did: %w", err)
+	}
 	signingServiceURL, err := cmd.Flags().GetString("signing-service-url")
 	if err != nil {
 		return nil, fmt.Errorf("error reading --signing-service-url: %w", err)
@@ -230,6 +241,7 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		lotusEndpoint:     lotusEndpoint,
 		operatorEmail:     operatorEmail,
 		delegatorURL:      delegatorURL,
+		signingServiceDID: signingServiceDID,
 		signingServiceURL: signingServiceURL,
 		uploadServiceDID:  uploadServiceDID,
 		payerAddress:      payerAddress,
@@ -256,8 +268,9 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 		PDPService: lo.Must(config.PDPServiceConfig{
 			OwnerAddress:  walletKey.Address.String(),
 			LotusEndpoint: flags.lotusEndpoint,
-			SigningServiceConfig: config.SigningServiceConfig{
-				Endpoint: flags.signingServiceURL,
+			SigningService: config.SigningServiceConfig{
+				DID: flags.signingServiceDID,
+				URL: flags.signingServiceURL,
 			},
 			PayerAddress: flags.payerAddress,
 		}.ToAppConfig()),
@@ -319,7 +332,7 @@ func walletKeyFromWalletFile(walletPath string) (*wallet.Key, error) {
 	return wallet.NewKey(keystore.KeyInfo{PrivateKey: ki.PrivateKey})
 }
 
-func registerWithContract(ctx context.Context, id principal.Signer, pdpSvc *service.PDPService) (uint64, error) {
+func registerWithContract(ctx context.Context, cmd *cobra.Command, id principal.Signer, pdpSvc *service.PDPService) (uint64, error) {
 	// check if the provider is already registered with the contract
 	status, err := pdpSvc.GetProviderStatus(ctx)
 	if err != nil {
@@ -337,10 +350,30 @@ func registerWithContract(ctx context.Context, id principal.Signer, pdpSvc *serv
 	if err != nil {
 		return 0, fmt.Errorf("registering provider: %w", err)
 	}
+
+	cmd.PrintErrln("⏳ Waiting for registration to be confirmed on-chain...")
+	feedbackCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		for {
+			timer := time.NewTimer(10 * time.Second)
+			select {
+			case <-feedbackCtx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			cmd.PrintErrln("   Transaction status: pending")
+		}
+	}()
 	// then wait for transaction to be applied
-	if err := pdpSvc.WaitForConfirmation(ctx, res.TransactionHash, (30*time.Second)*4); err != nil {
+	if err := pdpSvc.WaitForConfirmation(ctx, res.TransactionHash,
+		(tasks.MinConfidence+2)*smartcontracts.FilecoinEpoch); err != nil {
 		return 0, fmt.Errorf("waiting for confirmation of registration: %w", err)
 	}
+	// cancel the feedback context
+	cancel()
+	cmd.PrintErrln("   Transaction status: confirmed")
 	// so that we may then query for our provider ID
 	status, err = pdpSvc.GetProviderStatus(ctx)
 	if err != nil {
@@ -541,7 +574,7 @@ func doInit(cmd *cobra.Command, _ []string) error {
 
 	// Step 3: Register with the smart contract
 	cmd.PrintErrln("[3/7] Registering provider with contract...")
-	providerID, err := registerWithContract(ctx, cfg.Identity.Signer, pdpSvc)
+	providerID, err := registerWithContract(ctx, cmd, cfg.Identity.Signer, pdpSvc)
 	if err != nil {
 		return err
 	}

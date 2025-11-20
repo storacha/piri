@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-ucanto/principal"
 
 	"github.com/storacha/piri/lib"
@@ -50,6 +51,38 @@ type Client struct {
 	endpoint   *url.URL
 	client     *http.Client
 	serverType EndpointType
+}
+
+func (c *Client) ParkPiece(ctx context.Context, params types.ParkPieceRequest) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (c *Client) Has(ctx context.Context, blob multihash.Multihash) (bool, error) {
+	return false, fmt.Errorf("not implemented")
+}
+
+func (c *Client) ResolveToPiece(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error) {
+	return nil, false, fmt.Errorf("not implemented")
+}
+
+func (c *Client) ResolveToBlob(ctx context.Context, piece multihash.Multihash) (multihash.Multihash, bool, error) {
+	return nil, false, fmt.Errorf("not implemented")
+}
+
+func (c *Client) CalculateCommP(ctx context.Context, blob multihash.Multihash) (types.CalculateCommPResponse, error) {
+	return types.CalculateCommPResponse{}, fmt.Errorf("PDP Client does not support calculate commP")
+}
+
+func (c *Client) WritePieceURL(piece uuid.UUID) (url.URL, error) {
+	return url.URL{}, fmt.Errorf("PDP Client does not support write piece URL")
+}
+
+func (c *Client) ReadPieceURL(piece cid.Cid) (url.URL, error) {
+	return url.URL{}, fmt.Errorf("PDP Client does not support read piece URL")
+}
+
+func (c *Client) Resolve(ctx context.Context, blob multihash.Multihash) (multihash.Multihash, bool, error) {
+	return nil, false, fmt.Errorf("PDP Client does not support resolving")
 }
 
 type Option func(c *Client) error
@@ -377,7 +410,7 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 	req := httpapi.AddPieceRequest{
 		Check: httpapi.PieceHash{
 			Name: allocation.Piece.Name,
-			Hash: allocation.Piece.Hash,
+			Hash: allocation.Piece.Hash.String(),
 			Size: allocation.Piece.Size,
 		},
 	}
@@ -398,17 +431,9 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 			if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 				return nil, fmt.Errorf("failed to decode response for piece allocation: %w", err)
 			}
-			pieceCIDStr, ok := result["pieceCID"]
-			if !ok {
-				return nil, fmt.Errorf("failed to find pieceCID in response for piece allocation")
-			}
-			pieceCID, err := cid.Parse(pieceCIDStr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse pieceCID: %w", err)
-			}
 			return &types.AllocatedPiece{
 				Allocated: false,
-				Piece:     pieceCID,
+				Piece:     multihash.Multihash(allocation.Piece.Hash),
 			}, nil
 		}
 		// piece was created
@@ -434,18 +459,14 @@ func (c *Client) AllocatePiece(ctx context.Context, allocation types.PieceAlloca
 		}
 		return &types.AllocatedPiece{
 			Allocated: payload.Allocated,
-			Piece:     cid.Undef,
+			Piece:     multihash.Multihash(allocation.Piece.Hash),
 			UploadID:  uid,
 		}, nil
 	}
 	// else, already exists
-	pcid, err := cid.Decode(payload.PieceCID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse piece CID: %w", err)
-	}
 	return &types.AllocatedPiece{
 		Allocated: payload.Allocated,
-		Piece:     pcid,
+		Piece:     multihash.Multihash(allocation.Piece.Hash),
 		UploadID:  uuid.Nil,
 	}, nil
 }
@@ -455,36 +476,7 @@ func (c *Client) UploadPiece(ctx context.Context, upload types.PieceUpload) erro
 	return c.verifySuccess(c.sendRequest(ctx, http.MethodPut, route, upload.Data, nil))
 }
 
-func (c *Client) FindPiece(ctx context.Context, piece types.Piece) (cid.Cid, bool, error) {
-	route := c.endpoint.JoinPath(pdpRoutePath, piecePath)
-	query := route.Query()
-	query.Add("size", strconv.FormatInt(piece.Size, 10))
-	query.Add("name", piece.Name)
-	query.Add("hash", piece.Hash)
-	route.RawQuery = query.Encode()
-	res, err := c.sendRequest(ctx, http.MethodGet, route.String(), nil, nil)
-	if err != nil {
-		return cid.Undef, false, fmt.Errorf("failed to find piece: %w", err)
-	}
-	if res.StatusCode == http.StatusNotFound {
-		return cid.Undef, false, nil
-	}
-	if res.StatusCode == http.StatusOK {
-		var foundPiece httpapi.FoundPieceResponse
-		if err := json.NewDecoder(res.Body).Decode(&foundPiece); err != nil {
-			return cid.Undef, false, fmt.Errorf("failed to decode response for piece: %w", err)
-		}
-		pcid, err := cid.Decode(foundPiece.PieceCID)
-		if err != nil {
-			return cid.Undef, false, fmt.Errorf("failed to parse found piece CID: %w", err)
-		}
-		return pcid, true, nil
-
-	}
-	return cid.Undef, false, errFromResponse(res)
-}
-
-func (c *Client) ReadPiece(ctx context.Context, piece cid.Cid, options ...types.ReadPieceOption) (*types.PieceReader, error) {
+func (c *Client) Read(ctx context.Context, piece multihash.Multihash, options ...types.ReadPieceOption) (*types.PieceReader, error) {
 	cfg := types.ReadPieceConfig{}
 	cfg.ProcessOptions(options)
 

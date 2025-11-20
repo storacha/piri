@@ -112,3 +112,30 @@ resource "aws_dynamodb_table" "allocation_store" {
   deletion_protection_enabled = terraform.workspace == "prod"
 }
 
+resource "aws_dynamodb_table" "acceptance_store" {
+  name         = "${terraform.workspace}-${var.app}-acceptance-store"
+  billing_mode = "PAY_PER_REQUEST"
+
+  attribute {
+    name = "hash"
+    type = "S"
+  }
+
+  attribute {
+    name = "space"
+    type = "S"
+  }
+
+  hash_key  = "hash"
+  range_key = "space"
+
+  tags = {
+    Name = "${terraform.workspace}-${var.app}-acceptance-store"
+  }
+
+  point_in_time_recovery {
+    enabled = terraform.workspace == "prod"
+  }
+
+  deletion_protection_enabled = terraform.workspace == "prod"
+}

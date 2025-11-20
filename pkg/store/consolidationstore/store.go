@@ -72,7 +72,7 @@ func (cs *consolidationStore) GetTrackInvocation(ctx context.Context, batchCID c
 		if errors.Is(err, datastore.ErrNotFound) {
 			return nil, fmt.Errorf("track invocation not found for batch CID: %s", batchCID.String())
 		}
-		return nil, fmt.Errorf("getting from datastore: %w", err)
+		return nil, fmt.Errorf("getting %s from datastore: %w", batchCID, err)
 	}
 
 	inv, err := delegation.Extract(data)
@@ -91,7 +91,7 @@ func (cs *consolidationStore) GetConsolidateInvocationCID(ctx context.Context, b
 		if errors.Is(err, datastore.ErrNotFound) {
 			return cid.Undef, fmt.Errorf("consolidate invocation CID not found for batch CID: %s", batchCID.String())
 		}
-		return cid.Undef, fmt.Errorf("getting from datastore: %w", err)
+		return cid.Undef, fmt.Errorf("getting %s from datastore: %w", batchCID, err)
 	}
 
 	// Parse CID from bytes

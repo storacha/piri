@@ -9,7 +9,6 @@ import (
 	"time"
 
 	leveldb "github.com/ipfs/go-ds-leveldb"
-	"github.com/ipni/go-libipni/maurl"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -23,15 +22,11 @@ import (
 	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/cmd/cliutil"
-	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/config"
-	"github.com/storacha/piri/pkg/pdp"
-	"github.com/storacha/piri/pkg/pdp/store/adapter"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/storage"
-	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/telemetry"
 )
@@ -46,22 +41,6 @@ var (
 )
 
 func init() {
-	UCANCmd.Flags().String(
-		"pdp-server-url",
-		"",
-		"URL used to connect to pdp server",
-	)
-	cobra.CheckErr(viper.BindPFlag("pdp_server_url", UCANCmd.Flags().Lookup("pdp-server-url")))
-
-	UCANCmd.Flags().Uint64(
-		"proof-set",
-		0,
-		"Proofset to use with PDP",
-	)
-	cobra.CheckErr(viper.BindPFlag("ucan.proof_set", UCANCmd.Flags().Lookup("proof-set")))
-	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.proof_set", "PIRI_PROOF_SET"))
-
 	UCANCmd.Flags().String(
 		"indexing-service-proof",
 		"",
@@ -140,13 +119,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	if cfg.PDPServerURL != "" && cfg.UCANService.ProofSetID == 0 {
-		return fmt.Errorf("must set --proof-set when using --pdp-server-url")
-	}
-	if cfg.UCANService.ProofSetID != 0 && cfg.PDPServerURL == "" {
-		return fmt.Errorf("must set --pdp-server-url when using --proofset")
-	}
-
 	id, err := cliutil.ReadPrivateKeyFromPEM(cfg.Identity.KeyFile)
 	if err != nil {
 		return fmt.Errorf("loading principal signer: %w", err)
@@ -171,6 +143,14 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	allocDs, err := leveldb.NewDatastore(allocsDir, nil)
+	if err != nil {
+		return err
+	}
+	acceptDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "acceptance")
+	if err != nil {
+		return err
+	}
+	acceptDs, err := leveldb.NewDatastore(acceptDir, nil)
 	if err != nil {
 		return err
 	}
@@ -199,44 +179,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	var pdpConfig *pdp.Config
 	var blobAddr multiaddr.Multiaddr
-	if pdpServerURL := cfg.PDPServerURL; pdpServerURL != "" {
-		pdpServerURL, err := url.Parse(pdpServerURL)
-		if err != nil {
-			return fmt.Errorf("parsing pdp server URL: %w", err)
-		}
-		aggRootDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "aggregator")
-		if err != nil {
-			return err
-		}
-		aggDsDir, err := cliutil.Mkdirp(aggRootDir, "datastore")
-		if err != nil {
-			return err
-		}
-		aggDs, err := leveldb.NewDatastore(aggDsDir, nil)
-		if err != nil {
-			return err
-		}
-		aggJobQueueDir, err := cliutil.Mkdirp(aggRootDir, "jobqueue")
-		if err != nil {
-			return err
-		}
-		pdpConfig = &pdp.Config{
-			PDPDatastore: aggDs,
-			PDPServerURL: pdpServerURL,
-			ProofSet:     cfg.UCANService.ProofSetID,
-			DatabasePath: filepath.Join(aggJobQueueDir, "jobqueue.db"),
-		}
-		pdpServerAddr, err := maurl.FromURL(pdpServerURL)
-		if err != nil {
-			return fmt.Errorf("parsing pdp server url: %w", err)
-		}
-		blobAddr, err = lib.JoinHTTPPath(pdpServerAddr, "piece/{blobCID}")
-		if err != nil {
-			return fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
-		}
-	}
 
 	var ipniAnnounceURLs []url.URL
 	for _, s := range cfg.UCANService.Services.Publisher.AnnounceURLs {
@@ -322,6 +265,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		storage.WithIdentity(id),
 		storage.WithBlobstore(blobStore),
 		storage.WithAllocationDatastore(allocDs),
+		storage.WithAcceptanceDatastore(acceptDs),
 		storage.WithClaimDatastore(claimDs),
 		storage.WithPublisherDatastore(publisherDs),
 		storage.WithPublicURL(*pubURL),
@@ -331,9 +275,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		storage.WithClaimValidationContext(claimValidationCtx),
 	)
 
-	if pdpConfig != nil {
-		storageOpts = append(storageOpts, storage.WithPDPConfig(*pdpConfig))
-	}
 	if blobAddr != nil {
 		storageOpts = append(storageOpts, storage.WithPublisherBlobAddress(blobAddr))
 	}
@@ -347,15 +288,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	}
 
 	blobGetter := blobstore.BlobGetter(blobStore)
-	// When PDP is enabled, blobs are stored in the piece store and keyed by piece
-	// hash. We need to adapt it to resolve a blob hash to a piece hash before
-	// fetching.
-	if storageSvc.PDP() != nil {
-		finder := storageSvc.PDP().PieceFinder()
-		reader := storageSvc.PDP().PieceReader()
-		sizer := allocationstore.NewBlobSizer(storageSvc.Blobs().Allocations())
-		blobGetter = adapter.NewBlobGetterAdapter(finder, reader, sizer)
-	}
 	retrievalSvc := retrieval.New(id, blobGetter, storageSvc.Blobs().Allocations())
 
 	go func() {
@@ -371,11 +303,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 			UploadServiceDID:     uploadServiceDID,
 			UploadServiceURL:     uploadServiceURL,
 			IPNIAnnounceURLs:     ipniAnnounceURLs,
-			PDPEnabled:           storageSvc.PDP() != nil,
-		}
-		if storageSvc.PDP() != nil {
-			serverConfig.PDPServerURL = pdpConfig.PDPServerURL
-			serverConfig.ProofSetID = pdpConfig.ProofSet
 		}
 		cliutil.PrintUCANServerConfig(cmd, serverConfig)
 		cliutil.PrintHero(cmd.OutOrStdout(), id.DID())

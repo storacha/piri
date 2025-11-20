@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,7 +23,6 @@ import (
 	awspublisherqueue "github.com/storacha/go-libstoracha/ipnipublisher/queue/aws"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
-	"github.com/storacha/go-libstoracha/piece/piece"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/principal"
@@ -33,14 +31,7 @@ import (
 	"github.com/storacha/go-ucanto/principal/signer"
 	"github.com/storacha/go-ucanto/validator"
 
-	"github.com/storacha/piri/lib"
 	"github.com/storacha/piri/pkg/access"
-	"github.com/storacha/piri/pkg/pdp"
-	"github.com/storacha/piri/pkg/pdp/aggregator"
-	"github.com/storacha/piri/pkg/pdp/httpapi/client"
-	"github.com/storacha/piri/pkg/pdp/pieceadder"
-	"github.com/storacha/piri/pkg/pdp/piecefinder"
-	"github.com/storacha/piri/pkg/pdp/piecereader"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/service/storage"
@@ -61,62 +52,6 @@ func mustGetEnv(envVar string) string {
 
 var ErrIndexingServiceProofsMissing = errors.New("indexing service proofs are missing")
 
-type AWSAggregator struct {
-	pieceAggregatorQueue *SQSPieceQueue
-}
-
-// AggregatePiece is the frontend to aggregation
-func (aa *AWSAggregator) AggregatePiece(ctx context.Context, pieceLink piece.PieceLink) error {
-	return aa.pieceAggregatorQueue.Queue(ctx, pieceLink)
-}
-
-type PDP struct {
-	aggregator  *AWSAggregator
-	pieceAdder  pieceadder.PieceAdder
-	pieceFinder piecefinder.PieceFinder
-	pieceReader piecereader.PieceReader
-}
-
-// Aggregator implements pdp.PDP.
-func (p *PDP) Aggregator() aggregator.Aggregator {
-	return p.aggregator
-}
-
-// PieceAdder implements pdp.PDP.
-func (p *PDP) PieceAdder() pieceadder.PieceAdder {
-	return p.pieceAdder
-}
-
-// PieceFinder implements pdp.PDP.
-func (p *PDP) PieceFinder() piecefinder.PieceFinder {
-	return p.pieceFinder
-}
-
-func (p *PDP) PieceReader() piecereader.PieceReader {
-	return p.pieceReader
-}
-
-func NewPDP(cfg Config) (*PDP, error) {
-	pdpAPIURL, err := url.Parse(cfg.PDPServerURL)
-	if err != nil {
-		return nil, fmt.Errorf("parsing pdp server URL: %w", err)
-	}
-	pdpAPI, err := client.New(pdpAPIURL, client.WithBearerFromSigner(cfg.Signer))
-	if err != nil {
-		return nil, fmt.Errorf("creating pdp api client: %w", err)
-	}
-	return &PDP{
-		aggregator: &AWSAggregator{
-			pieceAggregatorQueue: NewSQSPieceQueue(cfg.Config, cfg.SQSPDPPieceAggregatorURL),
-		},
-		pieceAdder:  pieceadder.New(pdpAPI, pdpAPIURL),
-		pieceFinder: piecefinder.New(pdpAPI, pdpAPIURL),
-		pieceReader: piecereader.New(pdpAPI, pdpAPIURL),
-	}, nil
-}
-
-var _ pdp.PDP = (*PDP)(nil)
-
 type Config struct {
 	Config                         aws.Config
 	S3Options                      []func(*s3.Options)
@@ -124,6 +59,7 @@ type Config struct {
 	SentryDSN                      string
 	SentryEnvironment              string
 	AllocationsTableName           string
+	AcceptanceTableName            string
 	BlobStoreBucketEndpoint        string
 	BlobStoreBucketRegion          string
 	BlobStoreBucketAccessKeyID     string
@@ -150,13 +86,8 @@ type Config struct {
 	RanLinkIndexTableName          string
 	ReceiptStoreBucket             string
 	ReceiptStorePrefix             string
-	SQSPDPPieceAggregatorURL       string
-	SQSPDPAggregateSubmitterURL    string
-	SQSPDPPieceAccepterURL         string
 	SQSPublishingQueueID           string
 	PublishingBucket               string
-	PDPProofSet                    uint64
-	PDPServerURL                   string
 	PrincipalMapping               map[string]string
 	principal.Signer
 }
@@ -229,15 +160,6 @@ func FromEnv(ctx context.Context) Config {
 	ipniPublisherAnnounceAddress := fmt.Sprintf("/dns/%s/https", mustGetEnv("IPNI_STORE_BUCKET_REGIONAL_DOMAIN"))
 
 	blobsPublicURL := "https://" + mustGetEnv("BLOB_STORE_BUCKET_REGIONAL_DOMAIN")
-	proofSetString := os.Getenv("PDP_PROOFSET")
-	var proofSet uint64
-	if len(proofSetString) > 0 {
-		proofSet, err = strconv.ParseUint(proofSetString, 10, 64)
-		if err != nil {
-			panic(fmt.Errorf("parsing pdp proofset: %w", err))
-		}
-	}
-
 	var principalMapping map[string]string
 	if os.Getenv("PRINCIPAL_MAPPING") != "" {
 		principalMapping = map[string]string{}
@@ -285,6 +207,7 @@ func FromEnv(ctx context.Context) Config {
 		ClaimStoreBucket:               mustGetEnv("CLAIM_STORE_BUCKET_NAME"),
 		ClaimStorePrefix:               os.Getenv("CLAIM_STORE_KEY_REFIX"),
 		AllocationsTableName:           mustGetEnv("ALLOCATIONS_TABLE_NAME"),
+		AcceptanceTableName:            mustGetEnv("ACCEPTANCE_TABLE_NAME"),
 		BlobStoreBucketEndpoint:        os.Getenv("BLOB_STORE_BUCKET_ENDPOINT"),
 		BlobStoreBucketRegion:          os.Getenv("BLOB_STORE_BUCKET_REGION"),
 		BlobStoreBucketAccessKeyID:     secrets[os.Getenv("BLOB_STORE_BUCKET_ACCESS_KEY_ID")],
@@ -302,13 +225,8 @@ func FromEnv(ctx context.Context) Config {
 		RanLinkIndexTableName:          mustGetEnv("RAN_LINK_INDEX_TABLE_NAME"),
 		ReceiptStoreBucket:             mustGetEnv("RECEIPT_STORE_BUCKET_NAME"),
 		ReceiptStorePrefix:             os.Getenv("RECEIPT_STORE_KEY_PREFIX"),
-		SQSPDPPieceAggregatorURL:       os.Getenv("PIECE_AGGREGATOR_QUEUE_URL"),
-		SQSPDPAggregateSubmitterURL:    os.Getenv("AGGREGATE_SUBMITTER_QUEUE_URL"),
-		SQSPDPPieceAccepterURL:         os.Getenv("PIECE_ACCEPTER_QUEUE_URL"),
 		SQSPublishingQueueID:           mustGetEnv("IPNI_PUBLISHER_QUEUE_ID"),
 		PublishingBucket:               mustGetEnv("IPNI_PUBLISHER_BUCKET_NAME"),
-		PDPProofSet:                    proofSet,
-		PDPServerURL:                   os.Getenv("CURIO_URL"),
 		PrincipalMapping:               principalMapping,
 	}
 }
@@ -335,6 +253,7 @@ func Construct(cfg Config) (storage.Service, error) {
 	}
 	blobStore := NewS3BlobStore(cfg.Config, cfg.BlobStoreBucket, formatKey, blobStoreOpts...)
 	allocationStore := NewDynamoAllocationStore(cfg.Config, cfg.AllocationsTableName, cfg.DynamoOptions...)
+	acceptanceStore := NewDynamoAcceptanceStore(cfg.Config, cfg.AcceptanceTableName, cfg.DynamoOptions...)
 	claimStore, err := delegationstore.NewDelegationStore(NewS3Store(cfg.Config, cfg.ClaimStoreBucket, cfg.ClaimStorePrefix, cfg.S3Options...))
 	if err != nil {
 		return nil, fmt.Errorf("constructing claim store: %w", err)
@@ -403,6 +322,7 @@ func Construct(cfg Config) (storage.Service, error) {
 		storage.WithIdentity(cfg.Signer),
 		storage.WithBlobstore(blobStore),
 		storage.WithAllocationStore(allocationStore),
+		storage.WithAcceptanceStore(acceptanceStore),
 		storage.WithClaimStore(claimStore),
 		storage.WithPublisherStore(publisherStore),
 		storage.WithAsyncPublisher(queuePublisher),
@@ -416,39 +336,16 @@ func Construct(cfg Config) (storage.Service, error) {
 	}
 
 	var blobAddr multiaddr.Multiaddr
-	if cfg.SQSPDPPieceAggregatorURL != "" && cfg.PDPServerURL != "" {
-		pdp, err := NewPDP(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("setting up PDP: %w", err)
-		}
-
-		opts = append(opts, storage.WithPDPImpl(pdp))
-		pdpAPIURL, err := url.Parse(cfg.PDPServerURL)
-		if err != nil {
-			return nil, fmt.Errorf("parsing pdp server URL: %w", err)
-		}
-		pdpAddr, err := maurl.FromURL(pdpAPIURL)
-		if err != nil {
-			return nil, fmt.Errorf("parsing pdp server URL to multiaddr: %w", err)
-		}
-		blobAddr, err = lib.JoinHTTPPath(pdpAddr, "piece/{blobCID}")
-		if err != nil {
-			return nil, fmt.Errorf("joining blob path to PDP multiaddr: %w", err)
-		}
-	}
-
 	if cfg.BlobStoreBucketKeyPattern != "" {
-		if blobAddr == nil {
-			blobPublicAddr, err := maurl.FromURL(blobsPublicURL)
-			if err != nil {
-				return nil, fmt.Errorf("parsing blobs public url to address: %w", err)
-			}
-			pathAddr, err := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape(cfg.BlobStoreBucketKeyPattern))
-			if err != nil {
-				return nil, fmt.Errorf("parsing multiaddr for blob store key pattern: %w", err)
-			}
-			blobAddr = multiaddr.Join(blobPublicAddr, pathAddr)
+		blobPublicAddr, err := maurl.FromURL(blobsPublicURL)
+		if err != nil {
+			return nil, fmt.Errorf("parsing blobs public url to address: %w", err)
 		}
+		pathAddr, err := multiaddr.NewMultiaddr("/http-path/" + url.PathEscape(cfg.BlobStoreBucketKeyPattern))
+		if err != nil {
+			return nil, fmt.Errorf("parsing multiaddr for blob store key pattern: %w", err)
+		}
+		blobAddr = multiaddr.Join(blobPublicAddr, pathAddr)
 		pattern := blobsPublicURL.String()
 		if strings.HasSuffix(pattern, "/") {
 			pattern = fmt.Sprintf("%s%s", pattern, cfg.BlobStoreBucketKeyPattern)

@@ -84,7 +84,7 @@ The command creates a complete TOML configuration file. If you didn't save it to
 After setup is complete, run your Piri node using the configuration file:
 
 ```bash
-piri serve full --config=config.toml
+piri serve --config=config.toml
 ```
 
 If the `--config` option is not provided, Piri will automatically load config from your user config directory e.g. `~/.config/piri/config.toml`.
@@ -96,7 +96,7 @@ If the `--config` option is not provided, Piri will automatically load config fr
 ▐▛▀▘ █ █    █  ▗█▘
 ▐▌   █      █  ▀▘
 
-🔥 v0.0.17
+🔥 v0.0.18
 🆔 did:key:z6MkhaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Piri Running on: localhost:3000
 Piri Public Endpoint: https://piri.example.com

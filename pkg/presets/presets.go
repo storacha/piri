@@ -57,9 +57,10 @@ type ServiceSettings struct {
 	EgressTrackerServiceURL *url.URL
 	UploadServiceURL        *url.URL
 	UploadServiceDID        did.DID
-	PrincipalMapping        map[string]string
-	SigningServiceEndpoint  *url.URL
+	SigningServiceURL       *url.URL
+	SigningServiceDID       did.DID
 	RegistrarServiceURL     *url.URL
+	PrincipalMapping        map[string]string
 }
 
 // SmartContractSettings holds the smart contract configuration for a network
@@ -101,7 +102,9 @@ func forgeProdServiceSettings() ServiceSettings {
 		forgeProdEgressTrackerServiceDID.String(): "did:key:z6MkuGS213fJGP7qGRG8Pn9mffCDU2vXgnSRY4JL1sumgpFX",
 	}
 
+	forgeProdSigningServiceDID := lo.Must(did.Parse("did:web:signer.forge.storacha.network"))
 	forgeProdSigningServiceURL := lo.Must(url.Parse("https://signer.forge.storacha.network"))
+
 	forgeProdRegistrarServiceURL := lo.Must(url.Parse("https://registrar.forge.storacha.network"))
 
 	return ServiceSettings{
@@ -112,9 +115,10 @@ func forgeProdServiceSettings() ServiceSettings {
 		EgressTrackerServiceDID: forgeProdEgressTrackerServiceDID,
 		UploadServiceURL:        forgeProdUploadServiceURL,
 		UploadServiceDID:        forgeProdUploadServiceDID,
-		PrincipalMapping:        forgeProdPrincipalMapping,
-		SigningServiceEndpoint:  forgeProdSigningServiceURL,
+		SigningServiceURL:       forgeProdSigningServiceURL,
+		SigningServiceDID:       forgeProdSigningServiceDID,
 		RegistrarServiceURL:     forgeProdRegistrarServiceURL,
+		PrincipalMapping:        forgeProdPrincipalMapping,
 	}
 }
 
@@ -138,7 +142,9 @@ func warmStagingServiceSettings() ServiceSettings {
 		warmStagingEgressTrackerServiceDID.String(): "did:key:z6Mkqv9fjGQpNKQdgUxkq2VYH2nKiKZiGPxbtYjhJBz8wfAn",
 	}
 
-	warmStagingSigningServiceEndpoint := lo.Must(url.Parse("https://staging.signer.warm.storacha.network"))
+	warmStagingSigningServiceDID := lo.Must(did.Parse("did:web:staging.signer.warm.storacha.network"))
+	warmStagingSigningServiceURL := lo.Must(url.Parse("https://staging.signer.warm.storacha.network"))
+
 	warmStagingRegistrarServiceURL := lo.Must(url.Parse("https://staging.registrar.warm.storacha.network"))
 
 	return ServiceSettings{
@@ -149,9 +155,10 @@ func warmStagingServiceSettings() ServiceSettings {
 		EgressTrackerServiceDID: warmStagingEgressTrackerServiceDID,
 		UploadServiceURL:        warmStagingUploadServiceURL,
 		UploadServiceDID:        warmStagingUploadServiceDID,
-		PrincipalMapping:        warmStagingPrincipalMapping,
-		SigningServiceEndpoint:  warmStagingSigningServiceEndpoint,
+		SigningServiceURL:       warmStagingSigningServiceURL,
+		SigningServiceDID:       warmStagingSigningServiceDID,
 		RegistrarServiceURL:     warmStagingRegistrarServiceURL,
+		PrincipalMapping:        warmStagingPrincipalMapping,
 	}
 }
 
@@ -183,9 +190,10 @@ func stagingServiceSettings() ServiceSettings {
 		EgressTrackerServiceDID: stagingEgressTrackerServiceDID,
 		UploadServiceURL:        stagingUploadServiceURL,
 		UploadServiceDID:        stagingUploadServiceDID,
-		PrincipalMapping:        stagingPrincipalMapping,
-		SigningServiceEndpoint:  nil,
+		SigningServiceURL:       nil,
+		SigningServiceDID:       did.Undef,
 		RegistrarServiceURL:     nil,
+		PrincipalMapping:        stagingPrincipalMapping,
 	}
 }
 
@@ -217,21 +225,22 @@ func prodServiceSettings() ServiceSettings {
 		EgressTrackerServiceDID: prodEgressTrackerServiceDID,
 		UploadServiceURL:        prodUploadServiceURL,
 		UploadServiceDID:        prodUploadServiceDID,
-		PrincipalMapping:        prodPrincipalMapping,
-		SigningServiceEndpoint:  nil,
+		SigningServiceURL:       nil,
+		SigningServiceDID:       did.Undef,
 		RegistrarServiceURL:     nil,
+		PrincipalMapping:        prodPrincipalMapping,
 	}
 }
 
 // Contract settings for calibration network
 var calibnetSettings = SmartContractSettings{
 	// PDPVerifier contract address (see https://github.com/FilOzone/pdp/?tab=readme-ov-file#contracts)
-	Verifier: common.HexToAddress("0xB020524bdE8926cD430A4F79B2AaccFd2694793b"),
+	Verifier: common.HexToAddress("0x85e366Cf9DD2c0aE37E963d9556F5f4718d6417C"),
 	// This contract and its address are owned by storacha
-	ProviderRegistry: common.HexToAddress("0x8D0560F93022414e7787207682a8D562de02D62f"),
+	ProviderRegistry: common.HexToAddress("0x6A96aaB210B75ee733f0A291B5D8d4A053643979"),
 	// This contract and its address are owned by storacha, and uses ProviderRegistry for membership
-	Service:     common.HexToAddress("0xB9753937D3Bc1416f7d741d75b1671A1edb3e10A"),
-	ServiceView: common.HexToAddress("0xb2eC3e67753F1c05e8B318298Bd0eD89046a3031"),
+	Service:     common.HexToAddress("0x0c6875983B20901a7C3c86871f43FdEE77946424"),
+	ServiceView: common.HexToAddress("0xEAD67d775f36D1d2894854D20e042C77A3CC20a5"),
 	// Filecoin calibration chain ID
 	ChainID: big.NewInt(314159),
 	// PayerAddress is the Storacha Owned address that pays SPs
@@ -242,12 +251,12 @@ var calibnetSettings = SmartContractSettings{
 // TODO (vic): These use calibnet addresses as placeholders until mainnet contracts are deployed
 var mainnetSettings = SmartContractSettings{
 	// PDPVerifier contract address (see https://github.com/FilOzone/pdp/?tab=readme-ov-file#contracts)
-	Verifier: common.HexToAddress("0xB020524bdE8926cD430A4F79B2AaccFd2694793b"),
+	Verifier: common.HexToAddress("0x85e366Cf9DD2c0aE37E963d9556F5f4718d6417C"),
 	// This contract and its address are owned by storacha
-	ProviderRegistry: common.HexToAddress("0x8D0560F93022414e7787207682a8D562de02D62f"),
+	ProviderRegistry: common.HexToAddress("0x6A96aaB210B75ee733f0A291B5D8d4A053643979"),
 	// This contract and its address are owned by storacha, and uses ProviderRegistry for membership
-	Service:     common.HexToAddress("0xB9753937D3Bc1416f7d741d75b1671A1edb3e10A"),
-	ServiceView: common.HexToAddress("0xb2eC3e67753F1c05e8B318298Bd0eD89046a3031"),
+	Service:     common.HexToAddress("0x0c6875983B20901a7C3c86871f43FdEE77946424"),
+	ServiceView: common.HexToAddress("0xEAD67d775f36D1d2894854D20e042C77A3CC20a5"),
 	// Filecoin mainnet chain ID
 	// TODO (vic): Change to 314 once mainnet contracts deployed
 	ChainID: big.NewInt(314159),

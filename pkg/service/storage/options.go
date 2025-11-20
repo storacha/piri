@@ -2,7 +2,6 @@ package storage
 
 import (
 	"database/sql"
-	"fmt"
 	"net/url"
 
 	"github.com/ipfs/go-datastore"
@@ -18,8 +17,8 @@ import (
 	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/pkg/access"
-	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/presigner"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
@@ -35,6 +34,8 @@ type config struct {
 	blobsAccess           access.Access
 	allocationStore       allocationstore.AllocationStore
 	allocationDatastore   datastore.Datastore
+	acceptanceStore       acceptancestore.AcceptanceStore
+	acceptanceDatastore   datastore.Datastore
 	claimStore            claimstore.ClaimStore
 	claimDatastore        datastore.Datastore
 	asyncPublisher        publisher.AsyncPublisher
@@ -49,10 +50,6 @@ type config struct {
 	indexingServiceProofs delegation.Proofs
 	replicatorDB          *sql.DB
 	claimCtx              validator.ClaimContext
-
-	// to be used exclusively
-	pdpCfg  *pdp.Config
-	pdpImpl pdp.PDP
 }
 
 type Option func(*config) error
@@ -121,6 +118,24 @@ func WithAllocationStore(allocationStore allocationstore.AllocationStore) Option
 func WithAllocationDatastore(dstore datastore.Datastore) Option {
 	return func(c *config) error {
 		c.allocationDatastore = dstore
+		return nil
+	}
+}
+
+// WithAcceptanceStore configures the acceptance store directly
+func WithAcceptanceStore(acceptanceStore acceptancestore.AcceptanceStore) Option {
+	return func(c *config) error {
+		c.acceptanceStore = acceptanceStore
+		return nil
+	}
+}
+
+// WithAcceptanceDatastore configures the underlying datastore to use for
+// storing acceptance records. Note: the datastore MUST have efficient support
+// for prefix queries.
+func WithAcceptanceDatastore(dstore datastore.Datastore) Option {
+	return func(c *config) error {
+		c.acceptanceDatastore = dstore
 		return nil
 	}
 }
@@ -248,27 +263,6 @@ func WithPublisherIndexingServiceProof(proof ...delegation.Proof) Option {
 func WithLogLevel(name string, level string) Option {
 	return func(c *config) error {
 		logging.SetLogLevel(name, level)
-		return nil
-	}
-}
-
-// WithPDPConfig causes the service to run through Curio and do PDP proofs
-func WithPDPConfig(pdpConfig pdp.Config) Option {
-	return func(c *config) error {
-		if c.pdpImpl != nil {
-			return fmt.Errorf("cannot set PDP config when pdpImpl is set")
-		}
-		c.pdpCfg = &pdpConfig
-		return nil
-	}
-}
-
-func WithPDPImpl(pdpImpl pdp.PDP) Option {
-	return func(c *config) error {
-		if c.pdpCfg != nil {
-			return fmt.Errorf("cannot set PDP impl when pdpCfg is set")
-		}
-		c.pdpImpl = pdpImpl
 		return nil
 	}
 }

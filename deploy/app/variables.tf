@@ -28,12 +28,6 @@ variable "domain" {
   default     = "storacha.network"
 }
 
-variable "use_pdp" {
-  description = "is this a deployment that uses pdp"
-  type        = bool
-  default     = false
-}
-
 variable "region" {
   description = "aws region for all services"
   type        = string
@@ -72,18 +66,6 @@ variable "indexing_service_url" {
 variable "indexing_service_proof" {
   description = "UCAN delegation to prove this storage node can access the indexer"
   type        = string
-}
-
-variable "pdp_proofset" {
-  description = "proofset used with pdp"
-  type        = number
-  default     = 0
-}
-
-variable "curio_url" {
-  description = "url for the curio SP to communicate with"
-  type        = string
-  default     = ""
 }
 
 variable "access_logging_log_format" {

@@ -23,6 +23,7 @@ import (
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
 	"github.com/storacha/go-libstoracha/capabilities/types"
 	ucancap "github.com/storacha/go-libstoracha/capabilities/ucan"
+	"github.com/storacha/go-libstoracha/failure"
 	"github.com/storacha/go-libstoracha/testutil"
 	"github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/car"
@@ -34,8 +35,7 @@ import (
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/receipt/ran"
 	"github.com/storacha/go-ucanto/core/result"
-	"github.com/storacha/go-ucanto/core/result/failure"
-	fdm "github.com/storacha/go-ucanto/core/result/failure/datamodel"
+	ufailure "github.com/storacha/go-ucanto/core/result/failure"
 	"github.com/storacha/go-ucanto/core/result/ok"
 	"github.com/storacha/go-ucanto/did"
 	ucanserver "github.com/storacha/go-ucanto/server"
@@ -124,7 +124,7 @@ func TestFXServer(t *testing.T) {
 		rcptlnk, ok := resp.Get(inv.Link())
 		require.True(t, ok, "missing receipt for invocation: %s", inv.Link())
 
-		reader := testutil.Must(receipt.NewReceiptReaderFromTypes[blob.AllocateOk, fdm.FailureModel](blob.AllocateOkType(), fdm.FailureType(), types.Converters...))(t)
+		reader := testutil.Must(receipt.NewReceiptReaderFromTypes[blob.AllocateOk, failure.FailureModel](blob.AllocateOkType(), failure.FailureType(), types.Converters...))(t)
 		rcpt := testutil.Must(reader.Read(rcptlnk, resp.Blocks()))(t)
 
 		result.MatchResultR0(rcpt.Out(), func(ok blob.AllocateOk) {
@@ -139,7 +139,7 @@ func TestFXServer(t *testing.T) {
 			require.Equal(t, size, allocs[0].Blob.Size)
 			require.Equal(t, space, allocs[0].Space)
 			require.Equal(t, inv.Link(), allocs[0].Cause)
-		}, func(f fdm.FailureModel) {
+		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)
 			require.Nil(t, f)
@@ -163,7 +163,7 @@ func TestFXServer(t *testing.T) {
 		}
 		ucap := blob.Allocate.New(testutil.Alice.DID().String(), nb)
 
-		invokeBlobAllocate := func() result.Result[blob.AllocateOk, fdm.FailureModel] {
+		invokeBlobAllocate := func() result.Result[blob.AllocateOk, failure.FailureModel] {
 			inv, err := invocation.Invoke(testutil.Service, testutil.Alice, ucap, delegation.WithProof(prf))
 			require.NoError(t, err)
 
@@ -173,7 +173,7 @@ func TestFXServer(t *testing.T) {
 			rcptlnk, ok := resp.Get(inv.Link())
 			require.True(t, ok, "missing receipt for invocation: %s", inv.Link())
 
-			reader := testutil.Must(receipt.NewReceiptReaderFromTypes[blob.AllocateOk, fdm.FailureModel](blob.AllocateOkType(), fdm.FailureType(), types.Converters...))(t)
+			reader := testutil.Must(receipt.NewReceiptReaderFromTypes[blob.AllocateOk, failure.FailureModel](blob.AllocateOkType(), failure.FailureType(), types.Converters...))(t)
 			rcpt := testutil.Must(reader.Read(rcptlnk, resp.Blocks()))(t)
 			return rcpt.Out()
 		}
@@ -182,7 +182,7 @@ func TestFXServer(t *testing.T) {
 			fmt.Printf("%+v\n", ok)
 			require.Equal(t, size, ok.Size)
 			require.NotNil(t, ok.Address)
-		}, func(f fdm.FailureModel) {
+		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)
 			require.Nil(t, f)
@@ -193,7 +193,7 @@ func TestFXServer(t *testing.T) {
 			fmt.Printf("%+v\n", ok)
 			require.Equal(t, uint64(0), ok.Size)
 			require.NotNil(t, ok.Address)
-		}, func(f fdm.FailureModel) {
+		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)
 			require.Nil(t, f)
@@ -208,7 +208,7 @@ func TestFXServer(t *testing.T) {
 			fmt.Printf("%+v\n", ok)
 			require.Equal(t, uint64(0), ok.Size)
 			require.Nil(t, ok.Address)
-		}, func(f fdm.FailureModel) {
+		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)
 			require.Nil(t, f)
@@ -223,7 +223,7 @@ func TestFXServer(t *testing.T) {
 		digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
 		cause := testutil.RandomCID(t)
 
-		invokeBlobAllocate := func(space did.DID) result.Result[blob.AllocateOk, fdm.FailureModel] {
+		invokeBlobAllocate := func(space did.DID) result.Result[blob.AllocateOk, failure.FailureModel] {
 			nb := blob.AllocateCaveats{
 				Space: space,
 				Blob: types.Blob{
@@ -243,7 +243,7 @@ func TestFXServer(t *testing.T) {
 			rcptlnk, ok := resp.Get(inv.Link())
 			require.True(t, ok, "missing receipt for invocation: %s", inv.Link())
 
-			reader := testutil.Must(receipt.NewReceiptReaderFromTypes[blob.AllocateOk, fdm.FailureModel](blob.AllocateOkType(), fdm.FailureType(), types.Converters...))(t)
+			reader := testutil.Must(receipt.NewReceiptReaderFromTypes[blob.AllocateOk, failure.FailureModel](blob.AllocateOkType(), failure.FailureType(), types.Converters...))(t)
 			rcpt := testutil.Must(reader.Read(rcptlnk, resp.Blocks()))(t)
 			return rcpt.Out()
 		}
@@ -252,7 +252,7 @@ func TestFXServer(t *testing.T) {
 			fmt.Printf("%+v\n", ok)
 			require.Equal(t, size, ok.Size)
 			require.NotNil(t, ok.Address)
-		}, func(f fdm.FailureModel) {
+		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)
 			require.Nil(t, f)
@@ -267,7 +267,7 @@ func TestFXServer(t *testing.T) {
 			fmt.Printf("%+v\n", ok)
 			require.Equal(t, size, ok.Size)
 			require.Nil(t, ok.Address)
-		}, func(f fdm.FailureModel) {
+		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)
 			require.Nil(t, f)
@@ -329,11 +329,19 @@ func TestFXServer(t *testing.T) {
 		rcptlnk, ok := resp.Get(acceptInv.Link())
 		require.True(t, ok, "missing receipt for invocation: %s", acceptInv.Link())
 
-		reader := testutil.Must(receipt.NewReceiptReaderFromTypes[blob.AcceptOk, fdm.FailureModel](blob.AcceptOkType(), fdm.FailureType(), types.Converters...))(t)
+		reader := testutil.Must(receipt.NewReceiptReaderFromTypes[blob.AcceptOk, failure.FailureModel](blob.AcceptOkType(), failure.FailureType(), types.Converters...))(t)
 		rcpt := testutil.Must(reader.Read(rcptlnk, resp.Blocks()))(t)
 
 		result.MatchResultR0(rcpt.Out(), func(ok blob.AcceptOk) {
 			fmt.Printf("%+v\n", ok)
+
+			acc, err := svc.Blobs().Acceptances().Get(t.Context(), digest, space)
+			require.NoError(t, err)
+
+			require.Equal(t, digest, acc.Blob.Digest)
+			require.Equal(t, space, acc.Space)
+			require.Equal(t, acceptInv.Link(), acc.Cause)
+			require.Nil(t, acc.PDPAccept)
 
 			claim, err := svc.Claims().Store().Get(context.Background(), ok.Site)
 			require.NoError(t, err)
@@ -351,7 +359,7 @@ func TestFXServer(t *testing.T) {
 			require.Equal(t, loc.String(), nb.Location[0].String())
 
 			// TODO: assert IPNI advert published
-		}, func(f fdm.FailureModel) {
+		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)
 			require.Nil(t, f)
@@ -462,6 +470,10 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 						testutil.WebService.DID().String(): testutil.WebService.Unwrap().DID().String(),
 					}))(t)
 				}),
+				// // use the mocked proof service
+				// fx.Decorate(func() proofs.ProofService {
+				// 	return
+				// }),
 				// replace the default replicator config with one that causes failures to happen faster
 				fx.Replace(appconfig.ReplicatorConfig{
 					MaxRetries: 2,
@@ -748,8 +760,8 @@ func mustReadAllocationReceipt(
 	rbi invocation.Invocation,
 	res client.ExecutionResponse,
 ) replica.AllocateOk {
-	reader, err := receipt.NewReceiptReaderFromTypes[replica.AllocateOk, fdm.FailureModel](
-		replica.AllocateOkType(), fdm.FailureType(), types.Converters...,
+	reader, err := receipt.NewReceiptReaderFromTypes[replica.AllocateOk, failure.FailureModel](
+		replica.AllocateOkType(), failure.FailureType(), types.Converters...,
 	)
 	require.NoError(t, err)
 
@@ -806,7 +818,7 @@ func mustAssertTransferInvocation(
 		t, reader, cidlink.Link{Cid: concludeInvocationCid},
 		ucancap.ConcludeCaveatsReader.Read,
 	)
-	someotherreader, err := receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](replica.TransferOkType(), fdm.FailureType(), types.Converters...)
+	someotherreader, err := receipt.NewReceiptReaderFromTypes[replica.TransferOk, failure.FailureModel](replica.TransferOkType(), failure.FailureType(), types.Converters...)
 	require.NoError(t, err)
 
 	rcpt, err := someotherreader.Read(concludeCav.Receipt, ucanConcludeMsg.Blocks())
@@ -845,8 +857,8 @@ func mustAssertTransferInvocation(
 	)(t)
 	if !simulateFailure {
 		transferReceiptReader := testutil.Must(
-			receipt.NewReceiptReaderFromTypes[replica.TransferOk, fdm.FailureModel](
-				replica.TransferOkType(), fdm.FailureType(), types.Converters...,
+			receipt.NewReceiptReaderFromTypes[replica.TransferOk, failure.FailureModel](
+				replica.TransferOkType(), failure.FailureType(), types.Converters...,
 			),
 		)(t)
 		transferReceipt := testutil.Must(
@@ -867,8 +879,8 @@ func mustAssertTransferInvocation(
 		require.Equal(t, fmt.Sprintf("/blob/z%s", expectedDigest.B58String()), locationCavRct.Location[0].Path)
 	} else {
 		transferErrorReceiptReader := testutil.Must(
-			receipt.NewReceiptReaderFromTypes[replica.TransferError, fdm.FailureModel](
-				replica.TransferErrorType(), fdm.FailureType(), types.Converters...,
+			receipt.NewReceiptReaderFromTypes[replica.TransferError, failure.FailureModel](
+				replica.TransferErrorType(), failure.FailureType(), types.Converters...,
 			),
 		)(t)
 		transferReceipt := testutil.Must(
@@ -883,7 +895,7 @@ func mustAssertTransferInvocation(
 	}
 }
 
-func mustGetInvocationCaveats[T ipld.Builder](t *testing.T, reader blockstore.BlockReader, inv ucan.Link, invReader func(any) (T, failure.Failure)) T {
+func mustGetInvocationCaveats[T ipld.Builder](t *testing.T, reader blockstore.BlockReader, inv ucan.Link, invReader func(any) (T, ufailure.Failure)) T {
 	view := testutil.Must(invocation.NewInvocationView(inv, reader))(t)
 	invc := testutil.Must(invReader(view.Capabilities()[0].Nb()))(t)
 	return invc

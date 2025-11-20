@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"sync"
+	"net/url"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -11,18 +11,20 @@ import (
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/filecoin-services/go/eip712"
+	"github.com/storacha/go-ucanto/ucan"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
 	appconfig "github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
+	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/storacha/piri/pkg/store/stashstore"
+	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
 var log = logging.Logger("pdp/service")
@@ -43,15 +45,20 @@ type EthClient interface {
 
 type PDPService struct {
 	cfg             appconfig.PDPServiceConfig
+	id              ucan.Signer
+	endpoint        url.URL
 	address         common.Address
 	blobstore       blobstore.Blobstore
-	storage         stashstore.Stash
+	acceptanceStore acceptancestore.AcceptanceStore
+	receiptStore    receiptstore.ReceiptStore
 	sender          ethereum.Sender
 	chainClient     ChainClient
-	contractBackend bind.ContractBackend
 
 	db   *gorm.DB
 	name string
+
+	pieceResolver types.PieceResolverAPI
+	pieceReader   types.PieceReaderAPI
 
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
@@ -62,19 +69,23 @@ type PDPService struct {
 	serviceContract  smartcontracts.Service
 	registryContract smartcontracts.Registry
 
-	addRootMu sync.Mutex
+	maxPieceSizeLog2Cache bigIntCache
 }
 
 func New(
-	db *gorm.DB,
 	cfg appconfig.PDPServiceConfig,
+	id ucan.Signer,
+	endpoint url.URL,
+	db *gorm.DB,
 	bs blobstore.PDPStore,
-	stash stashstore.Stash,
+	acceptanceStore acceptancestore.AcceptanceStore,
+	receiptStore receiptstore.ReceiptStore,
+	resolver types.PieceResolverAPI,
+	reader types.PieceReaderAPI,
 	sender ethereum.Sender,
 	engine *scheduler.TaskEngine,
 	chainScheduler *chainsched.Scheduler,
 	chainClient ChainClient,
-	contractBackend EthClient,
 	signingService signer.SigningService,
 	edc *eip712.ExtraDataEncoder,
 	verifier smartcontracts.Verifier,
@@ -83,16 +94,20 @@ func New(
 ) (*PDPService, error) {
 	return &PDPService{
 		cfg:              cfg,
+		id:               id,
+		endpoint:         endpoint,
 		address:          cfg.OwnerAddress,
 		db:               db,
 		name:             "storacha",
+		pieceResolver:    resolver,
+		pieceReader:      reader,
 		blobstore:        bs,
-		storage:          stash,
+		acceptanceStore:  acceptanceStore,
+		receiptStore:     receiptStore,
 		sender:           sender,
 		engine:           engine,
 		chainScheduler:   chainScheduler,
 		chainClient:      chainClient,
-		contractBackend:  contractBackend,
 		signingService:   signingService,
 		edc:              edc,
 		verifierContract: verifier,

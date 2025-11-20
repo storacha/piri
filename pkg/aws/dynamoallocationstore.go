@@ -132,7 +132,7 @@ func (d *DynamoAllocationStore) Put(ctx context.Context, alloc allocation.Alloca
 	}
 	item, err := attributevalue.MarshalMap(allocationItem{
 		Hash:       digestutil.Format(alloc.Blob.Digest),
-		Cause:      alloc.Cause.String(),
+		Cause:      alloc.Space.String(),
 		Allocation: data,
 	})
 	if err != nil {

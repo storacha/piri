@@ -124,7 +124,7 @@ func doUpload(cmd *cobra.Command, _ []string) error {
 	}
 	cmd.Printf("uploaded blob available at: %s\n", blobResult.LocationCommitment.Location[0].String())
 	if blobResult.PDPAccept != nil {
-		cmd.Printf("submitted for PDP aggregation: %s\n", blobResult.PDPAccept.Piece.Link().String())
+		cmd.Printf("submitted for PDP aggregation: %s\n", blobResult.PDPAccept.Blob.String())
 	}
 	return nil
 }

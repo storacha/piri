@@ -2,26 +2,19 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"gorm.io/gorm"
 
 	"github.com/storacha/filecoin-services/go/eip712"
+
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
-
-// TODO there are several things we should do here as a sanity check to avoid having a really bad time "debugging" shit:
-// 1. Check if the provider attempting to create a proof is a. register and b. approved (we do this)
-// 2. Check that the payer has deposited funds in the contract, this might be hard...
-// In order for this operation to succeed the following must be true:
-// 1. This node has registered with the contract
-// 2. the contract owner has approved this node
-// 3. the payer has authorized the service contract to act on its behalf
-// 4. the payer has deposited funds into the payment channel for the service contract to use
-// without these we get really unhelpful errors back *sobs*
 
 func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retErr error) {
 	log.Infow("creating proof set")
@@ -38,19 +31,17 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 		return common.Hash{}, err
 	}
 
-	// Get the next client dataset ID for this payer, each payer has their own ID, which is different from the data set ID
-	nextClientDataSetId, err := p.serviceContract.GetNextClientDataSetId(ctx, p.cfg.PayerAddress)
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to get next client dataset ID: %w", err)
+	nonceBytes := make([]byte, 32)
+	if _, err := rand.Read(nonceBytes); err != nil {
+		return common.Hash{}, fmt.Errorf("failed to generate nonce: %w", err)
 	}
-	log.Infof("Next client dataset ID for payer %s: %s", p.cfg.PayerAddress, nextClientDataSetId)
+	nonce := new(big.Int).SetBytes(nonceBytes)
 
-	// TODO: limit, or remove the extra data that can be provided to this method
-	// the caller of this will be the operator, we could encode a did here or something
 	var metadataEntries []eip712.MetadataEntry
 	// request a signature for creating the dataset from the signing service
 	signature, err := p.signingService.SignCreateDataSet(ctx,
-		nextClientDataSetId,
+		p.id,
+		nonce,
 		p.address, // Use the nodes address as the address receiving payment for storage
 		metadataEntries,
 	)
@@ -61,7 +52,7 @@ func (p *PDPService) CreateProofSet(ctx context.Context) (res common.Hash, retEr
 	// Encode the extraData with payer, metadata, and signature
 	extraDataBytes, err := p.edc.EncodeCreateDataSetExtraData(
 		p.cfg.PayerAddress,
-		nextClientDataSetId,
+		nonce,
 		metadataEntries,
 		signature,
 	)

@@ -26,38 +26,8 @@ import (
 	"github.com/storacha/go-ucanto/validator"
 )
 
-const (
-	// UnknownAbilityErrorName is the name given to an error where the ability
-	// requested to be granted is unknown to the service.
-	UnknownAbilityErrorName = "UnknownAbility"
-	// UnknownCauseErrorName is the name given to an error where the cause
-	// invocation sent as context for the delegation is not recognised.
-	UnknownCauseErrorName = "UnknownCause"
-	// MissingCauseErrorName is the name given to an error where a required cause
-	// invocation has not been provided in the invocation to request a grant.
-	MissingCauseErrorName = "MissingCause"
-	// InvalidCauseErrorName is the name given to an error where the cause
-	// invocation has been determined to be invalid is some way. See the error
-	// message for details.
-	InvalidCauseErrorName = "InvalidCause"
-	// UnauthorizedCauseErrorName is the name given to an error where the cause
-	// invocation failed UCAN validation.
-	UnauthorizedCauseErrorName = "UnauthorizedCause"
-)
-
 // validity is the time a granted delegation is valid for.
 const validity = time.Hour
-
-var (
-	errUnknownCause = access.GrantError{
-		ErrorName: UnknownCauseErrorName,
-		Message:   "unknown cause invocation",
-	}
-	errMissingCause = access.GrantError{
-		ErrorName: MissingCauseErrorName,
-		Message:   "grant requires supporting contextual invocation",
-	}
-)
 
 type AccessGrantService interface {
 	ID() principal.Signer
@@ -82,6 +52,10 @@ func AccessGrant(service AccessGrantService) server.Option {
 						return nil, nil, fmt.Errorf("creating cause invocation: %w", err)
 					}
 					cause = i
+				}
+
+				if len(cap.Nb().Att) == 0 {
+					return result.Error[access.GrantOk, failure.IPLDBuilderFailure](access.NewMissingCapabilityError()), nil, nil
 				}
 
 				delegations := map[string]delegation.Delegation{}
@@ -127,7 +101,7 @@ func grantCapability(
 	case blob.RetrieveAbility:
 		return grantBlobRetrieve(ctx, service, audience, cause)
 	default:
-		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](newUnknownAbilityError(ability)), nil
+		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](access.NewUnknownAbilityError(ability)), nil
 	}
 }
 
@@ -141,18 +115,18 @@ func grantBlobRetrieve(
 	cause invocation.Invocation,
 ) (result.Result[delegation.Delegation, failure.IPLDBuilderFailure], error) {
 	if cause == nil {
-		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](errMissingCause), nil
+		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](access.NewMissingCauseError()), nil
 	}
 	if len(cause.Capabilities()) == 0 {
-		err := newInvalidCauseError("missing capabilities")
+		err := access.NewInvalidCauseError("missing capabilities")
 		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](err), nil
 	}
 	if cause.Audience().DID() != audience.DID() {
-		err := newInvalidCauseError(fmt.Sprintf("audience is %s not %s", cause.Audience().DID(), audience.DID()))
+		err := access.NewInvalidCauseError(fmt.Sprintf("audience is %s not %s", cause.Audience().DID(), audience.DID()))
 		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](err), nil
 	}
 	if cause.Issuer().DID() != service.UploadConnection().ID().DID() {
-		err := newInvalidCauseError(fmt.Sprintf("issuer is %s not %s", cause.Issuer().DID(), service.UploadConnection().ID().DID()))
+		err := access.NewInvalidCauseError(fmt.Sprintf("issuer is %s not %s", cause.Issuer().DID(), service.UploadConnection().ID().DID()))
 		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](err), nil
 	}
 
@@ -163,18 +137,18 @@ func grantBlobRetrieve(
 		vctx := newValidationContextFromClaimContext(replica.Allocate, service.ClaimValidationContext())
 		auth, verr := validator.Access(ctx, cause, vctx)
 		if verr != nil {
-			return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](newUnauthorizedCauseError(verr)), nil
+			return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](access.NewUnauthorizedCauseError(verr)), nil
 		}
 		digest = auth.Capability().Nb().Blob.Digest
 	case assert.IndexAbility:
 		vctx := newValidationContextFromClaimContext(assert.Index, service.ClaimValidationContext())
 		auth, verr := validator.Access(ctx, cause, vctx)
 		if verr != nil {
-			return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](newUnauthorizedCauseError(verr)), nil
+			return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](access.NewUnauthorizedCauseError(verr)), nil
 		}
 		digest = auth.Capability().Nb().Index.(cidlink.Link).Hash()
 	default:
-		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](errUnknownCause), nil
+		return result.Error[delegation.Delegation, failure.IPLDBuilderFailure](access.NewUnknownCauseError()), nil
 	}
 
 	d, err := blob.Retrieve.Delegate(
@@ -209,22 +183,4 @@ func newValidationContextFromClaimContext[T any](
 		ctx.ValidateTimeBounds,
 		ctx.AuthorityProofs()...,
 	)
-}
-
-func newUnknownAbilityError(ability string) access.GrantError {
-	return access.GrantError{
-		ErrorName: UnknownAbilityErrorName,
-		Message:   fmt.Sprintf("unknown ability: %s", ability),
-	}
-}
-
-func newInvalidCauseError(msg string) access.GrantError {
-	return access.GrantError{
-		ErrorName: InvalidCauseErrorName,
-		Message:   fmt.Sprintf("invalid cause invocation: %s", msg),
-	}
-}
-
-func newUnauthorizedCauseError(err validator.Unauthorized) access.GrantError {
-	return access.GrantError{ErrorName: UnauthorizedCauseErrorName, Message: err.Error()}
 }

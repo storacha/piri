@@ -18,14 +18,15 @@ import (
 	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
 	"github.com/storacha/go-ucanto/validator"
 
+	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 	"github.com/storacha/piri/pkg/pdp"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue"
-	"github.com/storacha/piri/pkg/pdp/aggregator/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
 	"github.com/storacha/piri/pkg/service/replicator"
 	replicahandler "github.com/storacha/piri/pkg/service/storage/handlers/replica"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
@@ -35,7 +36,6 @@ type StorageService struct {
 	id            principal.Signer
 	blobs         blobs.Blobs
 	claims        claims.Claims
-	pdp           pdp.PDP
 	receiptStore  receiptstore.ReceiptStore
 	replicator    replicator.Replicator
 	uploadService client.Connection
@@ -66,7 +66,8 @@ func (s *StorageService) ID() principal.Signer {
 }
 
 func (s *StorageService) PDP() pdp.PDP {
-	return s.pdp
+	// This instance of the storage service does not support PDP
+	return nil
 }
 
 func (s *StorageService) Receipts() receiptstore.ReceiptStore {
@@ -134,6 +135,22 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 		blobOpts = append(blobOpts, blobs.WithAllocationStore(c.allocationStore))
 	}
 
+	if c.acceptanceStore == nil {
+		acceptDs := c.acceptanceDatastore
+		if acceptDs == nil {
+			acceptDs = datastore.NewMapDatastore()
+			log.Warn("Acceptance datastore not configured, using in-memory datastore")
+		}
+		closeFuncs = append(closeFuncs, func(context.Context) error { return acceptDs.Close() })
+		acceptanceStore, err := acceptancestore.NewDsAcceptanceStore(acceptDs)
+		if err != nil {
+			return nil, err
+		}
+		blobOpts = append(blobOpts, blobs.WithAcceptanceStore(acceptanceStore))
+	} else {
+		blobOpts = append(blobOpts, blobs.WithAcceptanceStore(c.acceptanceStore))
+	}
+
 	claimStore := c.claimStore
 	if claimStore == nil {
 		claimDs := c.claimDatastore
@@ -180,41 +197,27 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 		}
 	}
 
-	var pdpImpl pdp.PDP
-	if c.pdpCfg == nil && c.pdpImpl == nil {
-		blobStore := c.blobStore
-		if blobStore == nil {
-			blobStore = blobstore.NewMapBlobstore()
-			log.Warn("Blob store not configured, using in-memory store")
-		}
+	blobStore := c.blobStore
+	if blobStore == nil {
+		blobStore = blobstore.NewMapBlobstore()
+		log.Warn("Blob store not configured, using in-memory store")
+	}
 
-		blobOpts = append(blobOpts, blobs.WithBlobstore(blobStore))
-		if c.blobsAccess != nil {
-			blobOpts = append(blobOpts, blobs.WithAccess(c.blobsAccess))
-		} else if c.blobsPublicURL != (url.URL{}) {
-			blobOpts = append(blobOpts, blobs.WithPublicURLAccess(c.blobsPublicURL))
-		} else {
-			blobOpts = append(blobOpts, blobs.WithPublicURLAccess(pubURL))
-		}
-
-		if c.blobsPresigner != nil {
-			blobOpts = append(blobOpts, blobs.WithPresigner(c.blobsPresigner))
-		} else if c.blobsPublicURL != (url.URL{}) {
-			blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, c.blobsPublicURL))
-		} else {
-			blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, pubURL))
-		}
+	blobOpts = append(blobOpts, blobs.WithBlobstore(blobStore))
+	if c.blobsAccess != nil {
+		blobOpts = append(blobOpts, blobs.WithAccess(c.blobsAccess))
+	} else if c.blobsPublicURL != (url.URL{}) {
+		blobOpts = append(blobOpts, blobs.WithPublicURLAccess(c.blobsPublicURL))
 	} else {
-		pdpImpl = c.pdpImpl
-		if pdpImpl == nil {
-			pdpService, err := pdp.NewRemote(c.pdpCfg, id, receiptStore)
-			if err != nil {
-				return nil, fmt.Errorf("creating pdp service: %w", err)
-			}
-			closeFuncs = append(closeFuncs, pdpService.Shutdown)
-			startFuncs = append(startFuncs, pdpService.Startup)
-			pdpImpl = pdpService
-		}
+		blobOpts = append(blobOpts, blobs.WithPublicURLAccess(pubURL))
+	}
+
+	if c.blobsPresigner != nil {
+		blobOpts = append(blobOpts, blobs.WithPresigner(c.blobsPresigner))
+	} else if c.blobsPublicURL != (url.URL{}) {
+		blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, c.blobsPublicURL))
+	} else {
+		blobOpts = append(blobOpts, blobs.WithPublicURLPresigner(id, pubURL))
 	}
 
 	if uploadServiceConn == nil {
@@ -267,7 +270,8 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 		return nil, fmt.Errorf("creating replication queue: %w", err)
 	}
 
-	repl, err := replicator.New(id, pdpImpl, blobs, claims, receiptStore, uploadServiceConn, replicationQueue)
+	// replicator does not require a PDP service, so we pass nil.
+	repl, err := replicator.New(id, nil, blobs, claims, receiptStore, uploadServiceConn, replicationQueue)
 	if err != nil {
 		return nil, fmt.Errorf("creating replicator service: %w", err)
 	}
@@ -314,7 +318,6 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 		closeFuncs:    closeFuncs,
 		startFuncs:    startFuncs,
 		receiptStore:  receiptStore,
-		pdp:           pdpImpl,
 		replicator:    repl,
 		uploadService: uploadServiceConn,
 		claimCtx:      claimCtx,

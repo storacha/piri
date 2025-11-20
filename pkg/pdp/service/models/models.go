@@ -94,7 +94,8 @@ type PDPPieceUpload struct {
 	Service string `gorm:"not null"`             // references pdp_services(service_label)
 	//ServiceModel   *PDPService `gorm:"foreignKey:Service;references:ServiceLabel;constraint:OnDelete:CASCADE"` // "service references pdp_services(service_label) on delete cascade"
 
-	CheckHashCodec string          `gorm:"not null"`
+	CheckHashCodec string `gorm:"not null"`
+	// CheckHash is the Multihash of the data
 	CheckHash      []byte          `gorm:"not null"`
 	CheckSize      int64           `gorm:"not null"`
 	PieceCID       *string         `gorm:"column:piece_cid"`
@@ -132,6 +133,9 @@ type PDPPieceMHToCommp struct {
 	Mhash []byte `gorm:"primaryKey"` // BYTEA primary key
 	Size  int64  `gorm:"not null"`
 	Commp string `gorm:"not null"`
+	// TODO:
+	// 1. validate if the size field is even required here
+	// 2. ensure an index exists for Commp for faster lookups
 }
 
 func (PDPPieceMHToCommp) TableName() string {

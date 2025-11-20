@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
@@ -21,7 +22,6 @@ import (
 	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
-	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var Module = fx.Module("filesystem-store",
@@ -42,6 +42,7 @@ var Module = fx.Module("filesystem-store",
 			fx.As(new(store.EncodeableStore)),
 		),
 		NewAllocationStore,
+		NewAcceptanceStore,
 		fx.Annotate(
 			NewBlobStore,
 			// provide as Blobstore (self)
@@ -53,7 +54,6 @@ var Module = fx.Module("filesystem-store",
 		NewReceiptStore,
 		NewRetrievalJournal,
 		NewKeyStore,
-		NewStashStore,
 		NewPDPStore,
 	),
 )
@@ -70,6 +70,7 @@ type Configs struct {
 	KeyStore      app.KeyStoreConfig
 	Stash         app.StashStoreConfig
 	PDP           app.PDPStoreConfig
+	Acceptance    app.AcceptanceStorageConfig
 }
 
 // ProvideConfigs provides the fields of a storage config
@@ -85,6 +86,7 @@ func ProvideConfigs(cfg app.StorageConfig) Configs {
 		KeyStore:      cfg.KeyStore,
 		Stash:         cfg.StashStore,
 		PDP:           cfg.PDPStore,
+		Acceptance:    cfg.Acceptance,
 	}
 }
 
@@ -123,6 +125,25 @@ func NewAllocationStore(cfg app.AllocationStorageConfig, lc fx.Lifecycle) (alloc
 	})
 
 	return allocationstore.NewDsAllocationStore(ds)
+}
+
+func NewAcceptanceStore(cfg app.AcceptanceStorageConfig, lc fx.Lifecycle) (acceptancestore.AcceptanceStore, error) {
+	if cfg.Dir == "" {
+		return nil, fmt.Errorf("no data dir provided for acceptance store")
+	}
+
+	ds, err := newDs(cfg.Dir)
+	if err != nil {
+		return nil, fmt.Errorf("creating allocation store: %w", err)
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return ds.Close()
+		},
+	})
+
+	return acceptancestore.NewDsAcceptanceStore(ds)
 }
 
 func NewBlobStore(cfg app.BlobStorageConfig) (blobstore.Blobstore, error) {
@@ -239,13 +260,6 @@ func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, er
 		},
 	})
 	return keystore.NewKeyStore(ds)
-}
-
-func NewStashStore(cfg app.StashStoreConfig) (stashstore.Stash, error) {
-	if cfg.Dir == "" {
-		return nil, fmt.Errorf("no data dir provided for stash store")
-	}
-	return stashstore.NewStashStore(cfg.Dir)
 }
 
 // TODO whenever we are done with https://github.com/storacha/piri/issues/140

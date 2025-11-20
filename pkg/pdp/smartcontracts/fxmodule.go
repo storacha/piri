@@ -20,7 +20,7 @@ func ProvideRegistry(cfg appconfig.PDPServiceConfig, client bind.ContractBackend
 }
 
 func ProvideServiceView(cfg appconfig.PDPServiceConfig, client bind.ContractBackend) (Service, error) {
-	return NewServiceView(cfg.Contracts.Service, client)
+	return NewServiceView(cfg.Contracts.ServiceView, client)
 }
 
 func ProvideVerifierContract(cfg appconfig.PDPServiceConfig, client bind.ContractBackend) (Verifier, error) {

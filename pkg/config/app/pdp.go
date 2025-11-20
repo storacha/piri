@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/storacha/go-ucanto/client"
 )
 
 type ContractAddresses struct {
@@ -21,7 +22,7 @@ type PDPServiceConfig struct {
 	// The URL endpoint of a lotus node used for interaction with chain state.
 	LotusEndpoint *url.URL
 	// Signing service configuration used to sign PDP operations
-	SigningServiceConfig SigningServiceConfig
+	SigningService SigningServiceConfig
 	// Smart contract addresses
 	Contracts ContractAddresses
 	// Filecoin chain ID (314 for mainnet, 314159 for calibration)
@@ -32,10 +33,9 @@ type PDPServiceConfig struct {
 
 // SigningServiceConfig configures the signing service for PDP operations
 type SigningServiceConfig struct {
-	// URL endpoint for remote signing service (if using HTTP client)
-	Endpoint *url.URL
+	// Connection to the signing service backend.
+	Connection client.Connection
 	// Private key for in-process signing (if using local signer)
-	// This should be a hex-encoded private key string
 	// NB: this should only be used for development purposes
 	PrivateKey *ecdsa.PrivateKey
 }

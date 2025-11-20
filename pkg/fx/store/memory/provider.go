@@ -12,6 +12,7 @@ import (
 	"github.com/storacha/go-libstoracha/metadata"
 	"go.uber.org/fx"
 
+	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
@@ -19,7 +20,6 @@ import (
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
-	"github.com/storacha/piri/pkg/store/stashstore"
 )
 
 var Module = fx.Module("memory-store",
@@ -39,6 +39,7 @@ var Module = fx.Module("memory-store",
 			fx.As(new(store.EncodeableStore)),
 		),
 		NewAllocationStore,
+		NewAcceptanceStore,
 		fx.Annotate(
 			NewBlobStore,
 			// provide as Blobstore (self)
@@ -50,7 +51,6 @@ var Module = fx.Module("memory-store",
 		NewReceiptStore,
 		NewRetrievalJournal,
 		NewKeyStore,
-		NewStashStore,
 		NewPDPStore,
 	),
 )
@@ -62,6 +62,11 @@ func NewAggregatorDatastore() datastore.Datastore {
 func NewAllocationStore() (allocationstore.AllocationStore, error) {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	return allocationstore.NewDsAllocationStore(ds)
+}
+
+func NewAcceptanceStore() (acceptancestore.AcceptanceStore, error) {
+	ds := sync.MutexWrap(datastore.NewMapDatastore())
+	return acceptancestore.NewDsAcceptanceStore(ds)
 }
 
 func NewBlobStore() blobstore.Blobstore {
@@ -104,21 +109,6 @@ func NewRetrievalJournal(lc fx.Lifecycle) (retrievaljournal.Journal, error) {
 func NewKeyStore() (keystore.KeyStore, error) {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	return keystore.NewKeyStore(ds)
-}
-
-// TODO need an in-memory impl of the stash store...
-func NewStashStore(lc fx.Lifecycle) (stashstore.Stash, error) {
-	tmpDir := filepath.Join(os.TempDir(), "piri-stash-tmp")
-	out, err := stashstore.NewStashStore(tmpDir)
-	if err != nil {
-		return nil, fmt.Errorf("creating stash store")
-	}
-	lc.Append(fx.Hook{
-		OnStop: func(ctx context.Context) error {
-			return os.RemoveAll(tmpDir)
-		},
-	})
-	return out, nil
 }
 
 func NewPDPStore() (blobstore.PDPStore, error) {

@@ -3,6 +3,7 @@ package blobstore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -19,9 +20,25 @@ var ErrTooLarge = errors.New("payload too large")
 // ErrTooSmall is returned when the data being written is smaller than expected.
 var ErrTooSmall = errors.New("payload too small")
 
-// ErrRangeNotSatisfiable is returned when the byte range option falls outside
+// RangeNotSatisfiableError is returned when the byte range option falls outside
 // of the total size of the blob.
-var ErrRangeNotSatisfiable = errors.New("range not satisfiable")
+type RangeNotSatisfiableError struct {
+	Range Range
+}
+
+func NewRangeNotSatisfiableError(r Range) RangeNotSatisfiableError {
+	return RangeNotSatisfiableError{Range: r}
+}
+
+func (e RangeNotSatisfiableError) Error() string {
+	var rangeStr string
+	if e.Range.End != nil {
+		rangeStr = fmt.Sprintf("%d-%d", e.Range.Start, *e.Range.End)
+	} else {
+		rangeStr = fmt.Sprintf("%d-", e.Range.Start)
+	}
+	return fmt.Sprintf("range not satisfiable: %s", rangeStr)
+}
 
 // GetOption is an option configuring byte retrieval from a blobstore.
 type GetOption func(cfg *GetOptions) error
