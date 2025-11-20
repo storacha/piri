@@ -559,7 +559,7 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 
 			// Assert that the Site promise field exists and has the correct structure
 			require.NotNil(t, alloc.Site)
-			require.Equal(t, ".out.ok", alloc.Site.UcanAwait.Selector)
+			require.Equal(t, ".out.ok.site", alloc.Site.UcanAwait.Selector)
 
 			if tc.simulateRetry {
 				// In retry scenario, first attempt fails at upload service
