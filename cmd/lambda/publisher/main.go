@@ -50,6 +50,7 @@ func makeHandler(cfg aws.Config) (lambda.SQSBatchEventHandler, error) {
 				failures = append(failures, events.SQSBatchItemFailure{
 					ItemIdentifier: msg.MessageId,
 				})
+				log.Errorf("unable to process message %s: %s", msg.MessageId, err.Error())
 			}
 		}
 		return events.SQSEventResponse{BatchItemFailures: failures}, nil
