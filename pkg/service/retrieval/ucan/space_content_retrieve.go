@@ -17,6 +17,9 @@ import (
 	"github.com/storacha/go-ucanto/server"
 	"github.com/storacha/go-ucanto/server/retrieval"
 	"github.com/storacha/go-ucanto/ucan"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/storacha/piri/pkg/service/retrieval/handlers/spacecontent"
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/allocationstore"
@@ -35,7 +38,16 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 		content.RetrieveAbility,
 		retrieval.Provide(
 			content.Retrieve,
-			func(ctx context.Context, cap ucan.Capability[content.RetrieveCaveats], inv invocation.Invocation, iCtx server.InvocationContext, request retrieval.Request) (result.Result[content.RetrieveOk, failure.IPLDBuilderFailure], fx.Effects, retrieval.Response, error) {
+			func(ctx context.Context, cap ucan.Capability[content.RetrieveCaveats], inv invocation.Invocation, iCtx server.InvocationContext, request retrieval.Request) (res result.Result[content.RetrieveOk, failure.IPLDBuilderFailure], effects fx.Effects, resp retrieval.Response, err error) {
+				ctx, span := tracer.Start(ctx, "space.content.retrieve")
+				defer func() {
+					if err != nil {
+						span.RecordError(err)
+						span.SetStatus(codes.Error, err.Error())
+					}
+					span.End()
+				}()
+
 				space, err := did.Parse(cap.With())
 				if err != nil {
 					return nil, nil, retrieval.Response{}, fmt.Errorf("parsing space DID: %w", err)
@@ -46,6 +58,15 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 				digestStr := digestutil.Format(digest)
 				start := nb.Range.Start
 				end := nb.Range.End
+
+				attr := []attribute.KeyValue{
+					attribute.String("space.did", space.String()),
+					attribute.String("digest", digestStr),
+					attribute.Int64("range.start", int64(start)),
+					attribute.Int64("range.end", int64(end)),
+					attribute.String("issuer", inv.Issuer().DID().String()),
+				}
+				span.SetAttributes(attr...)
 
 				log := log.With(
 					"iss", inv.Issuer().DID().String(),
@@ -68,7 +89,7 @@ func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retriev
 					return nil, nil, retrieval.Response{}, fmt.Errorf("getting allocation: %w", err)
 				}
 
-				res, resp, err := spacecontent.Retrieve(ctx, retrievalService.Blobs(), inv, digest, &blobstore.Range{Start: start, End: &end})
+				res, resp, err = spacecontent.Retrieve(ctx, retrievalService.Blobs(), inv, digest, &blobstore.Range{Start: start, End: &end})
 				if err != nil {
 					return nil, nil, retrieval.Response{}, err
 				}

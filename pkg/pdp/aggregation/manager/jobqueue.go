@@ -9,10 +9,14 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/lib/jobqueue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
+	"github.com/storacha/piri/lib/jobqueue/traceutil"
 	"github.com/storacha/piri/pkg/pdp/aggregation/types"
 	pdptypes "github.com/storacha/piri/pkg/pdp/types"
 )
@@ -48,14 +52,26 @@ func (a *AddRootsTaskHandler) Name() string {
 	return HandlerName
 }
 
-func (a *AddRootsTaskHandler) Handle(ctx context.Context, links []datamodel.Link) error {
+func (a *AddRootsTaskHandler) Handle(ctx context.Context, links []datamodel.Link) (retErr error) {
+	ctx, span := traceutil.StartSpan(ctx, tracer, "manager.Handle")
+	defer func() {
+		if retErr != nil {
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, "failed to submit aggregation")
+		}
+		span.End()
+	}()
+
 	if err := a.pieceAcceptor.AcceptPieces(ctx, links); err != nil {
 		return fmt.Errorf("failed to accept pieces: %w", err)
 	}
+	span.AddEvent("accepted pieces")
+
 	proofSetID, err := a.proofSet.ProofSetID(ctx)
 	if err != nil {
 		return fmt.Errorf("getting proof set ID from proof set provider: %w", err)
 	}
+	span.SetAttributes(attribute.Int64("dataset.id", int64(proofSetID)))
 
 	// build the set of roots we will add
 	roots := make([]pdptypes.RootAdd, len(links))
@@ -90,7 +106,9 @@ func (a *AddRootsTaskHandler) Handle(ctx context.Context, links []datamodel.Link
 	if err != nil {
 		return fmt.Errorf("adding roots: %w", err)
 	}
+	span.AddEvent("added roots", trace.WithAttributes(attribute.Stringer("tx", txHash)))
 	log.Infow("added roots", "count", len(roots), "tx", txHash)
+
 	return nil
 }
 

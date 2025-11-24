@@ -9,7 +9,10 @@ locals {
       route = "GET /"
     }
     publisher = {
-      name        = "publisher"
+      name = "publisher"
+    }
+    advertisementpublisher = {
+      name        = "advertisementpublisher"
       concurrency = 1
     }
     postad = {
@@ -55,34 +58,35 @@ resource "aws_lambda_function" "lambda" {
 
   environment {
     variables = {
-      SENTRY_DSN                          = var.sentry_dsn
-      SENTRY_ENVIRONMENT                  = var.sentry_environment == "" ? terraform.workspace : var.sentry_environment
-      CHUNK_LINKS_TABLE_NAME              = aws_dynamodb_table.chunk_links.id
-      METADATA_TABLE_NAME                 = aws_dynamodb_table.metadata.id
-      IPNI_STORE_BUCKET_NAME              = aws_s3_bucket.ipni_store_bucket.bucket
-      IPNI_ANNOUNCE_URLS                  = var.ipni_announce_urls
-      PRIVATE_KEY                         = aws_ssm_parameter.private_key.name
-      PUBLIC_URL                          = "https://${aws_apigatewayv2_domain_name.custom_domain.domain_name}"
-      IPNI_STORE_BUCKET_REGIONAL_DOMAIN   = aws_s3_bucket.ipni_store_bucket.bucket_regional_domain_name
-      CLAIM_STORE_BUCKET_NAME             = aws_s3_bucket.claim_store_bucket.bucket
-      ALLOCATIONS_TABLE_NAME              = aws_dynamodb_table.allocation_store.id
-      ACCEPTANCE_TABLE_NAME               = aws_dynamodb_table.acceptance_store.id
-      BLOB_STORE_BUCKET_ENDPOINT          = var.use_external_blob_bucket ? var.external_blob_bucket_endpoint : ""
-      BLOB_STORE_BUCKET_REGION            = var.use_external_blob_bucket ? var.external_blob_bucket_region : aws_s3_bucket.blob_store_bucket.region
-      BLOB_STORE_BUCKET_ACCESS_KEY_ID     = var.use_external_blob_bucket ? aws_ssm_parameter.external_blob_bucket_access_key_id[0].name : ""
-      BLOB_STORE_BUCKET_SECRET_ACCESS_KEY = var.use_external_blob_bucket ? aws_ssm_parameter.external_blob_bucket_secret_access_key[0].name : ""
-      BLOB_STORE_BUCKET_REGIONAL_DOMAIN   = var.use_external_blob_bucket ? var.external_blob_bucket_domain : aws_s3_bucket.blob_store_bucket.bucket_regional_domain_name
-      BLOB_STORE_BUCKET_NAME              = var.use_external_blob_bucket ? var.external_blob_bucket_name : aws_s3_bucket.blob_store_bucket.bucket
-      BLOB_STORE_BUCKET_KEY_PATTERN       = var.blob_bucket_key_pattern
-      INDEXING_SERVICE_DID                = var.indexing_service_did
-      INDEXING_SERVICE_URL                = var.indexing_service_url
-      INDEXING_SERVICE_PROOF              = var.indexing_service_proof
-      RAN_LINK_INDEX_TABLE_NAME           = aws_dynamodb_table.ran_link_index.id
-      RECEIPT_STORE_BUCKET_NAME           = aws_s3_bucket.receipt_store_bucket.id
-      IPNI_PUBLISHER_QUEUE_ID             = aws_sqs_queue.ipni_publisher.id
-      IPNI_PUBLISHER_BUCKET_NAME          = aws_s3_bucket.ipni_publisher.bucket
-      PRINCIPAL_MAPPING                   = var.principal_mapping,
-      PIRI_NETWORK                        = var.network,
+      SENTRY_DSN                             = var.sentry_dsn
+      SENTRY_ENVIRONMENT                     = var.sentry_environment == "" ? terraform.workspace : var.sentry_environment
+      CHUNK_LINKS_TABLE_NAME                 = aws_dynamodb_table.chunk_links.id
+      METADATA_TABLE_NAME                    = aws_dynamodb_table.metadata.id
+      IPNI_STORE_BUCKET_NAME                 = aws_s3_bucket.ipni_store_bucket.bucket
+      IPNI_ANNOUNCE_URLS                     = var.ipni_announce_urls
+      PRIVATE_KEY                            = aws_ssm_parameter.private_key.name
+      PUBLIC_URL                             = "https://${aws_apigatewayv2_domain_name.custom_domain.domain_name}"
+      IPNI_STORE_BUCKET_REGIONAL_DOMAIN      = aws_s3_bucket.ipni_store_bucket.bucket_regional_domain_name
+      CLAIM_STORE_BUCKET_NAME                = aws_s3_bucket.claim_store_bucket.bucket
+      ALLOCATIONS_TABLE_NAME                 = aws_dynamodb_table.allocation_store.id
+      ACCEPTANCE_TABLE_NAME                  = aws_dynamodb_table.acceptance_store.id
+      BLOB_STORE_BUCKET_ENDPOINT             = var.use_external_blob_bucket ? var.external_blob_bucket_endpoint : ""
+      BLOB_STORE_BUCKET_REGION               = var.use_external_blob_bucket ? var.external_blob_bucket_region : aws_s3_bucket.blob_store_bucket.region
+      BLOB_STORE_BUCKET_ACCESS_KEY_ID        = var.use_external_blob_bucket ? aws_ssm_parameter.external_blob_bucket_access_key_id[0].name : ""
+      BLOB_STORE_BUCKET_SECRET_ACCESS_KEY    = var.use_external_blob_bucket ? aws_ssm_parameter.external_blob_bucket_secret_access_key[0].name : ""
+      BLOB_STORE_BUCKET_REGIONAL_DOMAIN      = var.use_external_blob_bucket ? var.external_blob_bucket_domain : aws_s3_bucket.blob_store_bucket.bucket_regional_domain_name
+      BLOB_STORE_BUCKET_NAME                 = var.use_external_blob_bucket ? var.external_blob_bucket_name : aws_s3_bucket.blob_store_bucket.bucket
+      BLOB_STORE_BUCKET_KEY_PATTERN          = var.blob_bucket_key_pattern
+      INDEXING_SERVICE_DID                   = var.indexing_service_did
+      INDEXING_SERVICE_URL                   = var.indexing_service_url
+      INDEXING_SERVICE_PROOF                 = var.indexing_service_proof
+      RAN_LINK_INDEX_TABLE_NAME              = aws_dynamodb_table.ran_link_index.id
+      RECEIPT_STORE_BUCKET_NAME              = aws_s3_bucket.receipt_store_bucket.id
+      IPNI_PUBLISHER_QUEUE_ID                = aws_sqs_queue.ipni_publisher.id
+      IPNI_PUBLISHER_BUCKET_NAME             = aws_s3_bucket.ipni_publisher.bucket
+      IPNI_ADVERTISEMENT_PUBLISHING_QUEUE_ID = aws_sqs_queue.ipni_advertisement_publishing.id
+      PRINCIPAL_MAPPING                      = var.principal_mapping,
+      PIRI_NETWORK                           = var.network,
     }
   }
 }
@@ -262,7 +266,10 @@ data "aws_iam_policy_document" "lambda_sqs_document" {
       "sqs:GetQueueAttributes"
     ]
 
-    resources = [aws_sqs_queue.ipni_publisher.arn]
+    resources = [
+      aws_sqs_queue.ipni_publisher.arn,
+      aws_sqs_queue.ipni_advertisement_publishing.arn
+    ]
   }
 }
 
@@ -284,5 +291,12 @@ resource "aws_lambda_event_source_mapping" "ipni_publisher_source_mapping" {
   event_source_arn = aws_sqs_queue.ipni_publisher.arn
   enabled          = true
   function_name    = aws_lambda_function.lambda["publisher"].arn
+  batch_size       = terraform.workspace == "prod" ? 10 : 1
+}
+
+resource "aws_lambda_event_source_mapping" "ipni_advertisement_publishing_source_mapping" {
+  event_source_arn = aws_sqs_queue.ipni_advertisement_publishing.arn
+  enabled          = true
+  function_name    = aws_lambda_function.lambda["advertisementpublisher"].arn
   batch_size       = terraform.workspace == "prod" ? 10 : 1
 }
