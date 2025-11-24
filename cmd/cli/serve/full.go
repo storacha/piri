@@ -48,7 +48,7 @@ func init() {
 	FullCmd.Flags().String(
 		"network",
 		"",
-		"Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses.",
+		fmt.Sprintf("Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses. Available values are: %q", presets.AvailableNetworks),
 	)
 	cobra.CheckErr(FullCmd.MarkFlagRequired("network"))
 	cobra.CheckErr(viper.BindPFlag("network", FullCmd.Flags().Lookup("network")))
