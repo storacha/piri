@@ -121,7 +121,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 					}
 				}
 				// if blob.Allocated returned a nil address then the blob is already stored on this node.
-				sink := new(url.URL)
+				var sink *url.URL
 				if resp.Address == nil {
 					// no data transfer needed; blob.allocate indicates the blob is already stored by returning a nil
 					//upload
