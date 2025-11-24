@@ -17,19 +17,19 @@ import (
 )
 
 type ContractAddresses struct {
-	Verifier         string `mapstructure:"verifier" flag:"verifier-address" toml:"verifier,omitempty"`
-	ProviderRegistry string `mapstructure:"provider_registry" flag:"provider-registry-address" toml:"provider_registry,omitempty"`
-	Service          string `mapstructure:"service" flag:"service-address" toml:"service,omitempty"`
-	ServiceView      string `mapstructure:"service_view" flag:"service-view-address" toml:"service_view,omitempty"`
+	Verifier         string `mapstructure:"verifier" validate:"required" flag:"verifier-address" toml:"verifier"`
+	ProviderRegistry string `mapstructure:"provider_registry" validate:"required" flag:"provider-registry-address" toml:"provider_registry"`
+	Service          string `mapstructure:"service" validate:"required" flag:"service-address" toml:"service"`
+	ServiceView      string `mapstructure:"service_view" validate:"required" flag:"service-view-address" toml:"service_view"`
 }
 
 type PDPServiceConfig struct {
 	OwnerAddress   string               `mapstructure:"owner_address" validate:"required" flag:"owner-address" toml:"owner_address"`
 	LotusEndpoint  string               `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
-	SigningService SigningServiceConfig `mapstructure:"signing_service" toml:"signing_service,omitempty"`
-	Contracts      ContractAddresses    `mapstructure:"contracts" toml:"contracts,omitempty"`
-	ChainID        string               `mapstructure:"chain_id" toml:"chain_id,omitempty"`
-	PayerAddress   string               `mapstructure:"payer_address" validate:"required" toml:"payer_address"`
+	SigningService SigningServiceConfig `mapstructure:"signing_service" validate:"required" toml:"signing_service"`
+	Contracts      ContractAddresses    `mapstructure:"contracts" validate:"required" toml:"contracts"`
+	ChainID        string               `mapstructure:"chain_id" validate:"required" flag:"chain-id" toml:"chain_id"`
+	PayerAddress   string               `mapstructure:"payer_address" validate:"required" flag:"payer-address" toml:"payer_address"`
 }
 
 func (c PDPServiceConfig) Validate() error {
