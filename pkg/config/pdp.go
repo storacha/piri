@@ -49,41 +49,27 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		return app.PDPServiceConfig{}, fmt.Errorf("invalid signing service config: %s", err)
 	}
 
-	// Parse contract addresses if provided
-	contracts := app.ContractAddresses{}
-	if c.Contracts.Verifier != "" {
-		if !common.IsHexAddress(c.Contracts.Verifier) {
-			return app.PDPServiceConfig{}, fmt.Errorf("invalid verifier address: %s", c.Contracts.Verifier)
-		}
-		contracts.Verifier = common.HexToAddress(c.Contracts.Verifier)
-	}
-	if c.Contracts.ProviderRegistry != "" {
-		if !common.IsHexAddress(c.Contracts.ProviderRegistry) {
-			return app.PDPServiceConfig{}, fmt.Errorf("invalid provider registry address: %s", c.Contracts.ProviderRegistry)
-		}
-		contracts.ProviderRegistry = common.HexToAddress(c.Contracts.ProviderRegistry)
-	}
-	if c.Contracts.Service != "" {
-		if !common.IsHexAddress(c.Contracts.Service) {
-			return app.PDPServiceConfig{}, fmt.Errorf("invalid service address: %s", c.Contracts.Service)
-		}
-		contracts.Service = common.HexToAddress(c.Contracts.Service)
-	}
-	if c.Contracts.ServiceView != "" {
-		if !common.IsHexAddress(c.Contracts.ServiceView) {
-			return app.PDPServiceConfig{}, fmt.Errorf("invalid service view address: %s", c.Contracts.ServiceView)
-		}
-		contracts.ServiceView = common.HexToAddress(c.Contracts.ServiceView)
+	// Parse contract addresses
+	if !common.IsHexAddress(c.Contracts.Verifier) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid verifier address: %s", c.Contracts.Verifier)
 	}
 
-	// Parse ChainID if provided
-	var chainID *big.Int
-	if c.ChainID != "" {
-		chainID = new(big.Int)
-		_, ok := chainID.SetString(c.ChainID, 10)
-		if !ok {
-			return app.PDPServiceConfig{}, fmt.Errorf("invalid chain ID: %s", c.ChainID)
-		}
+	if !common.IsHexAddress(c.Contracts.ProviderRegistry) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid provider registry address: %s", c.Contracts.ProviderRegistry)
+	}
+
+	if !common.IsHexAddress(c.Contracts.Service) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid service address: %s", c.Contracts.Service)
+	}
+
+	if !common.IsHexAddress(c.Contracts.ServiceView) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid service view address: %s", c.Contracts.ServiceView)
+	}
+
+	chainID := new(big.Int)
+	_, ok := chainID.SetString(c.ChainID, 10)
+	if !ok {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid chain ID: %s", c.ChainID)
 	}
 
 	if !common.IsHexAddress(c.PayerAddress) {
@@ -94,9 +80,14 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		OwnerAddress:   common.HexToAddress(c.OwnerAddress),
 		LotusEndpoint:  lotusEndpoint,
 		SigningService: signingServiceConfig,
-		Contracts:      contracts,
-		ChainID:        chainID,
-		PayerAddress:   common.HexToAddress(c.PayerAddress),
+		Contracts: app.ContractAddresses{
+			Verifier:         common.HexToAddress(c.Contracts.Verifier),
+			ProviderRegistry: common.HexToAddress(c.Contracts.ProviderRegistry),
+			Service:          common.HexToAddress(c.Contracts.Service),
+			ServiceView:      common.HexToAddress(c.Contracts.ServiceView),
+		},
+		ChainID:      chainID,
+		PayerAddress: common.HexToAddress(c.PayerAddress),
 	}, nil
 }
 
