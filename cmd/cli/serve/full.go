@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/piri/cmd/cli/setup"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -50,7 +51,6 @@ func init() {
 		"",
 		fmt.Sprintf("Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses. Available values are: %q", presets.AvailableNetworks),
 	)
-	cobra.CheckErr(FullCmd.MarkFlagRequired("network"))
 	cobra.CheckErr(viper.BindPFlag("network", FullCmd.Flags().Lookup("network")))
 
 	FullCmd.Flags().String(
@@ -248,7 +248,7 @@ func init() {
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("contract-signing-service-url"))
 }
 
-func loadPresets(cmd *cobra.Command) error {
+func loadPresets() error {
 	networkStr := viper.GetString("network")
 	network, err := presets.ParseNetwork(networkStr)
 	if err != nil {
@@ -263,36 +263,46 @@ func loadPresets(cmd *cobra.Command) error {
 	// given the network, set the _default_ configuration values. These values will apply iff other config: flag, envvar,
 	// file are not provided. This allows users to selectively apply the changes they want via config sources, while
 	// using the remaining defaults for the provided network
-	viper.SetDefault("ucan.services.indexer.did", preset.Services.IndexingServiceDID)
-	viper.SetDefault("ucan.services.indexer.url", preset.Services.IndexingServiceURL)
-	viper.SetDefault("ucan.services.etracker.did", preset.Services.EgressTrackerServiceDID)
-	viper.SetDefault("ucan.services.etracker.url", preset.Services.EgressTrackerServiceURL)
-	viper.SetDefault("ucan.services.etracker.receipts_endpoint", preset.Services.EgressTrackerServiceURL.JoinPath("/receipts").String())
-	viper.SetDefault("ucan.services.upload.did", preset.Services.UploadServiceDID.String())
-	viper.SetDefault("ucan.services.upload.url", preset.Services.UploadServiceURL.String())
 	urls := make([]string, len(preset.Services.IPNIAnnounceURLs))
 	for i, u := range preset.Services.IPNIAnnounceURLs {
 		urls[i] = u.String()
 	}
 	viper.SetDefault("ucan.services.publisher.ipni_announce_urls", urls)
 	viper.SetDefault("ucan.services.principal_mapping", preset.Services.PrincipalMapping)
-	viper.SetDefault("pdp.signing_service.did", preset.Services.SigningServiceDID.String())
-	viper.SetDefault("pdp.signing_service.url", preset.Services.SigningServiceURL.String())
+
+	viper.SetDefault("ucan.services.indexer.url", preset.Services.IndexingServiceURL.String())
+	viper.SetDefault("ucan.services.indexer.did", preset.Services.IndexingServiceDID.String())
+	viper.SetDefault("ucan.services.etracker.url", preset.Services.EgressTrackerServiceURL.String())
+	viper.SetDefault("ucan.services.etracker.did", preset.Services.EgressTrackerServiceDID.String())
+	viper.SetDefault("ucan.services.etracker.receipts_endpoint", preset.Services.EgressTrackerServiceURL.JoinPath("/receipts").String())
+	viper.SetDefault("ucan.services.upload.url", preset.Services.UploadServiceURL.String())
+	viper.SetDefault("ucan.services.upload.did", preset.Services.UploadServiceDID.String())
+
+	// the registrar and the signing service are not present in all environments
+	if preset.Services.SigningServiceURL != nil {
+		viper.SetDefault("pdp.signing_service.url", preset.Services.SigningServiceURL.String())
+	}
+	if preset.Services.SigningServiceDID != did.Undef {
+		viper.SetDefault("pdp.signing_service.did", preset.Services.SigningServiceDID.String())
+	}
+	if preset.Services.RegistrarServiceURL != nil {
+		viper.SetDefault("pdp.registrar_service.url", preset.Services.RegistrarServiceURL.String())
+	}
 
 	// smart contract defaults
-	viper.SetDefault("pdp.contracts.verifier", preset.SmartContracts.Verifier.Hex())
-	viper.SetDefault("pdp.contracts.provider_registry", preset.SmartContracts.ProviderRegistry.Hex())
-	viper.SetDefault("pdp.contracts.service", preset.SmartContracts.Service.Hex())
-	viper.SetDefault("pdp.contracts.service_view", preset.SmartContracts.ServiceView.Hex())
+	viper.SetDefault("pdp.contracts.verifier", preset.SmartContracts.Verifier.String())
+	viper.SetDefault("pdp.contracts.provider_registry", preset.SmartContracts.ProviderRegistry.String())
+	viper.SetDefault("pdp.contracts.service", preset.SmartContracts.Service.String())
+	viper.SetDefault("pdp.contracts.service_view", preset.SmartContracts.ServiceView.String())
 	viper.SetDefault("pdp.chain_id", preset.SmartContracts.ChainID.String())
-	viper.SetDefault("pdp.payer_address", preset.SmartContracts.PayerAddress.Hex())
+	viper.SetDefault("pdp.payer_address", preset.SmartContracts.PayerAddress.String())
 
 	return nil
 }
 
 func fullServer(cmd *cobra.Command, _ []string) error {
 	// Apply network presets before loading config, but only for flags that weren't explicitly set
-	if err := loadPresets(cmd); err != nil {
+	if err := loadPresets(); err != nil {
 		return fmt.Errorf("loading presets: %w", err)
 	}
 

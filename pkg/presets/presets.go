@@ -44,7 +44,7 @@ func ParseNetwork(s string) (Network, error) {
 	case string(WarmStaging):
 		return WarmStaging, nil
 	default:
-		return Network(""), fmt.Errorf("unknown network: %q", s)
+		return Network(""), fmt.Errorf("unknown network: %q (valid networks are: %q)", s, AvailableNetworks)
 	}
 }
 

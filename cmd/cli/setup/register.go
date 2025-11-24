@@ -142,7 +142,7 @@ func loadPresets(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("registrar-url") && preset.Services.RegistrarServiceURL != nil {
 		cmd.Flags().Set("registrar-url", preset.Services.RegistrarServiceURL.String())
 	}
-	if !cmd.Flags().Changed("signing-service-did") {
+	if !cmd.Flags().Changed("signing-service-did") && preset.Services.SigningServiceDID != did.Undef {
 		cmd.Flags().Set("signing-service-did", preset.Services.SigningServiceDID.String())
 	}
 	if !cmd.Flags().Changed("signing-service-url") && preset.Services.SigningServiceURL != nil {
