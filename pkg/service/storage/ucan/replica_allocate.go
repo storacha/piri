@@ -120,13 +120,15 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 						return nil, nil, fmt.Errorf("failed to attach replica allocate invocation block (%s) to transfer invocation: %w", block.Link().String(), err)
 					}
 				}
-				// iff we didn't allocate space for the data, and didn't provide an address, then it means we have
-				// already allocated space and receieved the data. Therefore, no replication is required.
+				// if blob.Allocated returned a nil address then the blob is already stored on this node.
 				sink := new(url.URL)
-				if resp.Size == 0 && resp.Address == nil {
+				if resp.Address == nil {
+					// no data transfer needed; blob.allocate indicates the blob is already stored by returning a nil
+					//upload
+					// url
 					sink = nil
 				} else {
-					// we need to replicate
+					// we need to transfer the data; blob.allocate returned an upload URL.
 					sink = &resp.Address.URL
 				}
 
