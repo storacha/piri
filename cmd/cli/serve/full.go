@@ -260,64 +260,32 @@ func loadPresets(cmd *cobra.Command) error {
 		return err
 	}
 
-	// Apply service presets only if flags weren't explicitly set by user
-	if !cmd.Flags().Changed("indexing-service-did") {
-		viper.Set("ucan.services.indexer.did", preset.Services.IndexingServiceDID.String())
+	// given the network, set the _default_ configuration values. These values will apply iff other config: flag, envvar,
+	// file are not provided. This allows users to selectively apply the changes they want via config sources, while
+	// using the remaining defaults for the provided network
+	viper.SetDefault("ucan.services.indexer.did", preset.Services.IndexingServiceDID)
+	viper.SetDefault("ucan.services.indexer.url", preset.Services.IndexingServiceURL)
+	viper.SetDefault("ucan.services.etracker.did", preset.Services.EgressTrackerServiceDID)
+	viper.SetDefault("ucan.services.etracker.url", preset.Services.EgressTrackerServiceURL)
+	viper.SetDefault("ucan.services.etracker.receipts_endpoint", preset.Services.EgressTrackerServiceURL.JoinPath("/receipts").String())
+	viper.SetDefault("ucan.services.upload.did", preset.Services.UploadServiceDID.String())
+	viper.SetDefault("ucan.services.upload.url", preset.Services.UploadServiceURL.String())
+	urls := make([]string, len(preset.Services.IPNIAnnounceURLs))
+	for i, u := range preset.Services.IPNIAnnounceURLs {
+		urls[i] = u.String()
 	}
-	if !cmd.Flags().Changed("indexing-service-url") {
-		viper.Set("ucan.services.indexer.url", preset.Services.IndexingServiceURL.String())
-	}
-	if !cmd.Flags().Changed("egress-tracker-service-did") {
-		viper.Set("ucan.services.etracker.did", preset.Services.EgressTrackerServiceDID.String())
-	}
-	if !cmd.Flags().Changed("egress-tracker-service-url") {
-		viper.Set("ucan.services.etracker.url", preset.Services.EgressTrackerServiceURL.String())
-	}
-	if !cmd.Flags().Changed("egress-tracker-service-receipts-endpoint") {
-		viper.Set("ucan.services.etracker.receipts_endpoint", preset.Services.EgressTrackerServiceURL.JoinPath("/receipts").String())
-	}
-	if !cmd.Flags().Changed("upload-service-did") {
-		viper.Set("ucan.services.upload.did", preset.Services.UploadServiceDID.String())
-	}
-	if !cmd.Flags().Changed("upload-service-url") {
-		viper.Set("ucan.services.upload.url", preset.Services.UploadServiceURL.String())
-	}
-	if !cmd.Flags().Changed("ipni-announce-urls") {
-		urls := make([]string, len(preset.Services.IPNIAnnounceURLs))
-		for i, u := range preset.Services.IPNIAnnounceURLs {
-			urls[i] = u.String()
-		}
-		viper.Set("ucan.services.publisher.ipni_announce_urls", urls)
-	}
-	if !cmd.Flags().Changed("service-principal-mapping") {
-		viper.Set("ucan.services.principal_mapping", preset.Services.PrincipalMapping)
-	}
-	if !cmd.Flags().Changed("contract-signing-service-did") {
-		viper.Set("pdp.signing_service.did", preset.Services.SigningServiceDID.String())
-	}
-	if !cmd.Flags().Changed("contract-signing-service-url") {
-		viper.Set("pdp.signing_service.url", preset.Services.SigningServiceURL.String())
-	}
+	viper.SetDefault("ucan.services.publisher.ipni_announce_urls", urls)
+	viper.SetDefault("ucan.services.principal_mapping", preset.Services.PrincipalMapping)
+	viper.SetDefault("pdp.signing_service.did", preset.Services.SigningServiceDID.String())
+	viper.SetDefault("pdp.signing_service.url", preset.Services.SigningServiceURL.String())
 
-	// Apply smart contract presets only if flags weren't explicitly set by user
-	if !cmd.Flags().Changed("verifier-address") {
-		viper.Set("pdp.contracts.verifier", preset.SmartContracts.Verifier.Hex())
-	}
-	if !cmd.Flags().Changed("provider-registry-address") {
-		viper.Set("pdp.contracts.provider_registry", preset.SmartContracts.ProviderRegistry.Hex())
-	}
-	if !cmd.Flags().Changed("service-address") {
-		viper.Set("pdp.contracts.service", preset.SmartContracts.Service.Hex())
-	}
-	if !cmd.Flags().Changed("service-view-address") {
-		viper.Set("pdp.contracts.service_view", preset.SmartContracts.ServiceView.Hex())
-	}
-	if !cmd.Flags().Changed("chain-id") {
-		viper.Set("pdp.chain_id", preset.SmartContracts.ChainID.String())
-	}
-	if !cmd.Flags().Changed("payer-address") {
-		viper.Set("pdp.payer_address", preset.SmartContracts.PayerAddress.Hex())
-	}
+	// smart contract defaults
+	viper.SetDefault("pdp.contracts.verifier", preset.SmartContracts.Verifier.Hex())
+	viper.SetDefault("pdp.contracts.provider_registry", preset.SmartContracts.ProviderRegistry.Hex())
+	viper.SetDefault("pdp.contracts.service", preset.SmartContracts.Service.Hex())
+	viper.SetDefault("pdp.contracts.service_view", preset.SmartContracts.ServiceView.Hex())
+	viper.SetDefault("pdp.chain_id", preset.SmartContracts.ChainID.String())
+	viper.SetDefault("pdp.payer_address", preset.SmartContracts.PayerAddress.Hex())
 
 	return nil
 }
