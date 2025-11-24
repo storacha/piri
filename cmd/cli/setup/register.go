@@ -107,6 +107,7 @@ func init() {
 
 // initFlags holds all the parsed command flags
 type initFlags struct {
+	network           presets.Network
 	dataDir           string
 	tempDir           string
 	keyFile           string
@@ -122,20 +123,20 @@ type initFlags struct {
 }
 
 // loadPresets loads network-specific presets and applies them to flags
-func loadPresets(cmd *cobra.Command) error {
+func loadPresets(cmd *cobra.Command) (presets.Network, error) {
 	networkStr, err := cmd.Flags().GetString("network")
 	if err != nil {
-		return fmt.Errorf("error reading --network: %w", err)
+		return presets.Network(""), fmt.Errorf("error reading --network: %w", err)
 	}
 
 	network, err := presets.ParseNetwork(networkStr)
 	if err != nil {
-		return fmt.Errorf("loading presets: %w", err)
+		return presets.Network(""), fmt.Errorf("loading presets: %w", err)
 	}
 
 	preset, err := presets.GetPreset(network)
 	if err != nil {
-		return fmt.Errorf("loading presets: %w", err)
+		return presets.Network(""), fmt.Errorf("loading presets: %w", err)
 	}
 
 	// Apply preset values for flags that weren't explicitly set
@@ -155,13 +156,14 @@ func loadPresets(cmd *cobra.Command) error {
 		cmd.Flags().Set("payer-address", preset.SmartContracts.PayerAddress.String())
 	}
 
-	return nil
+	return network, nil
 }
 
 // parseAndValidateFlags parses command flags and validates them
 func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 	// Load network presets first
-	if err := loadPresets(cmd); err != nil {
+	network, err := loadPresets(cmd)
+	if err != nil {
 		return nil, err
 	}
 
@@ -233,6 +235,7 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 	}
 
 	return &initFlags{
+		network:           network,
 		dataDir:           dataDir,
 		tempDir:           tempDir,
 		keyFile:           keyFile,
@@ -517,6 +520,7 @@ func requestContractApproval(ctx context.Context, id principal.Signer, flags *in
 // generateConfig generates the final configuration for the user
 func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common.Address, proofSetID uint64, indexerProof string, egressTrackerProof string) (config.FullServerConfig, error) {
 	return config.FullServerConfig{
+		Network:  flags.network.String(),
 		Identity: config.IdentityConfig{KeyFile: flags.keyFile},
 		Repo: config.RepoConfig{
 			DataDir: cfg.Storage.DataDir,
