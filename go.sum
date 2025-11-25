@@ -1699,8 +1699,8 @@ github.com/storacha/delegator v0.0.2-0.20251027182137-7d26b5ae9a70 h1:T3Jog+oah8
 github.com/storacha/delegator v0.0.2-0.20251027182137-7d26b5ae9a70/go.mod h1:SaHfOx7meMUurAU32n5cAzIS5LW5FV9nn246zCLvUCo=
 github.com/storacha/filecoin-services/go v0.0.3 h1:0K3iQnB/iuPys8pip2V24VIVvj0H1GEG9JXpKV/KV00=
 github.com/storacha/filecoin-services/go v0.0.3/go.mod h1:/65ZoW7VMXKV9Byz7UZw+8MNg5CITQeqhl7HCFg9/oE=
-github.com/storacha/go-libstoracha v0.5.2-0.20251117212508-5dabefbf03c8 h1:SZefjdG37Jj92EuVM7vlv4P0KO7O1TVPvifUO/HNNtI=
-github.com/storacha/go-libstoracha v0.5.2-0.20251117212508-5dabefbf03c8/go.mod h1:6BEPZN2kYpwOGhxuccsQfyqPjpLwer4tbMObmZ6CM5M=
+github.com/storacha/go-libstoracha v0.6.3 h1:Fz87laJCUrix2eQ6lx9GEVmNxLLeS5w8HbswQ2XSqV8=
+github.com/storacha/go-libstoracha v0.6.3/go.mod h1:htUh/VZ0qHRLPJKWZsgXv9mCOqlAFGTVS//ApvQVNf0=
 github.com/storacha/go-ucanto v0.7.1 h1:/KRsCltQt57+3sqNqM8ygh9TwA6+0DGC2LIYaOnhcSY=
 github.com/storacha/go-ucanto v0.7.1/go.mod h1:O35Ze4x18EWtz3ftRXXd/mTZ+b8OQVjYYrnadJ/xNjg=
 github.com/storacha/piri-signing-service v0.0.2-0.20251117211248-71ca808befa6 h1:AnYL91PBIOvtYHCGZOfsDwPjZfan+BQRymdD8Xzv/Ys=
