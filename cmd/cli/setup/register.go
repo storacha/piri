@@ -84,6 +84,12 @@ func init() {
 	cobra.CheckErr(InitCmd.Flags().MarkHidden("registrar-url"))
 
 	InitCmd.Flags().String(
+		"signing-service-did",
+		"",
+		"[Advanced] DID of the signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("signing-service-did"))
+
+	InitCmd.Flags().String(
 		"signing-service-url",
 		"",
 		"[Advanced] URL of the signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
