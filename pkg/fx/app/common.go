@@ -24,7 +24,7 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 		fx.Supply(cfg.UCANService),
 		fx.Supply(cfg.PDPService),
 		fx.Supply(cfg.Replicator),
-		fx.Supply(cfg.PDPService.SigningServiceConfig),
+		fx.Supply(cfg.PDPService.SigningService),
 
 		identity.Module, // Provides principal.Signer
 		proofs.Module,   // Provides service for requesting service proofs

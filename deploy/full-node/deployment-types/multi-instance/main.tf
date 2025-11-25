@@ -43,20 +43,19 @@ module "piri_instances" {
   iam_instance_profile_name = module.base_infrastructure.iam_instance_profile_name
   internet_gateway_id       = module.base_infrastructure.internet_gateway_id
   availability_zone         = module.base_infrastructure.availability_zone
-  protect_volume            = var.environment == "production" || var.environment == "prod"
+  protect_volume            = var.environment == "production" || var.environment == "prod" || var.environment == "forge-prod"
   domain_name               = "${var.environment}.${each.value.subdomain}.${var.root_domain}"
   route53_zone_id           = data.aws_route53_zone.primary.zone_id
   
-  install_method       = coalesce(lookup(each.value, "install_method", null), var.default_install_method)
-  install_source       = coalesce(lookup(each.value, "install_source", null), var.default_install_source)
-  registrar_url        = var.registrar_url
-  pdp_lotus_endpoint   = var.pdp_lotus_endpoint
-  pdp_contract_address = var.pdp_contract_address
+  install_method          = coalesce(lookup(each.value, "install_method", null), var.default_install_method)
+  install_source          = coalesce(lookup(each.value, "install_source", null), var.default_install_source)
+  network                 = var.network
+  pdp_lotus_endpoint      = var.pdp_lotus_endpoint
   use_secrets_manager     = var.use_secrets_manager
   service_pem_content     = lookup(each.value, "service_pem_content", "")
   wallet_hex_content      = lookup(each.value, "wallet_hex_content", "")
   operator_email          = each.value.operator_email
-  use_letsencrypt_staging = var.environment != "production" && var.environment != "prod"
+  use_letsencrypt_staging = var.environment != "production" && var.environment != "prod" && var.environment != "forge-prod"
 
   tags = {
     Owner = var.owner

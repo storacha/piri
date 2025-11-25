@@ -175,7 +175,7 @@ sudo cat /var/log/cloud-init-output.log
 ## 🔐 SSL Certificates
 
 ### Let's Encrypt Configuration
-- **Production environments** (`environment = "production" or "prod"`): Use Let's Encrypt production certificates (trusted by browsers)
+- **Production environments** (`environment = "production", "prod" or "forge-prod"`): Use Let's Encrypt production certificates (trusted by browsers)
 - **Non-production environments** (staging, dev, etc.): Use Let's Encrypt staging certificates (untrusted, no rate limits)
 
 ### Rate Limits
@@ -224,7 +224,7 @@ tofu apply -replace=module.piri_instance.aws_instance.piri -var-file=tofu.tfvars
 ```
 
 **Note**: Volume protection is environment-based:
-- **Production** (`environment = "production" or "prod"`): Volumes are protected from destruction
+- **Production** (`environment = "production", "prod" or "forge-prod"`): Volumes are protected from destruction
 - **Other environments** (staging, dev, etc.): Volumes can be destroyed with `tofu destroy`
 
 ### Scale Storage
@@ -314,7 +314,7 @@ sudo journalctl -u cloud-init | grep -i mount
 4. **Domain Management**: The default `pdp.storacha.network` zone is managed by Storacha
 5. **Instance Replacement**: Changing certain parameters (like user-data) will replace the instance, but volumes are preserved
 6. **Volume Protection**: Production volumes are protected from `tofu destroy`; other environments allow destruction
-7. **Environment-Based Behavior**: Set `environment = "production"` or `"prod"` for maximum data protection
+7. **Environment-Based Behavior**: Set `environment = "production"`, `"prod"` or `"forge-prod"` for maximum data protection
 
 ## 📚 Additional Resources
 

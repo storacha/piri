@@ -8,7 +8,7 @@ variable "owner" {
 variable "team" {
   description = "Name of team managing the project"
   type        = string
-  default     = "Storacha Engineer"
+  default     = "Storacha Engineering"
 }
 
 variable "org" {
@@ -73,21 +73,14 @@ variable "default_install_source" {
 }
 
 # Shared Configuration
-variable "registrar_url" {
-  description = "URL of the registrar service for node registration"
+variable "network" {
+  description = "Network the node will operate on. Valid values are 'forge-prod', 'warm-staging', 'prod' and 'staging'."
   type        = string
-  default     = "https://staging.registrar.warm.storacha.network"
 }
 
 variable "pdp_lotus_endpoint" {
   description = "Lotus WebSocket endpoint for PDP"
   type        = string
-}
-
-variable "pdp_contract_address" {
-  description = "PDP contract address"
-  type        = string
-  default     = "0x6170dE2b09b404776197485F3dc6c968Ef948505"
 }
 
 variable "use_secrets_manager" {

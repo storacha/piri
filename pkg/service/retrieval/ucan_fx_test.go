@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/ipfs/go-cid"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/storacha/piri/pkg/fx/app"
 	piritestutil "github.com/storacha/piri/pkg/internal/testutil"
-	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
@@ -40,7 +40,7 @@ func TestFXSpaceContentRetrieve(t *testing.T) {
 
 	retrievalServiceID := testutil.Alice
 	uploadServiceID := testutil.WebService
-	uploadServiceURL := presets.UploadServiceURL
+	uploadServiceURL := testutil.Must(url.Parse("https://up.test.storacha.network"))(t)
 
 	appConfig := piritestutil.NewTestConfig(
 		t,

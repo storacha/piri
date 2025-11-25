@@ -48,7 +48,6 @@ type config struct {
 	announceURLs          []url.URL
 	indexingService       client.Connection
 	indexingServiceProofs delegation.Proofs
-	uploadService         client.Connection
 	replicatorDB          *sql.DB
 	claimCtx              validator.ClaimContext
 }
@@ -246,20 +245,6 @@ func WithPublisherIndexingServiceConfig(serviceDID ucan.Principal, serviceURL ur
 			return err
 		}
 		c.indexingService = conn
-		return nil
-	}
-}
-
-// WithUploadServiceConfig configures UCAN service invocation details
-// for communicating with the upload service.
-func WithUploadServiceConfig(serviceDID ucan.Principal, serviceURL url.URL) Option {
-	return func(c *config) error {
-		channel := http.NewChannel(&serviceURL)
-		conn, err := client.NewConnection(serviceDID, channel)
-		if err != nil {
-			return err
-		}
-		c.uploadService = conn
 		return nil
 	}
 }

@@ -83,19 +83,13 @@ variable "install_source" {
   default     = "v0.0.12"
 }
 
-variable "registrar_url" {
-  description = "URL of the registrar service for node registration"
+variable "network" {
+  description = "Network the node will operate on. Valid values are 'forge-prod', 'warm-staging', 'prod' and 'staging'."
   type        = string
-  default     = "https://staging.registrar.warm.storacha.network"
 }
 
 variable "pdp_lotus_endpoint" {
   description = "Lotus WebSocket endpoint for PDP"
-  type        = string
-}
-
-variable "pdp_contract_address" {
-  description = "PDP contract address"
   type        = string
 }
 

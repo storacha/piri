@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"net/url"
 	"strings"
 
@@ -15,11 +16,20 @@ import (
 	"github.com/storacha/piri/pkg/config/app"
 )
 
+type ContractAddresses struct {
+	Verifier         string `mapstructure:"verifier" validate:"required" flag:"verifier-address" toml:"verifier,omitempty"`
+	ProviderRegistry string `mapstructure:"provider_registry" validate:"required" flag:"provider-registry-address" toml:"provider_registry,omitempty"`
+	Service          string `mapstructure:"service" validate:"required" flag:"service-address" toml:"service,omitempty"`
+	ServiceView      string `mapstructure:"service_view" validate:"required" flag:"service-view-address" toml:"service_view,omitempty"`
+}
+
 type PDPServiceConfig struct {
-	OwnerAddress         string               `mapstructure:"owner_address" validate:"required" flag:"owner-address" toml:"owner_address"`
-	ContractAddress      string               `mapstructure:"contract_address" validate:"required" flag:"contract-address" toml:"contract_address"`
-	LotusEndpoint        string               `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
-	SigningServiceConfig SigningServiceConfig `mapstructure:"signing_service" toml:"signing_service,omitempty"`
+	OwnerAddress   string               `mapstructure:"owner_address" validate:"required" flag:"owner-address" toml:"owner_address"`
+	LotusEndpoint  string               `mapstructure:"lotus_endpoint" validate:"required" flag:"lotus-endpoint" toml:"lotus_endpoint"`
+	SigningService SigningServiceConfig `mapstructure:"signing_service" validate:"required" toml:"signing_service,omitempty"`
+	Contracts      ContractAddresses    `mapstructure:"contracts" validate:"required" toml:"contracts,omitempty"`
+	ChainID        string               `mapstructure:"chain_id" validate:"required" flag:"chain-id" toml:"chain_id,omitempty"`
+	PayerAddress   string               `mapstructure:"payer_address" validate:"required" flag:"payer-address" toml:"payer_address,omitempty"`
 }
 
 func (c PDPServiceConfig) Validate() error {
@@ -28,24 +38,56 @@ func (c PDPServiceConfig) Validate() error {
 
 func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 	if !common.IsHexAddress(c.OwnerAddress) {
-		return app.PDPServiceConfig{}, fmt.Errorf("invalid owner address: %s", c.ContractAddress)
-	}
-	if !common.IsHexAddress(c.ContractAddress) {
-		return app.PDPServiceConfig{}, fmt.Errorf("invalid contract address: %s", c.ContractAddress)
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid owner address: %s", c.OwnerAddress)
 	}
 	lotusEndpoint, err := url.Parse(c.LotusEndpoint)
 	if err != nil {
 		return app.PDPServiceConfig{}, fmt.Errorf("invalid lotus endpoint: %s: %w", c.LotusEndpoint, err)
 	}
-	signingServiceConfig, err := c.SigningServiceConfig.ToAppConfig()
+	signingServiceConfig, err := c.SigningService.ToAppConfig()
 	if err != nil {
 		return app.PDPServiceConfig{}, fmt.Errorf("invalid signing service config: %s", err)
 	}
+
+	// Parse contract addresses
+	if !common.IsHexAddress(c.Contracts.Verifier) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid verifier address: %s", c.Contracts.Verifier)
+	}
+
+	if !common.IsHexAddress(c.Contracts.ProviderRegistry) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid provider registry address: %s", c.Contracts.ProviderRegistry)
+	}
+
+	if !common.IsHexAddress(c.Contracts.Service) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid service address: %s", c.Contracts.Service)
+	}
+
+	if !common.IsHexAddress(c.Contracts.ServiceView) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid service view address: %s", c.Contracts.ServiceView)
+	}
+
+	chainID := new(big.Int)
+	_, ok := chainID.SetString(c.ChainID, 10)
+	if !ok {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid chain ID: %s", c.ChainID)
+	}
+
+	if !common.IsHexAddress(c.PayerAddress) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid payer address: %s", c.PayerAddress)
+	}
+
 	return app.PDPServiceConfig{
-		OwnerAddress:         common.HexToAddress(c.OwnerAddress),
-		ContractAddress:      common.HexToAddress(c.ContractAddress),
-		LotusEndpoint:        lotusEndpoint,
-		SigningServiceConfig: signingServiceConfig,
+		OwnerAddress:   common.HexToAddress(c.OwnerAddress),
+		LotusEndpoint:  lotusEndpoint,
+		SigningService: signingServiceConfig,
+		Contracts: app.ContractAddresses{
+			Verifier:         common.HexToAddress(c.Contracts.Verifier),
+			ProviderRegistry: common.HexToAddress(c.Contracts.ProviderRegistry),
+			Service:          common.HexToAddress(c.Contracts.Service),
+			ServiceView:      common.HexToAddress(c.Contracts.ServiceView),
+		},
+		ChainID:      chainID,
+		PayerAddress: common.HexToAddress(c.PayerAddress),
 	}, nil
 }
 

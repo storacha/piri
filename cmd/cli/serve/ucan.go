@@ -12,16 +12,17 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	uclient "github.com/storacha/go-ucanto/client"
 	"github.com/storacha/go-ucanto/core/delegation"
 	"github.com/storacha/go-ucanto/did"
 	edverifier "github.com/storacha/go-ucanto/principal/ed25519/verifier"
 	ucanserver "github.com/storacha/go-ucanto/server"
 	ucanretrieval "github.com/storacha/go-ucanto/server/retrieval"
+	ucanhttp "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/validator"
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
-	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/server"
 	"github.com/storacha/piri/pkg/service/retrieval"
@@ -51,7 +52,7 @@ func init() {
 
 	UCANCmd.Flags().String(
 		"indexing-service-did",
-		presets.IndexingServiceDID.String(),
+		"",
 		"DID of the indexing service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("indexing-service-did"))
@@ -61,7 +62,7 @@ func init() {
 
 	UCANCmd.Flags().String(
 		"indexing-service-url",
-		presets.IndexingServiceURL.String(),
+		"",
 		"URL of the indexing service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("indexing-service-url"))
@@ -71,7 +72,7 @@ func init() {
 
 	UCANCmd.Flags().String(
 		"upload-service-did",
-		presets.UploadServiceDID.String(),
+		"",
 		"DID of the upload service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("upload-service-did"))
@@ -81,7 +82,7 @@ func init() {
 
 	UCANCmd.Flags().String(
 		"upload-service-url",
-		presets.UploadServiceURL.String(),
+		"",
 		"URL of the upload service",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("upload-service-url"))
@@ -91,13 +92,7 @@ func init() {
 
 	UCANCmd.Flags().StringSlice(
 		"ipni-announce-urls",
-		func() []string {
-			out := make([]string, 0)
-			for _, u := range presets.IPNIAnnounceURLs {
-				out = append(out, u.String())
-			}
-			return out
-		}(),
+		[]string{},
 		"A list of IPNI announce URLs")
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("ipni-announce-urls"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.publisher.ipni_announce_urls", UCANCmd.Flags().Lookup("ipni-announce-urls")))
@@ -106,7 +101,7 @@ func init() {
 
 	UCANCmd.Flags().StringToString(
 		"service-principal-mapping",
-		presets.PrincipalMapping,
+		map[string]string{},
 		"Mapping of service DIDs to principal DIDs",
 	)
 	cobra.CheckErr(UCANCmd.Flags().MarkHidden("service-principal-mapping"))
@@ -205,6 +200,11 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing upload service URL: %w", err)
 	}
 
+	uploadServiceConn, err := uclient.NewConnection(uploadServiceDID, ucanhttp.NewChannel(uploadServiceURL))
+	if err != nil {
+		return fmt.Errorf("creating upload service connection: %w", err)
+	}
+
 	indexingServiceDID, err := did.Parse(cfg.UCANService.Services.Indexer.DID)
 	if err != nil {
 		return fmt.Errorf("parsing indexing service DID: %w", err)
@@ -270,7 +270,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		storage.WithPublisherDatastore(publisherDs),
 		storage.WithPublicURL(*pubURL),
 		storage.WithPublisherDirectAnnounce(ipniAnnounceURLs...),
-		storage.WithUploadServiceConfig(uploadServiceDID, *uploadServiceURL),
 		storage.WithPublisherIndexingServiceConfig(indexingServiceDID, *indexingServiceURL),
 		storage.WithReceiptDatastore(receiptDs),
 		storage.WithClaimValidationContext(claimValidationCtx),
@@ -279,7 +278,7 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if blobAddr != nil {
 		storageOpts = append(storageOpts, storage.WithPublisherBlobAddress(blobAddr))
 	}
-	storageSvc, err := storage.New(storageOpts...)
+	storageSvc, err := storage.New(uploadServiceConn, storageOpts...)
 	if err != nil {
 		return fmt.Errorf("creating storage service instance: %w", err)
 	}

@@ -79,8 +79,8 @@ func (p *PDPService) RegisterProvider(ctx context.Context, params types.Register
 
 	tx := ethtypes.NewTransaction(
 		0,
-		smartcontracts.Addresses().ProviderRegistry,
-		smartcontracts.RegisterProviderFee(),
+		p.cfg.Contracts.ProviderRegistry,
+		smartcontracts.RegisterFee,
 		0,
 		nil,
 		data,

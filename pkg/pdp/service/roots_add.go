@@ -483,7 +483,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	// Prepare the transaction (nonce will be set to 0, SenderETH will assign it)
 	txEth := ethtypes.NewTransaction(
 		0,
-		smartcontracts.Addresses().Verifier,
+		p.cfg.Contracts.Verifier,
 		big.NewInt(0),
 		0,
 		nil,

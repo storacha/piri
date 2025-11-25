@@ -10,11 +10,11 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	filtypes "github.com/filecoin-project/lotus/chain/types"
 	logging "github.com/ipfs/go-log/v2"
-	"gorm.io/gorm"
-
 	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/go-ucanto/ucan"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
+	appconfig "github.com/storacha/piri/pkg/config/app"
+	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
@@ -44,6 +44,7 @@ type EthClient interface {
 }
 
 type PDPService struct {
+	cfg             appconfig.PDPServiceConfig
 	id              ucan.Signer
 	endpoint        url.URL
 	address         common.Address
@@ -72,10 +73,10 @@ type PDPService struct {
 }
 
 func New(
+	cfg appconfig.PDPServiceConfig,
 	id ucan.Signer,
 	endpoint url.URL,
 	db *gorm.DB,
-	address common.Address,
 	bs blobstore.PDPStore,
 	acceptanceStore acceptancestore.AcceptanceStore,
 	receiptStore receiptstore.ReceiptStore,
@@ -92,9 +93,10 @@ func New(
 	registryContract smartcontracts.Registry,
 ) (*PDPService, error) {
 	return &PDPService{
+		cfg:              cfg,
 		id:               id,
 		endpoint:         endpoint,
-		address:          address,
+		address:          cfg.OwnerAddress,
 		db:               db,
 		name:             "storacha",
 		pieceResolver:    resolver,

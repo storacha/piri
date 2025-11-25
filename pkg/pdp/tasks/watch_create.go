@@ -101,7 +101,7 @@ func processProofSetCreate(
 	txHash := psc.CreateMessageHash
 	service := psc.Service
 
-	lg := log.With("tx_hash", txHash, "owner", service, "verifier_address", smartcontracts.Addresses().Verifier.String())
+	lg := log.With("tx_hash", txHash, "owner", service, "verifier_address", verifier.Address().String())
 
 	// Retrieve the tx_receipt from message_waits_eth
 	lg.Debug("Retrieving transaction receipt")
