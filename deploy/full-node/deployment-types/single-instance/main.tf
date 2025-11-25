@@ -48,7 +48,6 @@ module "piri_instance" {
   install_method          = var.install_method
   install_source          = var.install_source
   network                 = var.network
-  registrar_url           = var.registrar_url
   pdp_lotus_endpoint      = var.pdp_lotus_endpoint
   use_secrets_manager     = var.use_secrets_manager
   service_pem_content     = var.service_pem_content

@@ -50,7 +50,6 @@ module "piri_instances" {
   install_method          = coalesce(lookup(each.value, "install_method", null), var.default_install_method)
   install_source          = coalesce(lookup(each.value, "install_source", null), var.default_install_source)
   network                 = var.network
-  registrar_url           = var.registrar_url
   pdp_lotus_endpoint      = var.pdp_lotus_endpoint
   use_secrets_manager     = var.use_secrets_manager
   service_pem_content     = lookup(each.value, "service_pem_content", "")

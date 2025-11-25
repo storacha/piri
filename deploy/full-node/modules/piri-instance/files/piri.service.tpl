@@ -14,7 +14,6 @@ TimeoutStartSec=360
 
 ExecStartPre=/bin/bash -c '/usr/local/bin/piri init \
   --network="${network}" \
-  --registrar-url="${registrar_url}" \
   --data-dir=/data/piri \
   --temp-dir=/tmp/piri \
   --key-file=/etc/piri/service.pem \

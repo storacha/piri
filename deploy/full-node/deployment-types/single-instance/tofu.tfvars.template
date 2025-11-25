@@ -154,10 +154,6 @@ pdp_lotus_endpoint = "wss://YOUR_LOTUS_ENDPOINT/rpc/v1"
 # Note: Valid values are "forge-prod", "warm-staging", "prod" and "staging".
 network = "warm-staging"
 
-# Registrar service URL for node registration
-# Default: "https://staging.registrar.warm.storacha.network" - uncomment to override
-# registrar_url = "https://staging.registrar.warm.storacha.network"
-
 # ===========================================================================
 # OPERATOR CONFIGURATION
 # ===========================================================================

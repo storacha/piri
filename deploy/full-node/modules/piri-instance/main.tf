@@ -5,7 +5,6 @@ locals {
 
   systemd_service_content = templatefile("${path.module}/files/piri.service.tpl", {
     network        = var.network
-    registrar_url  = var.registrar_url
     lotus_endpoint = var.pdp_lotus_endpoint
     operator_email = var.operator_email
     public_url     = "https://${var.domain_name}"

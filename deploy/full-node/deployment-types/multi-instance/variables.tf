@@ -78,12 +78,6 @@ variable "network" {
   type        = string
 }
 
-variable "registrar_url" {
-  description = "URL of the registrar service for node registration"
-  type        = string
-  default     = "https://staging.registrar.warm.storacha.network"
-}
-
 variable "pdp_lotus_endpoint" {
   description = "Lotus WebSocket endpoint for PDP"
   type        = string
