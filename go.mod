@@ -66,7 +66,7 @@ require (
 	github.com/storacha/delegator v0.0.2-0.20251027182137-7d26b5ae9a70
 	github.com/storacha/filecoin-services/go v0.0.3
 	github.com/storacha/go-libstoracha v0.6.3
-	github.com/storacha/go-ucanto v0.7.1
+	github.com/storacha/go-ucanto v0.7.2
 	github.com/storacha/piri-signing-service v0.0.2-0.20251117211248-71ca808befa6
 	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
