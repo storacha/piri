@@ -248,21 +248,18 @@ var calibnetSettings = SmartContractSettings{
 }
 
 // Contract settings for mainnet
-// TODO (vic): These use calibnet addresses as placeholders until mainnet contracts are deployed
 var mainnetSettings = SmartContractSettings{
 	// PDPVerifier contract address (see https://github.com/FilOzone/pdp/?tab=readme-ov-file#contracts)
-	Verifier: common.HexToAddress("0x85e366Cf9DD2c0aE37E963d9556F5f4718d6417C"),
+	Verifier: common.HexToAddress("0xBADd0B92C1c71d02E7d520f64c0876538fa2557F"),
 	// This contract and its address are owned by storacha
-	ProviderRegistry: common.HexToAddress("0x6A96aaB210B75ee733f0A291B5D8d4A053643979"),
+	ProviderRegistry: common.HexToAddress("0xf55dDbf63F1b55c3F1D4FA7e339a68AB7b64A5eB"),
 	// This contract and its address are owned by storacha, and uses ProviderRegistry for membership
-	Service:     common.HexToAddress("0x0c6875983B20901a7C3c86871f43FdEE77946424"),
-	ServiceView: common.HexToAddress("0xEAD67d775f36D1d2894854D20e042C77A3CC20a5"),
+	Service:     common.HexToAddress("0x56e53c5e7F27504b810494cc3b88b2aa0645a839"),
+	ServiceView: common.HexToAddress("0x778Bbb8F50d759e2AA03ab6FAEF830Ca329AFF9D"),
 	// Filecoin mainnet chain ID
-	// TODO (vic): Change to 314 once mainnet contracts deployed
-	ChainID: big.NewInt(314159),
+	ChainID: big.NewInt(314),
 	// PayerAddress is the Storacha Owned address that pays SPs
-	// TODO (vic): Update with mainnet payer address
-	PayerAddress: common.HexToAddress("0x8d3d7cE4F43607C9d0ac01f695c7A9caC135f9AD"),
+	PayerAddress: common.HexToAddress("0x3c1ae7a70a2b51458fcb7927fd77aae408a1b857"),
 }
 
 // GetPreset returns the complete preset configuration for a given network
