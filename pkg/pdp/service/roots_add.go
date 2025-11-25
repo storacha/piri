@@ -20,6 +20,9 @@ import (
 	"github.com/storacha/go-ucanto/core/ipld"
 	"github.com/storacha/go-ucanto/core/message"
 	"github.com/storacha/go-ucanto/core/receipt"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/pdp/service/models"
@@ -104,13 +107,21 @@ import (
 */
 
 func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.RootAdd) (res common.Hash, retErr error) {
+	ctx, span := tracer.Start(ctx, "AddRoots", trace.WithAttributes(
+		attribute.Int64("dataset.id", int64(id)),
+		attribute.Int("roots.count", len(request)),
+	))
 	log.Infow("adding roots", "id", id, "request", request)
 	defer func() {
 		if retErr != nil {
 			log.Errorw("failed to add roots", "id", id, "request", request, "err", retErr)
+			span.RecordError(retErr)
+			span.SetStatus(codes.Error, "failed to add roots")
 		} else {
+			span.SetAttributes(attribute.Stringer("tx", res))
 			log.Infow("added roots", "id", id, "request", request, "response", res)
 		}
+		span.End()
 	}()
 
 	// Check if the proof set exists
@@ -202,6 +213,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	}
 
 	if len(existingPendingRoots) > 0 {
+		span.AddEvent("pending roots exist")
 		// Roots are currently being processed - wait for the existing transaction
 		txHashStr := existingPendingRoots[0].AddMessageHash
 		txHash := common.HexToHash(txHashStr)
@@ -339,6 +351,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 			return common.Hash{}, fmt.Errorf("provided RootCID does not match generated RootCID: %s (v1 %s) != %s",
 				addReq.Root, providedPieceCidV1, generatedCID)
 		}
+		span.AddEvent("root", trace.WithAttributes(attribute.Stringer("root", addReq.Root)))
 	}
 
 	// Step 5: Prepare the Ethereum transaction data outside the DB transaction
@@ -483,6 +496,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to send transaction: %w", err)
 	}
+	span.AddEvent("transaction sent")
 
 	// Step 9: Insert into message_waits_eth and pdp_proofset_root_adds
 	if err := p.db.Transaction(func(tx *gorm.DB) error {

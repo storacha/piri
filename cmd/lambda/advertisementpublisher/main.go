@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/labstack/gommon/log"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/storacha/go-libstoracha/ipnipublisher/publisher"
-	"github.com/storacha/go-libstoracha/ipnipublisher/queue"
 	awspublishingqueue "github.com/storacha/go-libstoracha/ipnipublisher/queue/aws"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
@@ -23,14 +24,31 @@ func main() {
 }
 
 func makeHandler(cfg aws.Config) (lambda.SQSBatchEventHandler, error) {
-	sqsPublishingDecoder := awspublishingqueue.NewSQSPublishingDecoder(cfg.Config, cfg.PublishingBucket)
+	sqsAdvertisementPublishingDecoder := awspublishingqueue.NewSQSAdvertisementPublishingDecoder()
 	ipniStore := aws.NewS3Store(cfg.Config, cfg.IPNIStoreBucket, cfg.IPNIStorePrefix, cfg.S3Options...)
 	chunkLinksTable := aws.NewDynamoProviderContextTable(cfg.Config, cfg.ChunkLinksTableName, cfg.DynamoOptions...)
 	metadataTable := aws.NewDynamoProviderContextTable(cfg.Config, cfg.MetadataTableName, cfg.DynamoOptions...)
 	publisherStore := store.NewPublisherStore(ipniStore, chunkLinksTable, metadataTable, store.WithMetadataContext(metadata.MetadataContext))
-	advertisementPublishingQueue := awspublishingqueue.NewSQSAdvertisementPublishingQueue(cfg.Config, cfg.SQSAdvertisementPublishingQueueID)
-	advertismentQueuePublisher := queue.NewAdvertisementQueuePublisher(advertisementPublishingQueue, publisherStore)
+	priv, err := crypto.UnmarshalEd25519PrivateKey(cfg.Signer.Raw())
+	if err != nil {
+		return nil, fmt.Errorf("unmarshaling private key: %w", err)
+	}
+	announceAddr, err := multiaddr.NewMultiaddr(cfg.IPNIPublisherAnnounceAddress)
+	if err != nil {
+		return nil, fmt.Errorf("parsing announce multiaddr: %w", err)
+	}
 
+	opts := []publisher.Option{publisher.WithAnnounceAddrs(announceAddr.String())}
+	for _, url := range cfg.IPNIAnnounceURLs {
+		opts = append(opts, publisher.WithDirectAnnounce(url.String()))
+	}
+	advertisementPublisher, err := publisher.NewAdvertisementPublisher(
+		priv, publisherStore,
+		opts...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating IPNI publisher instance: %w", err)
+	}
 	return func(ctx context.Context, sqsEvent events.SQSEvent) (events.SQSEventResponse, error) {
 		deadline, ok := ctx.Deadline()
 		if ok {
@@ -45,32 +63,24 @@ func makeHandler(cfg aws.Config) (lambda.SQSBatchEventHandler, error) {
 
 		failures := make([]events.SQSBatchItemFailure, 0, len(sqsEvent.Records))
 		for _, msg := range sqsEvent.Records {
-			err := handleMessage(ctx, sqsPublishingDecoder, advertismentQueuePublisher, msg)
+			ad, err := sqsAdvertisementPublishingDecoder.DecodeMessage(ctx, msg.ReceiptHandle, msg.Body)
 			if err != nil {
 				failures = append(failures, events.SQSBatchItemFailure{
 					ItemIdentifier: msg.MessageId,
 				})
-				log.Errorf("unable to process message %s: %s", msg.MessageId, err.Error())
+			}
+			advertisementPublisher.AddToBatch(ad.Job)
+		}
+		_, err := advertisementPublisher.Commit(ctx)
+		if err != nil {
+			log.Errorf("failed to commit advertisement batch: %s", err)
+			failures = make([]events.SQSBatchItemFailure, 0, len(sqsEvent.Records))
+			for _, msg := range sqsEvent.Records {
+				failures = append(failures, events.SQSBatchItemFailure{
+					ItemIdentifier: msg.MessageId,
+				})
 			}
 		}
 		return events.SQSEventResponse{BatchItemFailures: failures}, nil
 	}, nil
-}
-
-func handleMessage(ctx context.Context, sqsPublishingDecoder *awspublishingqueue.SQSPublishingDecoder, publisher publisher.AsyncPublisher, msg events.SQSMessage) error {
-	job, err := sqsPublishingDecoder.DecodeMessage(ctx, msg.ReceiptHandle, msg.Body)
-	if err != nil {
-		return err
-	}
-	err = publisher.Publish(ctx, job.Job.ProviderInfo, job.Job.ContextID, job.Job.Digests, job.Job.Meta)
-	// Do not hold up the queue by re-attempting a cache job that times out. It is
-	// probably a big DAG and retrying is unlikely to subsequently succeed.
-	if errors.Is(err, context.DeadlineExceeded) {
-		log.Warnf("not retrying cache provider job for: %s error: %s", job.Job.ContextID, err)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return nil
 }

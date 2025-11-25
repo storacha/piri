@@ -10,7 +10,7 @@ LAMBDA_GOARCH=arm64
 LAMBDA_GOCC?=go
 LAMBDA_GOFLAGS=-tags=lambda.norpc -ldflags="-s -w -X github.com/storacha/piri/pkg/build.version=$(VERSION)"
 LAMBDA_CGO_ENABLED=0
-LAMBDAS=build/getclaim/bootstrap build/getroot/bootstrap build/postad/bootstrap build/postroot/bootstrap build/putblob/bootstrap build/publisher/bootstrap
+LAMBDAS=build/getclaim/bootstrap build/getroot/bootstrap build/postad/bootstrap build/postroot/bootstrap build/putblob/bootstrap build/publisher/bootstrap build/advertisementpublisher/bootstrap
 
 .PHONY: clean-lambda
 

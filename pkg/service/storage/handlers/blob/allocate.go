@@ -14,10 +14,14 @@ import (
 	captypes "github.com/storacha/go-libstoracha/capabilities/types"
 	"github.com/storacha/go-ucanto/did"
 	"github.com/storacha/go-ucanto/ucan"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/presets"
 
 	"github.com/storacha/go-libstoracha/digestutil"
+
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/store"
@@ -42,9 +46,23 @@ type AllocateResponse struct {
 	Address *blob.Address
 }
 
-func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (*AllocateResponse, error) {
+func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (resp *AllocateResponse, err error) {
+	ctx, span := tracer.Start(ctx, "blob.allocate")
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
 	log := log.With("blob", digestutil.Format(req.Blob.Digest))
 	log.Infof("%s space: %s", blob.AllocateAbility, req.Space)
+	span.SetAttributes(
+		attribute.Stringer("space.did", req.Space),
+		attribute.Stringer("blob.digest", req.Blob.Digest),
+		attribute.Int64("blob.size", int64(req.Blob.Size)),
+	)
 
 	// check if we already have an allocation for the blob in this space
 	allocs, err := s.Blobs().Allocations().List(ctx, req.Blob.Digest)

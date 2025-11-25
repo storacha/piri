@@ -44,15 +44,15 @@ import (
 	ucan_http "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
 	"github.com/storacha/go-ucanto/validator"
-	appconfig "github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
+	appconfig "github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/app"
 	piritestutil "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/presigner"
+	"github.com/storacha/piri/pkg/principalresolver"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 )
@@ -632,6 +632,169 @@ func TestFXReplicaAllocateTransfer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewAllocationExistingData(t *testing.T) {
+	// we expect each test to run in 60 seconds or less.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+
+	// Common setup: random DID, random data, etc.
+	initialAllocationSpace := testutil.RandomDID(t)
+	expectedSize := uint64(rand.IntN(32) + 1)
+	expectedData := testutil.RandomBytes(t, int(expectedSize))
+	expectedDigest := testutil.Must(
+		multihash.Sum(expectedData, multihash.SHA2_256, -1),
+	)(t)
+	replicas := uint(1)
+	serverAddr := ":8081"
+	sourcePath, sinkPath, uploadServicePath := "get", "put", "upload-service"
+
+	// Spin up storage service, using injected values for testing.
+	locationURL, uploadServiceURL, fakeBlobPresigner := setupURLs(t, serverAddr, sourcePath, sinkPath, uploadServicePath)
+
+	// Create test app configuration with custom presigner and upload service
+	var (
+		svc storage.Service
+		srv ucanserver.ServerView[ucanserver.Service]
+	)
+
+	appConfig := piritestutil.NewTestConfig(t,
+		piritestutil.WithSigner(testutil.Alice),
+		piritestutil.WithUploadServiceConfig(testutil.WebService.DID(), uploadServiceURL),
+	)
+
+	testApp := fxtest.New(t,
+		fx.NopLogger,
+		app.CommonModules(appConfig),
+		app.UCANModule,
+		// replace the RequestPresigner with our fake one.
+		fx.Decorate(func() presigner.RequestPresigner {
+			return fakeBlobPresigner
+		}),
+		// use the map resolver so no network calls are made that would fail anyway
+		fx.Decorate(func() validator.PrincipalResolver {
+			return testutil.Must(principalresolver.NewMapResolver(map[string]string{
+				testutil.WebService.DID().String(): testutil.WebService.Unwrap().DID().String(),
+			}))(t)
+		}),
+		// // use the mocked proof service
+		// fx.Decorate(func() proofs.ProofService {
+		// 	return
+		// }),
+		// replace the default replicator config with one that causes failures to happen faster
+		fx.Replace(appconfig.ReplicatorConfig{
+			MaxRetries: 2,
+			MaxWorkers: 1,
+			MaxTimeout: time.Second,
+		}),
+		fx.Populate(&svc, &srv),
+	)
+
+	testApp.RequireStart()
+
+	fakeServer, transferOkChan, _, _ := startTestHTTPServer(
+		ctx, t, expectedDigest, expectedData, svc,
+		serverAddr, sourcePath, sinkPath, uploadServicePath,
+		false, false,
+	)
+
+	t.Cleanup(func() {
+		if err := fakeServer.Close(); err != nil {
+			t.Logf("failed to close fake http server: %v", err)
+		}
+		testApp.RequireStop()
+		cancel()
+	})
+
+	// Build UCAN server & connection
+	conn := testutil.Must(client.NewConnection(testutil.Service, srv))(t)
+
+	// Build UCAN delegation + location claim + replicate invocation
+	// required ability's for blob replicate
+	prf := buildDelegationProof(t)
+	// location claim and blob replicate invocation, simulating an upload-service
+	lcd, expectedLocationCaveats := buildLocationClaim(t, prf, initialAllocationSpace, expectedDigest, locationURL, expectedSize)
+	bri, expectedReplicaCaveats := buildReplicateInvocation(
+		t, lcd, expectedDigest, expectedSize, replicas,
+	)
+
+	// create an allocation for the blob
+	require.NoError(t, svc.Blobs().Allocations().Put(ctx, allocation.Allocation{
+		Space: initialAllocationSpace,
+		Blob: allocation.Blob{
+			Digest: expectedDigest,
+			Size:   expectedSize,
+		},
+		Expires: uint64(time.Now().Add(time.Hour).UTC().Unix()),
+		Cause:   bri.Link(),
+	}))
+
+	// "upload"/store the blob
+	require.NoError(t, svc.Blobs().Store().Put(
+		ctx, expectedDigest, expectedSize, bytes.NewReader(expectedData),
+	))
+
+	// create a new allocation for a blob that already exists in a different space
+	// NB(forrest): this is the key difference from other test cases:
+	// we are replicating a blob we have already stored, but was allocated in a different space
+	// so no data transfer is required, but the node must still create an allocation for it
+	// and location commitment
+	expectedSpace := testutil.RandomDID(t)
+
+	// Build + execute the actual replica.Allocate invocation.
+	// simulating an upload service sending the invocation to the storage node.
+	rbi, expectedAllocateCaveats := buildAllocateInvocation(
+		t, bri, lcd, expectedSpace, expectedDigest, expectedSize,
+	)
+	res, err := client.Execute(t.Context(), []invocation.Invocation{rbi}, conn)
+
+	// Handle normal execution
+	require.NoError(t, err)
+
+	// read the receipt for the blob allocate, asserting its size is expected value.
+	alloc := mustReadAllocationReceipt(t, rbi, res)
+	require.EqualValues(t, expectedSize, alloc.Size)
+
+	// Assert that the Site promise field exists and has the correct structure
+	require.NotNil(t, alloc.Site)
+	require.Equal(t, ".out.ok", alloc.Site.UcanAwait.Selector)
+
+	// Normal case - wait for transfer message
+	ucanConcludeMsg := mustWaitForTransferMsg(t, ctx, transferOkChan)
+	require.Len(t, ucanConcludeMsg.Invocations(), 1)
+	// receipt is attached to the invocation, not a reciept in the message
+	require.Len(t, ucanConcludeMsg.Receipts(), 0)
+
+	// Full read + assertion on the transfer invocation and its ucan chain
+	mustAssertTransferInvocation(
+		t,
+		ucanConcludeMsg,
+		expectedDigest,
+		expectedSize,
+		expectedSpace,
+		expectedLocationCaveats,
+		expectedAllocateCaveats,
+		expectedReplicaCaveats,
+		false,
+	)
+
+	// assert there are now two allocations for this blob
+	allocations, err := svc.Blobs().Allocations().List(ctx, expectedDigest)
+	require.NoError(t, err)
+	require.Len(t, allocations, 2)
+	initalSpaceAllocationExists := false
+	expectedSpaceAllocationExists := false
+	for _, a := range allocations {
+		if a.Space == expectedSpace {
+			expectedSpaceAllocationExists = true
+		}
+		if a.Space == initialAllocationSpace {
+			initalSpaceAllocationExists = true
+		}
+	}
+	require.True(t, initalSpaceAllocationExists, "expected allocation in initial allocation space")
+	require.True(t, expectedSpaceAllocationExists, "expected allocation in expected (replicated) allocation space")
+
 }
 
 // Sets up the pre-signed URLs + returns them for use in testing

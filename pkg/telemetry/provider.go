@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
+	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 )
 
 type Provider struct {
@@ -22,34 +21,16 @@ type Config struct {
 	ServiceName     string
 	ServiceVersion  string
 	PublishInterval time.Duration
+	TracesEndpoint  string
 	environment     string
 	endpoint        string
 	insecure        bool
 	headers         map[string]string
 }
 
-func newProvider(ctx context.Context, cfg Config) (*Provider, error) {
-	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			attribute.String("service.name", cfg.ServiceName),
-			attribute.String("service.version", cfg.ServiceVersion),
-			attribute.String("deployment.environment", cfg.environment),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
-	}
-
-	opts := []otlpmetrichttp.Option{
-		otlpmetrichttp.WithEndpoint(cfg.endpoint),
-	}
-
-	if cfg.insecure {
-		opts = append(opts, otlpmetrichttp.WithInsecure())
-	}
-
-	if len(cfg.headers) > 0 {
-		opts = append(opts, otlpmetrichttp.WithHeaders(cfg.headers))
+func newProvider(ctx context.Context, cfg Config, res *sdkresource.Resource, opts []otlpmetrichttp.Option) (*Provider, error) {
+	if len(opts) == 0 {
+		return nil, fmt.Errorf("metrics endpoint is required")
 	}
 
 	exporter, err := otlpmetrichttp.New(ctx, opts...)

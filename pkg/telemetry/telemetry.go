@@ -2,12 +2,15 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/sdk/trace"
 )
 
 var log = logging.Logger("telemetry")
@@ -19,8 +22,9 @@ const (
 )
 
 type Telemetry struct {
-	provider *Provider
-	meter    metric.Meter
+	provider      *Provider
+	traceProvider *trace.TracerProvider
+	meter         metric.Meter
 }
 
 func New(ctx context.Context, cfg Config) (*Telemetry, error) {
@@ -31,15 +35,38 @@ func New(ctx context.Context, cfg Config) (*Telemetry, error) {
 		cfg.PublishInterval = defaultPublishInterval
 	}
 
-	provider, err := newProvider(ctx, cfg)
+	// tracing is off by default, only enable if set
+	if cfg.TracesEndpoint == "" {
+		if os.Getenv("PIRI_TRACING_ENABLED") != "" {
+			cfg.TracesEndpoint = cfg.endpoint
+		}
+	}
+
+	res, err := newResource(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create telemetry resource: %w", err)
+	}
+
+	metricOpts := newOTLPHTTPOptions(cfg.endpoint, cfg.insecure, cfg.headers).metricOptions()
+	provider, err := newProvider(ctx, cfg, res, metricOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create telemetry provider: %w", err)
 	}
 
-	return &Telemetry{
+	t := &Telemetry{
 		provider: provider,
 		meter:    provider.Meter(),
-	}, nil
+	}
+
+	traceOpts := newOTLPHTTPOptions(cfg.TracesEndpoint, cfg.insecure, cfg.headers).traceOptions()
+	if len(traceOpts) > 0 {
+		traceProvider, err := newTraceProvider(ctx, res, traceOpts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create trace provider: %w", err)
+		}
+		t.traceProvider = traceProvider
+	}
+	return t, nil
 }
 
 // NewWithMeter creates a new Telemetry instance with a custom meter.
@@ -83,9 +110,24 @@ func (t *Telemetry) NewInfo(cfg InfoConfig) (*Info, error) {
 }
 
 func (t *Telemetry) Shutdown(ctx context.Context) error {
+	var errs []error
+
 	if t.provider != nil {
-		return t.provider.Shutdown(ctx)
+		if err := t.provider.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
+		}
 	}
+
+	if t.traceProvider != nil {
+		if err := t.traceProvider.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
 	return nil
 }
 
