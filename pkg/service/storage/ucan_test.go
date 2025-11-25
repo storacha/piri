@@ -475,7 +475,7 @@ func TestReplicaAllocateTransfer(t *testing.T) {
 
 			// Assert that the Site promise field exists and has the correct structure
 			require.NotNil(t, alloc.Site)
-			require.Equal(t, ".out.ok.site", alloc.Site.UcanAwait.Selector)
+			require.Equal(t, replica.AllocateSiteSelector, alloc.Site.UcanAwait.Selector)
 
 			// "Wait" for the transfer invocation to produce a receipt
 			// simulating the upload-service getting a receipt from this storage node.
