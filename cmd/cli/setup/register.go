@@ -102,6 +102,41 @@ func init() {
 	cobra.CheckErr(InitCmd.Flags().MarkHidden("upload-service-did"))
 
 	InitCmd.Flags().String(
+		"verifier-address",
+		"",
+		"[Advanced] PDP Verifier contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("verifier-address"))
+
+	InitCmd.Flags().String(
+		"provider-registry-address",
+		"",
+		"[Advanced] Provider Registry contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("provider-registry-address"))
+
+	InitCmd.Flags().String(
+		"service-address",
+		"",
+		"[Advanced] PDP Service contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("service-address"))
+
+	InitCmd.Flags().String(
+		"service-view-address",
+		"",
+		"[Advanced] Service View contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("service-view-address"))
+
+	InitCmd.Flags().String(
+		"chain-id",
+		"",
+		"[Advanced] Filecoin chain ID (314 for mainnet, 314159 for calibration). Only change if you know what you're doing. Use --network flag to set proper defaults.",
+	)
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("chain-id"))
+
+	InitCmd.Flags().String(
 		"payer-address",
 		"",
 		"[Advanced] Address of the payer. Only change if you know what you're doing. Use --network flag to set proper defaults.")
@@ -113,19 +148,24 @@ func init() {
 
 // initFlags holds all the parsed command flags
 type initFlags struct {
-	network           presets.Network
-	dataDir           string
-	tempDir           string
-	keyFile           string
-	publicURL         *url.URL
-	walletPath        string
-	lotusEndpoint     string
-	operatorEmail     string
-	delegatorURL      string
-	signingServiceDID string
-	signingServiceURL string
-	uploadServiceDID  did.DID
-	payerAddress      string
+	network                 presets.Network
+	dataDir                 string
+	tempDir                 string
+	keyFile                 string
+	publicURL               *url.URL
+	walletPath              string
+	lotusEndpoint           string
+	operatorEmail           string
+	delegatorURL            string
+	signingServiceDID       string
+	signingServiceURL       string
+	uploadServiceDID        did.DID
+	verifierAddress         string
+	providerRegistryAddress string
+	serviceAddress          string
+	serviceViewAddress      string
+	chainID                 string
+	payerAddress            string
 }
 
 // loadPresets loads network-specific presets and applies them to flags
@@ -157,6 +197,21 @@ func loadPresets(cmd *cobra.Command) (presets.Network, error) {
 	}
 	if !cmd.Flags().Changed("upload-service-did") {
 		cmd.Flags().Set("upload-service-did", preset.Services.UploadServiceDID.String())
+	}
+	if !cmd.Flags().Changed("verifier-address") {
+		cmd.Flags().Set("verifier-address", preset.SmartContracts.Verifier.String())
+	}
+	if !cmd.Flags().Changed("provider-registry-address") {
+		cmd.Flags().Set("provider-registry-address", preset.SmartContracts.ProviderRegistry.String())
+	}
+	if !cmd.Flags().Changed("service-address") {
+		cmd.Flags().Set("service-address", preset.SmartContracts.Service.String())
+	}
+	if !cmd.Flags().Changed("service-view-address") {
+		cmd.Flags().Set("service-view-address", preset.SmartContracts.ServiceView.String())
+	}
+	if !cmd.Flags().Changed("chain-id") {
+		cmd.Flags().Set("chain-id", preset.SmartContracts.ChainID.String())
 	}
 	if !cmd.Flags().Changed("payer-address") {
 		cmd.Flags().Set("payer-address", preset.SmartContracts.PayerAddress.String())
@@ -235,25 +290,55 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		return nil, fmt.Errorf("parsing upload service DID: %w", err)
 	}
 
+	verifierAddress, err := cmd.Flags().GetString("verifier-address")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --verifier-address: %w", err)
+	}
+
+	providerRegistryAddress, err := cmd.Flags().GetString("provider-registry-address")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --provider-registry-address: %w", err)
+	}
+
+	serviceAddress, err := cmd.Flags().GetString("service-address")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --service-address: %w", err)
+	}
+
+	serviceViewAddress, err := cmd.Flags().GetString("service-view-address")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --service-view-address: %w", err)
+	}
+
+	chainID, err := cmd.Flags().GetString("chain-id")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --chain-id: %w", err)
+	}
+
 	payerAddress, err := cmd.Flags().GetString("payer-address")
 	if err != nil {
 		return nil, fmt.Errorf("error reading --payer-address: %w", err)
 	}
 
 	return &initFlags{
-		network:           network,
-		dataDir:           dataDir,
-		tempDir:           tempDir,
-		keyFile:           keyFile,
-		publicURL:         parsedURL,
-		walletPath:        walletPath,
-		lotusEndpoint:     lotusEndpoint,
-		operatorEmail:     operatorEmail,
-		delegatorURL:      delegatorURL,
-		signingServiceDID: signingServiceDID,
-		signingServiceURL: signingServiceURL,
-		uploadServiceDID:  uploadServiceDID,
-		payerAddress:      payerAddress,
+		network:                 network,
+		dataDir:                 dataDir,
+		tempDir:                 tempDir,
+		keyFile:                 keyFile,
+		publicURL:               parsedURL,
+		walletPath:              walletPath,
+		lotusEndpoint:           lotusEndpoint,
+		operatorEmail:           operatorEmail,
+		delegatorURL:            delegatorURL,
+		signingServiceDID:       signingServiceDID,
+		signingServiceURL:       signingServiceURL,
+		uploadServiceDID:        uploadServiceDID,
+		verifierAddress:         verifierAddress,
+		providerRegistryAddress: providerRegistryAddress,
+		serviceAddress:          serviceAddress,
+		serviceViewAddress:      serviceViewAddress,
+		chainID:                 chainID,
+		payerAddress:            payerAddress,
 	}, nil
 }
 
@@ -281,6 +366,13 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 				DID: flags.signingServiceDID,
 				URL: flags.signingServiceURL,
 			},
+			Contracts: config.ContractAddresses{
+				Verifier:         flags.verifierAddress,
+				ProviderRegistry: flags.providerRegistryAddress,
+				Service:          flags.serviceAddress,
+				ServiceView:      flags.serviceViewAddress,
+			},
+			ChainID:      flags.chainID,
 			PayerAddress: flags.payerAddress,
 		}.ToAppConfig()),
 		Replicator: appcfg.DefaultReplicatorConfig(),
