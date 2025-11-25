@@ -107,12 +107,6 @@
 # Note: The storacha team runs a lotus gateway, reach-out in discord if you would like access.
 pdp_lotus_endpoint = "wss://YOUR_LOTUS_ENDPOINT/rpc/v1"
 
-# PDP smart contract address
-# Default: "0x6170dE2b09b404776197485F3dc6c968Ef948505" - uncomment to override
-# Note: This address is defined here: https://github.com/FilOzone/pdp/?tab=readme-ov-file#v110 it is strongly recommended
-#       to use this default.
-# pdp_contract_address = "0x6170dE2b09b404776197485F3dc6c968Ef948505"
-
 # Registrar service URL for node registration
 # Default: "https://staging.registrar.warm.storacha.network" - uncomment to override
 # registrar_url = "https://staging.registrar.warm.storacha.network"

@@ -94,11 +94,6 @@ variable "pdp_lotus_endpoint" {
   type        = string
 }
 
-variable "pdp_contract_address" {
-  description = "PDP contract address"
-  type        = string
-}
-
 variable "use_secrets_manager" {
   description = "Use AWS Secrets Manager for sensitive data instead of variables"
   type        = bool
