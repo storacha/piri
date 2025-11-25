@@ -98,8 +98,8 @@
 # owner = "storacha"
 
 # Team managing the resources
-# Default: "Storacha Engineer" - uncomment to override
-# team = "Storacha Engineer"
+# Default: "Storacha Engineering" - uncomment to override
+# team = "Storacha Engineering"
 
 # Organization name
 # Default: "Storacha" - uncomment to override
