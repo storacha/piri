@@ -43,7 +43,7 @@ module "piri_instances" {
   iam_instance_profile_name = module.base_infrastructure.iam_instance_profile_name
   internet_gateway_id       = module.base_infrastructure.internet_gateway_id
   availability_zone         = module.base_infrastructure.availability_zone
-  protect_volume            = var.environment == "production" || var.environment == "prod"
+  protect_volume            = var.environment == "production" || var.environment == "prod" || var.environment == "forge-prod"
   domain_name               = "${var.environment}.${each.value.subdomain}.${var.root_domain}"
   route53_zone_id           = data.aws_route53_zone.primary.zone_id
   
@@ -55,7 +55,7 @@ module "piri_instances" {
   service_pem_content     = lookup(each.value, "service_pem_content", "")
   wallet_hex_content      = lookup(each.value, "wallet_hex_content", "")
   operator_email          = each.value.operator_email
-  use_letsencrypt_staging = var.environment != "production" && var.environment != "prod"
+  use_letsencrypt_staging = var.environment != "production" && var.environment != "prod" && var.environment != "forge-prod"
 
   tags = {
     Owner = var.owner
