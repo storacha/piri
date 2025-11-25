@@ -107,6 +107,12 @@
 # Note: The storacha team runs a lotus gateway, reach-out in discord if you would like access.
 pdp_lotus_endpoint = "wss://YOUR_LOTUS_ENDPOINT/rpc/v1"
 
+# [REQUIRED] Network the node will operate on. The value of this property sets a number of network-specific defaults,
+# such as services URLs and smart contract addresses.
+# No default - you must provide this
+# Note: Valid values are "forge-prod", "warm-staging", "prod" and "staging".
+network = "warm-staging"
+
 # Registrar service URL for node registration
 # Default: "https://staging.registrar.warm.storacha.network" - uncomment to override
 # registrar_url = "https://staging.registrar.warm.storacha.network"

@@ -45,10 +45,11 @@ module "piri_instance" {
   domain_name               = "${var.environment}.${var.app}.${var.root_domain}"
   route53_zone_id           = data.aws_route53_zone.primary.zone_id
   
-  install_method       = var.install_method
-  install_source       = var.install_source
-  registrar_url        = var.registrar_url
-  pdp_lotus_endpoint   = var.pdp_lotus_endpoint
+  install_method          = var.install_method
+  install_source          = var.install_source
+  network                 = var.network
+  registrar_url           = var.registrar_url
+  pdp_lotus_endpoint      = var.pdp_lotus_endpoint
   use_secrets_manager     = var.use_secrets_manager
   service_pem_content     = var.service_pem_content
   wallet_hex_content      = var.wallet_hex_content

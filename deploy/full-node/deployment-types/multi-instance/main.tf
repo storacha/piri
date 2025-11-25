@@ -47,10 +47,11 @@ module "piri_instances" {
   domain_name               = "${var.environment}.${each.value.subdomain}.${var.root_domain}"
   route53_zone_id           = data.aws_route53_zone.primary.zone_id
   
-  install_method       = coalesce(lookup(each.value, "install_method", null), var.default_install_method)
-  install_source       = coalesce(lookup(each.value, "install_source", null), var.default_install_source)
-  registrar_url        = var.registrar_url
-  pdp_lotus_endpoint   = var.pdp_lotus_endpoint
+  install_method          = coalesce(lookup(each.value, "install_method", null), var.default_install_method)
+  install_source          = coalesce(lookup(each.value, "install_source", null), var.default_install_source)
+  network                 = var.network
+  registrar_url           = var.registrar_url
+  pdp_lotus_endpoint      = var.pdp_lotus_endpoint
   use_secrets_manager     = var.use_secrets_manager
   service_pem_content     = lookup(each.value, "service_pem_content", "")
   wallet_hex_content      = lookup(each.value, "wallet_hex_content", "")

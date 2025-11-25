@@ -81,6 +81,11 @@ variable "install_source" {
   type        = string
 }
 
+variable "network" {
+  description = "Network the node will operate on. Valid values are 'forge-prod', 'warm-staging', 'prod' and 'staging'."
+  type        = string
+}
+
 variable "registrar_url" {
   description = "URL of the registrar service for node registration"
   type        = string
