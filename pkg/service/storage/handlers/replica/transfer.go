@@ -11,6 +11,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/printer"
 	"github.com/storacha/go-libstoracha/capabilities/access"
 	"github.com/storacha/go-libstoracha/capabilities/assert"
@@ -539,8 +540,33 @@ func issueTransferReceipt(ctx context.Context, service TransferService, request 
 	return rcpt, nil
 }
 
+// linksFact is a [ucan.FactBuilder] for IPLD links.
+type linksFact []ipld.Link
+
+func (f linksFact) ToIPLD() (map[string]ipld.Node, error) {
+	m := map[string]ipld.Node{}
+	for _, l := range f {
+		nb := basicnode.Prototype.Link.NewBuilder()
+		if err := nb.AssignLink(l); err != nil {
+			return nil, err
+		}
+		m[l.String()] = nb.Build()
+	}
+	return m, nil
+}
+
 // sendMessageToUploadService sends the message containing invocations and receipts to the upload service
 func sendMessageToUploadService(ctx context.Context, service TransferService, rcpt receipt.AnyReceipt) error {
+	var rcptBlocks []ipld.Block
+	var rcptBlockLinks linksFact
+	for b, err := range rcpt.Blocks() {
+		if err != nil {
+			return fmt.Errorf("iterating receipt blocks: %w", err)
+		}
+		rcptBlocks = append(rcptBlocks, b)
+		rcptBlockLinks = append(rcptBlockLinks, b.Link())
+	}
+
 	concludeInv, err := ucan_cap.Conclude.Invoke(
 		service.ID(),
 		service.UploadConnection().ID().DID(),
@@ -548,17 +574,16 @@ func sendMessageToUploadService(ctx context.Context, service TransferService, rc
 		ucan_cap.ConcludeCaveats{
 			Receipt: rcpt.Root().Link(),
 		},
+		// ensure all receipt blocks remain included with this invocation
+		delegation.WithFacts([]ucan.FactBuilder{rcptBlockLinks}),
 	)
 	if err != nil {
 		return fmt.Errorf("generating conclude invocation: %w", err)
 	}
 
-	// attach the receipt to the conclude invocation
-	for rcptBlk, err := range rcpt.Blocks() {
-		if err != nil {
-			return fmt.Errorf("iterating receipt blocks: %w", err)
-		}
-		if err := concludeInv.Attach(rcptBlk); err != nil {
+	// attach the receipt blocks to the conclude invocation
+	for _, b := range rcptBlocks {
+		if err := concludeInv.Attach(b); err != nil {
 			return fmt.Errorf("attaching receipt block: %w", err)
 		}
 	}
