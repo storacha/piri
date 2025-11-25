@@ -147,7 +147,7 @@ func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
 				// Create a Promise for the transfer invocation
 				transferPromise := types.Promise{
 					UcanAwait: types.Await{
-						Selector: ".out.ok",
+						Selector: replica.AllocateSiteSelector,
 						Link:     trnsfInv.Link(),
 					},
 				}
