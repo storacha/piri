@@ -7,22 +7,20 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/storacha/piri/cmd/cli/setup"
 
 	"github.com/storacha/piri/cmd/cli/client"
 	"github.com/storacha/piri/cmd/cli/delegate"
 	"github.com/storacha/piri/cmd/cli/identity"
 	"github.com/storacha/piri/cmd/cli/serve"
+	"github.com/storacha/piri/cmd/cli/setup"
 	"github.com/storacha/piri/cmd/cli/status"
 	"github.com/storacha/piri/cmd/cli/wallet"
 	"github.com/storacha/piri/pkg/build"
-	"github.com/storacha/piri/pkg/telemetry"
 )
 
 func ExecuteContext(ctx context.Context) {
@@ -52,7 +50,7 @@ Piri can run entirely on its own with no software other than Filecoin Lotus, or 
 )
 
 func init() {
-	cobra.OnInitialize(initLogging, initConfig, initTelemetry)
+	cobra.OnInitialize(initLogging, initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path. Attempts to load from user config directory if not set e.g. ~/.config/"+configFilePath)
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "logging level")
@@ -114,22 +112,6 @@ func initConfig() {
 		viper.AddConfigPath(".")
 		// Don't error if config file is not found - it's optional
 		_ = viper.ReadInConfig()
-	}
-}
-
-func initTelemetry() {
-	// bail if this has been disabled.
-	if os.Getenv("PIRI_DISABLE_ANALYTICS") != "" {
-		return
-	}
-	telCfg := telemetry.Config{
-		ServiceName:    "piri",
-		ServiceVersion: build.Version,
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-	if err := telemetry.Initialize(ctx, telCfg); err != nil {
-		log.Warnf("failed to initialize telemetry: %s", err)
 	}
 }
 

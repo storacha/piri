@@ -20,9 +20,11 @@ type Provider struct {
 type Config struct {
 	ServiceName     string
 	ServiceVersion  string
+	InstanceID      string
+	Environment     string
+	Endpoint        string
 	PublishInterval time.Duration
 	TracesEndpoint  string
-	environment     string
 	endpoint        string
 	insecure        bool
 	headers         map[string]string
