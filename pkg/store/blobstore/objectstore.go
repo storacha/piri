@@ -7,6 +7,7 @@ import (
 
 	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multihash"
+
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/objectstore"
 )
@@ -43,6 +44,10 @@ func (d *ObjectBlobstore) Get(ctx context.Context, digest multihash.Multihash, o
 
 func (d *ObjectBlobstore) Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error {
 	return d.data.Put(ctx, encodeKey(digest), size, body)
+}
+
+func (d *ObjectBlobstore) Delete(ctx context.Context, digest multihash.Multihash) error {
+	return d.data.Delete(ctx, encodeKey(digest))
 }
 
 // Adapted from

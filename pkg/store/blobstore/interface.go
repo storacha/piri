@@ -101,6 +101,7 @@ type FileSystemer interface {
 
 type PDPStore interface {
 	Blobstore
+	Delete(ctx context.Context, digest multihash.Multihash) error
 }
 
 type GetConfig interface {

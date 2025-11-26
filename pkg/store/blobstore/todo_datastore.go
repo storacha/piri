@@ -11,6 +11,7 @@ import (
 	"github.com/multiformats/go-multihash"
 
 	"github.com/storacha/go-libstoracha/digestutil"
+
 	"github.com/storacha/piri/pkg/store"
 )
 
@@ -66,6 +67,10 @@ func (d *TODO_DsBlobstore) Put(ctx context.Context, digest multihash.Multihash, 
 	}
 
 	return nil
+}
+
+func (d *TODO_DsBlobstore) Delete(ctx context.Context, digest multihash.Multihash) error {
+	return d.data.Delete(ctx, datastore.NewKey(digestutil.Format(digest)))
 }
 
 func (d *TODO_DsBlobstore) FileSystem() http.FileSystem {
