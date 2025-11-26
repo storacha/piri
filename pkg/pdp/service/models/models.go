@@ -17,12 +17,12 @@ var Triggers string
 type Task struct {
 	ID           int64     `gorm:"primaryKey;autoIncrement;column:id"`
 	InitiatedBy  *int      `gorm:"column:initiated_by;comment:The task ID whose completion occasioned this task"`
-	UpdateTime   time.Time `gorm:"not null;default:current_timestamp;column:update_time;comment:When it was last modified. not a heartbeat"`
+	UpdateTime   time.Time `gorm:"not null;default:current_timestamp;column:update_time;comment:When it was last modified. not a heartbeat;index:idx_task_name_session_update_time,priority:3"`
 	PostedTime   time.Time `gorm:"not null;column:posted_time"`
-	SessionID    *string   `gorm:"column:session_id;comment:may be null if not yet taken"`
+	SessionID    *string   `gorm:"column:session_id;comment:may be null if not yet taken;index:idx_task_name_session_update_time,priority:2"`
 	AddedBy      string    `gorm:"not null;column:added_by"`
 	PreviousTask *int      `gorm:"column:previous_task"`
-	Name         string    `gorm:"size:16;not null;column:name;comment:The name of the task type"`
+	Name         string    `gorm:"size:16;not null;column:name;comment:The name of the task type;index:idx_task_name_session_update_time,priority:1"`
 	Retries      uint      `gorm:"not null;column:retries"`
 	// Note: The "retries" field was commented out in the original schema.
 
@@ -146,14 +146,14 @@ func (PDPPieceMHToCommp) TableName() string {
 type PDPProofSet struct {
 	ID                        int64 `gorm:"primaryKey"` // big int
 	PrevChallengeRequestEpoch *int64
-	ChallengeRequestTaskID    *int64 `gorm:"column:challenge_request_task_id"`
+	ChallengeRequestTaskID    *int64 `gorm:"column:challenge_request_task_id;index:idx_pdp_proof_sets_request_ready_epoch,priority:1"`
 	ChallengeRequestTask      *Task  `gorm:"foreignKey:ChallengeRequestTaskID;references:ID;constraint:OnDelete:SET NULL"`
 
 	ChallengeRequestMsgHash *string
 	ProvingPeriod           *int64
 	ChallengeWindow         *int64
-	ProveAtEpoch            *int64
-	InitReady               bool   `gorm:"default:false;not null"`
+	ProveAtEpoch            *int64 `gorm:"index:idx_pdp_proof_sets_request_ready_epoch,priority:3"`
+	InitReady               bool   `gorm:"default:false;not null;index:idx_pdp_proof_sets_request_ready_epoch,priority:2"`
 	CreateMessageHash       string `gorm:"not null"`
 	Service                 string `gorm:"not null"` // references pdp_services(service_label)
 	// ServiceModel *PDPService `gorm:"foreignKey:Service;references:ServiceLabel;constraint:OnDelete:RESTRICT"`
