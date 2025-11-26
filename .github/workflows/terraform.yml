@@ -12,8 +12,8 @@ on:
       apply:
         required: true
         type: boolean
-      presets:
-        required: false
+      network:
+        required: true
         type: string
       indexing-service-did:
         required: false
@@ -77,7 +77,7 @@ env:
   TF_VAR_region: ${{ secrets.region }}
   TF_VAR_allowed_account_ids: ${{ secrets.allowed-account-ids }}
   TF_VAR_private_key: ${{ secrets.private-key }}
-  TF_VAR_presets: ${{ inputs.presets }}
+  TF_VAR_network: ${{ inputs.network }}
   TF_VAR_indexing_service_did: ${{ inputs.indexing-service-did }}
   TF_VAR_indexing_service_url: ${{ inputs.indexing-service-url }}
   TF_VAR_indexing_service_proof: ${{ secrets.indexing-service-proof }}

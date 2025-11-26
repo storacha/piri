@@ -40,7 +40,7 @@ jobs:
       env: staging
       workspace: staging
       apply: ${{ github.event_name != 'pull_request' }}
-      presets: staging
+      network: staging
       indexing-service-did: ${{ vars.STAGING_INDEXING_SERVICE_DID }}
       indexing-service-url: ${{ vars.STAGING_INDEXING_SERVICE_URL }}
       principal-mapping: ${{ vars.STAGING_PRINCIPAL_MAPPING }}
@@ -70,7 +70,7 @@ jobs:
       env: production
       workspace: prod
       apply: true
-      presets: prod
+      network: prod
       indexing-service-did: ${{ vars.PROD_INDEXING_SERVICE_DID }}
       indexing-service-url: ${{ vars.PROD_INDEXING_SERVICE_URL }}
       principal-mapping: ${{ vars.PROD_PRINCIPAL_MAPPING }}
