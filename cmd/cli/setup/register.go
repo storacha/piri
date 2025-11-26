@@ -48,10 +48,11 @@ import (
 var log = logging.Logger("cmd/init")
 
 var InitCmd = &cobra.Command{
-	Use:   "init",
-	Args:  cobra.NoArgs,
-	Short: "Initialize your piri node in the storacha network",
-	RunE:  doInit,
+	Use:          "init",
+	Args:         cobra.NoArgs,
+	Short:        "Initialize your piri node in the storacha network",
+	RunE:         doInit,
+	SilenceUsage: true,
 }
 
 func init() {
@@ -651,7 +652,6 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 func doInit(cmd *cobra.Command, _ []string) error {
 	logging.SetAllLoggers(logging.LevelFatal)
 	ctx := context.Background()
-	cmd.SilenceUsage = true
 
 	cmd.PrintErrln("🚀 Initializing your Piri node on the Storacha Network...")
 	cmd.PrintErrln()
