@@ -21,6 +21,13 @@ func NewStore() objectstore.Store {
 	}
 }
 
+func (s *memoryStore) Delete(ctx context.Context, key string) error {
+	s.storeMu.Lock()
+	delete(s.store, key)
+	s.storeMu.Unlock()
+	return nil
+}
+
 func (s *memoryStore) Put(ctx context.Context, key string, size uint64, data io.Reader) error {
 	buf := make([]byte, size)
 	n, err := io.ReadFull(data, buf)

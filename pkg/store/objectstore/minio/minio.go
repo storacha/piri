@@ -47,6 +47,10 @@ func (s *Store) IsOnline() bool {
 	return s.client.IsOnline()
 }
 
+func (s *Store) Delete(ctx context.Context, key string) error {
+	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
+}
+
 func (s *Store) Put(ctx context.Context, key string, size uint64, body io.Reader) error {
 	start := time.Now()
 	log.Debugw("putting object", "bucket", s.bucket, "key", key, "size", size)
