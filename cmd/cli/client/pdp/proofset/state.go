@@ -52,7 +52,7 @@ func doState(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	proofSet, err := api.GetProofSetState(ctx, cfg.UCANService.ProofSetID)
+	proofSet, err := api.GetProofSetState(ctx, cfg.UCAN.ProofSetID)
 	if err != nil {
 		return fmt.Errorf("getting proof set status: %w", err)
 	}
