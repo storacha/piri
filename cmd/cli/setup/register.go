@@ -172,49 +172,49 @@ type initFlags struct {
 func loadPresets(cmd *cobra.Command) (presets.Network, error) {
 	networkStr, err := cmd.Flags().GetString("network")
 	if err != nil {
-		return presets.Network(""), fmt.Errorf("error reading --network: %w", err)
+		return "", fmt.Errorf("error reading --network: %w", err)
 	}
 
 	network, err := presets.ParseNetwork(networkStr)
 	if err != nil {
-		return presets.Network(""), fmt.Errorf("loading presets: %w", err)
+		return "", fmt.Errorf("parsing --network flag: %w", err)
 	}
 
 	preset, err := presets.GetPreset(network)
 	if err != nil {
-		return presets.Network(""), fmt.Errorf("loading presets: %w", err)
+		return "", fmt.Errorf("loading presets for network %q: %w", network, err)
 	}
 
 	// Apply preset values for flags that weren't explicitly set
 	if !cmd.Flags().Changed("registrar-url") && preset.Services.RegistrarServiceURL != nil {
-		cmd.Flags().Set("registrar-url", preset.Services.RegistrarServiceURL.String())
+		cobra.CheckErr(cmd.Flags().Set("registrar-url", preset.Services.RegistrarServiceURL.String()))
 	}
 	if !cmd.Flags().Changed("signing-service-did") && preset.Services.SigningServiceDID != did.Undef {
-		cmd.Flags().Set("signing-service-did", preset.Services.SigningServiceDID.String())
+		cobra.CheckErr(cmd.Flags().Set("signing-service-did", preset.Services.SigningServiceDID.String()))
 	}
 	if !cmd.Flags().Changed("signing-service-url") && preset.Services.SigningServiceURL != nil {
-		cmd.Flags().Set("signing-service-url", preset.Services.SigningServiceURL.String())
+		cobra.CheckErr(cmd.Flags().Set("signing-service-url", preset.Services.SigningServiceURL.String()))
 	}
 	if !cmd.Flags().Changed("upload-service-did") {
-		cmd.Flags().Set("upload-service-did", preset.Services.UploadServiceDID.String())
+		cobra.CheckErr(cmd.Flags().Set("upload-service-did", preset.Services.UploadServiceDID.String()))
 	}
 	if !cmd.Flags().Changed("verifier-address") {
-		cmd.Flags().Set("verifier-address", preset.SmartContracts.Verifier.String())
+		cobra.CheckErr(cmd.Flags().Set("verifier-address", preset.SmartContracts.Verifier.String()))
 	}
 	if !cmd.Flags().Changed("provider-registry-address") {
-		cmd.Flags().Set("provider-registry-address", preset.SmartContracts.ProviderRegistry.String())
+		cobra.CheckErr(cmd.Flags().Set("provider-registry-address", preset.SmartContracts.ProviderRegistry.String()))
 	}
 	if !cmd.Flags().Changed("service-address") {
-		cmd.Flags().Set("service-address", preset.SmartContracts.Service.String())
+		cobra.CheckErr(cmd.Flags().Set("service-address", preset.SmartContracts.Service.String()))
 	}
 	if !cmd.Flags().Changed("service-view-address") {
-		cmd.Flags().Set("service-view-address", preset.SmartContracts.ServiceView.String())
+		cobra.CheckErr(cmd.Flags().Set("service-view-address", preset.SmartContracts.ServiceView.String()))
 	}
 	if !cmd.Flags().Changed("chain-id") {
-		cmd.Flags().Set("chain-id", preset.SmartContracts.ChainID.String())
+		cobra.CheckErr(cmd.Flags().Set("chain-id", preset.SmartContracts.ChainID.String()))
 	}
 	if !cmd.Flags().Changed("payer-address") {
-		cmd.Flags().Set("payer-address", preset.SmartContracts.PayerAddress.String())
+		cobra.CheckErr(cmd.Flags().Set("payer-address", preset.SmartContracts.PayerAddress.String()))
 	}
 
 	return network, nil
@@ -617,8 +617,15 @@ func requestContractApproval(ctx context.Context, id principal.Signer, flags *in
 
 // generateConfig generates the final configuration for the user
 func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common.Address, proofSetID uint64, indexerProof string, egressTrackerProof string) (config.FullServerConfig, error) {
+	networkPresets, err := presets.GetPreset(flags.network)
+	if err != nil {
+		return config.FullServerConfig{}, fmt.Errorf("falid to load network presets: %w", err)
+	}
+	publisherAnnounceURLs := make([]string, len(networkPresets.Services.IPNIAnnounceURLs))
+	for i, u := range networkPresets.Services.IPNIAnnounceURLs {
+		publisherAnnounceURLs[i] = u.String()
+	}
 	return config.FullServerConfig{
-		Network:  flags.network.String(),
 		Identity: config.IdentityConfig{KeyFile: flags.keyFile},
 		Repo: config.RepoConfig{
 			DataDir: cfg.Storage.DataDir,
@@ -632,18 +639,43 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 		PDPService: config.PDPServiceConfig{
 			OwnerAddress:  ownerAddress.String(),
 			LotusEndpoint: flags.lotusEndpoint,
+			SigningService: config.SigningServiceConfig{
+				DID: networkPresets.Services.SigningServiceDID.String(),
+				URL: networkPresets.Services.SigningServiceURL.String(),
+			},
+			Contracts: config.ContractAddresses{
+				Verifier:         networkPresets.SmartContracts.Verifier.String(),
+				ProviderRegistry: networkPresets.SmartContracts.ProviderRegistry.String(),
+				Service:          networkPresets.SmartContracts.Service.String(),
+				ServiceView:      networkPresets.SmartContracts.ServiceView.String(),
+			},
+			ChainID:      networkPresets.SmartContracts.ChainID.String(),
+			PayerAddress: networkPresets.SmartContracts.PayerAddress.String(),
 		},
 		UCANService: config.UCANServiceConfig{
+			ProofSetID: proofSetID,
 			Services: config.ServicesConfig{
+				ServicePrincipalMapping: networkPresets.Services.PrincipalMapping,
 				Indexer: config.IndexingServiceConfig{
+					DID:   networkPresets.Services.IndexingServiceDID.String(),
+					URL:   networkPresets.Services.IndexingServiceURL.String(),
 					Proof: indexerProof,
 				},
 				EgressTracker: config.EgressTrackerServiceConfig{
+					DID:               networkPresets.Services.EgressTrackerServiceDID.String(),
+					URL:               networkPresets.Services.EgressTrackerServiceURL.String(),
+					ReceiptsEndpoint:  networkPresets.Services.EgressTrackerServiceURL.JoinPath("/receipts").String(),
 					Proof:             egressTrackerProof,
 					MaxBatchSizeBytes: 10 * 1024,
 				},
+				Upload: config.UploadServiceConfig{
+					DID: networkPresets.Services.UploadServiceDID.String(),
+					URL: networkPresets.Services.UploadServiceURL.String(),
+				},
+				Publisher: config.PublisherServiceConfig{
+					AnnounceURLs: publisherAnnounceURLs,
+				},
 			},
-			ProofSetID: proofSetID,
 		},
 	}, nil
 }
