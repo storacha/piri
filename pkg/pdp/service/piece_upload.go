@@ -6,12 +6,14 @@ import (
 	"fmt"
 
 	commcid "github.com/filecoin-project/go-fil-commcid"
+	"github.com/hashicorp/go-multierror"
 	"github.com/multiformats/go-multicodec"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/storacha/piri/lib/verifyread"
 	"github.com/storacha/piri/pkg/pdp/piece"
 	"github.com/storacha/piri/pkg/presets"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/multiformats/go-multihash"
 
@@ -27,6 +29,7 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 		}
 		return types.WrapError(types.KindInternal, "failed to query for piece upload", err)
 	}
+	lg := log.With("upload_id", pieceUpload.ID, "digest", multihash.Multihash(upload.CheckHash).String(), "size", upload.CheckSize)
 
 	hasher, ok := presets.HasherRegistry[upload.CheckHashCodec]
 	if !ok {
@@ -41,6 +44,11 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 	vr, err := verifyread.New(pieceUpload.Data, hasher(), mh.Digest)
 	if err != nil {
 		return types.WrapError(types.KindInternal, "failed to create verification reader", err)
+	}
+
+	if err := p.blobstore.Put(ctx, upload.CheckHash, uint64(upload.CheckSize), vr); err != nil {
+		lg.Errorw("failed to write upload to blobstore", "err", err)
+		return types.WrapError(types.KindInvalidInput, "failed to put piece", err)
 	}
 
 	if err := p.db.Transaction(func(tx *gorm.DB) error {
@@ -78,12 +86,19 @@ func (p *PDPService) UploadPiece(ctx context.Context, pieceUpload types.PieceUpl
 			}
 		}
 
-		if err := p.blobstore.Put(ctx, upload.CheckHash, uint64(upload.CheckSize), vr); err != nil {
-			return types.WrapError(types.KindInvalidInput, "failed to put piece", err)
-		}
 		return nil
 	}); err != nil {
-		return err
+		merr := new(multierror.Error)
+		merr = multierror.Append(merr, err)
+
+		lg.Errorw("failed to persist database records for piece upload", "err", err)
+		// we write the data to the blobstore before the transaction that records its metadata in the task engineDB
+		// if the transaction fails for whatever reason then we need to delete it from the blobstore
+		if delErr := p.blobstore.Delete(ctx, upload.CheckHash); delErr != nil {
+			lg.Errorw("failed to delete data from blobstore for failed upload", "err", delErr)
+			merr = multierror.Append(merr, delErr)
+		}
+		return merr.ErrorOrNil()
 	}
 
 	return nil

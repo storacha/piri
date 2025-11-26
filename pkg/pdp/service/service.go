@@ -13,9 +13,9 @@ import (
 	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/go-ucanto/ucan"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
-	appconfig "github.com/storacha/piri/pkg/config/app"
 	"gorm.io/gorm"
 
+	appconfig "github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
@@ -48,7 +48,7 @@ type PDPService struct {
 	id              ucan.Signer
 	endpoint        url.URL
 	address         common.Address
-	blobstore       blobstore.Blobstore
+	blobstore       blobstore.PDPStore
 	acceptanceStore acceptancestore.AcceptanceStore
 	receiptStore    receiptstore.ReceiptStore
 	sender          ethereum.Sender
