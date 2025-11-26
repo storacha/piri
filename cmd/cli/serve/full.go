@@ -3,15 +3,19 @@ package serve
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/storacha/go-ucanto/did"
-	"github.com/storacha/piri/cmd/cli/setup"
+
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/storacha/piri/cmd/cli/setup"
+	"github.com/storacha/piri/pkg/build"
 
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
@@ -317,6 +321,15 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing config: %w", err)
 	}
 
+	if err := initTelemetry(cmd.Context(), telemetry.Config{
+		ServiceName:    "piri",
+		ServiceVersion: build.Version,
+		Environment:    userCfg.Network,
+		InstanceID:     appCfg.Identity.Signer.DID().String(),
+		Endpoint:       appCfg.Server.PublicURL.String(),
+	}); err != nil {
+		log.Warnf("failed to initialize telemetry: %s", err)
+	}
 	// build our beloved Piri node
 	piri := fx.New(
 		// if a panic occurs during operation, recover from it and exit (somewhat) gracefully.
@@ -389,4 +402,12 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 	piri.Run()
 
 	return nil
+}
+
+func initTelemetry(ctx context.Context, cfg telemetry.Config) error {
+	// bail if this has been disabled.
+	if os.Getenv("PIRI_DISABLE_ANALYTICS") != "" {
+		return nil
+	}
+	return telemetry.Initialize(ctx, cfg)
 }

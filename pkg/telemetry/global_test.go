@@ -42,7 +42,8 @@ func TestGlobalTelemetry(t *testing.T) {
 		Initialize(context.Background(), Config{
 			ServiceName:    "test",
 			ServiceVersion: "1.0.0",
-			environment:    "test",
+			Environment:    "test",
+			Endpoint:       "http://localhost:3000",
 			endpoint:       "http://localhost:4317",
 			insecure:       true,
 		})

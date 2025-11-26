@@ -17,7 +17,6 @@ var log = logging.Logger("telemetry")
 
 const (
 	defaultEndpoint        = "telemetry.storacha.network:443"
-	defaultEnvironment     = "warm-staging"
 	defaultPublishInterval = 30 * time.Second
 )
 
@@ -30,7 +29,6 @@ type Telemetry struct {
 func New(ctx context.Context, cfg Config) (*Telemetry, error) {
 	// collector endpoint and environment will be hard-coded for now
 	cfg.endpoint = defaultEndpoint
-	cfg.environment = defaultEnvironment
 	if cfg.PublishInterval == 0 {
 		cfg.PublishInterval = defaultPublishInterval
 	}

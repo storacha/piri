@@ -49,7 +49,11 @@ func NewEcho() *echo.Echo {
 	e.Use(middleware.Recover())
 	// Custom middlewares
 	e.Use(ErrorLogger(log))
-	e.Use(otelecho.Middleware("piri", otelecho.WithPropagators(otel.GetTextMapPropagator())))
+	e.Use(otelecho.Middleware(
+		"piri",
+		otelecho.WithPropagators(otel.GetTextMapPropagator()),
+		otelecho.WithMeterProvider(otel.GetMeterProvider()),
+	))
 
 	return e
 }
