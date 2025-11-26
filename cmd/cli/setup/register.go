@@ -664,6 +664,9 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	cmd.PrintErrln("✅ Configuration validated")
 	cmd.PrintErrln()
 
+	// at this point printing the usage is not needed,
+	//failures after here are unrelated to arguments and flags supplied.
+	cmd.SilenceUsage = true
 	// Step 2: Create and start node
 	cmd.PrintErrln("[2/7] Creating Piri node...")
 	fxApp, pdpSvc, cfg, ownerAddress, err := createNode(ctx, flags)
