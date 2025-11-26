@@ -651,6 +651,7 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 func doInit(cmd *cobra.Command, _ []string) error {
 	logging.SetAllLoggers(logging.LevelFatal)
 	ctx := context.Background()
+	cmd.SilenceUsage = true
 
 	cmd.PrintErrln("🚀 Initializing your Piri node on the Storacha Network...")
 	cmd.PrintErrln()
