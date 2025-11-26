@@ -37,6 +37,8 @@ type Store interface {
 	// Returns an Object for reading the data, or an error if retrieval fails.
 	// Use GetOption functions like WithRange to retrieve partial objects.
 	Get(ctx context.Context, key string, opts ...GetOption) (Object, error)
+	// Delete an object from the store by the given key.
+	Delete(ctx context.Context, key string) error
 }
 
 type Object interface {

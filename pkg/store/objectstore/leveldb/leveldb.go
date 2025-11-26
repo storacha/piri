@@ -28,6 +28,10 @@ func NewStore(path string) (objectstore.Store, error) {
 	return &leveldbStore{db: db}, nil
 }
 
+func (s *leveldbStore) Delete(ctx context.Context, key string) error {
+	return s.db.Delete([]byte(key), nil)
+}
+
 func (s *leveldbStore) Put(ctx context.Context, key string, size uint64, data io.Reader) error {
 	buf := make([]byte, size)
 	n, err := io.ReadFull(data, buf)

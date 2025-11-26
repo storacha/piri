@@ -318,6 +318,27 @@ func TestEdgeCases(t *testing.T) {
 			err := store.Put(cancelCtx, "cancelled-key", 10, bytes.NewReader([]byte("test data")))
 			require.Error(t, err)
 		})
+
+		t.Run("put and delete", func(t *testing.T) {
+			key := "test"
+			data := []byte("test")
+			err := store.Put(ctx, key, uint64(len(data)), bytes.NewReader(data))
+			require.NoError(t, err)
+
+			obj, err := store.Get(ctx, key)
+			require.NoError(t, err)
+			defer obj.Body().Close()
+
+			content, err := io.ReadAll(obj.Body())
+			require.NoError(t, err)
+			require.Equal(t, data, content)
+
+			err = store.Delete(ctx, key)
+			require.NoError(t, err)
+
+			_, err = store.Get(ctx, key)
+			require.ErrorIs(t, err, objectstore.ErrNotExist)
+		})
 	}
 }
 
