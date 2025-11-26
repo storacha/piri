@@ -48,11 +48,10 @@ import (
 var log = logging.Logger("cmd/init")
 
 var InitCmd = &cobra.Command{
-	Use:          "init",
-	Args:         cobra.NoArgs,
-	Short:        "Initialize your piri node in the storacha network",
-	RunE:         doInit,
-	SilenceUsage: true,
+	Use:   "init",
+	Args:  cobra.NoArgs,
+	Short: "Initialize your piri node in the storacha network",
+	RunE:  doInit,
 }
 
 func init() {
@@ -665,6 +664,9 @@ func doInit(cmd *cobra.Command, _ []string) error {
 	cmd.PrintErrln("✅ Configuration validated")
 	cmd.PrintErrln()
 
+	// at this point printing the usage is not needed,
+	//failures after here are unrelated to arguments and flags supplied.
+	cmd.SilenceUsage = true
 	// Step 2: Create and start node
 	cmd.PrintErrln("[2/7] Creating Piri node...")
 	fxApp, pdpSvc, cfg, ownerAddress, err := createNode(ctx, flags)
