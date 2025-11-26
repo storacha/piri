@@ -48,7 +48,6 @@ variable "private_key" {
 variable "network" {
   description = "network the deployment targets"
   type        = string
-  default     = "prod"
 }
 
 variable "indexing_service_did" {
