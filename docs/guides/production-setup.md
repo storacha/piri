@@ -7,15 +7,7 @@ This guide covers how to setup a Piri node on the Forge Production Network. It c
 
 ## Setup a new Piri node
 
-Follow the Piri [getting started guide](../getting-started.md) with the following changes:
-
-1. Filecoin [Mainnet](https://docs.filecoin.io/networks/mainnet) prerequisites.
-    * Your Lotus node MUST be setup to operate on the Filecoin Mainnet.
-        * Sync Lotus using the latest Mainnet [Snapshot](https://forest-archive.chainsafe.dev/latest/mainnet/).
-    * Your Delegated Wallet MUST be funded with FIL on the Filecoin Mainnet.
-    * Read our [Filecoin prerequisites guide](../setup/prerequisites.md) for full details.
-2. Piri initialization.
-    * When running `piri init`, you MUST specify `--network=forge-prod`.
+Follow the Piri [getting started guide](../production/getting-started.md) for Forge Production.
 
 ## Migrate a Piri node from Staging
 
