@@ -1,10 +1,5 @@
 # Best Practices for running a Piri node
 
-1. [Keep your Lotus node up to date](#keep-your-lotus-node-up-to-date)
-1. [Keep your Piri node up to date](#keep-your-piri-node-up-to-date)
-1. [Do not use the same Filecoin wallet on staging and production](#do-not-use-the-same-filecoin-wallet-on-staging-and-production)
-1. [Install Piri as a systemd service](#install-piri-as-a-systemd-service)
-
 ## Keep your Lotus node up to date
 
 Your Piri node depends on a Lotus node that is fully synced and on the current release.
@@ -19,6 +14,7 @@ Watch the [latest releases](https://github.com/storacha/piri/releases/latest) an
 Join the Storacha Discord for announcements and operator guidance: [invite](https://discord.gg/pqa6Dn6RnP).
 
 Announcements related to Piri and the Forge network are made in:
+
 - [`#piri-announcements`](https://discord.com/channels/1247475892435816553/1445143779945484328)
 - [`#storacha-forge-production-network`](https://discord.com/channels/1247475892435816553/1443282702374801549).
 
@@ -34,6 +30,7 @@ If you rotate keys, update both the file and any systemd unit or environment con
 The following unit file is an **example only**.
 Replace the placeholder values (network, endpoints, paths, email, public URL, etc.) with the settings that match your host layout and preferences.
 Typical workflow:
+
 - Save the adapted unit as `/etc/systemd/system/piri.service`.
 - Create the `piri` user and group (or use an existing service account), and ensure `/etc/piri`, `/data/piri`, and `/tmp/piri` exist with correct ownership.
 - Reload units after edits with `sudo systemctl daemon-reload`.
@@ -41,12 +38,15 @@ Typical workflow:
 - View logs with `sudo journalctl -u piri -f` (live) or add `--since`/`--until` for time windows.
 
 Use the template below as a starting point (replace the sample values with your own):
-```unit file (systemd)
+
+```
 [Unit]
 # Human-readable description of the service, shown in tools like `systemctl status`.
 Description=Piri Server 
+
 # Tells systemd to only start this unit after the network stack is fully up.
 After=network-online.target
+
 # Declares a soft dependency on the network being online (systemd will try to bring it up).
 Wants=network-online.target
 
@@ -54,17 +54,23 @@ Wants=network-online.target
 # `simple` means the process started by ExecStart is the main service process
 # and systemd considers it started as soon as it’s spawned.
 Type=simple
+
 # Unix user account that the service runs under (change to whatever you use).
 User=piri
+
 # Primary group for the service process (usually matches the user).
 Group=piri
+
 # Working directory for the service process; relative paths are resolved from here.
 WorkingDirectory=/etc/piri
+
 # Maximum time in seconds systemd waits for all ExecStartPre + ExecStart to complete startup
 # before marking the service as failed. 900 = 5 min
 TimeoutStartSec=900
+
 # Automatically restart the service when it exits with a non-zero status.
 Restart=on-failure
+
 # How long systemd waits before attempting a restart after a failure.
 RestartSec=10
 

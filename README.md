@@ -12,22 +12,24 @@ What's Piri? It's the _**P**rovable **I**nformation **R**etention **I**nterface_
 
 Get started with Piri by exploring our comprehensive documentation:
 
-- **[🚀 Getting Started](./docs/getting-started.md)** - Complete setup guide to deploy Piri
-- **[⭐️ Best Practices](./docs/best-practices.md)** - A checklist of things you should be doing as a Piri node operator
+- **[🚀 Getting Started](https://storacha.github.io/piri/)** - Complete setup guide to deploy Piri
+- **[⭐️ Best Practices](https://storacha.github.io/piri/operations/best-practices/)** - A checklist of things you should be doing as a Piri node operator
 
 ### Setup Guides
 
 Follow these guides in order to set up Piri:
 
-1. **[Prerequisites](./docs/setup/prerequisites.md)** - System, network, and Filecoin requirements
-2. **[Installation](./docs/setup/installation.md)** - Download and install Piri
-3. **[Key Generation](./docs/setup/key-generation.md)** - Create your cryptographic identity
-4. **[TLS Configuration](./docs/setup/tls-termination.md)** - Set up HTTPS for your domains
-5. **[Server Setup](./docs/guides/piri-server.md)** - Deploy the Piri server
+1. **[Prerequisites](https://storacha.github.io/piri/setup/prerequisites)** - System, network, and Filecoin requirements
+2. **[Installation](https://storacha.github.io/piri/setup/installation)** - Download and install Piri
+3. **[Key Generation](https://storacha.github.io/piri/setup/key-generation)** - Create your cryptographic identity
+4. **[TLS Configuration](https://storacha.github.io/piri/setup/tls-termination)** - Set up HTTPS for your domains
+5. **[Server Setup](https://storacha.github.io/piri/setup/piri-server)** - Deploy the Piri server
+
+> **Note:** Using Curio? See [Filecoin's PDP documentation](https://docs.filecoin.io/storage-providers/pdp/install-and-run-pdp) for setup instructions. The Piri UCAN server can connect to Curio as an alternative to the Piri PDP server.
 
 ### Quick Links
 
-- **New to Piri?** Start with the [Getting Started Guide](./docs/getting-started.md)
+- **New to Piri?** Start with the [Getting Started Guide](https://storacha.github.io/piri/)
 
 ## Contributing
 
