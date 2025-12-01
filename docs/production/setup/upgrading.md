@@ -41,12 +41,6 @@ piri serve --config=config.toml
 
 **Note:** Do not run `piri init` when upgrading - your existing configuration and proof set should be preserved.
 
-### Step 5: Validate Service
-
-After restarting, verify the server is running correctly:
-- Check server logs for any errors
-- Follow the [validation guide](./validation.md) to test functionality
-
 ## Important Notes
 
 - Always stop the server before upgrading to prevent data corruption

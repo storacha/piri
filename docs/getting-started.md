@@ -2,7 +2,7 @@
 
 This guide shows you how to set up a Piri node on the **Forge Staging Network**. Follow each step in order for the best results.
 
-To setup Piri on the Forge Production Network, see the [getting started guide for Forge Production](./production/getting-started.md).
+**To setup Piri on the Forge Production Network, see the [getting started guide for Forge Production](./production/getting-started.md).**
 
 ## Overview
 
@@ -29,9 +29,6 @@ Set up secure connections (HTTPS) for your domain
 
 ### Step 5: [Setup Piri Node](./guides/piri-server.md)
 Set up and run your Piri node
-
-### Step 6: [Validate](./setup/validation.md)
-Test that everything works
 
 ## Maintenance
 

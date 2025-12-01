@@ -130,7 +130,4 @@ If the server won't start:
 
 ---
 
-## Next Steps
-
-After setting up your Piri node:
-- [Test Your Setup](../setup/validation.md)
+Great work! Your Piri setup is done and ready to get data from the Storacha Network.

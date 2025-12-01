@@ -28,9 +28,6 @@ Set up secure connections (HTTPS) for your domain
 ### Step 5: [Setup Piri Node](./guides/piri-server.md)
 Set up and run your Piri node
 
-### Step 6: [Validate](./setup/validation.md)
-Test that everything works
-
 ## Maintenance
 
 ### [Upgrading Piri](./setup/upgrading.md)
