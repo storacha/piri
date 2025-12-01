@@ -5,6 +5,7 @@ The `service.pem` file contains your storage provider's cryptographic identity, 
 ## Prerequisites
 
 Before generating keys, ensure you have:
+
 - ✅ [Installed Piri](./installation.md)
 
 ## Key Requirements
@@ -49,4 +50,5 @@ This wallet file will be used during the initialization process to import your w
 ## Next Steps
 
 After generating your keys:
+
 - [Configure TLS Termination](./tls-termination.md)

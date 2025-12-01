@@ -5,6 +5,7 @@ The Piri node does not handle TLS directly. For production use, you need a rever
 ## Prerequisites
 
 Before setting up TLS, make sure you have:
+
 - ✅ [Completed system prerequisites](./prerequisites.md) (including domain setup)
 - ✅ [Installed Piri](./installation.md)
 - ✅ [Generated cryptographic keys](./key-generation.md)
@@ -114,6 +115,7 @@ sudo certbot --nginx -d piri.example.com
 ## Port Configuration
 
 **Default ports:**
+
 - **Piri Server**: 3000 (can change with `--port` or config file)
 - **HTTPS**: 443 (standard secure port)
 - **HTTP**: 80 (redirects to HTTPS)
@@ -134,4 +136,5 @@ This should show HTTP status 502 (Bad Gateway) until you start the Piri server.
 ## Next Steps
 
 After setting up TLS, continue to:
-- [Setup Piri Node](../guides/piri-server.md)
+
+- [Setup Piri Node](./piri-server.md)

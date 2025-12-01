@@ -5,6 +5,7 @@ This guide covers how to upgrade an existing Piri installation to a newer versio
 ## Prerequisites
 
 Before upgrading, ensure you have:
+
 - ✅ A running Piri installation
 - ✅ Your configuration file (config.toml)
 - ✅ Access to the Piri server process
@@ -49,6 +50,7 @@ piri serve --config=config.toml
 ## Troubleshooting
 
 If you encounter issues after upgrading:
+
 1. Check server logs for error messages
 2. Verify your configuration file is intact
 3. Ensure your Lotus node is still synced and accessible
