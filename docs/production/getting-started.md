@@ -1,8 +1,6 @@
-# Getting Started with Piri
+# Getting Started with Piri in Forge Production
 
-This guide shows you how to set up a Piri node on the **Forge Staging Network**. Follow each step in order for the best results.
-
-**To setup Piri on the Forge Production Network, see the [getting started guide for Forge Production](./production/getting-started.md).**
+This guide shows you how to set up a Piri node on the **Forge Production Network**. Follow each step in order for the best results.
 
 ## Overview
 

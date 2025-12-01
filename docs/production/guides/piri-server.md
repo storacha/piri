@@ -1,6 +1,6 @@
 # Setup Piri Node
 
-This guide shows you how to set up a Piri node.
+This guide shows you how to set up a Piri node in the Forge Production network.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ Run the `piri init` command with all needed settings. The configuration file goe
 
 ```bash
 piri init \
-  --network=warm-staging \
+  --network=forge-prod \
   --data-dir=/path/to/data \
   --temp-dir=/path/to/temp \
   --key-file=/path/to/service.pem \
