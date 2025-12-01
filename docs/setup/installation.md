@@ -14,14 +14,14 @@ Download the latest release from [v0.1.0](https://github.com/storacha/piri/relea
 ### For Linux AMD64
 ```bash
 wget https://github.com/storacha/piri/releases/download/v0.1.0/piri_0.1.0_linux_amd64.tar.gz
-tar -xzf piri_0.0.17_linux_amd64.tar.gz
+tar -xzf piri_0.1.0_linux_amd64.tar.gz
 sudo mv piri /usr/local/bin/piri
 ```
 
 ### For Linux ARM64
 ```bash
 wget https://github.com/storacha/piri/releases/download/v0.1.0/piri_0.1.0_linux_arm64.tar.gz
-tar -xzf piri_0.0.17_linux_arm64.tar.gz
+tar -xzf piri_0.1.0_linux_arm64.tar.gz
 sudo mv piri /usr/local/bin/piri
 ```
 
