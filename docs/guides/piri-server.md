@@ -27,6 +27,7 @@ Run the `piri init` command with all needed settings. The configuration file goe
 
 ```bash
 piri init \
+  --network=warm-staging \
   --data-dir=/path/to/data \
   --temp-dir=/path/to/temp \
   --key-file=/path/to/service.pem \
@@ -39,6 +40,7 @@ piri init \
 Note: if you move the config file to your user config directory (e.g. `~/.config/piri/config.toml` on Linux) then Piri will automatically load it on start.
 
 **Settings:**
+- `--network`: The network to join
 - `--data-dir`: Folder for permanent Piri data
 - `--temp-dir`: Folder for temporary data
 - `--key-file`: Path to your [identity PEM file](../setup/key-generation.md#generating-a-pem-file--did)
@@ -96,7 +98,7 @@ If the `--config` option is not provided, Piri will automatically load config fr
 ▐▛▀▘ █ █    █  ▗█▘
 ▐▌   █      █  ▀▘
 
-🔥 v0.0.18
+🔥 v0.1.0
 🆔 did:key:z6MkhaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Piri Running on: localhost:3000
 Piri Public Endpoint: https://piri.example.com
