@@ -55,7 +55,7 @@ func New(lc fx.Lifecycle, params AggregatorParams) (*Aggregator, error) {
 		},
 		OnStop: func(ctx context.Context) error {
 			cancel()
-			return a.queue.Stop(queueCtx)
+			return a.queue.Stop(ctx)
 		},
 	})
 
