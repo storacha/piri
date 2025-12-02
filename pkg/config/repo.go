@@ -8,9 +8,28 @@ import (
 	"github.com/storacha/piri/pkg/config/app"
 )
 
+type Credentials struct {
+	AccessKeyID     string `mapstructure:"access_key_id" validate:"required" toml:"access_key_id"`
+	SecretAccessKey string `mapstructure:"secret_access_key" validate:"required" toml:"secret_access_key"`
+}
+
+type MinioConfig struct {
+	Endpoint    string      `mapstructure:"endpoint" validate:"required" toml:"endpoint"`
+	Bucket      string      `mapstructure:"bucket" validate:"required" toml:"bucket"`
+	Credentials Credentials `mapstructure:"credentials" toml:"credentials,omitempty"`
+	Insecure    bool        `mapstructure:"insecure" toml:"insecure,omitempty"`
+}
+
+// BlobStorageConfig is special configuration allowing blobs to be stored
+// outside the main repo or on a remote device.
+type BlobStorageConfig struct {
+	Minio MinioConfig `mapstructure:"minio" toml:"minio,omitempty"`
+}
+
 type RepoConfig struct {
-	DataDir string `mapstructure:"data_dir" validate:"required" flag:"data-dir" toml:"data_dir"`
-	TempDir string `mapstructure:"temp_dir" validate:"required" flag:"temp-dir" toml:"temp_dir"`
+	DataDir     string            `mapstructure:"data_dir" validate:"required" flag:"data-dir" toml:"data_dir"`
+	TempDir     string            `mapstructure:"temp_dir" validate:"required" flag:"temp-dir" toml:"temp_dir"`
+	BlobStorage BlobStorageConfig `mapstructure:"blob_storage" validate:"required" toml:"blob_storage,omitempty"`
 }
 
 func (r RepoConfig) Validate() error {
@@ -75,6 +94,12 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		},
 		PDPStore: app.PDPStoreConfig{
 			Dir: filepath.Join(r.DataDir, "pdp", "datastore"),
+			Minio: app.MinioConfig{
+				Endpoint:    r.BlobStorage.Minio.Endpoint,
+				Bucket:      r.BlobStorage.Minio.Bucket,
+				Credentials: app.Credentials(r.BlobStorage.Minio.Credentials),
+				Insecure:    r.BlobStorage.Minio.Insecure,
+			},
 		},
 	}
 

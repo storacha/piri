@@ -79,7 +79,22 @@ type StashStoreConfig struct {
 }
 
 type PDPStoreConfig struct {
-	Dir string
+	Dir   string
+	Minio MinioConfig
+}
+
+// MinioConfig configures Minio - an S3 compatible object store.
+type MinioConfig struct {
+	Endpoint    string      // API URL
+	Bucket      string      // bucket name
+	Credentials Credentials // access credentials
+	Insecure    bool        // set to true to disable SSL
+}
+
+// Credentials configures access credentials for Minio.
+type Credentials struct {
+	AccessKeyID     string
+	SecretAccessKey string
 }
 
 type SchedulerConfig struct {
