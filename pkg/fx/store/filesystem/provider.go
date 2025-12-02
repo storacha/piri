@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -279,10 +278,6 @@ func NewPDPStore(cfg app.PDPStoreConfig, lc fx.Lifecycle) (blobstore.PDPStore, e
 		objStore, err := minio_store.New(cfg.Minio.Endpoint, cfg.Minio.Bucket, options)
 		if err != nil {
 			return nil, fmt.Errorf("creating pdp object store: %w", err)
-		}
-		err = objStore.Put(context.Background(), "alantest", 3, strings.NewReader("foo"))
-		if err != nil {
-			return nil, fmt.Errorf("putting test object: %w", err)
 		}
 		return blobstore.NewObjectBlobstore(objStore), nil
 	}
