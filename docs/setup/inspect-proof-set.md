@@ -4,7 +4,7 @@ After successfully testing your Piri setup, you can inspect your proof sets to m
 
 ## PDPscan Proof Set Inspector
 
-Visit https://pdp.vxb.ai/calibration to view and inspect your proof sets.
+Visit https://pdp.vxb.ai/mainnet to view and inspect your proof sets.
 
 This tool allows you to:
 - Find your proof set by ID
