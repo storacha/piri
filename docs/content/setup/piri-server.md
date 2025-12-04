@@ -1,21 +1,22 @@
 # Setup Piri Node
 
-This guide shows you how to set up a Piri node in the Forge Production network.
+This guide covers both **Forge Production** and **Forge Staging**. The steps are identical; only the Lotus network and `--network` flag differ. Use the **Environment** dropdown in the header to toggle the values shown.
 
 ## Prerequisites
 
 Before you start, make sure you have:
 
-1. ✅ [Set up your system](../setup/prerequisites.md)
-2. ✅ [Set up and synced a Lotus Node](../setup/prerequisites.md#filecoin-prerequisites)
-3. ✅ [Set up TLS (secure connections)](../setup/tls-termination.md)
-4. ✅ [Installed Piri](../setup/installation.md)
-5. ✅ [Created your key pair](../setup/key-generation.md)
-6. ✅ [Created a wallet with funds](../setup/prerequisites.md#funded-delegated-wallet)
+1. ✅ [Set up your system](./prerequisites.md)
+2. ✅ [Set up and synced a Lotus Node](./prerequisites.md#filecoin-prerequisites)
+3. ✅ [Set up TLS (secure connections)](./tls-termination.md)
+4. ✅ [Installed Piri](./installation.md)
+5. ✅ [Created your key pair](./key-generation.md)
+6. ✅ [Created a wallet with funds](./prerequisites.md#funded-delegated-wallet)
 
 ## Initialize Your Piri Node
 
 The `piri init` command does all the setup needed to join the Storacha network:
+
 - Imports your wallet
 - Creates a proof set (if you don't have one)
 - Signs you up with the Storacha network
@@ -23,7 +24,10 @@ The `piri init` command does all the setup needed to join the Storacha network:
 
 ### Run Initialization
 
-Run the `piri init` command with all needed settings. The configuration file goes to stdout and progress messages go to stderr, so you can save the output to a file:
+Run the `piri init` command with all needed settings. The configuration file goes to stdout and progress messages go to stderr, so you can save the output to a file. The command below switches based on the environment selection:
+
+<div class="env-block" data-env="production" markdown="1">
+  <div class="env-block__label"><span class="env-block__pill">Prod</span> Use this command</div>
 
 ```bash
 piri init \
@@ -36,18 +40,36 @@ piri init \
   --operator-email=your-email@example.com \
   --public-url=https://piri.example.com > config.toml
 ```
+</div>
+
+<div class="env-block" data-env="staging" markdown="1">
+  <div class="env-block__label"><span class="env-block__pill">Staging</span> Use this command</div>
+
+```bash
+piri init \
+  --network=warm-staging \
+  --data-dir=/path/to/data \
+  --temp-dir=/path/to/temp \
+  --key-file=/path/to/service.pem \
+  --wallet-file=/path/to/wallet.hex \
+  --lotus-endpoint=wss://YOUR_LOTUS_ENDPOINT/rpc/v1 \
+  --operator-email=your-email@example.com \
+  --public-url=https://piri.example.com > config.toml
+```
+</div>
 
 Note: if you move the config file to your user config directory (e.g. `~/.config/piri/config.toml` on Linux) then Piri will automatically load it on start.
 
 **Settings:**
+
 - `--network`: The network to join
 - `--data-dir`: Folder for permanent Piri data
 - `--temp-dir`: Folder for temporary data
-- `--key-file`: Path to your [identity PEM file](../setup/key-generation.md#generating-a-pem-file--did)
-- `--wallet-file`: Path to your [wallet hex file](../setup/key-generation.md#preparing-your-wallet-file)
+- `--key-file`: Path to your [identity PEM file](./key-generation.md)
+- `--wallet-file`: Path to your [wallet hex file](./key-generation.md)
 - `--lotus-endpoint`: WebSocket address of your Lotus node
 - `--operator-email`: Your email so the Storacha team can contact you
-- `--public-url`: The public HTTPS address for your Piri node (use the domain from the [TLS setup](../setup/tls-termination.md), like `https://piri.example.com`)
+- `--public-url`: The public HTTPS address for your Piri node (use the domain from the [TLS setup](./tls-termination.md), like `https://piri.example.com`)
 
 **Expected Output:**
 
@@ -104,10 +126,6 @@ Piri Running on: localhost:3000
 Piri Public Endpoint: https://piri.example.com
 ```
 
-## Understanding the Configuration
-
-The configuration file made by `piri init` has all the settings to run your node. To learn more about each setting, see the [Configuration Reference](../setup/configuration.md).
-
 ## Troubleshooting
 
 If you have problems, the Storacha team can help you in the [Storacha Discord server](https://discord.gg/pqa6Dn6RnP).
@@ -115,6 +133,7 @@ If you have problems, the Storacha team can help you in the [Storacha Discord se
 ### Initialization Issues
 
 If setup fails:
+
 1. Check your Lotus node is synced and can be reached
 2. Make sure your wallet has enough funds
 3. Check your public URL can be reached from the internet
@@ -123,6 +142,7 @@ If setup fails:
 ### Runtime Issues
 
 If the server won't start:
+
 1. Check that port 3000 is free to use
 2. Check all configuration values are correct
 3. Make sure the data and temp folders exist and you can write to them

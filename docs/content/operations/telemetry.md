@@ -55,12 +55,6 @@ If you prefer not to share telemetry data, you can disable it by setting the `PI
 export PIRI_DISABLE_ANALYTICS=1
 ```
 
-Or when running Piri:
-
-```bash
-PIRI_DISABLE_ANALYTICS=1 piri serve pdp
-```
-
 To make this permanent, add the export to your shell configuration file (e.g., `.bashrc`, `.zshrc`).
 
 ## Data Retention and Usage
