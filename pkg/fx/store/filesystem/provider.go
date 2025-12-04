@@ -8,6 +8,8 @@ import (
 
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
 	"go.uber.org/fx"
@@ -20,6 +22,7 @@ import (
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
+	minio_store "github.com/storacha/piri/pkg/store/objectstore/minio"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
@@ -262,10 +265,20 @@ func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, er
 	return keystore.NewKeyStore(ds)
 }
 
-// TODO whenever we are done with https://github.com/storacha/piri/issues/140
-// make this an object store.
-// We must do this before production network launch, else migration will be the end of me.
 func NewPDPStore(cfg app.PDPStoreConfig, lc fx.Lifecycle) (blobstore.PDPStore, error) {
+	if cfg.Minio.Bucket != "" && cfg.Minio.Endpoint != "" {
+		options := minio.Options{Secure: !cfg.Minio.Insecure}
+		creds := cfg.Minio.Credentials
+		if creds.AccessKeyID != "" && creds.SecretAccessKey != "" {
+			options.Creds = credentials.NewStaticV4(creds.AccessKeyID, creds.SecretAccessKey, "")
+		}
+		objStore, err := minio_store.New(cfg.Minio.Endpoint, cfg.Minio.Bucket, options)
+		if err != nil {
+			return nil, fmt.Errorf("creating pdp object store: %w", err)
+		}
+		return blobstore.NewObjectBlobstore(objStore), nil
+	}
+
 	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for pdp store")
 	}
