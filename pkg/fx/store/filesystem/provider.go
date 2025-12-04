@@ -265,9 +265,6 @@ func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, er
 	return keystore.NewKeyStore(ds)
 }
 
-// TODO whenever we are done with https://github.com/storacha/piri/issues/140
-// make this an object store.
-// We must do this before production network launch, else migration will be the end of me.
 func NewPDPStore(cfg app.PDPStoreConfig, lc fx.Lifecycle) (blobstore.PDPStore, error) {
 	if cfg.Minio.Bucket != "" && cfg.Minio.Endpoint != "" {
 		options := minio.Options{Secure: !cfg.Minio.Insecure}
