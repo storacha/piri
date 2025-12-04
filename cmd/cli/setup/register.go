@@ -639,8 +639,7 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 					Proof: indexerProof,
 				},
 				EgressTracker: config.EgressTrackerServiceConfig{
-					Proof:             egressTrackerProof,
-					MaxBatchSizeBytes: 10 * 1024,
+					Proof: egressTrackerProof,
 				},
 			},
 			ProofSetID: proofSetID,
