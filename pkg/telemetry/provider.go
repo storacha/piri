@@ -35,6 +35,8 @@ func newProvider(ctx context.Context, cfg Config, res *sdkresource.Resource, opt
 		return nil, fmt.Errorf("metrics endpoint is required")
 	}
 
+	// Expand the default server duration histogram so long uploads/downloads are visible
+
 	exporter, err := otlpmetrichttp.New(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric exporter: %w", err)
@@ -47,6 +49,32 @@ func newProvider(ctx context.Context, cfg Config, res *sdkresource.Resource, opt
 			),
 		),
 		sdkmetric.WithResource(res),
+		sdkmetric.WithView(
+			sdkmetric.NewView(
+				sdkmetric.Instrument{Name: HTTPServerRequestDurationInstrument},
+				sdkmetric.Stream{
+					Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+						Boundaries: HTTPServerDurationBounds,
+					},
+				},
+			),
+			sdkmetric.NewView(
+				sdkmetric.Instrument{Name: HTTPServerRequestSizeInstrument},
+				sdkmetric.Stream{
+					Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+						Boundaries: SizeBoundaries,
+					},
+				},
+			),
+			sdkmetric.NewView(
+				sdkmetric.Instrument{Name: HTTPServerResponseSizeInstrument},
+				sdkmetric.Stream{
+					Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+						Boundaries: SizeBoundaries,
+					},
+				},
+			),
+		),
 	)
 
 	otel.SetMeterProvider(provider)
