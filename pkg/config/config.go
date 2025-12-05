@@ -7,10 +7,18 @@ import (
 
 var log = logging.Logger("config")
 
+// Normalizable allows configs to adjust legacy/default values prior to validation.
+type Normalizable interface {
+	Normalize()
+}
+
 func Load[T Validatable]() (T, error) {
 	var out T
 	if err := viper.Unmarshal(&out); err != nil {
 		return out, err
+	}
+	if n, ok := any(&out).(Normalizable); ok {
+		n.Normalize()
 	}
 	if err := out.Validate(); err != nil {
 		return out, err

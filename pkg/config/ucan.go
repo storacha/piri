@@ -17,6 +17,11 @@ func (u UCANServerConfig) Validate() error {
 	return validateConfig(u)
 }
 
+// Normalize applies compatibility fixes before validation.
+func (u *UCANServerConfig) Normalize() {
+	u.UCANService.Normalize()
+}
+
 type UCANServiceConfig struct {
 	Services   ServicesConfig `mapstructure:"services" toml:"services"`
 	ProofSetID uint64         `mapstructure:"proof_set" flag:"proof-set" toml:"proof_set"`
@@ -24,6 +29,11 @@ type UCANServiceConfig struct {
 
 func (s UCANServiceConfig) Validate() error {
 	return validateConfig(s)
+}
+
+// Normalize applies compatibility fixes before validation.
+func (s *UCANServiceConfig) Normalize() {
+	s.Services.Normalize()
 }
 
 func (s UCANServiceConfig) ToAppConfig(publicURL url.URL) (app.UCANServiceConfig, error) {

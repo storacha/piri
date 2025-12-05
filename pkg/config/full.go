@@ -19,6 +19,11 @@ func (f FullServerConfig) Validate() error {
 	return validateConfig(f)
 }
 
+// Normalize applies compatibility fixes before validation.
+func (f *FullServerConfig) Normalize() {
+	f.UCANService.Normalize()
+}
+
 func (f FullServerConfig) ToAppConfig() (app.AppConfig, error) {
 	var (
 		err error
