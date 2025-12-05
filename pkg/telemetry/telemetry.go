@@ -149,14 +149,6 @@ func BoolAttr(key string, value bool) attribute.KeyValue {
 	return attribute.Bool(key, value)
 }
 
-var DefaultBoundaries = []float64{
-	0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 50, 100,
-}
-
-var LatencyBoundaries = []float64{
-	0.1, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000,
-}
-
 var SizeBoundaries = []float64{
 	1024, 10240, 102400, 1048576, 10485760, 104857600, 1073741824,
 }
