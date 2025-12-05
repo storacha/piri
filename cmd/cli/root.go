@@ -122,7 +122,7 @@ func initLogging() {
 		logging.SetAllLoggers(ll)
 	} else {
 		// else set all loggers to error level, then the ones we care most about to info.
-		logging.SetAllLoggers(logging.LevelError)
+		logging.SetAllLoggers(logging.LevelWarn)
 		logging.SetLogLevel("pdp/service", "info")
 		logging.SetLogLevel("pdp/client", "info")
 		logging.SetLogLevel("telemetry", "info")
