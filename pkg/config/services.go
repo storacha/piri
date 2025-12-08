@@ -28,6 +28,15 @@ func (s ServicesConfig) Validate() error {
 	return validateConfig(s)
 }
 
+// Normalize applies compatibility fixes before validation.
+func (s *ServicesConfig) Normalize() {
+	// Compatibility shim: bump legacy sub-10MiB batch size to minimum.
+	if s != nil && s.EgressTracker.MaxBatchSizeBytes > 0 && s.EgressTracker.MaxBatchSizeBytes < DefaultMinimumEgressBatchSize {
+		log.Warnf("ucan.services.etracker.max_batch_size_bytes is below 10MiB (%d); overriding to %d for compatibility. Please update your config.", s.EgressTracker.MaxBatchSizeBytes, DefaultMinimumEgressBatchSize)
+		s.EgressTracker.MaxBatchSizeBytes = DefaultMinimumEgressBatchSize
+	}
+}
+
 func (s ServicesConfig) ToAppConfig(publicURL url.URL) (app.ExternalServicesConfig, error) {
 	var (
 		out app.ExternalServicesConfig

@@ -27,9 +27,9 @@ type BlobStorageConfig struct {
 }
 
 type RepoConfig struct {
-	DataDir     string            `mapstructure:"data_dir" validate:"required" flag:"data-dir" toml:"data_dir"`
-	TempDir     string            `mapstructure:"temp_dir" validate:"required" flag:"temp-dir" toml:"temp_dir"`
-	BlobStorage BlobStorageConfig `mapstructure:"blob_storage" validate:"required" toml:"blob_storage,omitempty"`
+	DataDir     string             `mapstructure:"data_dir" validate:"required" flag:"data-dir" toml:"data_dir"`
+	TempDir     string             `mapstructure:"temp_dir" validate:"required" flag:"temp-dir" toml:"temp_dir"`
+	BlobStorage *BlobStorageConfig `mapstructure:"blob_storage" validate:"omitempty" toml:"blob_storage,omitempty"`
 }
 
 func (r RepoConfig) Validate() error {
@@ -40,6 +40,17 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 	if r.DataDir == "" {
 		// Return empty config for memory stores
 		return app.StorageConfig{}, nil
+	}
+
+	// Blob storage is optional; only populate Minio settings when provided.
+	var pdpMinio app.MinioConfig
+	if r.BlobStorage != nil {
+		pdpMinio = app.MinioConfig{
+			Endpoint:    r.BlobStorage.Minio.Endpoint,
+			Bucket:      r.BlobStorage.Minio.Bucket,
+			Credentials: app.Credentials(r.BlobStorage.Minio.Credentials),
+			Insecure:    r.BlobStorage.Minio.Insecure,
+		}
 	}
 
 	// Ensure directories exist
@@ -93,13 +104,8 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 			DBPath: filepath.Join(r.DataDir, "pdp", "state", "state.db"),
 		},
 		PDPStore: app.PDPStoreConfig{
-			Dir: filepath.Join(r.DataDir, "pdp", "datastore"),
-			Minio: app.MinioConfig{
-				Endpoint:    r.BlobStorage.Minio.Endpoint,
-				Bucket:      r.BlobStorage.Minio.Bucket,
-				Credentials: app.Credentials(r.BlobStorage.Minio.Credentials),
-				Insecure:    r.BlobStorage.Minio.Insecure,
-			},
+			Dir:   filepath.Join(r.DataDir, "pdp", "datastore"),
+			Minio: pdpMinio,
 		},
 	}
 
