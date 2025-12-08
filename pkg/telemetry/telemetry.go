@@ -149,6 +149,33 @@ func BoolAttr(key string, value bool) attribute.KeyValue {
 	return attribute.Bool(key, value)
 }
 
+const (
+	KiB float64 = 1024
+	MiB         = KiB * 1024
+	GiB         = MiB * 1024
+)
+
 var SizeBoundaries = []float64{
-	1024, 10240, 102400, 1048576, 10485760, 104857600, 1073741824,
+	// Explicit histogram buckets for request/response body sizes (bytes), up to 1 GiB.
+	KiB,
+	2 * KiB,
+	4 * KiB,
+	8 * KiB,
+	16 * KiB,
+	32 * KiB,
+	64 * KiB,
+	128 * KiB,
+	256 * KiB,
+	512 * KiB,
+	MiB,
+	2 * MiB,
+	4 * MiB,
+	8 * MiB,
+	16 * MiB,
+	32 * MiB,
+	64 * MiB,
+	128 * MiB,
+	256 * MiB,
+	512 * MiB,
+	GiB,
 }
