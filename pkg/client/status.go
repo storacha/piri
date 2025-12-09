@@ -23,29 +23,19 @@ type NodeStatus struct {
 
 // GetNodeStatus connects to a running piri node and checks its status
 func GetNodeStatus(ctx context.Context) (*NodeStatus, error) {
-	userCfg, err := config.Load[config.FullServerConfig]()
+	cfg, err := config.Load[config.Client]()
 	if err != nil {
 		return nil, fmt.Errorf("loading config: %w", err)
 	}
 
-	appCfg, err := userCfg.ToAppConfig()
-	if err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
-	}
-
 	// Create API client to connect to local node
-	api, err := client.NewFromConfig(config.Client{
-		Identity: userCfg.Identity,
-		API: config.API{
-			Endpoint: fmt.Sprintf("http://%s:%d", userCfg.Server.Host, userCfg.Server.Port),
-		},
-	})
+	api, err := client.NewFromConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating api client: %w", err)
 	}
 
 	// Get proof set state
-	psState, err := api.GetProofSetState(ctx, appCfg.UCANService.ProofSetID)
+	psState, err := api.GetProofSetState(ctx, cfg.UCAN.ProofSetID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get proof set state: %w", err)
 	}
