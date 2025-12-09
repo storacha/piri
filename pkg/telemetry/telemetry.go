@@ -107,6 +107,28 @@ func (t *Telemetry) NewInfo(cfg InfoConfig) (*Info, error) {
 	return NewInfo(t.meter, cfg)
 }
 
+func (t *Telemetry) ForceFlush(ctx context.Context) error {
+	var errs []error
+
+	if t.provider != nil {
+		if err := t.provider.provider.ForceFlush(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if t.traceProvider != nil {
+		if err := t.traceProvider.ForceFlush(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
 func (t *Telemetry) Shutdown(ctx context.Context) error {
 	var errs []error
 
