@@ -4,43 +4,43 @@ This guide covers both the **Forge Production** and **Forge Staging** networks. 
 
 <div class="hero" markdown="1">
   <div class="hero__logo">
-    <img src="images/logo.png" alt="Piri" width="40" height="40">
+    <img src="images/logo-white.png" alt="Piri" width="100" height="100">
   </div>
   <div>
     <p class="hero__title">Getting Started with Piri</p>
-    <p class="hero__subtitle">Pick your environment (Production/Staging) and deploy with the right flags.</p>
+    <p class="hero__subtitle">Pick your environment (<strong>Production</strong> or <strong>Staging</strong>) and deploy with the right flags.</p>
   </div>
 </div>
 
 ## Complete Setup Guide
 
-<ul class="step-card-grid">
-  <li class="step-card" markdown="1">
-    <p class="step-card__icon"><img src="images/icons/checklist.svg" alt="" width="18" height="18"></p>
-    <p class="step-card__title">Step 1: <a href="./setup/prerequisites">Prerequisites</a></p>
-    <p class="step-card__desc">Set up your system, network, and Filecoin node.</p>
-  </li>
-  <li class="step-card" markdown="1">
-    <p class="step-card__icon"><img src="images/icons/download.svg" alt="" width="18" height="18"></p>
-    <p class="step-card__title">Step 2: <a href="./setup/installation">Install Piri</a></p>
-    <p class="step-card__desc">Download and install the Piri binary.</p>
-  </li>
-  <li class="step-card" markdown="1">
-    <p class="step-card__icon"><img src="images/icons/key.svg" alt="" width="18" height="18"></p>
-    <p class="step-card__title">Step 3: <a href="./setup/key-generation">Generate Keys</a></p>
-    <p class="step-card__desc">Create your identity key and wallet.</p>
-  </li>
-  <li class="step-card" markdown="1">
-    <p class="step-card__icon"><img src="images/icons/shield.svg" alt="" width="18" height="18"></p>
-    <p class="step-card__title">Step 4: <a href="./setup/tls-termination">Configure TLS</a></p>
-    <p class="step-card__desc">Set up secure connections (HTTPS) for your domain.</p>
-  </li>
-  <li class="step-card" markdown="1">
-    <p class="step-card__icon"><img src="images/icons/server.svg" alt="" width="18" height="18"></p>
-    <p class="step-card__title">Step 5: <a href="./setup/piri-server">Setup Piri Node</a></p>
-    <p class="step-card__desc">Set up and run your Piri node with environment-aware flags.</p>
-  </li>
-</ul>
+<div class="step-card-grid">
+  <a class="step-card" href="./setup/prerequisites">
+    <span class="step-card__icon"><img src="images/icons/checklist.svg" alt="" width="18" height="18"></span>
+    <span class="step-card__title">Step 1 <span>Prerequisites</span></span>
+    <span class="step-card__desc">Set up your system, network, and Filecoin node.</span>
+  </a>
+  <a class="step-card" href="./setup/installation">
+    <span class="step-card__icon"><img src="images/icons/download.svg" alt="" width="18" height="18"></span>
+    <span class="step-card__title">Step 2 <span>Install Piri</span></span>
+    <span class="step-card__desc">Download and install the Piri binary.</span>
+  </a>
+  <a class="step-card" href="./setup/key-generation">
+    <span class="step-card__icon"><img src="images/icons/key.svg" alt="" width="18" height="18"></span>
+    <span class="step-card__title">Step 3 <span>Generate Keys</span></span>
+    <span class="step-card__desc">Create your identity key and wallet.</span>
+  </a>
+  <a class="step-card" href="./setup/tls-termination">
+    <span class="step-card__icon"><img src="images/icons/shield.svg" alt="" width="18" height="18"></span>
+    <span class="step-card__title">Step 4 <span>Configure TLS</span></span>
+    <span class="step-card__desc">Set up secure connections (HTTPS) for your domain.</span>
+  </a>
+  <a class="step-card" href="./setup/piri-server">
+    <span class="step-card__icon"><img src="images/icons/server.svg" alt="" width="18" height="18"></span>
+    <span class="step-card__title">Step 5 <span>Setup Piri Node</span></span>
+    <span class="step-card__desc">Set up and run your Piri node with environment-aware flags.</span>
+  </a>
+</div>
 
 ---
 

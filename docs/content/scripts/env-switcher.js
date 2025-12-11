@@ -10,6 +10,11 @@
     const wrapper = document.createElement("div");
     wrapper.className = "env-picker";
 
+    const icon = document.createElement("img");
+    icon.className = "env-picker__icon";
+    icon.src = "/images/icons/globe.svg";
+    
+
     const label = document.createElement("span");
     label.className = "env-picker__label";
     label.textContent = "Environment";
@@ -23,7 +28,8 @@
 
     select.value = initialEnv || "";
 
-    wrapper.append(label, select);
+
+    wrapper.append(icon, label, select);
     header.append(wrapper);
 
     return select;
