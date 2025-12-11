@@ -31,14 +31,6 @@ func TestAdjustNextProveAt(t *testing.T) {
 			description:       "When minRequired doesn't fall on boundary, find next window",
 		},
 		{
-			name:              "exact scenario from logs",
-			currentHeight:     2685164,
-			challengeFinality: big.NewInt(2),
-			challengeWindow:   big.NewInt(30),
-			expected:          2685181, // minRequired=2685166, next window=2685180, result=2685181 (2685180+1)
-			description:       "Real scenario should produce predictable window placement",
-		},
-		{
 			name:              "falls exactly on window boundary",
 			currentHeight:     100,
 			challengeFinality: big.NewInt(12), // 100+12=112, which is 7*16=112 exactly
@@ -47,25 +39,43 @@ func TestAdjustNextProveAt(t *testing.T) {
 			description:       "When minRequired falls exactly on boundary, move to next window",
 		},
 		{
-			name:              "smart contract realistic values",
-			currentHeight:     1000000,
-			challengeFinality: big.NewInt(2),  // MinConfidence from watcher_eth.go
-			challengeWindow:   big.NewInt(30), // Common challenge window from tests
-			expected:          1000021,        // minRequired=1000002, windowStart=999990+30=1000020, result=1000021 (1000020+1)
-			description:       "Realistic smart contract values with challenge window 30 and finality 2",
+			name:              "mainnet params inside current window",
+			currentHeight:     5568958,
+			challengeFinality: big.NewInt(150), // mainnet challengeFinality
+			challengeWindow:   big.NewInt(20),  // mainnet challenge window size
+			expected:          5569121,         // minRequired=5569108, next window=5569120, result=5569121
+			description:       "Large finality relative to window should advance to the next window boundary",
 		},
 		{
-			name:              "proving period scenario",
-			currentHeight:     500000,
+			name:              "mainnet params exact boundary",
+			currentHeight:     1000010,         // (height + finality) lands exactly on a 20-epoch boundary
+			challengeFinality: big.NewInt(150), // mainnet challengeFinality
+			challengeWindow:   big.NewInt(20),  // mainnet challenge window size
+			expected:          1000181,         // minRequired=1000160, boundary=1000160 => next window 1000180, result=1000181
+			description:       "Exact boundary must bump to the next window and add 1 epoch",
+		},
+		{
+			name:              "realistic small finality/window",
+			currentHeight:     1000000,
 			challengeFinality: big.NewInt(2),
-			challengeWindow:   big.NewInt(60), // As requested - proving period of 60
-			expected:          500041,         // minRequired=500002, next window=500040, result=500041 (500040+1)
-			description:       "Scenario with proving period/challenge window of 60 epochs",
+			challengeWindow:   big.NewInt(30),
+			expected:          1000021, // minRequired=1000002, next window=1000020, result=1000021
+			description:       "Small finality with 30-epoch windows advances to the immediate next window",
+		},
+		{
+			name:              "late in window still advances only one window",
+			currentHeight:     2685164,
+			challengeFinality: big.NewInt(2),
+			challengeWindow:   big.NewInt(30),
+			expected:          2685181, // minRequired=2685166, next window=2685180, result=2685181
+			description:       "Late-window case advances to next boundary, not multiple windows ahead",
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := adjustNextProveAt(tt.currentHeight, tt.challengeFinality, tt.challengeWindow)
 			resultInt := result.Int64()
 

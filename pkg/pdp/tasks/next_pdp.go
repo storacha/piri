@@ -2,7 +2,6 @@ package tasks
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/big"
@@ -22,8 +21,6 @@ import (
 )
 
 var _ scheduler.TaskInterface = &NextProvingPeriodTask{}
-
-//var _ = scheduler.Reg(&NextProvingPeriodTask{})
 
 type NextProvingPeriodTask struct {
 	db        *gorm.DB
@@ -82,7 +79,7 @@ func NewNextProvingPeriodTask(
 					Where("id = ? AND challenge_request_task_id IS NULL", ps.ProofSetID).
 					Update("challenge_request_task_id", id)
 				if result.Error != nil {
-					return false, fmt.Errorf("failed to update pdp_proof_sets: %w", err)
+					return false, fmt.Errorf("failed to update pdp_proof_sets: %w", result.Error)
 				}
 				if result.RowsAffected == 0 {
 					// Someone else might have already scheduled the task
@@ -138,9 +135,9 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	err = n.db.WithContext(ctx).
 		Model(&models.PDPProofSet{}).
 		Where("challenge_request_task_id = ? AND prove_at_epoch IS NOT NULL", taskID).
-		Select("id").
+		Select("id", "challenge_window").
 		First(&pdp).Error
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// No matching proof set, task is done (something weird happened, and e.g another task was spawned in place of this one)
 		return true, nil
 	}
@@ -152,6 +149,37 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	nextProveAt, err := n.service.NextPDPChallengeWindowStart(ctx, big.NewInt(proofSetID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
+	}
+
+	if pdp.ChallengeWindow == nil {
+		return false, fmt.Errorf("proof set %d missing challenge window metadata", proofSetID)
+	}
+
+	challengeFinality, err := n.verifier.GetChallengeFinality(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get challenge finality: %w", err)
+	}
+
+	challengeWindow := big.NewInt(*pdp.ChallengeWindow)
+
+	ts, err := n.fil.ChainHead(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get chain head: %w", err)
+	}
+
+	minEpoch := big.NewInt(int64(ts.Height()))
+	minEpoch.Add(minEpoch, challengeFinality)
+
+	if nextProveAt.Cmp(minEpoch) < 0 {
+		adjusted := adjustNextProveAt(int64(ts.Height()), challengeFinality, challengeWindow)
+		log.Warnw("adjusting next prove epoch",
+			"proof_set_id", proofSetID,
+			"original_epoch", nextProveAt,
+			"adjusted_epoch", adjusted,
+			"current_height", ts.Height(),
+			"challenge_window", challengeWindow,
+		)
+		nextProveAt = adjusted
 	}
 
 	// Prepare the transaction data
@@ -180,12 +208,6 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
 	}
 
-	// Get the current tipset
-	ts, err := n.fil.ChainHead(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get chain head: %w", err)
-	}
-
 	// Send the transaction
 	reason := "pdp-proving-period"
 	log.Infow("Sending next proving period transaction", "task_id", taskID, "proof_set_id", proofSetID,
@@ -205,7 +227,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 				"prove_at_epoch":               nextProveAt.Uint64(),
 			})
 		if result.Error != nil {
-			return fmt.Errorf("failed to update pdp_proof_sets: %w", err)
+			return fmt.Errorf("failed to update pdp_proof_sets: %w", result.Error)
 		}
 		if result.RowsAffected == 0 {
 			return fmt.Errorf("pdp_proof_sets update affected 0 rows")
