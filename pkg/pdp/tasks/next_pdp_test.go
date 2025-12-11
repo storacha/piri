@@ -1,7 +1,6 @@
 package tasks
 
 import (
-	"math/big"
 	"testing"
 )
 
@@ -43,6 +42,15 @@ func TestAdjustNextProveAt(t *testing.T) {
 			expected:        5000,
 		},
 		{
+			name:            "clamps inside current window to meet finality",
+			nextProveAt:     1000,
+			currentHeight:   1010,
+			finality:        15,
+			provingPeriod:   100,
+			challengeWindow: 50,
+			expected:        1025,
+		},
+		{
 			name:            "metadata missing falls back to min required",
 			nextProveAt:     100,
 			currentHeight:   200,
@@ -68,13 +76,13 @@ func TestAdjustNextProveAt(t *testing.T) {
 			t.Parallel()
 			minRequired := tt.currentHeight + tt.finality
 			result := adjustNextProveAt(
-				big.NewInt(tt.nextProveAt),
+				tt.nextProveAt,
 				minRequired,
 				tt.provingPeriod,
 				tt.challengeWindow,
 			)
 
-			got := result.Int64()
+			got := result
 			if got != tt.expected {
 				t.Fatalf("adjustNextProveAt() = %d, expected %d", got, tt.expected)
 			}

@@ -105,22 +105,24 @@ func NewNextProvingPeriodTask(
 // 1. next_prove_at >= currentHeight + challengeFinality (enough time for tx processing)
 // 2. next_prove_at must fall within a challenge window boundary (windows are at multiples of challengeWindow)
 //
-// Algorithm: Find the first challenge window that starts after (currentHeight + challengeFinality),
-// then schedule 1 epoch after that window starts. This is deterministic and always contract-compliant.
-//
-// Example: currentHeight=1000, finality=2, window=30
-// → minRequired=1002, nextWindow=1020, result=1021
-func adjustNextProveAt(nextProveAt *big.Int, minRequiredEpoch int64, provingPeriod int64, challengeWindow int64) *big.Int {
+// Algorithm: advance whole proving periods until the window [start, start+challengeWindow] reaches
+// minRequiredEpoch, then clamp to the earliest epoch that satisfies both rules (usually the window start,
+// or minRequiredEpoch if that falls inside the window).
+func adjustNextProveAt(nextProveAt int64, minRequiredEpoch int64, provingPeriod int64, challengeWindow int64) int64 {
 	// Fall back to minimum required epoch if metadata is missing
 	if provingPeriod <= 0 || challengeWindow <= 0 {
-		epoch := nextProveAt.Int64()
+		epoch := nextProveAt
 		if epoch < minRequiredEpoch {
 			epoch = minRequiredEpoch
 		}
-		return big.NewInt(epoch)
+		return epoch
 	}
 
-	windowStart := nextProveAt.Int64()
+	// nextProveAt marks the beginning of the current challenge window.
+	// When we miss a proving period the next valid window is always a multiple of the `provingPeriod` epochs laster.
+	// Slide the window forward by while proving periods until it covers minRequiredEpoch,
+	// which embeds the challenge finality rule.
+	windowStart := nextProveAt
 	windowEnd := windowStart + challengeWindow
 
 	// Move forward by whole proving periods until the window reaches the minimum required epoch.
@@ -129,7 +131,8 @@ func adjustNextProveAt(nextProveAt *big.Int, minRequiredEpoch int64, provingPeri
 		windowEnd += provingPeriod
 	}
 
-	// Clamp inside the contract window [windowStart, windowEnd].
+	// At this point the contract will accept any epoch inside [windowStart, windowEnd].
+	// Chose one that also satisfies the finality requirement by clamping minRequiredEpoch to that range.
 	adjusted := windowStart
 	if minRequiredEpoch > adjusted {
 		adjusted = minRequiredEpoch
@@ -138,7 +141,7 @@ func adjustNextProveAt(nextProveAt *big.Int, minRequiredEpoch int64, provingPeri
 		adjusted = windowEnd
 	}
 
-	return big.NewInt(adjusted)
+	return adjusted
 }
 
 func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err error) {
@@ -188,7 +191,15 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	minEpoch.Add(minEpoch, challengeFinality)
 
 	if nextProveAt.Cmp(minEpoch) < 0 {
-		adjusted := adjustNextProveAt(nextProveAt, minEpoch.Int64(), provingPeriod, challengeWindow)
+		// The condition only runs when the listener contract hands us a challenge window start that is already behind
+		// the current epoch + challengeFinality. That happens when a proving period was missed, usually from:
+		// 1. piri was offline
+		// 2. lotus was stuck
+		// 3. the previous next proving period transaction never made it to the chain
+		// Thus the listener is still reporting the "stale" window from the previous proving period.
+		// When 1, 2, or 3 happen, and are fixed, we will hit this branch. Here we advance the window
+		// to the first future period the verifier will accept so we don't loop on invalid epochs forever.
+		adjusted := adjustNextProveAt(nextProveAt.Int64(), minEpoch.Int64(), provingPeriod, challengeWindow)
 		log.Warnw("adjusting next prove epoch",
 			"proof_set_id", proofSetID,
 			"original_epoch", nextProveAt,
@@ -197,7 +208,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 			"challenge_window", challengeWindow,
 			"proving_period", provingPeriod,
 		)
-		nextProveAt = adjusted
+		nextProveAt = big.NewInt(adjusted)
 	}
 
 	// Prepare the transaction data
