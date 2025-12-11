@@ -162,6 +162,11 @@ func NewProveTask(
 
 func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	ctx := context.Background()
+	defer func() {
+		if err != nil {
+			PDPProveFailureCounter.Inc(ctx)
+		}
+	}()
 
 	// Retrieve proof set and challenge epoch for the task
 	var proveTask models.PDPProveTask

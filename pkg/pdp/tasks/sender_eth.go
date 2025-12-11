@@ -12,6 +12,7 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/storacha/filecoin-services/go/evmerrors"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 	"gorm.io/gorm"
@@ -86,12 +87,20 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *et
 				if dataErr.ErrorData() != nil {
 					if parsedErr, failure := evmerrors.ParseRevert(dataErr.ErrorData().(string)); failure == nil {
 						log.Errorw("parsed contract revert during gas estimation", "error", parsedErr)
+						// NB(forrest): ErrorSelector returns the contract error code as hex,
+						// selector values are finite and bounded, so adding it to the counter keeps
+						// cardinality low while giving actionable diagnostics
+						MessageEstimateGasFailureCounter.Inc(ctx, attribute.String("selector",
+							parsedErr.ErrorSelector()), attribute.String("method", reason))
 						return common.Hash{}, types.WrapError(types.KindInvalidInput, parsedErr.Error(), parsedErr)
 					} else {
 						log.Warnw("failed to parse revert during gas estimation", "parse_error", failure, "original_error", err)
 					}
 				}
 			}
+			// NB(forrest): otherwise we consider the selector unknown
+			MessageEstimateGasFailureCounter.Inc(ctx, attribute.String("selector", "unknown"),
+				attribute.String("method", reason))
 			return common.Hash{}, fmt.Errorf("failed to estimate gas: %w", err)
 		}
 		if gasLimit == 0 {
@@ -361,6 +370,7 @@ func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
 	var sendError string
 	if err != nil {
 		sendError = err.Error()
+		MessageSendFailureCounter.Inc(ctx, attribute.String("method", dbTx.SendReason))
 	}
 
 	err = s.db.Model(&models.MessageSendsEth{}).

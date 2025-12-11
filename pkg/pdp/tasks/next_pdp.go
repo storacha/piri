@@ -148,6 +148,11 @@ func adjustNextProveAt(nextProveAt int64, minRequiredEpoch int64, provingPeriod 
 
 func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	ctx := context.Background()
+	defer func() {
+		if err != nil {
+			PDPNextFailureCounter.Inc(ctx)
+		}
+	}()
 	// Select the proof set where challenge_request_task_id equals taskID and prove_at_epoch is not NULL
 	var pdp models.PDPProofSet
 	err = n.db.WithContext(ctx).
