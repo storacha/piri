@@ -56,6 +56,7 @@ var ErrIndexingServiceProofsMissing = errors.New("indexing service proofs are mi
 
 type Config struct {
 	Config                            aws.Config
+	Network                           presets.Network
 	S3Options                         []func(*s3.Options)
 	DynamoOptions                     []func(*dynamodb.Options)
 	SentryDSN                         string
@@ -209,6 +210,7 @@ func FromEnv(ctx context.Context) Config {
 
 	return Config{
 		Config:                            awsConfig,
+		Network:                           network,
 		SentryDSN:                         os.Getenv("SENTRY_DSN"),
 		SentryEnvironment:                 os.Getenv("SENTRY_ENVIRONMENT"),
 		Signer:                            id,

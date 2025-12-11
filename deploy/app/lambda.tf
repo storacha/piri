@@ -87,6 +87,7 @@ resource "aws_lambda_function" "lambda" {
       IPNI_ADVERTISEMENT_PUBLISHING_QUEUE_ID = aws_sqs_queue.ipni_advertisement_publishing.id
       PRINCIPAL_MAPPING                      = var.principal_mapping,
       PIRI_NETWORK                           = var.network,
+      PIRI_TRACING_ENABLED                   = "true"
     }
   }
 }

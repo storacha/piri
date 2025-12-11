@@ -10,6 +10,9 @@ import (
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 	"github.com/storacha/piri/internal/telemetry"
 	"github.com/storacha/piri/pkg/aws"
+	"github.com/storacha/piri/pkg/build"
+	otel "github.com/storacha/piri/pkg/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-lambda-go/otellambda"
 )
 
 // SQSEventHandler is a function that handles SQS events, suitable to use as a lambda handler.
@@ -89,11 +92,25 @@ func StartHTTPHandler(makeHandler HTTPHandlerBuilder) {
 	cfg := aws.FromEnv(ctx)
 	telemetry.SetupErrorReporting(cfg.SentryDSN, cfg.SentryEnvironment)
 
+	otel.Initialize(context.Background(), otel.Config{
+		ServiceName:    "piri",
+		ServiceVersion: build.Version,
+		Environment:    cfg.Network.String(),
+		InstanceID:     cfg.DID().String(),
+		Endpoint:       cfg.PublicURL,
+	})
+
 	handler, err := makeHandler(cfg)
 	if err != nil {
 		telemetry.ReportError(ctx, err)
 		panic(err)
 	}
 
-	lambda.StartWithOptions(httpadapter.NewV2(handler).ProxyWithContext, lambda.WithContext(ctx))
+	lambda.StartWithOptions(
+		otellambda.InstrumentHandler(
+			httpadapter.NewV2(handler).ProxyWithContext,
+			otellambda.WithFlusher(otel.Global()),
+		),
+		lambda.WithContext(ctx),
+	)
 }
