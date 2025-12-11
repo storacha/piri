@@ -13,6 +13,7 @@ import (
 	"github.com/storacha/filecoin-services/go/eip712"
 	"github.com/storacha/go-ucanto/ucan"
 	signer "github.com/storacha/piri-signing-service/pkg/types"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 
 	appconfig "github.com/storacha/piri/pkg/config/app"
@@ -63,6 +64,8 @@ type PDPService struct {
 	chainScheduler *chainsched.Scheduler
 	engine         *scheduler.TaskEngine
 	signingService signer.SigningService
+
+	commPGroup singleflight.Group
 
 	edc              *eip712.ExtraDataEncoder
 	verifierContract smartcontracts.Verifier

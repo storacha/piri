@@ -8,7 +8,6 @@ import (
 	"github.com/storacha/piri/pkg/pdp/types"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 func (p *PDPService) ParkPiece(ctx context.Context, params types.ParkPieceRequest) error {
@@ -40,19 +39,7 @@ func (p *PDPService) ParkPiece(ctx context.Context, params types.ParkPieceReques
 			return fmt.Errorf("failed to create %s entry: %w", parkedPieceRef.TableName(), err)
 		}
 
-		// 3. insert into pdp_piece_mh_to_commp iff we derived a new CID
-		if params.PieceCID.Hash().HexString() != params.Blob.HexString() {
-			mhToCommp := models.PDPPieceMHToCommp{
-				Mhash: params.Blob,
-				Size:  int64(params.RawSize),
-				Commp: params.PieceCID.String(),
-			}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&mhToCommp).Error; err != nil {
-				return fmt.Errorf("failed to insert into %s: %w", mhToCommp.TableName(), err)
-			}
-		}
-
-		// 4. Create a reference in pdp_piecerefs
+		// 3. Create a reference in pdp_piecerefs
 		ref := models.PDPPieceRef{
 			Service:  "storacha",
 			PieceCID: params.PieceCID.String(),
