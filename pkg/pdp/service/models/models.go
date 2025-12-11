@@ -88,18 +88,6 @@ func (ParkedPieceRef) TableName() string {
 	return "parked_piece_refs"
 }
 
-// commp_calculations table.
-type CommPCalculation struct {
-	Blob       []byte    `gorm:"primaryKey"` // BYTEA primary key
-	StartedAt  time.Time `gorm:"not null"`
-	FinishedAt *time.Time
-	Err        *string `gorm:"column:error"`
-}
-
-func (CommPCalculation) TableName() string {
-	return "commp_calculations"
-}
-
 // pdp_piece_uploads
 type PDPPieceUpload struct {
 	ID      string `gorm:"primaryKey;type:uuid"` // or use a UUID type
@@ -327,7 +315,6 @@ func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
 		AutoMigrate(
 			&Task{},
 			&TaskHistory{},
-			&CommPCalculation{},
 			&ParkedPiece{},
 			&ParkedPieceRef{},
 

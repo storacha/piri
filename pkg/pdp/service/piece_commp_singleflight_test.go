@@ -84,6 +84,7 @@ func TestCalculateCommP_Singleflight(t *testing.T) {
 		commpDigest, expectedPaddedSize, err := c.Digest()
 		require.NoError(t, err)
 		expectedPieceCID, err := commcid.DataCommitmentToPieceCidv2(commpDigest, size)
+		require.NoError(t, err)
 		// Create multihash for the data
 		blob := randomMultihash(t, data)
 

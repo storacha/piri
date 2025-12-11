@@ -22,7 +22,7 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihas
 	v, err, _ := p.commPGroup.Do(key, func() (interface{}, error) {
 		// 1. check if we have already calculated commp for this piece
 		var existing models.PDPPieceMHToCommp
-		if err := p.db.First(&existing, "mhash = ?", blob).Error; err == nil {
+		if err := p.db.WithContext(ctx).First(&existing, "mhash = ?", blob).Error; err == nil {
 			pieceCID, err := cid.Parse(existing.Commp)
 			if err != nil {
 				return types.CalculateCommPResponse{}, fmt.Errorf("failed to parse existing commp cid %s: %w", existing.Commp, err)
@@ -56,7 +56,7 @@ func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihas
 				Size:  int64(readObj.Size),
 				Commp: pieceCID.String(),
 			}
-			if err := p.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&mhToCommp).Error; err != nil {
+			if err := p.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&mhToCommp).Error; err != nil {
 				return types.CalculateCommPResponse{}, fmt.Errorf("failed to insert into %s: %w", mhToCommp.TableName(), err)
 			}
 		}
