@@ -110,22 +110,35 @@ func NewNextProvingPeriodTask(
 //
 // Example: currentHeight=1000, finality=2, window=30
 // → minRequired=1002, nextWindow=1020, result=1021
-func adjustNextProveAt(currentHeight int64, challengeFinality, challengeWindow *big.Int) *big.Int {
-	// Calculate minimum required epoch (current height + challenge finality)
-	minRequiredEpoch := currentHeight + challengeFinality.Int64()
-
-	// Find the challenge window that contains or comes after minRequiredEpoch
-	// Window boundaries are at multiples of challengeWindow: 0, 30, 60, 90, etc.
-	windowNumber := minRequiredEpoch / challengeWindow.Int64()
-	windowStart := windowNumber * challengeWindow.Int64()
-
-	// If minRequiredEpoch falls exactly on a window boundary or we need the next window
-	if windowStart <= minRequiredEpoch {
-		windowStart += challengeWindow.Int64() // Move to next window
+func adjustNextProveAt(nextProveAt *big.Int, minRequiredEpoch int64, provingPeriod int64, challengeWindow int64) *big.Int {
+	// Fall back to minimum required epoch if metadata is missing
+	if provingPeriod <= 0 || challengeWindow <= 0 {
+		epoch := nextProveAt.Int64()
+		if epoch < minRequiredEpoch {
+			epoch = minRequiredEpoch
+		}
+		return big.NewInt(epoch)
 	}
 
-	// Schedule 1 epoch after the window starts for safety
-	return big.NewInt(windowStart + 1)
+	windowStart := nextProveAt.Int64()
+	windowEnd := windowStart + challengeWindow
+
+	// Move forward by whole proving periods until the window reaches the minimum required epoch.
+	for windowEnd < minRequiredEpoch {
+		windowStart += provingPeriod
+		windowEnd += provingPeriod
+	}
+
+	// Clamp inside the contract window [windowStart, windowEnd].
+	adjusted := windowStart
+	if minRequiredEpoch > adjusted {
+		adjusted = minRequiredEpoch
+	}
+	if adjusted > windowEnd {
+		adjusted = windowEnd
+	}
+
+	return big.NewInt(adjusted)
 }
 
 func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err error) {
@@ -135,7 +148,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	err = n.db.WithContext(ctx).
 		Model(&models.PDPProofSet{}).
 		Where("challenge_request_task_id = ? AND prove_at_epoch IS NOT NULL", taskID).
-		Select("id", "challenge_window").
+		Select("id", "challenge_window", "proving_period").
 		First(&pdp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// No matching proof set, task is done (something weird happened, and e.g another task was spawned in place of this one)
@@ -154,13 +167,17 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	if pdp.ChallengeWindow == nil {
 		return false, fmt.Errorf("proof set %d missing challenge window metadata", proofSetID)
 	}
+	if pdp.ProvingPeriod == nil {
+		return false, fmt.Errorf("proof set %d missing proving period", proofSetID)
+	}
 
 	challengeFinality, err := n.verifier.GetChallengeFinality(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to get challenge finality: %w", err)
 	}
 
-	challengeWindow := big.NewInt(*pdp.ChallengeWindow)
+	challengeWindow := *pdp.ChallengeWindow
+	provingPeriod := *pdp.ProvingPeriod
 
 	ts, err := n.fil.ChainHead(ctx)
 	if err != nil {
@@ -171,13 +188,14 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	minEpoch.Add(minEpoch, challengeFinality)
 
 	if nextProveAt.Cmp(minEpoch) < 0 {
-		adjusted := adjustNextProveAt(int64(ts.Height()), challengeFinality, challengeWindow)
+		adjusted := adjustNextProveAt(nextProveAt, minEpoch.Int64(), provingPeriod, challengeWindow)
 		log.Warnw("adjusting next prove epoch",
 			"proof_set_id", proofSetID,
 			"original_epoch", nextProveAt,
 			"adjusted_epoch", adjusted,
 			"current_height", ts.Height(),
 			"challenge_window", challengeWindow,
+			"proving_period", provingPeriod,
 		)
 		nextProveAt = adjusted
 	}
