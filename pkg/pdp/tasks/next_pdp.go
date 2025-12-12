@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"regexp"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/storacha/filecoin-services/go/evmerrors"
 
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
@@ -143,6 +146,10 @@ func adjustNextProveAt(nextProveAt int64, minRequiredEpoch int64, provingPeriod 
 
 	return adjusted
 }
+
+// Matches errors like:
+// InvalidChallengeEpoch(DataSetId=4476, MinAllowed=3275065, MaxAllowed=3275085, Actual=3274825)
+var invalidChallengeEpochRe = regexp.MustCompile(`InvalidChallengeEpoch\(DataSetId=\d+, MinAllowed=(\d+), MaxAllowed=(\d+), Actual=(\d+)\)`)
 
 func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	ctx := context.Background()
@@ -283,6 +290,48 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 		"next_prove_at", nextProveAt, "current_height", ts.Height())
 	txHash, err := n.sender.Send(ctx, fromAddress, txEth, reason)
 	if err != nil {
+		var ice *evmerrors.InvalidChallengeEpoch
+		if errors.As(err, &ice) {
+			minAllowed := ice.MinAllowed.Int64()
+			maxAllowed := ice.MaxAllowed.Int64()
+			adjusted := minAllowed
+			if minEpoch.Int64() > adjusted {
+				adjusted = adjustNextProveAt(adjusted, minEpoch.Int64(), provingPeriod, challengeWindow)
+			}
+			if adjusted > maxAllowed {
+				// move to the next window after the one reported in the revert
+				adjusted = adjustNextProveAt(maxAllowed+provingPeriod, minEpoch.Int64(), provingPeriod, challengeWindow)
+			}
+
+			log.Warnw("deferring after InvalidChallengeEpoch revert",
+				"proof_set_id", proofSetID,
+				"min_allowed", minAllowed,
+				"max_allowed", maxAllowed,
+				"min_required", minEpoch.Int64(),
+				"adjusted_epoch", adjusted,
+			)
+
+			if err := n.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+				result := tx.Model(&models.PDPProofSet{}).
+					Where("id = ?", proofSetID).
+					Updates(map[string]interface{}{
+						"prove_at_epoch":            uint64(adjusted),
+						"challenge_request_task_id": nil,
+					})
+				if result.Error != nil {
+					return fmt.Errorf("failed to defer after InvalidChallengeEpoch: %w", result.Error)
+				}
+				if result.RowsAffected == 0 {
+					return fmt.Errorf("pdp_proof_sets defer update affected 0 rows")
+				}
+				return nil
+			}); err != nil {
+				return false, err
+			}
+
+			// End this task; scheduler will reschedule with the corrected epoch.
+			return true, nil
+		}
 		return false, fmt.Errorf("failed to send transaction: %w", err)
 	}
 
