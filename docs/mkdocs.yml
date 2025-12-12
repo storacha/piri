@@ -1,0 +1,58 @@
+site_name: Piri Docs
+site_url: https://storacha.github.io/piri
+repo_url: https://github.com/storacha/piri
+docs_dir: content
+site_dir: site
+markdown_extensions:
+  - md_in_html
+  - attr_list
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+theme:
+  name: material
+  features:
+    - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - content.code.copy
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+extra_css:
+  - styles/branding.css
+extra_javascript:
+  - scripts/env-switcher.js
+
+extra:
+  logo: images/logo.png
+  favicon: images/favicon.ico
+
+nav:
+  - Getting Started: index.md
+  - Setup:
+      - Prerequisites: setup/prerequisites.md
+      - Installation: setup/installation.md
+      - Key Generation: setup/key-generation.md
+      - TLS Termination: setup/tls-termination.md
+      - Piri Server: setup/piri-server.md
+  - Operations:
+      - Inspect Proof Set: operations/inspect-proof-set.md
+      - Best Practices: operations/best-practices.md
+      - Upgrading: operations/upgrading.md
+      - Telemetry: operations/telemetry.md

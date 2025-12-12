@@ -5,6 +5,7 @@ This section covers the installation of the Piri binary.
 ## Prerequisites
 
 Before installing, ensure you have:
+
 - ✅ [Completed system prerequisites](./prerequisites.md)
 
 ## Download Pre-compiled Binary
@@ -37,5 +38,6 @@ piri version
 ## Next Steps
 
 After installing Piri:
+
 - [Generate Cryptographic Keys](./key-generation.md)
 - [Configure TLS Termination](./tls-termination.md)
