@@ -20,6 +20,7 @@ var log = logging.Logger("smartcontracts")
 type Verifier interface {
 	GetDataSetLeafCount(ctx context.Context, setId *big.Int) (*big.Int, error)
 	GetNextChallengeEpoch(ctx context.Context, setId *big.Int) (*big.Int, error)
+	GetChallengeFinality(ctx context.Context) (*big.Int, error)
 	GetDataSetListener(ctx context.Context, setId *big.Int) (common.Address, error)
 	GetDataSetStorageProvider(ctx context.Context, setId *big.Int) (common.Address, common.Address, error)
 	GetChallengeRange(ctx context.Context, setId *big.Int) (*big.Int, error)
@@ -70,6 +71,10 @@ func (v *verifierContract) GetDataSetLeafCount(ctx context.Context, setId *big.I
 
 func (v *verifierContract) GetNextChallengeEpoch(ctx context.Context, setId *big.Int) (*big.Int, error) {
 	return v.verifier.GetNextChallengeEpoch(&bind.CallOpts{Context: ctx}, setId)
+}
+
+func (v *verifierContract) GetChallengeFinality(ctx context.Context) (*big.Int, error) {
+	return v.verifier.GetChallengeFinality(&bind.CallOpts{Context: ctx})
 }
 
 func (v *verifierContract) GetDataSetListener(ctx context.Context, setId *big.Int) (common.Address, error) {
