@@ -22,7 +22,7 @@ First, gracefully stop the Piri server:
 
 ### Step 2: Install New Version
 
-Follow the [installation instructions](./installation.md) to download and install the latest version of Piri.
+Follow the [installation instructions](../setup/installation.md) to download and install the latest version of Piri.
 
 ### Step 3: Verify Installation
 

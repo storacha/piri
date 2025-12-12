@@ -140,7 +140,7 @@
 .env-picker__icon {
   width: 22px;
   height: 22px;
-  filter: var(--icon-filter, invert(0.6));
+  filter: invert(1);
 }
 
 .env-picker__label {
@@ -158,6 +158,7 @@
   padding: 0.2rem 0.75rem;
   font-weight: 600;
   cursor: pointer;
+  text-align: center;
 }
 
 .env-picker select:focus-visible {

@@ -39,7 +39,7 @@ Typical workflow:
 
 Use the template below as a starting point (replace the sample values with your own):
 
-```
+```toml
 [Unit]
 # Human-readable description of the service, shown in tools like `systemctl status`.
 Description=Piri Server 
@@ -95,4 +95,35 @@ ExecStart=/usr/local/bin/piri serve --config=/etc/piri/config.toml
 # is the standard “normal system” runlevel on most distros, so this makes the
 # service start automatically at boot in multi-user mode.
 WantedBy=multi-user.target
+```
+
+## Tune your Kernel
+
+Many kernel defaults are not suited for running a performant Piri node. Below is a set of recommendations for tuning your node for optimal performance when operating on the Storacha network.
+
+```bash
+# Piri Storage Node - Network Tuning
+# Apply with: sysctl -p /etc/sysctl.d/99-piri.conf
+# Takes effect on NEW connections only.
+
+# TCP buffer sizes (64MB max, 1MB default)
+# Required for high throughput at high latency (1Gbps at 200ms RTT needs ~25MB)
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.ipv4.tcp_rmem = 4096 1048576 67108864
+net.ipv4.tcp_wmem = 4096 1048576 67108864
+
+# BBR congestion control - handles lossy long-haul links much better than CUBIC
+net.ipv4.tcp_congestion_control = bbr
+
+# Don't reset to slow-start after idle (kills throughput on bursty workloads)
+net.ipv4.tcp_slow_start_after_idle = 0
+
+# Connection handling
+net.core.somaxconn = 65535
+net.core.netdev_max_backlog = 65535
+net.ipv4.tcp_max_orphans = 65535
+
+# Window scaling (usually default, but verify)
+net.ipv4.tcp_window_scaling = 1
 ```

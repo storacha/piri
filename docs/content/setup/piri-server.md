@@ -1,6 +1,6 @@
 # Setup Piri Node
 
-This guide covers both **Forge Production** and **Forge Staging**. The steps are identical; only the Lotus network and `--network` flag differ. Use the **Environment** dropdown in the header to toggle the values shown.
+This guide covers both **Forge Production** and **Forge Staging**. The steps are almost identical; only the Lotus network and `--network` flag differ. Use the **Environment** dropdown in the header to toggle the values shown.
 
 ## Prerequisites
 

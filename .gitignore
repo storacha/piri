@@ -20,3 +20,6 @@ piri
 
 # GoReleaser output
 dist/
+
+# mkdocs output
+docs/site

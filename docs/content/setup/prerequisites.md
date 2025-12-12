@@ -20,7 +20,8 @@ This document outlines the common prerequisites for running Piri services. Speci
 Install the following packages:
 
 ```bash
-sudo apt update && sudo apt install -y make git jq curl wget nginx certbot python3-certbot-nginx
+sudo apt update && \
+sudo apt install -y make git jq curl wget nginx certbot python3-certbot-nginx
 ```
 
 ## Network Requirements
