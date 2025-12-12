@@ -329,6 +329,9 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 	}); err != nil {
 		log.Warnf("failed to initialize telemetry: %s", err)
 	}
+	if err := telemetry.StartHostMetrics(cmd.Context(), appCfg.Storage.DataDir); err != nil {
+		log.Warnw("failed to start host metrics", "error", err)
+	}
 	// build our beloved Piri node
 	piri := fx.New(
 		// if a panic occurs during operation, recover from it and exit (somewhat) gracefully.
