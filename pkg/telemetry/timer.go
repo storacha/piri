@@ -144,3 +144,12 @@ func (h *Histogram) WithAttributes(attrs ...attribute.KeyValue) *Histogram {
 		attrs:     append(h.attrs, attrs...),
 	}
 }
+
+// DurationMillis converts a set of durations to millisecond float values, useful for histogram buckets.
+func DurationMillis(durations ...time.Duration) []float64 {
+	values := make([]float64, 0, len(durations))
+	for _, d := range durations {
+		values = append(values, float64(d.Milliseconds()))
+	}
+	return values
+}
