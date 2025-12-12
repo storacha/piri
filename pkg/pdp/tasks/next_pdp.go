@@ -190,6 +190,46 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	minEpoch := big.NewInt(int64(ts.Height()))
 	minEpoch.Add(minEpoch, challengeFinality)
 
+	windowStart := nextProveAt.Int64()
+	windowEnd := windowStart + challengeWindow
+
+	// If the chain height + finality already pushes us beyond the reported window end,
+	// the service contract will still insist on the current window and will reject a future epoch.
+	// Defer sending until the next window by updating prove_at_epoch and clearing the task marker
+	// so the scheduler can retry once the chain height reaches that window.
+	if minEpoch.Int64() > windowEnd {
+		adjusted := adjustNextProveAt(windowStart, minEpoch.Int64(), provingPeriod, challengeWindow)
+		log.Warnw("deferring next proving period until next window",
+			"proof_set_id", proofSetID,
+			"original_epoch", windowStart,
+			"adjusted_epoch", adjusted,
+			"current_height", ts.Height(),
+			"challenge_window", challengeWindow,
+			"proving_period", provingPeriod,
+		)
+
+		if err := n.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			result := tx.Model(&models.PDPProofSet{}).
+				Where("id = ?", proofSetID).
+				Updates(map[string]interface{}{
+					"prove_at_epoch":            uint64(adjusted),
+					"challenge_request_task_id": nil,
+				})
+			if result.Error != nil {
+				return fmt.Errorf("failed to defer pdp_proof_sets update: %w", result.Error)
+			}
+			if result.RowsAffected == 0 {
+				return fmt.Errorf("pdp_proof_sets defer update affected 0 rows")
+			}
+			return nil
+		}); err != nil {
+			return false, err
+		}
+
+		// Stop this task; a new one will be scheduled when the chain height reaches the next window.
+		return true, nil
+	}
+
 	if nextProveAt.Cmp(minEpoch) < 0 {
 		// The condition only runs when the listener contract hands us a challenge window start that is already behind
 		// the current epoch + challengeFinality. That happens when a proving period was missed, usually from:
