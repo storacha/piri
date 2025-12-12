@@ -33,9 +33,9 @@ func New(ctx context.Context, cfg Config) (*Telemetry, error) {
 		cfg.PublishInterval = defaultPublishInterval
 	}
 
-	// tracing is off by default, only enable if set
+	// tracing is on by default, but will only sample if parent is sampled
 	if cfg.TracesEndpoint == "" {
-		if os.Getenv("PIRI_TRACING_ENABLED") != "" {
+		if os.Getenv("PIRI_TRACING_ENABLED") != "0" {
 			cfg.TracesEndpoint = cfg.endpoint
 		}
 	}

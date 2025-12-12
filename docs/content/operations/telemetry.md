@@ -39,6 +39,10 @@ Piri collects information about your node, including pseudonymous identifiers th
 - **Upload Service DID**: The DID of the upload service you're connected to
 - **Upload Service URL**: The URL of the upload service (public endpoint)
 
+### Tracing data
+
+Tracing data is a specialized form of telemetry that provides an end-to-end view of a request's journey as it flows through the various components of a complex, distributed system, such as a microservices architecture.
+
 ## What Data Is NOT Collected
 
 We do NOT collect:
@@ -56,6 +60,12 @@ export PIRI_DISABLE_ANALYTICS=1
 ```
 
 To make this permanent, add the export to your shell configuration file (e.g., `.bashrc`, `.zshrc`).
+
+Note: you can opt-out of tracing _only_ by setting the `PIRI_TRACING_ENABLED` environment variable:
+
+```bash
+export PIRI_TRACING_ENABLED=0
+```
 
 ## Data Retention and Usage
 
