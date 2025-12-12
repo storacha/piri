@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/storacha/piri/pkg/telemetry"
+
 	"github.com/storacha/piri/lib/jobqueue/logger"
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
@@ -55,6 +57,7 @@ type Worker[T any] struct {
 	jobCountLock  sync.RWMutex
 	log           logger.StandardLogger
 	serializer    serializer.Serializer[T]
+	metrics       *metricsRecorder
 }
 
 // Config holds all parameters needed to initialize a Worker.
@@ -64,6 +67,7 @@ type Config struct {
 	PollInterval  time.Duration
 	Extend        time.Duration
 	QueueName     string
+	Telemetry     *telemetry.Telemetry
 }
 
 // Option modifies a Config before creating the Worker.
@@ -101,6 +105,13 @@ func WithQueueName(name string) Option {
 	}
 }
 
+// WithTelemetry configures the telemetry instance to create instruments from.
+func WithTelemetry(tel *telemetry.Telemetry) Option {
+	return func(cfg *Config) {
+		cfg.Telemetry = tel
+	}
+}
+
 func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Option) *Worker[T] {
 	// Default config
 	cfg := &Config{
@@ -127,6 +138,7 @@ func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Opti
 		jobCountLimit: cfg.JobCountLimit,
 		pollInterval:  cfg.PollInterval,
 		extend:        cfg.Extend,
+		metrics:       newMetrics(cfg.Telemetry),
 	}
 	return jq
 }
@@ -215,7 +227,7 @@ func (r *Worker[T]) Enqueue(ctx context.Context, name string, msg T) error {
 		return err
 	}
 	if id != "" {
-		recordQueuedDelta(ctx, r.queueName, name, 1)
+		r.metrics.recordQueuedDelta(ctx, r.queueName, name, 1)
 	}
 	return nil
 }
@@ -323,8 +335,8 @@ func (r *Worker[T]) runJob(ctx context.Context, wg *sync.WaitGroup, m *queue.Mes
 		}
 	}()
 
-	recordActiveDelta(ctx, r.queueName, jm.Name, 1)
-	defer recordActiveDelta(ctx, r.queueName, jm.Name, -1)
+	r.metrics.recordActiveDelta(ctx, r.queueName, jm.Name, 1)
+	defer r.metrics.recordActiveDelta(ctx, r.queueName, jm.Name, -1)
 
 	jobCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -336,7 +348,7 @@ func (r *Worker[T]) runJob(ctx context.Context, wg *sync.WaitGroup, m *queue.Mes
 	r.log.Infow("Running job", "name", jm.Name, "attempt", m.Received)
 	before := time.Now()
 	if err := jobReg.fn(jobCtx, jobInput); err != nil {
-		recordJobDuration(jobCtx, r.queueName, jm.Name, "failure", m.Received, time.Since(before))
+		r.metrics.recordJobDuration(jobCtx, r.queueName, jm.Name, "failure", m.Received, time.Since(before))
 		r.handleJobError(jobCtx, m, jm.Name, jobInput, jobReg, err)
 		return
 	}
@@ -344,7 +356,7 @@ func (r *Worker[T]) runJob(ctx context.Context, wg *sync.WaitGroup, m *queue.Mes
 	// Job succeeded
 	duration := time.Since(before)
 	r.log.Infow("Ran job", "name", jm.Name, "duration", duration, "attempt", m.Received)
-	recordJobDuration(jobCtx, r.queueName, jm.Name, "success", m.Received, duration)
+	r.metrics.recordJobDuration(jobCtx, r.queueName, jm.Name, "success", m.Received, duration)
 	r.deleteMessage(jobCtx, m.ID, jm.Name)
 }
 
@@ -390,7 +402,7 @@ func (r *Worker[T]) handleJobError(ctx context.Context, m *queue.Message, jobNam
 // handlePermanentError handles errors that should not be retried
 func (r *Worker[T]) handlePermanentError(ctx context.Context, messageID queue.ID, jobName string, jobInput T, jobReg *jobRegistration[T], err error, attempt int) {
 	r.log.Errorw("Failed to run job, PermanentError occurred", "error", err, "name", jobName)
-	recordJobFailure(ctx, r.queueName, jobName, "permanent_error", attempt)
+	r.metrics.recordJobFailure(ctx, r.queueName, jobName, "permanent_error", attempt)
 
 	// Invoke OnFailure callback if configured
 	if jobReg.onFailure != nil {
@@ -410,7 +422,7 @@ func (r *Worker[T]) handleMaxRetriesExceeded(ctx context.Context, messageID queu
 		"max_attempts", r.queue.MaxReceive(),
 		"error", err,
 	)
-	recordJobFailure(ctx, r.queueName, jobName, "max_retries", attempt)
+	r.metrics.recordJobFailure(ctx, r.queueName, jobName, "max_retries", attempt)
 
 	// Invoke OnFailure callback if configured
 	if jobReg.onFailure != nil {
@@ -439,7 +451,7 @@ func (r *Worker[T]) moveToDeadLetter(ctx context.Context, messageID queue.ID, jo
 		r.log.Errorw("Error moving job to dead letter queue", "error", dlqErr, "original_error", err)
 	} else {
 		r.log.Infow("Moved job to dead letter queue", "name", jobName, "reason", reason)
-		recordQueuedDelta(ctx, r.queueName, jobName, -1)
+		r.metrics.recordQueuedDelta(ctx, r.queueName, jobName, -1)
 	}
 }
 
@@ -452,5 +464,5 @@ func (r *Worker[T]) deleteMessage(ctx context.Context, messageID queue.ID, jobNa
 		r.log.Errorw("Error deleting job from queue, it will be retried", "error", err)
 		return
 	}
-	recordQueuedDelta(ctx, r.queueName, jobName, -1)
+	r.metrics.recordQueuedDelta(ctx, r.queueName, jobName, -1)
 }

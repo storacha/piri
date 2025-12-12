@@ -10,6 +10,7 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/storacha/piri/lib/jobqueue/logger"
+	"github.com/storacha/piri/pkg/telemetry"
 
 	"github.com/storacha/piri/lib/jobqueue/dedup"
 	"github.com/storacha/piri/lib/jobqueue/queue"
@@ -35,6 +36,7 @@ type Config struct {
 	ExtendDelay   time.Duration
 	queueProvider QueueProvider
 	isDedupQueue  bool
+	Telemetry     *telemetry.Telemetry
 }
 type Option func(c *Config) error
 
@@ -81,6 +83,14 @@ func WithExtendDelay(extendDelay time.Duration) Option {
 			return errors.New("extend delay cannot be 0")
 		}
 		c.ExtendDelay = extendDelay
+		return nil
+	}
+}
+
+// WithTelemetry sets the telemetry instance used to create metrics for job processing.
+func WithTelemetry(tel *telemetry.Telemetry) Option {
+	return func(c *Config) error {
+		c.Telemetry = tel
 		return nil
 	}
 }
@@ -235,7 +245,13 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 	}
 
 	// instantiate worker which consumes from queue
-	w := worker.New[T](q, ser, worker.WithLog(c.Logger), worker.WithLimit(int(c.MaxWorkers)), worker.WithExtend(c.ExtendDelay), worker.WithQueueName(name))
+	w := worker.New[T](q, ser,
+		worker.WithLog(c.Logger),
+		worker.WithLimit(int(c.MaxWorkers)),
+		worker.WithExtend(c.ExtendDelay),
+		worker.WithQueueName(name),
+		worker.WithTelemetry(c.Telemetry),
+	)
 
 	return &JobQueue[T]{
 		queue:  q,
