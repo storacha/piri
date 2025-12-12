@@ -12,8 +12,7 @@
 
     const icon = document.createElement("img");
     icon.className = "env-picker__icon";
-    icon.src = "/images/icons/globe.svg";
-    
+    icon.src = "/piri/images/icons/globe.svg";
 
     const label = document.createElement("span");
     label.className = "env-picker__label";
