@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"regexp"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -147,10 +146,6 @@ func adjustNextProveAt(nextProveAt int64, minRequiredEpoch int64, provingPeriod 
 	return adjusted
 }
 
-// Matches errors like:
-// InvalidChallengeEpoch(DataSetId=4476, MinAllowed=3275065, MaxAllowed=3275085, Actual=3274825)
-var invalidChallengeEpochRe = regexp.MustCompile(`InvalidChallengeEpoch\(DataSetId=\d+, MinAllowed=(\d+), MaxAllowed=(\d+), Actual=(\d+)\)`)
-
 func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	ctx := context.Background()
 	// Select the proof set where challenge_request_task_id equals taskID and prove_at_epoch is not NULL
@@ -200,11 +195,11 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	windowStart := nextProveAt.Int64()
 	windowEnd := windowStart + challengeWindow
 
-	// If the chain height + finality already pushes us beyond the reported window end,
-	// the service contract will still insist on the current window and will reject a future epoch.
-	// Defer sending until the next window by updating prove_at_epoch and clearing the task marker
-	// so the scheduler can retry once the chain height reaches that window.
 	if minEpoch.Int64() > windowEnd {
+		// If the chain height + finality already pushes us beyond the reported window end,
+		// the service contract will still insist on the current window and will reject a future epoch.
+		// Defer sending until the next window by updating prove_at_epoch and clearing the task marker
+		// so the scheduler can retry once the chain height reaches that window.
 		adjusted := adjustNextProveAt(windowStart, minEpoch.Int64(), provingPeriod, challengeWindow)
 		log.Warnw("deferring next proving period until next window",
 			"proof_set_id", proofSetID,
@@ -303,6 +298,10 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 				adjusted = adjustNextProveAt(maxAllowed+provingPeriod, minEpoch.Int64(), provingPeriod, challengeWindow)
 			}
 
+			// The service contract is authoritative about the valid window; when it disagrees with what
+			// NextPDPChallengeWindowStart handed us, the only reliable source of the current [min,max] is
+			// this revert. We rewrite prove_at_epoch to that window (or the next one) and clear the task
+			// so the scheduler can resubmit with a contract-accepted epoch instead of looping on reverts.
 			log.Warnw("deferring after InvalidChallengeEpoch revert",
 				"proof_set_id", proofSetID,
 				"min_allowed", minAllowed,
