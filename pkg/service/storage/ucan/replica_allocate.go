@@ -36,7 +36,7 @@ type ReplicaAllocateService interface {
 	Replicator() replicator.Replicator
 }
 
-func ReplicaAllocate(storageService ReplicaAllocateService) server.Option {
+func WithReplicaAllocateMethod(storageService ReplicaAllocateService) server.Option {
 	return server.WithServiceMethod(
 		replica.AllocateAbility,
 		server.Provide(

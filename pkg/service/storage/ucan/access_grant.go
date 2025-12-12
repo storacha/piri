@@ -35,7 +35,7 @@ type AccessGrantService interface {
 	UploadConnection() client.Connection
 }
 
-func AccessGrant(service AccessGrantService) server.Option {
+func WithAccessGrantMethod(service AccessGrantService) server.Option {
 	return server.WithServiceMethod(
 		access.GrantAbility,
 		server.Provide(

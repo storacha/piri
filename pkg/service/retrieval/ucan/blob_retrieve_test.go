@@ -162,7 +162,7 @@ func TestBlobRetrieve(t *testing.T) {
 			}
 
 			service := blobRetrievalService{testutil.Service, blobs}
-			server, err := retrieval.NewServer(testutil.Service, BlobRetrieve(&service))
+			server, err := retrieval.NewServer(testutil.Service, WithBlobRetrieveMethod(&service))
 			require.NoError(t, err)
 
 			inv, err := invocation.Invoke(

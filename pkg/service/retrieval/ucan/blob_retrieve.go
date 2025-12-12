@@ -27,7 +27,7 @@ type BlobRetrievalService interface {
 	Blobs() blobstore.BlobGetter
 }
 
-func BlobRetrieve(service BlobRetrievalService) retrieval.Option {
+func WithBlobRetrieveMethod(service BlobRetrievalService) retrieval.Option {
 	return retrieval.WithServiceMethod(
 		blob.RetrieveAbility,
 		retrieval.Provide(

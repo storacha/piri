@@ -25,7 +25,7 @@ type BlobAcceptService interface {
 	Claims() claims.Claims
 }
 
-func BlobAccept(storageService BlobAcceptService) server.Option {
+func WithBlobAcceptMethod(storageService BlobAcceptService) server.Option {
 	return server.WithServiceMethod(
 		blob.AcceptAbility,
 		server.Provide(
