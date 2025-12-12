@@ -10,26 +10,69 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
+	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/types"
+	"gorm.io/gorm/clause"
 )
 
 func (p *PDPService) CalculateCommP(ctx context.Context, blob multihash.Multihash) (types.CalculateCommPResponse, error) {
-	readObj, err := p.pieceReader.Read(ctx, blob)
+	key := blob.String()
+
+	// use singleflight to prevent duplicate commp calculations
+	v, err, _ := p.commPGroup.Do(key, func() (interface{}, error) {
+		// 1. check if we have already calculated commp for this piece
+		var existing models.PDPPieceMHToCommp
+		if err := p.db.WithContext(ctx).First(&existing, "mhash = ?", blob).Error; err == nil {
+			pieceCID, err := cid.Parse(existing.Commp)
+			if err != nil {
+				return types.CalculateCommPResponse{}, fmt.Errorf("failed to parse existing commp cid %s: %w", existing.Commp, err)
+			}
+			treeHeight, _, err := commcid.PayloadSizeToV1TreeHeightAndPadding(uint64(existing.Size))
+			if err != nil {
+				return types.CalculateCommPResponse{}, err
+			}
+			return types.CalculateCommPResponse{
+				PieceCID:   pieceCID,
+				RawSize:    int64(existing.Size),
+				PaddedSize: int64(32) << treeHeight,
+			}, nil
+		}
+		// 2. calculate commp since we don't have it yet
+		readObj, err := p.pieceReader.Read(ctx, blob)
+		if err != nil {
+			return types.CalculateCommPResponse{}, err
+		}
+		defer readObj.Data.Close()
+
+		pieceCID, paddedSize, err := doCommp(blob, readObj.Data, uint64(readObj.Size))
+		if err != nil {
+			return types.CalculateCommPResponse{}, err
+		}
+
+		// 3. insert into pdp_piece_mh_to_commp to avoid recalculation
+		if pieceCID.Hash().HexString() != blob.HexString() {
+			mhToCommp := models.PDPPieceMHToCommp{
+				Mhash: blob,
+				Size:  int64(readObj.Size),
+				Commp: pieceCID.String(),
+			}
+			if err := p.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&mhToCommp).Error; err != nil {
+				return types.CalculateCommPResponse{}, fmt.Errorf("failed to insert into %s: %w", mhToCommp.TableName(), err)
+			}
+		}
+
+		return types.CalculateCommPResponse{
+			PieceCID:   pieceCID,
+			RawSize:    readObj.Size,
+			PaddedSize: int64(paddedSize),
+		}, nil
+	})
+
 	if err != nil {
 		return types.CalculateCommPResponse{}, err
 	}
-	defer readObj.Data.Close()
 
-	pieceCID, paddedSize, err := doCommp(blob, readObj.Data, uint64(readObj.Size))
-	if err != nil {
-		return types.CalculateCommPResponse{}, err
-	}
-
-	return types.CalculateCommPResponse{
-		PieceCID:   pieceCID,
-		RawSize:    readObj.Size,
-		PaddedSize: int64(paddedSize),
-	}, nil
+	return v.(types.CalculateCommPResponse), nil
 }
 
 func doCommp(blob multihash.Multihash, data io.Reader, size uint64) (cid.Cid, uint64, error) {

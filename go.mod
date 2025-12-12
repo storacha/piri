@@ -88,6 +88,7 @@ require (
 	golang.org/x/sync v0.16.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	gorm.io/datatypes v1.2.5
+	gorm.io/driver/sqlite v1.5.7
 	gorm.io/gorm v1.26.1
 	modernc.org/sqlite v1.23.1
 )
@@ -222,6 +223,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
@@ -316,7 +318,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
 	gorm.io/driver/postgres v1.5.7 // indirect
-	gorm.io/driver/sqlite v1.5.7 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 	modernc.org/libc v1.22.5 // indirect
 	modernc.org/mathutil v1.5.0 // indirect
