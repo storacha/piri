@@ -25,8 +25,6 @@ Follow these guides in order to set up Piri:
 4. **[TLS Configuration](https://storacha.github.io/piri/setup/tls-termination)** - Set up HTTPS for your domains
 5. **[Server Setup](https://storacha.github.io/piri/setup/piri-server)** - Deploy the Piri server
 
-> **Note:** Using Curio? See [Filecoin's PDP documentation](https://docs.filecoin.io/storage-providers/pdp/install-and-run-pdp) for setup instructions. The Piri UCAN server can connect to Curio as an alternative to the Piri PDP server.
-
 ### Quick Links
 
 - **New to Piri?** Start with the [Getting Started Guide](https://storacha.github.io/piri/)
