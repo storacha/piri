@@ -30,6 +30,7 @@ import (
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/receiptstore"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 type StorageService struct {
@@ -263,6 +264,7 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 		c.replicatorDB,
 		&serializer.JSON[*replicahandler.TransferRequest]{},
 		jobqueue.WithLogger(log.With("queue", "replication")),
+		jobqueue.WithTelemetry(telemetry.Global()),
 		jobqueue.WithMaxRetries(10),
 		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
 	)
@@ -271,7 +273,8 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 	}
 
 	// replicator does not require a PDP service, so we pass nil.
-	repl, err := replicator.New(id, nil, blobs, claims, receiptStore, uploadServiceConn, replicationQueue)
+	repl, err := replicator.New(id, nil, blobs, claims, receiptStore, uploadServiceConn, replicationQueue,
+		replicator.WithMetrics(replicahandler.NewMetrics(telemetry.Global())))
 	if err != nil {
 		return nil, fmt.Errorf("creating replicator service: %w", err)
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/storacha/piri/pkg/service/replicator"
 	replicahandler "github.com/storacha/piri/pkg/service/storage/handlers/replica"
 	"github.com/storacha/piri/pkg/store/receiptstore"
+	"github.com/storacha/piri/pkg/telemetry"
 )
 
 var log = logging.Logger("replicator")
@@ -48,6 +49,7 @@ func ProvideReplicationQueue(lc fx.Lifecycle, params QueueParams) (*jobqueue.Job
 		params.DB,
 		&serializer.JSON[*replicahandler.TransferRequest]{},
 		jobqueue.WithLogger(log.With("queue", "replication")),
+		jobqueue.WithTelemetry(telemetry.Global()),
 		jobqueue.WithMaxRetries(params.Config.MaxRetries),
 		jobqueue.WithMaxWorkers(params.Config.MaxWorkers),
 		jobqueue.WithMaxTimeout(params.Config.MaxTimeout),
@@ -91,6 +93,7 @@ func New(params Params) (*replicator.Service, error) {
 		params.ReceiptStore,
 		params.Config.UCANService.Services.Upload.Connection,
 		params.Queue,
+		replicator.WithMetrics(replicahandler.NewMetrics(telemetry.Global())),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("new replicator: %w", err)

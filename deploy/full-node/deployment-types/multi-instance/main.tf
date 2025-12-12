@@ -55,7 +55,7 @@ module "piri_instances" {
   service_pem_content     = lookup(each.value, "service_pem_content", "")
   wallet_hex_content      = lookup(each.value, "wallet_hex_content", "")
   operator_email          = each.value.operator_email
-  use_letsencrypt_staging = var.environment != "production" && var.environment != "prod" && var.environment != "forge-prod"
+  use_letsencrypt_staging = false #var.environment != "production" && var.environment != "prod" && var.environment !="forge-prod"
 
   tags = {
     Owner = var.owner

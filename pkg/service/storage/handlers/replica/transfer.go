@@ -37,13 +37,14 @@ import (
 	"github.com/storacha/go-ucanto/validator"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/storacha/piri/pkg/telemetry"
+
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
 	blobhandler "github.com/storacha/piri/pkg/service/storage/handlers/blob"
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/receiptstore"
-	"github.com/storacha/piri/pkg/telemetry"
 )
 
 var log = logging.Logger("storage/handlers/replica")
@@ -179,7 +180,7 @@ func (t *TransferRequest) UnmarshalJSON(b []byte) error {
 //
 // Both paths end with sending the receipt to the upload service, which confirms
 // successful replication to the requesting node.
-func Transfer(ctx context.Context, service TransferService, request *TransferRequest) (err error) {
+func Transfer(ctx context.Context, service TransferService, request *TransferRequest, metrics *Metrics) (err error) {
 	var (
 		rcpt  receipt.AnyReceipt
 		forks []fx.Effect
@@ -187,8 +188,8 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 
 	sinkAttrVal := sinkLabel(request.Sink)
 	var timerCtx *telemetry.TimedContext
-	if transferDurationTimer != nil {
-		timerCtx = transferDurationTimer.WithAttributes(telemetry.StringAttr("sink", sinkAttrVal)).Start(ctx)
+	if metrics != nil {
+		timerCtx = metrics.startDuration(ctx, sinkAttrVal)
 	}
 	defer func() {
 		if timerCtx != nil {
@@ -198,8 +199,8 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 			}
 			timerCtx.End(attribute.String("status", status))
 		}
-		if err != nil && transferFailureCounter != nil {
-			transferFailureCounter.Inc(ctx, telemetry.StringAttr("sink", sinkAttrVal))
+		if err != nil && metrics != nil {
+			metrics.recordFailure(ctx, sinkAttrVal)
 		}
 	}()
 

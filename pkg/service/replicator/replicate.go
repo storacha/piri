@@ -21,6 +21,7 @@ type Replicator interface {
 type Service struct {
 	queue   *jobqueue.JobQueue[*replicahandler.TransferRequest]
 	adapter *adapter
+	metrics *replicahandler.Metrics
 }
 
 type adapter struct {
@@ -30,6 +31,14 @@ type adapter struct {
 	claims     claims.Claims
 	receipts   receiptstore.ReceiptStore
 	uploadConn client.Connection
+}
+
+type Option func(*Service)
+
+func WithMetrics(metrics *replicahandler.Metrics) Option {
+	return func(s *Service) {
+		s.metrics = metrics
+	}
 }
 
 func (a adapter) ID() principal.Signer                { return a.id }
@@ -47,8 +56,9 @@ func New(
 	rstore receiptstore.ReceiptStore,
 	uploadConn client.Connection,
 	queue *jobqueue.JobQueue[*replicahandler.TransferRequest],
+	opts ...Option,
 ) (*Service, error) {
-	return &Service{
+	svc := &Service{
 		queue: queue,
 		adapter: &adapter{
 			id:         id,
@@ -58,7 +68,16 @@ func New(
 			receipts:   rstore,
 			uploadConn: uploadConn,
 		},
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(svc)
+	}
+	if svc.metrics == nil {
+		svc.metrics = replicahandler.NewMetrics(nil)
+	}
+
+	return svc, nil
 }
 
 const TransferTaskName = "transfer-task"
@@ -69,7 +88,7 @@ func (r *Service) Replicate(ctx context.Context, task *replicahandler.TransferRe
 
 func (r *Service) RegisterTransferTask(queue *jobqueue.JobQueue[*replicahandler.TransferRequest]) error {
 	return queue.Register(TransferTaskName, func(ctx context.Context, request *replicahandler.TransferRequest) error {
-		return replicahandler.Transfer(ctx, r.adapter, request)
+		return replicahandler.Transfer(ctx, r.adapter, request, r.metrics)
 	}, jobqueue.WithOnFailure(func(ctx context.Context, msg *replicahandler.TransferRequest, err error) error {
 		return replicahandler.SendFailureReceipt(ctx, r.adapter, msg, err)
 	}))
