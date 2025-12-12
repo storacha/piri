@@ -33,7 +33,7 @@ type SpaceContentRetrievalService interface {
 	Blobs() blobstore.BlobGetter
 }
 
-func SpaceContentRetrieve(retrievalService SpaceContentRetrievalService) retrieval.Option {
+func WithSpaceContentRetrieveMethod(retrievalService SpaceContentRetrievalService) retrieval.Option {
 	return retrieval.WithServiceMethod(
 		content.RetrieveAbility,
 		retrieval.Provide(

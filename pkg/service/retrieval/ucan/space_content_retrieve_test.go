@@ -318,7 +318,7 @@ func TestSpaceContentRetrieve(t *testing.T) {
 			}
 
 			service := retrievalService{allocations, blobs}
-			server, err := retrieval.NewServer(testutil.Service, SpaceContentRetrieve(&service))
+			server, err := retrieval.NewServer(testutil.Service, WithSpaceContentRetrieveMethod(&service))
 			require.NoError(t, err)
 
 			inv, err := invocation.Invoke(
