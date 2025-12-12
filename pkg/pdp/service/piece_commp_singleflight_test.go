@@ -3,11 +3,13 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	commp "github.com/filecoin-project/go-fil-commp-hashhash"
@@ -57,9 +59,11 @@ func (m *mockPieceReader) Has(ctx context.Context, blob multihash.Multihash) (bo
 }
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:memdb-%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
 	require.NoError(t, err)
-
+	sqlDb, err := db.DB()
+	require.NoError(t, err)
+	sqlDb.SetMaxOpenConns(1)
 	err = db.AutoMigrate(&models.PDPPieceMHToCommp{})
 	require.NoError(t, err)
 
