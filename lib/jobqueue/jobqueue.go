@@ -235,7 +235,7 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 	}
 
 	// instantiate worker which consumes from queue
-	w := worker.New[T](q, ser, worker.WithLog(c.Logger), worker.WithLimit(int(c.MaxWorkers)), worker.WithExtend(c.ExtendDelay))
+	w := worker.New[T](q, ser, worker.WithLog(c.Logger), worker.WithLimit(int(c.MaxWorkers)), worker.WithExtend(c.ExtendDelay), worker.WithQueueName(name))
 
 	return &JobQueue[T]{
 		queue:  q,
