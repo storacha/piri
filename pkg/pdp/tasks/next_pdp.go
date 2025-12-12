@@ -12,6 +12,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/storacha/filecoin-services/go/evmerrors"
+
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
@@ -190,6 +192,46 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	minEpoch := big.NewInt(int64(ts.Height()))
 	minEpoch.Add(minEpoch, challengeFinality)
 
+	windowStart := nextProveAt.Int64()
+	windowEnd := windowStart + challengeWindow
+
+	if minEpoch.Int64() > windowEnd {
+		// If the chain height + finality already pushes us beyond the reported window end,
+		// the service contract will still insist on the current window and will reject a future epoch.
+		// Defer sending until the next window by updating prove_at_epoch and clearing the task marker
+		// so the scheduler can retry once the chain height reaches that window.
+		adjusted := adjustNextProveAt(windowStart, minEpoch.Int64(), provingPeriod, challengeWindow)
+		log.Warnw("deferring next proving period until next window",
+			"proof_set_id", proofSetID,
+			"original_epoch", windowStart,
+			"adjusted_epoch", adjusted,
+			"current_height", ts.Height(),
+			"challenge_window", challengeWindow,
+			"proving_period", provingPeriod,
+		)
+
+		if err := n.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			result := tx.Model(&models.PDPProofSet{}).
+				Where("id = ?", proofSetID).
+				Updates(map[string]interface{}{
+					"prove_at_epoch":            uint64(adjusted),
+					"challenge_request_task_id": nil,
+				})
+			if result.Error != nil {
+				return fmt.Errorf("failed to defer pdp_proof_sets update: %w", result.Error)
+			}
+			if result.RowsAffected == 0 {
+				return fmt.Errorf("pdp_proof_sets defer update affected 0 rows")
+			}
+			return nil
+		}); err != nil {
+			return false, err
+		}
+
+		// Stop this task; a new one will be scheduled when the chain height reaches the next window.
+		return true, nil
+	}
+
 	if nextProveAt.Cmp(minEpoch) < 0 {
 		// The condition only runs when the listener contract hands us a challenge window start that is already behind
 		// the current epoch + challengeFinality. That happens when a proving period was missed, usually from:
@@ -243,6 +285,52 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 		"next_prove_at", nextProveAt, "current_height", ts.Height())
 	txHash, err := n.sender.Send(ctx, fromAddress, txEth, reason)
 	if err != nil {
+		var ice *evmerrors.InvalidChallengeEpoch
+		if errors.As(err, &ice) {
+			minAllowed := ice.MinAllowed.Int64()
+			maxAllowed := ice.MaxAllowed.Int64()
+			adjusted := minAllowed
+			if minEpoch.Int64() > adjusted {
+				adjusted = adjustNextProveAt(adjusted, minEpoch.Int64(), provingPeriod, challengeWindow)
+			}
+			if adjusted > maxAllowed {
+				// move to the next window after the one reported in the revert
+				adjusted = adjustNextProveAt(maxAllowed+provingPeriod, minEpoch.Int64(), provingPeriod, challengeWindow)
+			}
+
+			// The service contract is authoritative about the valid window; when it disagrees with what
+			// NextPDPChallengeWindowStart handed us, the only reliable source of the current [min,max] is
+			// this revert. We rewrite prove_at_epoch to that window (or the next one) and clear the task
+			// so the scheduler can resubmit with a contract-accepted epoch instead of looping on reverts.
+			log.Warnw("deferring after InvalidChallengeEpoch revert",
+				"proof_set_id", proofSetID,
+				"min_allowed", minAllowed,
+				"max_allowed", maxAllowed,
+				"min_required", minEpoch.Int64(),
+				"adjusted_epoch", adjusted,
+			)
+
+			if err := n.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+				result := tx.Model(&models.PDPProofSet{}).
+					Where("id = ?", proofSetID).
+					Updates(map[string]interface{}{
+						"prove_at_epoch":            uint64(adjusted),
+						"challenge_request_task_id": nil,
+					})
+				if result.Error != nil {
+					return fmt.Errorf("failed to defer after InvalidChallengeEpoch: %w", result.Error)
+				}
+				if result.RowsAffected == 0 {
+					return fmt.Errorf("pdp_proof_sets defer update affected 0 rows")
+				}
+				return nil
+			}); err != nil {
+				return false, err
+			}
+
+			// End this task; scheduler will reschedule with the corrected epoch.
+			return true, nil
+		}
 		return false, fmt.Errorf("failed to send transaction: %w", err)
 	}
 
