@@ -137,6 +137,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	if err != nil {
 		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
+	log.Infow("NextPDPChallengeWindowStart: %s", nextProveAt.String())
 
 	// Get the current tipset to reason about scheduling
 	ts, err := n.fil.ChainHead(ctx)
