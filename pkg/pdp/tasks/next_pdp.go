@@ -67,7 +67,7 @@ func NewNextProvingPeriodTask(
 			Model(&models.PDPProofSet{}).
 			Select("id as proof_set_id").
 			Where("challenge_request_task_id IS NULL").
-			Where("(prove_at_epoch + challenge_window) <= ?", apply.Height()).
+			Where("prove_at_epoch <= ?", apply.Height()).
 			Find(&toCallNext).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("failed to select proof sets needing nextProvingPeriod: %w", err)
