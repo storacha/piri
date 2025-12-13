@@ -32,6 +32,10 @@ type NextProvingPeriodTask struct {
 	fil ChainAPI
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
+
+	// cached config
+	pdpConfig         smartcontracts.PDPConfig
+	challengeFinality *big.Int
 }
 
 func NewNextProvingPeriodTask(
@@ -43,6 +47,17 @@ func NewNextProvingPeriodTask(
 	verifier smartcontracts.Verifier,
 	service smartcontracts.Service,
 ) (*NextProvingPeriodTask, error) {
+	// Fetch static on-chain config once up front
+	ctx := context.Background()
+	pdpConfig, err := service.PDPConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch PDP config: %w", err)
+	}
+	challengeFinality, err := verifier.GetChallengeFinality(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch challengeFinality: %w", err)
+	}
+
 	n := &NextProvingPeriodTask{
 		db:        db,
 		ethClient: ethClient,
@@ -50,6 +65,8 @@ func NewNextProvingPeriodTask(
 		fil:       api,
 		verifier:  verifier,
 		service:   service,
+		pdpConfig: pdpConfig,
+		challengeFinality: challengeFinality,
 	}
 
 	if err := chainSched.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
@@ -121,39 +138,24 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
 
-	// Fetch on-chain configuration
-	pdpConfig, err := n.service.PDPConfig(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to fetch PDP config: %w", err)
-	}
-	challengeFinality, err := n.verifier.GetChallengeFinality(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to fetch challengeFinality: %w", err)
-	}
-
 	// Get the current tipset to reason about scheduling
 	ts, err := n.fil.ChainHead(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to get chain head: %w", err)
 	}
 
-	// If we're already in/after the returned window, schedule for the next proving period.
 	windowStart := nextProveAt.Uint64()
-	if uint64(ts.Height()) >= windowStart {
-		windowStart += pdpConfig.MaxProvingPeriod
-	}
+	challengeWindow := n.pdpConfig.ChallengeWindow.Uint64()
+	minAllowed := uint64(ts.Height()) + n.challengeFinality.Uint64()
 
-	// Respect challenge finality: the epoch we send must be at least challengeFinalityEpochs ahead of head.
-	challengeEpoch := windowStart
-	minAllowed := uint64(ts.Height()) + challengeFinality.Uint64()
-	if minAllowed > challengeEpoch {
-		challengeEpoch = minAllowed
+	// Advance whole proving periods until the window end is at/after minAllowed.
+	for minAllowed > windowStart+challengeWindow {
+		windowStart += n.pdpConfig.MaxProvingPeriod
 	}
-
-	// It must also remain inside the window [windowStart, windowStart+challengeWindowSizeEpochs].
-	windowEnd := windowStart + pdpConfig.ChallengeWindow.Uint64()
-	if challengeEpoch > windowEnd {
-		return false, fmt.Errorf("calculated challenge epoch %d exceeds allowed window [%d,%d]", challengeEpoch, windowStart, windowEnd)
+	// Pick the earliest epoch that satisfies both constraints: inside the window and >= minAllowed.
+	challengeEpoch := minAllowed
+	if challengeEpoch < windowStart {
+		challengeEpoch = windowStart
 	}
 
 	// Prepare the transaction data
@@ -185,7 +187,8 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	// Send the transaction
 	reason := "pdp-proving-period"
 	log.Infow("Sending next proving period transaction", "task_id", taskID, "proof_set_id", proofSetID,
-		"next_prove_at", windowStart, "challenge_epoch", challengeEpoch, "current_height", ts.Height())
+		"next_prove_at", windowStart, "challenge_epoch", challengeEpoch, "current_height", ts.Height(),
+		"challenge_window", challengeWindow, "proving_period", n.pdpConfig.MaxProvingPeriod, "challenge_finality", n.challengeFinality.Uint64())
 	txHash, err := n.sender.Send(ctx, fromAddress, txEth, reason)
 	if err != nil {
 		return false, fmt.Errorf("failed to send transaction: %w", err)
