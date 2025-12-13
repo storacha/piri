@@ -1,107 +1,95 @@
 package tasks
 
 import (
+	"math/big"
 	"testing"
 )
 
 func TestAdjustNextProveAt(t *testing.T) {
 	tests := []struct {
-		name            string
-		nextProveAt     int64
-		currentHeight   int64
-		finality        int64
-		provingPeriod   int64
-		challengeWindow int64
-		expected        int64
+		name              string
+		currentHeight     int64
+		challengeFinality *big.Int
+		challengeWindow   *big.Int
+		expected          int64
+		description       string
 	}{
 		{
-			name:            "stale epoch corrected into same window",
-			nextProveAt:     900,
-			currentHeight:   1000,
-			finality:        5,
-			provingPeriod:   60,
-			challengeWindow: 20,
-			expected:        1020,
+			name:              "basic window boundary calculation",
+			currentHeight:     1000,
+			challengeFinality: big.NewInt(5),
+			challengeWindow:   big.NewInt(8),
+			expected:          1009, // minRequired=1005, next window=1008, result=1009 (1008+1)
+			description:       "Should schedule 1 epoch after next window boundary",
 		},
 		{
-			name:            "skip periods to meet requirement",
-			nextProveAt:     3272185,
-			currentHeight:   3272163,
-			finality:        120,
-			provingPeriod:   240,
-			challengeWindow: 20,
-			expected:        3272425,
+			name:              "exact window boundary case",
+			currentHeight:     2000,
+			challengeFinality: big.NewInt(2),
+			challengeWindow:   big.NewInt(30),
+			expected:          2011, // minRequired=2002, next window=2010, result=2011 (2010+1)
+			description:       "When minRequired doesn't fall on boundary, find next window",
 		},
 		{
-			name:            "handles tiny window clamp to end",
-			nextProveAt:     5000,
-			currentHeight:   4980,
-			finality:        10,
-			provingPeriod:   30,
-			challengeWindow: 5,
-			expected:        5000,
+			name:              "exact scenario from logs",
+			currentHeight:     2685164,
+			challengeFinality: big.NewInt(2),
+			challengeWindow:   big.NewInt(30),
+			expected:          2685181, // minRequired=2685166, next window=2685180, result=2685181 (2685180+1)
+			description:       "Real scenario should produce predictable window placement",
 		},
 		{
-			name:            "clamps inside current window to meet finality",
-			nextProveAt:     1000,
-			currentHeight:   1010,
-			finality:        15,
-			provingPeriod:   100,
-			challengeWindow: 50,
-			expected:        1025,
+			name:              "falls exactly on window boundary",
+			currentHeight:     100,
+			challengeFinality: big.NewInt(12), // 100+12=112, which is 7*16=112 exactly
+			challengeWindow:   big.NewInt(16),
+			expected:          129, // minRequired=112 (window boundary), next window=128, result=129 (128+1)
+			description:       "When minRequired falls exactly on boundary, move to next window",
 		},
 		{
-			name:            "metadata missing falls back to min required",
-			nextProveAt:     100,
-			currentHeight:   200,
-			finality:        5,
-			provingPeriod:   0,
-			challengeWindow: 0,
-			expected:        205,
+			name:              "smart contract realistic values",
+			currentHeight:     1000000,
+			challengeFinality: big.NewInt(2),  // MinConfidence from watcher_eth.go
+			challengeWindow:   big.NewInt(30), // Common challenge window from tests
+			expected:          1000021,        // minRequired=1000002, windowStart=999990+30=1000020, result=1000021 (1000020+1)
+			description:       "Realistic smart contract values with challenge window 30 and finality 2",
 		},
 		{
-			name:            "already future epoch left unchanged",
-			nextProveAt:     4000,
-			currentHeight:   3900,
-			finality:        20,
-			provingPeriod:   200,
-			challengeWindow: 50,
-			expected:        4000,
+			name:              "proving period scenario",
+			currentHeight:     500000,
+			challengeFinality: big.NewInt(2),
+			challengeWindow:   big.NewInt(60), // As requested - proving period of 60
+			expected:          500041,         // minRequired=500002, next window=500040, result=500041 (500040+1)
+			description:       "Scenario with proving period/challenge window of 60 epochs",
 		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			minRequired := tt.currentHeight + tt.finality
-			result := adjustNextProveAt(
-				tt.nextProveAt,
-				minRequired,
-				tt.provingPeriod,
-				tt.challengeWindow,
-			)
+			result := adjustNextProveAt(tt.currentHeight, tt.challengeFinality, tt.challengeWindow)
+			resultInt := result.Int64()
 
-			got := result
-			if got != tt.expected {
-				t.Fatalf("adjustNextProveAt() = %d, expected %d", got, tt.expected)
+			// Check exact expected value
+			if resultInt != tt.expected {
+				t.Errorf("adjustNextProveAt() = %d, expected %d", resultInt, tt.expected)
 			}
 
-			if got < minRequired {
-				t.Fatalf("result %d should be >= minRequired %d", got, minRequired)
+			// Verify it's properly in the future (past challenge finality requirement)
+			minRequired := tt.currentHeight + tt.challengeFinality.Int64()
+			if resultInt <= minRequired {
+				t.Errorf("adjustNextProveAt() = %d, should be > %d (current + finality)",
+					resultInt, minRequired)
 			}
 
-			if tt.provingPeriod > 0 {
-				windowStart := tt.nextProveAt
-				windowEnd := windowStart + tt.challengeWindow
-				for windowEnd < minRequired {
-					windowStart += tt.provingPeriod
-					windowEnd += tt.provingPeriod
-				}
-				if got < windowStart || got > windowEnd {
-					t.Fatalf("result %d not within window [%d, %d]", got, windowStart, windowEnd)
-				}
+			// Verify it's exactly 1 epoch after a window boundary
+			windowSize := tt.challengeWindow.Int64()
+			if (resultInt-1)%windowSize != 0 {
+				t.Errorf("adjustNextProveAt() = %d, should be 1 epoch after window boundary (multiple of %d)",
+					resultInt, windowSize)
 			}
+
+			t.Logf("%s: currentHeight=%d -> nextProveAt=%d (1 epoch after window boundary)",
+				tt.description, tt.currentHeight, resultInt)
 		})
 	}
 }
