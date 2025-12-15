@@ -117,6 +117,7 @@ func (p *PDPService) AddRoots(ctx context.Context, id uint64, request []types.Ro
 			log.Errorw("failed to add roots", "id", id, "request", request, "err", retErr)
 			span.RecordError(retErr)
 			span.SetStatus(codes.Error, "failed to add roots")
+			PDPAddPieceFailureCounter.Inc(ctx)
 		} else {
 			span.SetAttributes(attribute.Stringer("tx", res))
 			log.Infow("added roots", "id", id, "request", request, "response", res)
