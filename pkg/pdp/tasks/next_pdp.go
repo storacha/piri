@@ -101,36 +101,6 @@ func NewNextProvingPeriodTask(
 	return n, nil
 }
 
-// adjustNextProveAt fixes the "Next challenge epoch must fall within the next challenge window" contract error
-// by calculating a proper next_prove_at epoch that's guaranteed to be valid.
-//
-// The contract requires:
-// 1. next_prove_at >= currentHeight + challengeFinality (enough time for tx processing)
-// 2. next_prove_at must fall within a challenge window boundary (windows are at multiples of challengeWindow)
-//
-// Algorithm: Find the first challenge window that starts after (currentHeight + challengeFinality),
-// then schedule 1 epoch after that window starts. This is deterministic and always contract-compliant.
-//
-// Example: currentHeight=1000, finality=2, window=30
-// → minRequired=1002, nextWindow=1020, result=1021
-func adjustNextProveAt(currentHeight int64, challengeFinality, challengeWindow *big.Int) *big.Int {
-	// Calculate minimum required epoch (current height + challenge finality)
-	minRequiredEpoch := currentHeight + challengeFinality.Int64()
-
-	// Find the challenge window that contains or comes after minRequiredEpoch
-	// Window boundaries are at multiples of challengeWindow: 0, 30, 60, 90, etc.
-	windowNumber := minRequiredEpoch / challengeWindow.Int64()
-	windowStart := windowNumber * challengeWindow.Int64()
-
-	// If minRequiredEpoch falls exactly on a window boundary or we need the next window
-	if windowStart <= minRequiredEpoch {
-		windowStart += challengeWindow.Int64() // Move to next window
-	}
-
-	// Schedule 1 epoch after the window starts for safety
-	return big.NewInt(windowStart + 1)
-}
-
 func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	ctx := context.Background()
 	// Select the proof set where challenge_request_task_id equals taskID and prove_at_epoch is not NULL
