@@ -12,12 +12,11 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/storacha/filecoin-services/go/evmerrors"
+	"github.com/storacha/piri/pkg/pdp/types"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-
-	"github.com/storacha/piri/pkg/pdp/types"
 
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
@@ -86,7 +85,7 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *et
 				if dataErr.ErrorData() != nil {
 					if parsedErr, failure := evmerrors.ParseRevert(dataErr.ErrorData().(string)); failure == nil {
 						log.Errorw("parsed contract revert during gas estimation", "error", parsedErr)
-						return common.Hash{}, types.WrapError(types.KindInvalidInput, parsedErr.Error(), parsedErr)
+						return common.Hash{}, types.NewError(types.KindInvalidInput, parsedErr.Error())
 					} else {
 						log.Warnw("failed to parse revert during gas estimation", "parse_error", failure, "original_error", err)
 					}
