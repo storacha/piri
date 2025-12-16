@@ -57,12 +57,12 @@ type SenderETHPair struct {
 	SendTask *tasks.SendTaskETH
 }
 
-func ProvideSenderETHPair(params SenderETHParams) *SenderETHPair {
-	sender, sendTask := tasks.NewSenderETH(params.Client, params.Wallet, params.DB)
+func ProvideSenderETHPair(params SenderETHParams) (*SenderETHPair, error) {
+	sender, sendTask, err := tasks.NewSenderETH(params.Client, params.Wallet, params.DB)
 	return &SenderETHPair{
 		Sender:   sender,
 		SendTask: sendTask,
-	}
+	}, err
 }
 
 func ProvideSenderFromPair(pair *SenderETHPair) *tasks.SenderETH {

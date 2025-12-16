@@ -9,6 +9,7 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
+
 	"github.com/storacha/piri/lib/jobqueue/logger"
 
 	"github.com/storacha/piri/lib/jobqueue/dedup"
@@ -235,7 +236,15 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 	}
 
 	// instantiate worker which consumes from queue
-	w := worker.New[T](q, ser, worker.WithLog(c.Logger), worker.WithLimit(int(c.MaxWorkers)), worker.WithExtend(c.ExtendDelay))
+	w, err := worker.New[T](q, ser,
+		worker.WithLog(c.Logger),
+		worker.WithLimit(int(c.MaxWorkers)),
+		worker.WithExtend(c.ExtendDelay),
+		worker.WithQueueName(name),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create worker: %w", err)
+	}
 
 	return &JobQueue[T]{
 		queue:  q,

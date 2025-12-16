@@ -10,9 +10,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
+	"go.opentelemetry.io/otel"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/storacha/piri/lib/telemetry"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
@@ -35,6 +37,8 @@ type NextProvingPeriodTask struct {
 	fil ChainAPI
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
+
+	taskFailure *telemetry.Counter
 }
 
 func NewNextProvingPeriodTask(
@@ -46,13 +50,24 @@ func NewNextProvingPeriodTask(
 	verifier smartcontracts.Verifier,
 	service smartcontracts.Service,
 ) (*NextProvingPeriodTask, error) {
+	meter := otel.GetMeterProvider().Meter("github.com/storacha/piri/pkg/pdp/tasks")
+	pdpNextFailureCounter, err := telemetry.NewCounter(
+		meter,
+		"pdp_next_failure",
+		"records failure of next pdp task",
+		"1",
+	)
+	if err != nil {
+		return nil, err
+	}
 	n := &NextProvingPeriodTask{
-		db:        db,
-		ethClient: ethClient,
-		sender:    sender,
-		fil:       api,
-		verifier:  verifier,
-		service:   service,
+		db:          db,
+		ethClient:   ethClient,
+		sender:      sender,
+		fil:         api,
+		verifier:    verifier,
+		service:     service,
+		taskFailure: pdpNextFailureCounter,
 	}
 
 	if err := chainSched.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
@@ -103,6 +118,11 @@ func NewNextProvingPeriodTask(
 
 func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	ctx := context.Background()
+	defer func() {
+		if err != nil {
+			n.taskFailure.Inc(ctx)
+		}
+	}()
 	// Select the proof set where challenge_request_task_id equals taskID and prove_at_epoch is not NULL
 	var pdp models.PDPProofSet
 	err = n.db.WithContext(ctx).

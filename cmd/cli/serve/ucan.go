@@ -28,7 +28,6 @@ import (
 	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/storacha/piri/pkg/telemetry"
 )
 
 var (
@@ -309,15 +308,6 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	}()
 
 	defer storageSvc.Close(ctx)
-
-	telemetry.RecordServerInfo(ctx, "ucan",
-		telemetry.StringAttr("did", id.DID().String()),
-		telemetry.StringAttr("indexing_did", indexingServiceDID.String()),
-		telemetry.StringAttr("indexing_url", indexingServiceURL.String()),
-		telemetry.StringAttr("upload_did", uploadServiceDID.String()),
-		telemetry.StringAttr("upload_url", uploadServiceURL.String()),
-		telemetry.Int64Attr("proof_set", int64(cfg.UCANService.ProofSetID)),
-	)
 
 	errHandler := func(err ucanserver.HandlerExecutionError[any]) {
 		l := log.With("error", err.Error())
