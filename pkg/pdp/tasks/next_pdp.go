@@ -67,6 +67,9 @@ func NewNextProvingPeriodTask(
 		"Epoch at which the next challenge window starts",
 		"1",
 	)
+	if err != nil {
+		return nil, err
+	}
 	n := &NextProvingPeriodTask{
 		db:              db,
 		ethClient:       ethClient,

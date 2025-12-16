@@ -65,12 +65,18 @@ func newMetrics() (*metricsRecorder, error) {
 		"number of jobs that failed permanently",
 		"1",
 	)
+	if err != nil {
+		return nil, err
+	}
 	jobDuration, err := telemetry.NewTimer(
 		meter,
 		"job_duration",
 		"records duration of a jobs runtime",
 		jobDurationBounds,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return &metricsRecorder{
 		activeJobs:        activeJobs,
 		queuedJobs:        queuedJobs,

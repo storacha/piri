@@ -192,6 +192,7 @@ func TestDeadLetterQueue(t *testing.T) {
 			&PassThroughSerializer[[]byte]{},
 			worker.WithLimit(10),
 		)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 		defer cancel()
@@ -278,6 +279,7 @@ func TestDeadLetterQueue(t *testing.T) {
 			&PassThroughSerializer[[]byte]{},
 			worker.WithLimit(10),
 		)
+		require.NoError(t, err)
 
 		var onFailureCalled bool
 

@@ -54,6 +54,9 @@ func NewMetrics() (*Metrics, error) {
 		"durating of replica transfer operation",
 		replicaDurationBounds,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Metrics{
 		failureCounter: failureCounter,
