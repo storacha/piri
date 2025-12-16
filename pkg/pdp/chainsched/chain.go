@@ -9,11 +9,14 @@ import (
 	"github.com/filecoin-project/go-state-types/builtin"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/raulk/clock"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+
+	"github.com/storacha/piri/lib/telemetry"
 )
 
 var log = logging.Logger("scheduler/chain")
@@ -34,6 +37,8 @@ type Scheduler struct {
 	lk        sync.RWMutex
 	started   bool
 	clock     clock.Clock
+
+	epochGauge *telemetry.Int64Gauge
 }
 
 type Option func(*Scheduler)
@@ -44,15 +49,26 @@ func WithClock(clock clock.Clock) Option {
 	}
 }
 
-func New(api NodeAPI, opts ...Option) *Scheduler {
+func New(api NodeAPI, opts ...Option) (*Scheduler, error) {
+	meter := otel.GetMeterProvider().Meter("github.com/storacha/piri/pkg/pdp/chainsched")
+	currentEpoch, err := telemetry.NewInt64Gauge(
+		meter,
+		"chain_current_epoch",
+		"records current epoch of the chain",
+		"1",
+	)
+	if err != nil {
+		return nil, err
+	}
 	s := &Scheduler{
-		api:   api,
-		clock: clock.New(),
+		api:        api,
+		clock:      clock.New(),
+		epochGauge: currentEpoch,
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
-	return s
+	return s, nil
 }
 
 type UpdateFunc func(ctx context.Context, revert, apply *types.TipSet) error
@@ -257,6 +273,7 @@ func (s *Scheduler) update(ctx context.Context, revert, apply *types.TipSet) {
 		log.Error("no new tipset in Scheduler.update")
 		return
 	}
+	s.epochGauge.Record(ctx, int64(apply.Height()))
 
 	s.lk.RLock()
 	callbacksCopy := make([]UpdateFunc, len(s.callbacks))

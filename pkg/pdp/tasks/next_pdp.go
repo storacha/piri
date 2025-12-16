@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -38,7 +39,8 @@ type NextProvingPeriodTask struct {
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
 
-	taskFailure *telemetry.Counter
+	taskFailure     *telemetry.Counter
+	nextWindowGauge *telemetry.Int64Gauge
 }
 
 func NewNextProvingPeriodTask(
@@ -60,14 +62,20 @@ func NewNextProvingPeriodTask(
 	if err != nil {
 		return nil, err
 	}
+	nextChallengeWindowStartEpoch, err := telemetry.NewInt64Gauge(meter,
+		"next_challenge_window_start_epoch",
+		"Epoch at which the next challenge window starts",
+		"1",
+	)
 	n := &NextProvingPeriodTask{
-		db:          db,
-		ethClient:   ethClient,
-		sender:      sender,
-		fil:         api,
-		verifier:    verifier,
-		service:     service,
-		taskFailure: pdpNextFailureCounter,
+		db:              db,
+		ethClient:       ethClient,
+		sender:          sender,
+		fil:             api,
+		verifier:        verifier,
+		service:         service,
+		taskFailure:     pdpNextFailureCounter,
+		nextWindowGauge: nextChallengeWindowStartEpoch,
 	}
 
 	if err := chainSched.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
@@ -143,6 +151,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	if err != nil {
 		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
+	n.nextWindowGauge.Record(ctx, nextProveAt.Int64(), attribute.Int64("proof_set_id", proofSetID))
 
 	// Prepare the transaction data
 	abiData, err := n.verifier.GetABI()

@@ -76,6 +76,36 @@ func (c *UpDownCounter) Inc(ctx context.Context, attrs ...attribute.KeyValue) {
 	c.Add(ctx, 1, attrs...)
 }
 
+type Int64Gauge struct {
+	gauge metric.Int64Gauge
+}
+
+func NewInt64Gauge(meter metric.Meter, name string, description string, unit string) (*Int64Gauge, error) {
+	if name == "" {
+		return nil, fmt.Errorf("gauge name required")
+	}
+	if description == "" {
+		return nil, fmt.Errorf("gauge description required")
+	}
+
+	gauge, err := meter.Int64Gauge(
+		name,
+		metric.WithDescription(description),
+		metric.WithUnit(unit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create counter %s: %w", name, err)
+	}
+
+	return &Int64Gauge{
+		gauge: gauge,
+	}, nil
+}
+
+func (g *Int64Gauge) Record(ctx context.Context, value int64, attrs ...attribute.KeyValue) {
+	g.gauge.Record(ctx, value, metric.WithAttributes(attrs...))
+}
+
 type Timer struct {
 	histogram metric.Float64Histogram
 }

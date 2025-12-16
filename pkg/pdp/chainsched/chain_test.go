@@ -67,7 +67,8 @@ func TestAddHandlerConcurrency(t *testing.T) {
 		head:    makeMockTipSet(100),
 	}
 
-	sched := New(api)
+	sched, err := New(api)
+	require.NoError(t, err)
 
 	// Test concurrent AddHandler calls
 	var wg sync.WaitGroup
@@ -104,7 +105,8 @@ func TestAddHandlerAfterStart(t *testing.T) {
 		head:    makeMockTipSet(100),
 	}
 
-	sched := New(mockAPI)
+	sched, err := New(mockAPI)
+	require.NoError(t, err)
 
 	// Start the scheduler
 	ctx, cancel := context.WithCancel(context.Background())
@@ -116,7 +118,7 @@ func TestAddHandlerAfterStart(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Try to add handler after start
-	err := sched.AddHandler(func(ctx context.Context, revert, apply *types.TipSet) error {
+	err = sched.AddHandler(func(ctx context.Context, revert, apply *types.TipSet) error {
 		return nil
 	})
 
@@ -143,7 +145,8 @@ func TestNotificationChannelResubscription(t *testing.T) {
 		mu:              mu,
 	}
 
-	sched := New(wrappedAPI)
+	sched, err := New(wrappedAPI)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -188,13 +191,14 @@ func TestCallbackExecution(t *testing.T) {
 		head:    makeMockTipSet(100),
 	}
 
-	sched := New(mockAPI)
+	sched, err := New(mockAPI)
+	require.NoError(t, err)
 
 	var callbackMu sync.Mutex
 	callbackCalled := false
 	var receivedRevert, receivedApply *types.TipSet
 
-	err := sched.AddHandler(func(ctx context.Context, revert, apply *types.TipSet) error {
+	err = sched.AddHandler(func(ctx context.Context, revert, apply *types.TipSet) error {
 		callbackMu.Lock()
 		defer callbackMu.Unlock()
 		callbackCalled = true
@@ -256,7 +260,8 @@ func TestContextCancellation(t *testing.T) {
 		head:    makeMockTipSet(100),
 	}
 
-	sched := New(mockAPI)
+	sched, err := New(mockAPI)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -292,13 +297,14 @@ func TestMultipleChanges(t *testing.T) {
 		head:    makeMockTipSet(100),
 	}
 
-	sched := New(mockAPI)
+	sched, err := New(mockAPI)
+	require.NoError(t, err)
 
 	var callbackMu sync.Mutex
 	var callCount int
 	var lastApply *types.TipSet
 
-	err := sched.AddHandler(func(ctx context.Context, revert, apply *types.TipSet) error {
+	err = sched.AddHandler(func(ctx context.Context, revert, apply *types.TipSet) error {
 		callbackMu.Lock()
 		defer callbackMu.Unlock()
 		callCount++
