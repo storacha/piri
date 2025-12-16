@@ -37,8 +37,6 @@ import (
 	"github.com/storacha/go-ucanto/validator"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/storacha/piri/pkg/telemetry"
-
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -186,22 +184,13 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		forks []fx.Effect
 	)
 
-	sinkAttrVal := sinkLabel(request.Sink)
-	var timerCtx *telemetry.TimedContext
-	if metrics != nil {
-		timerCtx = metrics.startDuration(ctx, sinkAttrVal)
-	}
+	stopwatch := metrics.startDuration(sinkLabel(request.Sink))
 	defer func() {
-		if timerCtx != nil {
-			status := "success"
-			if err != nil {
-				status = "failure"
-			}
-			timerCtx.End(attribute.String("status", status))
+		success := true
+		if err != nil {
+			success = false
 		}
-		if err != nil && metrics != nil {
-			metrics.recordFailure(ctx, sinkAttrVal)
-		}
+		stopwatch.Stop(ctx, attribute.Bool("success", success))
 	}()
 
 	// Check if the blob already exists

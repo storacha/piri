@@ -2,118 +2,95 @@ package worker
 
 import (
 	"context"
-	"sync"
-	"sync/atomic"
 	"time"
 
-	logging "github.com/ipfs/go-log/v2"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/storacha/piri/pkg/telemetry"
+	"github.com/storacha/piri/lib/telemetry"
 )
 
-var telemetryLog = logging.Logger("jobqueue/telemetry")
-
-// jobDurationBounds are in milliseconds, covering 5ms up to 30 minutes.
-var jobDurationBounds = telemetry.DurationMillis(
-	5*time.Millisecond,
-	10*time.Millisecond,
-	25*time.Millisecond,
-	50*time.Millisecond,
-	75*time.Millisecond,
-	100*time.Millisecond,
-	250*time.Millisecond,
-	500*time.Millisecond,
-	750*time.Millisecond,
-	time.Second,
-	2500*time.Millisecond,
-	5*time.Second,
-	7500*time.Millisecond,
-	10*time.Second,
-	30*time.Second,
-	time.Minute,
-	2*time.Minute,
-	5*time.Minute,
-	10*time.Minute,
-	15*time.Minute,
-	20*time.Minute,
-	30*time.Minute,
-)
-
-type metricsKey struct {
-	queue string
-	job   string
+// jobDurationBounds covering 5ms up to 30 minutes.
+var jobDurationBounds = []float64{
+	(5 * time.Millisecond).Seconds(),
+	(10 * time.Millisecond).Seconds(),
+	(100 * time.Millisecond).Seconds(),
+	(time.Second).Seconds(),
+	(3 * time.Second).Seconds(),
+	(5 * time.Second).Seconds(),
+	(10 * time.Second).Seconds(),
+	(30 * time.Second).Seconds(),
+	(time.Minute).Seconds(),
+	(2 * time.Minute).Seconds(),
+	(3 * time.Minute).Seconds(),
+	(5 * time.Minute).Seconds(),
+	(6 * time.Minute).Seconds(),
+	(7 * time.Minute).Seconds(),
+	(8 * time.Minute).Seconds(),
+	(9 * time.Minute).Seconds(),
+	(10 * time.Minute).Seconds(),
+	(30 * time.Minute).Seconds(),
 }
 
 type metricsRecorder struct {
-	activeJobsGauge   *telemetry.Gauge
-	queuedJobsGauge   *telemetry.Gauge
+	activeJobs        *telemetry.UpDownCounter
+	queuedJobs        *telemetry.UpDownCounter
 	failedJobsCounter *telemetry.Counter
 	jobDurationTimer  *telemetry.Timer
-
-	queuedGaugeCounts sync.Map // map[metricsKey]*atomic.Int64
-	activeGaugeCounts sync.Map // map[metricsKey]*atomic.Int64
 }
 
-func newMetrics(tel *telemetry.Telemetry) *metricsRecorder {
-	if tel == nil {
-		tel = telemetry.Global()
-	}
-
-	newGauge := func(name, desc string) *telemetry.Gauge {
-		gauge, err := tel.NewGauge(telemetry.GaugeConfig{
-			Name:        name,
-			Description: desc,
-			Unit:        "jobs",
-		})
-		if err != nil {
-			telemetryLog.Warnw("failed to init telemetry gauge", "name", name, "error", err)
-			return nil
-		}
-		return gauge
-	}
-	newCounter := func(name, desc string) *telemetry.Counter {
-		counter, err := tel.NewCounter(telemetry.CounterConfig{
-			Name:        name,
-			Description: desc,
-		})
-		if err != nil {
-			telemetryLog.Warnw("failed to init telemetry counter", "name", name, "error", err)
-			return nil
-		}
-		return counter
-	}
-
-	timer, err := tel.NewTimer(telemetry.TimerConfig{
-		Name:        "jobqueue_job_duration",
-		Description: "time spent running a job until success or failure",
-		Unit:        "ms",
-		Boundaries:  jobDurationBounds,
-	})
+func newMetrics() (*metricsRecorder, error) {
+	meter := otel.GetMeterProvider().Meter("lib/jobqueue/worker")
+	activeJobs, err := telemetry.NewUpDownCounter(
+		meter,
+		"active_jobs",
+		"number of jobs running",
+		"1",
+	)
 	if err != nil {
-		telemetryLog.Warnw("failed to init telemetry timer", "name", "jobqueue_job_duration", "error", err)
+		return nil, err
 	}
-
+	queuedJobs, err := telemetry.NewUpDownCounter(
+		meter,
+		"queued_jobs",
+		"number of jobs queued (includes active)",
+		"1",
+	)
+	if err != nil {
+		return nil, err
+	}
+	failedJobs, err := telemetry.NewCounter(
+		meter,
+		"failed_jobs",
+		"number of jobs that failed permanently",
+		"1",
+	)
+	jobDuration, err := telemetry.NewTimer(
+		meter,
+		"job_duration",
+		"records duration of a jobs runtime",
+		jobDurationBounds,
+	)
 	return &metricsRecorder{
-		activeJobsGauge:   newGauge("jobqueue_active_jobs", "number of jobs currently running"),
-		queuedJobsGauge:   newGauge("jobqueue_queued_jobs", "number of jobs waiting to be processed"),
-		failedJobsCounter: newCounter("jobqueue_failed_jobs", "records jobs that failed permanently or exhausted retries"),
-		jobDurationTimer:  timer,
-	}
+		activeJobs:        activeJobs,
+		queuedJobs:        queuedJobs,
+		failedJobsCounter: failedJobs,
+		jobDurationTimer:  jobDuration,
+	}, nil
 }
 
 func (m *metricsRecorder) recordQueuedDelta(ctx context.Context, queueName, jobName string, delta int64) {
-	if m == nil {
+	if m == nil || m.queuedJobs == nil {
 		return
 	}
-	recordGaugeDelta(ctx, m.queuedJobsGauge, &m.queuedGaugeCounts, queueName, jobName, delta)
+	m.queuedJobs.Add(ctx, delta, attribute.String("queue", queueName), attribute.String("job", jobName))
 }
 
 func (m *metricsRecorder) recordActiveDelta(ctx context.Context, queueName, jobName string, delta int64) {
-	if m == nil {
+	if m == nil || m.activeJobs == nil {
 		return
 	}
-	recordGaugeDelta(ctx, m.activeJobsGauge, &m.activeGaugeCounts, queueName, jobName, delta)
+	m.activeJobs.Add(ctx, delta, attribute.String("queue", queueName), attribute.String("job", jobName))
 }
 
 func (m *metricsRecorder) recordJobFailure(ctx context.Context, queueName, jobName, reason string, attempt int) {
@@ -122,14 +99,14 @@ func (m *metricsRecorder) recordJobFailure(ctx context.Context, queueName, jobNa
 	}
 
 	attrs := []attribute.KeyValue{
-		telemetry.StringAttr("queue", queueName),
-		telemetry.StringAttr("job", jobName),
+		attribute.String("queue", queueName),
+		attribute.String("job", jobName),
 	}
 	if reason != "" {
-		attrs = append(attrs, telemetry.StringAttr("failure_reason", reason))
+		attrs = append(attrs, attribute.String("failure_reason", reason))
 	}
 	if attempt > 0 {
-		attrs = append(attrs, telemetry.IntAttr("attempt", attempt))
+		attrs = append(attrs, attribute.Int("attempt", attempt))
 	}
 
 	m.failedJobsCounter.Inc(ctx, attrs...)
@@ -141,29 +118,13 @@ func (m *metricsRecorder) recordJobDuration(ctx context.Context, queueName, jobN
 	}
 
 	attrs := []attribute.KeyValue{
-		telemetry.StringAttr("queue", queueName),
-		telemetry.StringAttr("job", jobName),
-		telemetry.StringAttr("status", status),
+		attribute.String("queue", queueName),
+		attribute.String("job", jobName),
+		attribute.String("status", status),
 	}
 	if attempt > 0 {
-		attrs = append(attrs, telemetry.IntAttr("attempt", attempt))
+		attrs = append(attrs, attribute.Int("attempt", attempt))
 	}
 
 	m.jobDurationTimer.Record(ctx, duration, attrs...)
-}
-
-func recordGaugeDelta(ctx context.Context, gauge *telemetry.Gauge, counts *sync.Map, queueName, jobName string, delta int64) {
-	if gauge == nil || queueName == "" || jobName == "" {
-		return
-	}
-
-	key := metricsKey{queue: queueName, job: jobName}
-	val, _ := counts.LoadOrStore(key, &atomic.Int64{})
-	current := val.(*atomic.Int64).Add(delta)
-	if current < 0 {
-		val.(*atomic.Int64).Store(0)
-		current = 0
-	}
-
-	gauge.Record(ctx, current, telemetry.StringAttr("queue", queueName), telemetry.StringAttr("job", jobName))
 }

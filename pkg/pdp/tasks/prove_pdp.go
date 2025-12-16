@@ -23,10 +23,12 @@ import (
 	pool "github.com/libp2p/go-buffer-pool"
 	"github.com/minio/sha256-simd"
 	"github.com/samber/lo"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/sha3"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/storacha/piri/lib/telemetry"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
@@ -55,6 +57,8 @@ type ProveTask struct {
 	head atomic.Pointer[chaintypes.TipSet]
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
+
+	taskFailure *telemetry.Counter
 }
 
 func NewProveTask(
@@ -68,21 +72,31 @@ func NewProveTask(
 	reader types.PieceReaderAPI,
 	resolver types.PieceResolverAPI,
 ) (*ProveTask, error) {
+	meter := otel.GetMeterProvider().Meter("github.com/storacha/piri/pkg/pdp/tasks")
+	pdpProveFailure, err := telemetry.NewCounter(
+		meter,
+		"pdp_prove_failure",
+		"records failure to perform a pdp proof",
+		"1",
+	)
+	if err != nil {
+		return nil, err
+	}
 	pt := &ProveTask{
-		db:        db,
-		ethClient: ethClient,
-		verifier:  verifier,
-		sender:    sender,
-		api:       api,
-		bs:        bs,
-		reader:    reader,
-		resolver:  resolver,
+		db:          db,
+		ethClient:   ethClient,
+		verifier:    verifier,
+		sender:      sender,
+		api:         api,
+		bs:          bs,
+		reader:      reader,
+		resolver:    resolver,
+		taskFailure: pdpProveFailure,
 	}
 
 	// ProveTasks are created on pdp_proof_sets entries where
 	// challenge_request_msg_hash is not null (=not yet landed)
-
-	err := chainSched.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
+	err = chainSched.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
 		if apply == nil {
 			return nil
 		}
@@ -164,7 +178,7 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	ctx := context.Background()
 	defer func() {
 		if err != nil {
-			PDPProveFailureCounter.Inc(ctx)
+			p.taskFailure.Inc(ctx)
 		}
 	}()
 

@@ -24,15 +24,17 @@ import (
 
 func TestRunner_Register(t *testing.T) {
 	t.Run("can register a new job", func(t *testing.T) {
-		r := worker.New[[]byte](nil, nil)
+		r, err := worker.New[[]byte](nil, nil)
+		require.NoError(t, err)
 		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
 			return nil
 		}))
 	})
 
 	t.Run("errors if the same job is registered twice", func(t *testing.T) {
-		r := worker.New[[]byte](nil, nil)
-		err := r.Register("test", func(ctx context.Context, m []byte) error {
+		r, err := worker.New[[]byte](nil, nil)
+		require.NoError(t, err)
+		err = r.Register("test", func(ctx context.Context, m []byte) error {
 			return nil
 		})
 		require.NoError(t, err)
@@ -47,11 +49,12 @@ func TestOnFailure(t *testing.T) {
 			MaxReceive: 3, // Max 3 attempts
 			Timeout:    10 * time.Millisecond,
 		})
-		r := worker.New[[]byte](
+		r, err := worker.New[[]byte](
 			q,
 			&PassThroughSerializer[[]byte]{},
 			worker.WithLimit(10),
 		)
+		require.NoError(t, err)
 
 		var onFailureCalled bool
 		var capturedMsg []byte
@@ -61,7 +64,7 @@ func TestOnFailure(t *testing.T) {
 		defer cancel()
 
 		// Register a job that always fails
-		err := r.Register("failing-job",
+		err = r.Register("failing-job",
 			func(ctx context.Context, m []byte) error {
 				return fmt.Errorf("job failed")
 			},
@@ -93,18 +96,19 @@ func TestOnFailure(t *testing.T) {
 			MaxReceive: 3,
 			Timeout:    10 * time.Millisecond,
 		})
-		r := worker.New[[]byte](
+		r, err := worker.New[[]byte](
 			q,
 			&PassThroughSerializer[[]byte]{},
 			worker.WithLimit(10),
 		)
+		require.NoError(t, err)
 
 		var onFailureCalled bool
 
 		ctx, cancel := context.WithCancel(t.Context())
 
 		// Register a job that succeeds
-		err := r.Register("success-job",
+		err = r.Register("success-job",
 			func(ctx context.Context, m []byte) error {
 				cancel()
 				return nil
@@ -132,11 +136,12 @@ func TestOnFailure(t *testing.T) {
 			MaxReceive: 3, // Max 3 attempts
 			Timeout:    10 * time.Millisecond,
 		})
-		r := worker.New[[]byte](
+		r, err := worker.New[[]byte](
 			q,
 			&PassThroughSerializer[[]byte]{},
 			worker.WithLimit(10),
 		)
+		require.NoError(t, err)
 
 		var onFailureCalled bool
 		var attempts int
@@ -145,7 +150,7 @@ func TestOnFailure(t *testing.T) {
 		defer cancel()
 
 		// Register a job that fails twice then succeeds
-		err := r.Register("eventual-success",
+		err = r.Register("eventual-success",
 			func(ctx context.Context, m []byte) error {
 				attempts++
 				if attempts < 3 {
@@ -182,7 +187,7 @@ func TestDeadLetterQueue(t *testing.T) {
 			MaxReceive: 3,
 			Timeout:    10 * time.Millisecond,
 		})
-		r := worker.New[[]byte](
+		r, err := worker.New[[]byte](
 			q,
 			&PassThroughSerializer[[]byte]{},
 			worker.WithLimit(10),
@@ -192,7 +197,7 @@ func TestDeadLetterQueue(t *testing.T) {
 		defer cancel()
 
 		// Register a job that returns a permanent error
-		err := r.Register("permanent-error-job", func(ctx context.Context, m []byte) error {
+		err = r.Register("permanent-error-job", func(ctx context.Context, m []byte) error {
 			cancel()
 			return worker.Permanent(fmt.Errorf("this is a permanent error"))
 		})
@@ -225,17 +230,18 @@ func TestDeadLetterQueue(t *testing.T) {
 			MaxReceive: 3, // Max 3 attempts
 			Timeout:    10 * time.Millisecond,
 		})
-		r := worker.New[[]byte](
+		r, err := worker.New[[]byte](
 			q,
 			&PassThroughSerializer[[]byte]{},
 			worker.WithLimit(10),
 		)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 		defer cancel()
 
 		// Register a job that always fails
-		err := r.Register("max-retries-job", func(ctx context.Context, m []byte) error {
+		err = r.Register("max-retries-job", func(ctx context.Context, m []byte) error {
 			return fmt.Errorf("job failed")
 		})
 		require.NoError(t, err)
@@ -267,7 +273,7 @@ func TestDeadLetterQueue(t *testing.T) {
 			MaxReceive: 3,
 			Timeout:    10 * time.Millisecond,
 		})
-		r := worker.New[[]byte](
+		r, err := worker.New[[]byte](
 			q,
 			&PassThroughSerializer[[]byte]{},
 			worker.WithLimit(10),
@@ -279,7 +285,7 @@ func TestDeadLetterQueue(t *testing.T) {
 		defer cancel()
 
 		// Register a job that fails with OnFailure callback
-		err := r.Register("failing-job-with-callback",
+		err = r.Register("failing-job-with-callback",
 			func(ctx context.Context, m []byte) error {
 				return fmt.Errorf("job failed")
 			},
@@ -413,7 +419,8 @@ func TestCreateTx(t *testing.T) {
 	t.Run("can create a job inside a transaction", func(t *testing.T) {
 		db := internaltesting.NewInMemoryDB(t)
 		q := internaltesting.NewQ(t, queue.NewOpts{DB: db})
-		r := worker.New[[]byte](q, &PassThroughSerializer[[]byte]{})
+		r, err := worker.New[[]byte](q, &PassThroughSerializer[[]byte]{})
+		require.NoError(t, err)
 
 		var ran bool
 		ctx, cancel := context.WithCancel(t.Context())
@@ -424,7 +431,7 @@ func TestCreateTx(t *testing.T) {
 			return nil
 		}))
 
-		err := internalsql.InTx(db, func(tx *sql.Tx) error {
+		err = internalsql.InTx(db, func(tx *sql.Tx) error {
 			return r.EnqueueTx(ctx, tx, "test", []byte("yo"))
 		})
 		require.NoError(t, err)
@@ -438,12 +445,13 @@ func newRunner(t *testing.T) (*queue.Queue, *worker.Worker[[]byte]) {
 	t.Helper()
 
 	q := internaltesting.NewQ(t, queue.NewOpts{Timeout: 100 * time.Millisecond})
-	r := worker.New[[]byte](
+	r, err := worker.New[[]byte](
 		q,
 		&PassThroughSerializer[[]byte]{},
 		worker.WithLimit(10),
 		worker.WithExtend(100*time.Millisecond),
 	)
+	require.NoError(t, err)
 	return q, r
 }
 

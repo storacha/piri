@@ -33,14 +33,6 @@ type adapter struct {
 	uploadConn client.Connection
 }
 
-type Option func(*Service)
-
-func WithMetrics(metrics *replicahandler.Metrics) Option {
-	return func(s *Service) {
-		s.metrics = metrics
-	}
-}
-
 func (a adapter) ID() principal.Signer                { return a.id }
 func (a adapter) PDP() pdp.PDP                        { return a.pdp }
 func (a adapter) Blobs() blobs.Blobs                  { return a.blobs }
@@ -56,8 +48,11 @@ func New(
 	rstore receiptstore.ReceiptStore,
 	uploadConn client.Connection,
 	queue *jobqueue.JobQueue[*replicahandler.TransferRequest],
-	opts ...Option,
 ) (*Service, error) {
+	metrics, err := replicahandler.NewMetrics()
+	if err != nil {
+		return nil, err
+	}
 	svc := &Service{
 		queue: queue,
 		adapter: &adapter{
@@ -68,15 +63,8 @@ func New(
 			receipts:   rstore,
 			uploadConn: uploadConn,
 		},
+		metrics: metrics,
 	}
-
-	for _, opt := range opts {
-		opt(svc)
-	}
-	if svc.metrics == nil {
-		svc.metrics = replicahandler.NewMetrics(nil)
-	}
-
 	return svc, nil
 }
 

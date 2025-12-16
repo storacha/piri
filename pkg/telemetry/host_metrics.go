@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
@@ -11,16 +12,16 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+var log = logging.Logger("telemetry")
+
 // StartHostMetrics exports basic host metrics (CPU, memory, and data-dir disk usage)
 // via the global meter. Metrics are intentionally scoped to avoid PII; only the
 // data-dir path is attached to disk metrics so we can distinguish the storage
 // volume being monitored.
-func StartHostMetrics(ctx context.Context, dataDir string) error {
+func StartHostMetrics(ctx context.Context, meter metric.Meter, dataDir string) error {
 	if dataDir == "" {
 		return fmt.Errorf("dataDir is required to start host metrics")
 	}
-
-	meter := Global().Meter()
 
 	cpuUtilization, err := meter.Float64ObservableGauge(
 		"system_cpu_utilization",
@@ -113,7 +114,7 @@ func StartHostMetrics(ctx context.Context, dataDir string) error {
 	go func() {
 		<-ctx.Done()
 		if err := reg.Unregister(); err != nil {
-			log.Debugw("failed to unregister host metrics callback", "error", err)
+			log.Warnw("failed to unregister host metrics callback", "error", err)
 		}
 	}()
 

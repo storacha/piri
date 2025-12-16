@@ -12,12 +12,14 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/storacha/filecoin-services/go/evmerrors"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/storacha/piri/lib/telemetry"
 	"github.com/storacha/piri/pkg/pdp/types"
 
 	"github.com/storacha/piri/pkg/pdp/promise"
@@ -45,21 +47,45 @@ type SenderETH struct {
 	sendTask *SendTaskETH
 
 	db *gorm.DB
+
+	messageEstimateGasFailureCounter *telemetry.Counter
 }
 
 // NewSenderETH creates a new SenderETH.
-func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB) (*SenderETH, *SendTaskETH) {
+func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB) (*SenderETH, *SendTaskETH, error) {
+	meter := otel.GetMeterProvider().Meter("github.com/storacha/piri/pkg/pdp/tasks")
+	sendFailure, err := telemetry.NewCounter(
+		meter,
+		"message_send_failure",
+		"records failure to send a message",
+		"1",
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	st := &SendTaskETH{
-		client: client,
-		wallet: wallet,
-		db:     db,
+		client:                    client,
+		wallet:                    wallet,
+		db:                        db,
+		messageSendFailureCounter: sendFailure,
+	}
+	estimateGasFailureCounter, err := telemetry.NewCounter(
+		meter,
+		"message_estimate_gas_failure",
+		"records failure to estimate gas for sending messages; similar to a send failure",
+		"1",
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return &SenderETH{
-		client:   client,
-		db:       db,
-		sendTask: st,
-	}, st
+		client:                           client,
+		db:                               db,
+		sendTask:                         st,
+		messageEstimateGasFailureCounter: estimateGasFailureCounter,
+	}, st, nil
 }
 
 func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *ethtypes.Transaction, reason string) (common.Hash, error) {
@@ -87,11 +113,6 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *et
 				if dataErr.ErrorData() != nil {
 					if parsedErr, failure := evmerrors.ParseRevert(dataErr.ErrorData().(string)); failure == nil {
 						log.Errorw("parsed contract revert during gas estimation", "error", parsedErr)
-						// NB(forrest): ErrorSelector returns the contract error code as hex,
-						// selector values are finite and bounded, so adding it to the counter keeps
-						// cardinality low while giving actionable diagnostics
-						MessageEstimateGasFailureCounter.Inc(ctx, attribute.String("selector",
-							parsedErr.ErrorSelector()), attribute.String("method", reason))
 						return common.Hash{}, types.WrapError(types.KindInvalidInput, parsedErr.Error(), parsedErr)
 					} else {
 						log.Warnw("failed to parse revert during gas estimation", "parse_error", failure, "original_error", err)
@@ -99,7 +120,7 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *et
 				}
 			}
 			// NB(forrest): otherwise we consider the selector unknown
-			MessageEstimateGasFailureCounter.Inc(ctx, attribute.String("selector", "unknown"),
+			s.messageEstimateGasFailureCounter.Inc(ctx, attribute.String("selector", "unknown"),
 				attribute.String("method", reason))
 			return common.Hash{}, fmt.Errorf("failed to estimate gas: %w", err)
 		}
@@ -231,7 +252,8 @@ type SendTaskETH struct {
 	client SenderETHClient
 	wallet wallet.Wallet
 
-	db *gorm.DB
+	db                        *gorm.DB
+	messageSendFailureCounter *telemetry.Counter
 }
 
 func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
@@ -370,7 +392,7 @@ func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
 	var sendError string
 	if err != nil {
 		sendError = err.Error()
-		MessageSendFailureCounter.Inc(ctx, attribute.String("method", dbTx.SendReason))
+		s.messageSendFailureCounter.Inc(ctx, attribute.String("method", dbTx.SendReason))
 	}
 
 	err = s.db.Model(&models.MessageSendsEth{}).

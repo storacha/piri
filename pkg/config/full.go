@@ -13,6 +13,7 @@ type FullServerConfig struct {
 	Server      ServerConfig      `mapstructure:"server" toml:"server"`
 	PDPService  PDPServiceConfig  `mapstructure:"pdp" toml:"pdp"`
 	UCANService UCANServiceConfig `mapstructure:"ucan" toml:"ucan"`
+	Telemetry   TelemetryConfig   `mapstructure:"telemetry" toml:"telemetry"`
 }
 
 func (f FullServerConfig) Validate() error {
@@ -57,6 +58,8 @@ func (f FullServerConfig) ToAppConfig() (app.AppConfig, error) {
 	if err != nil {
 		return app.AppConfig{}, fmt.Errorf("converting local pdp to app config: %s", err)
 	}
+
+	out.Telemetry = f.Telemetry.ToAppConfig()
 
 	//
 	// non-user configuration

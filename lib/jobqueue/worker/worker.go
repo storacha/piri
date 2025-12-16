@@ -26,8 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/storacha/piri/pkg/telemetry"
-
 	"github.com/storacha/piri/lib/jobqueue/logger"
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
@@ -67,7 +65,6 @@ type Config struct {
 	PollInterval  time.Duration
 	Extend        time.Duration
 	QueueName     string
-	Telemetry     *telemetry.Telemetry
 }
 
 // Option modifies a Config before creating the Worker.
@@ -105,14 +102,7 @@ func WithQueueName(name string) Option {
 	}
 }
 
-// WithTelemetry configures the telemetry instance to create instruments from.
-func WithTelemetry(tel *telemetry.Telemetry) Option {
-	return func(cfg *Config) {
-		cfg.Telemetry = tel
-	}
-}
-
-func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Option) *Worker[T] {
+func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Option) (*Worker[T], error) {
 	// Default config
 	cfg := &Config{
 		Log:           &logger.DiscardLogger{},
@@ -126,6 +116,10 @@ func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Opti
 		opt(cfg)
 	}
 
+	metricsRecorder, err := newMetrics()
+	if err != nil {
+		return nil, err
+	}
 	// Construct the Worker using the final config
 	jq := &Worker[T]{
 		jobs: make(map[string]*jobRegistration[T]),
@@ -138,9 +132,9 @@ func New[T any](q queue.Interface, ser serializer.Serializer[T], options ...Opti
 		jobCountLimit: cfg.JobCountLimit,
 		pollInterval:  cfg.PollInterval,
 		extend:        cfg.Extend,
-		metrics:       newMetrics(cfg.Telemetry),
+		metrics:       metricsRecorder,
 	}
-	return jq
+	return jq, nil
 }
 
 type message struct {

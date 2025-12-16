@@ -4,84 +4,73 @@ import (
 	"context"
 	"time"
 
-	"github.com/storacha/piri/pkg/telemetry"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/storacha/piri/lib/telemetry"
 )
+
+var replicaDurationBounds = []float64{
+	(5 * time.Millisecond).Seconds(),
+	(10 * time.Millisecond).Seconds(),
+	(100 * time.Millisecond).Seconds(),
+	(time.Second).Seconds(),
+	(3 * time.Second).Seconds(),
+	(5 * time.Second).Seconds(),
+	(10 * time.Second).Seconds(),
+	(30 * time.Second).Seconds(),
+	(time.Minute).Seconds(),
+	(2 * time.Minute).Seconds(),
+	(3 * time.Minute).Seconds(),
+	(5 * time.Minute).Seconds(),
+	(6 * time.Minute).Seconds(),
+	(7 * time.Minute).Seconds(),
+	(8 * time.Minute).Seconds(),
+	(9 * time.Minute).Seconds(),
+	(10 * time.Minute).Seconds(),
+	(30 * time.Minute).Seconds(),
+}
 
 type Metrics struct {
 	failureCounter *telemetry.Counter
 	durationTimer  *telemetry.Timer
 }
 
-func NewMetrics(tel *telemetry.Telemetry) *Metrics {
-	if tel == nil {
-		tel = telemetry.Global()
+func NewMetrics() (*Metrics, error) {
+	meter := otel.GetMeterProvider().Meter("github.com/storacha/piri/pkg/service/storage/handlers/replica")
+	failureCounter, err := telemetry.NewCounter(
+		meter,
+		"replica_transfer_failure",
+		"records failures during a replica transfer",
+		"1",
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	newCounter := func(name, desc string) *telemetry.Counter {
-		counter, err := tel.NewCounter(telemetry.CounterConfig{
-			Name:        name,
-			Description: desc,
-		})
-		if err != nil {
-			log.Warnw("failed to init telemetry counter", "name", name, "error", err)
-			return nil
-		}
-		return counter
-	}
-
-	newTimer := func(name, desc string, bounds []float64) *telemetry.Timer {
-		timer, err := tel.NewTimer(telemetry.TimerConfig{
-			Name:        name,
-			Description: desc,
-			Unit:        "ms",
-			Boundaries:  bounds,
-		})
-		if err != nil {
-			log.Warnw("failed to init telemetry timer", "name", name, "error", err)
-			return nil
-		}
-		return timer
-	}
+	durationTimer, err := telemetry.NewTimer(
+		meter,
+		"transfer_duration",
+		"durating of replica transfer operation",
+		replicaDurationBounds,
+	)
 
 	return &Metrics{
-		failureCounter: newCounter("replica_transfer_failure", "records failures during replica transfer operations grouped by sink"),
-		durationTimer: newTimer("replica_transfer_duration", "duration of replica transfer operations grouped by sink", telemetry.DurationMillis(
-			5*time.Millisecond,
-			10*time.Millisecond,
-			25*time.Millisecond,
-			50*time.Millisecond,
-			75*time.Millisecond,
-			100*time.Millisecond,
-			250*time.Millisecond,
-			500*time.Millisecond,
-			750*time.Millisecond,
-			time.Second,
-			2500*time.Millisecond,
-			5*time.Second,
-			7500*time.Millisecond,
-			10*time.Second,
-			30*time.Second,
-			time.Minute,
-			2*time.Minute,
-			5*time.Minute,
-			10*time.Minute,
-			15*time.Minute,
-			20*time.Minute,
-			30*time.Minute,
-		)),
-	}
+		failureCounter: failureCounter,
+		durationTimer:  durationTimer,
+	}, nil
 }
 
 func (m *Metrics) recordFailure(ctx context.Context, sink string) {
 	if m == nil || m.failureCounter == nil {
 		return
 	}
-	m.failureCounter.Inc(ctx, telemetry.StringAttr("sink", sink))
+	m.failureCounter.Inc(ctx, attribute.String("sink", sink))
 }
 
-func (m *Metrics) startDuration(ctx context.Context, sink string) *telemetry.TimedContext {
+func (m *Metrics) startDuration(sink string) *telemetry.StopWatch {
 	if m == nil || m.durationTimer == nil {
 		return nil
 	}
-	return m.durationTimer.WithAttributes(telemetry.StringAttr("sink", sink)).Start(ctx)
+	return m.durationTimer.Start(attribute.String("sink", sink))
 }
