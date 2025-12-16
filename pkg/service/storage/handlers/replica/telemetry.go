@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"context"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -32,22 +31,11 @@ var replicaDurationBounds = []float64{
 }
 
 type Metrics struct {
-	failureCounter *telemetry.Counter
-	durationTimer  *telemetry.Timer
+	durationTimer *telemetry.Timer
 }
 
 func NewMetrics() (*Metrics, error) {
 	meter := otel.GetMeterProvider().Meter("github.com/storacha/piri/pkg/service/storage/handlers/replica")
-	failureCounter, err := telemetry.NewCounter(
-		meter,
-		"replica_transfer_failure",
-		"records failures during a replica transfer",
-		"1",
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	durationTimer, err := telemetry.NewTimer(
 		meter,
 		"transfer_duration",
@@ -59,16 +47,8 @@ func NewMetrics() (*Metrics, error) {
 	}
 
 	return &Metrics{
-		failureCounter: failureCounter,
-		durationTimer:  durationTimer,
+		durationTimer: durationTimer,
 	}, nil
-}
-
-func (m *Metrics) recordFailure(ctx context.Context, sink string) {
-	if m == nil || m.failureCounter == nil {
-		return
-	}
-	m.failureCounter.Inc(ctx, attribute.String("sink", sink))
 }
 
 func (m *Metrics) startDuration(sink string) *telemetry.StopWatch {

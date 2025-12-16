@@ -60,6 +60,7 @@ require (
 	github.com/raulk/clock v1.1.0
 	github.com/samber/lo v1.39.0
 	github.com/schollz/progressbar/v3 v3.18.0
+	github.com/shirou/gopsutil/v4 v4.25.6
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.21.0
 	github.com/storacha/delegator v0.0.2-0.20251027182137-7d26b5ae9a70
@@ -272,7 +273,6 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
-	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect

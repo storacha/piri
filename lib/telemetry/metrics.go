@@ -137,7 +137,7 @@ func NewTimer(meter metric.Meter, name, description string, boundaries []float64
 }
 
 func (t *Timer) Record(ctx context.Context, duration time.Duration, attrs ...attribute.KeyValue) {
-	t.histogram.Record(ctx, float64(duration.Milliseconds()), metric.WithAttributes(attrs...))
+	t.histogram.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
 }
 
 func (t *Timer) Start(attrs ...attribute.KeyValue) *StopWatch {
