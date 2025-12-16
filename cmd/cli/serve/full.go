@@ -9,16 +9,17 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/storacha/go-ucanto/did"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/storacha/piri/cmd/cli/setup"
-	"github.com/storacha/piri/pkg/build"
-
 	"github.com/storacha/piri/cmd/cliutil"
 	"github.com/storacha/piri/pkg/config"
+	appconfig "github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/app"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/telemetry"
@@ -320,14 +321,14 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("parsing config: %w", err)
 	}
 
-	if err := initTelemetry(cmd.Context(), telemetry.Config{
-		ServiceName:    "piri",
-		ServiceVersion: build.Version,
-		Environment:    userCfg.Network,
-		InstanceID:     appCfg.Identity.Signer.DID().String(),
-		Endpoint:       appCfg.Server.PublicURL.String(),
-	}); err != nil {
-		log.Warnf("failed to initialize telemetry: %s", err)
+	if err := initTelemetry(
+		cmd.Context(),
+		appCfg.Identity.Signer.DID().String(),
+		userCfg.Network,
+		appCfg.Storage.DataDir,
+		appCfg.Telemetry,
+	); err != nil {
+		return fmt.Errorf("initializing telemetry: %w", err)
 	}
 	// build our beloved Piri node
 	piri := fx.New(
@@ -374,13 +375,18 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 					cmd.Println("Piri Running on: " + appCfg.Server.Host + ":" + strconv.Itoa(int(appCfg.Server.Port)))
 					cmd.Println("Piri Public Endpoint: " + appCfg.Server.PublicURL.String())
 
-					// Record server telemetry
-					telemetry.RecordServerInfo(ctx, "full",
-						telemetry.StringAttr("did", appCfg.Identity.Signer.DID().String()),
-						telemetry.StringAttr("owner_address", appCfg.PDPService.OwnerAddress.String()),
-						telemetry.StringAttr("public_url", appCfg.Server.PublicURL.String()),
-						telemetry.Int64Attr("proof_set", int64(appCfg.UCANService.ProofSetID)),
-					)
+					// Record server metadata
+					if err := telemetry.RecordServerInfo(otel.GetMeterProvider().Meter("github."+
+						"com/storacha/piri/cli/serve"),
+						ctx,
+						"full",
+						attribute.String("did", appCfg.Identity.Signer.DID().String()),
+						attribute.String("owner_address", appCfg.PDPService.OwnerAddress.String()),
+						attribute.String("public_url", appCfg.Server.PublicURL.String()),
+						attribute.Int64("proof_set", int64(appCfg.UCANService.ProofSetID)),
+					); err != nil {
+						log.Warnw("Failed to record server info", "error", err)
+					}
 					return nil
 				},
 				OnStop: func(ctx context.Context) error {
@@ -403,10 +409,27 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func initTelemetry(ctx context.Context, cfg telemetry.Config) error {
-	// bail if this has been disabled.
+func initTelemetry(ctx context.Context, instanceID, network string, dataDir string, cfg appconfig.TelemetryConfig) error {
+	// bail if this has been disabled globally.
+	// backwards compatible env var
 	if os.Getenv("PIRI_DISABLE_ANALYTICS") != "" {
 		return nil
 	}
-	return telemetry.Initialize(ctx, cfg)
+	if cfg.DisableStorachaAnalytics {
+		return nil
+	}
+
+	t, err := telemetry.Setup(ctx, network, instanceID)
+	if err != nil {
+		return fmt.Errorf("setting up telemetry: %w", err)
+	}
+
+	if err := telemetry.StartHostMetrics(
+		ctx,
+		t.Metrics.Meter("github.com/storacha/piri/cli/serve"),
+		dataDir,
+	); err != nil {
+		return fmt.Errorf("setting up telemetry host metrics: %w", err)
+	}
+	return nil
 }

@@ -21,6 +21,7 @@ type Replicator interface {
 type Service struct {
 	queue   *jobqueue.JobQueue[*replicahandler.TransferRequest]
 	adapter *adapter
+	metrics *replicahandler.Metrics
 }
 
 type adapter struct {
@@ -48,7 +49,11 @@ func New(
 	uploadConn client.Connection,
 	queue *jobqueue.JobQueue[*replicahandler.TransferRequest],
 ) (*Service, error) {
-	return &Service{
+	metrics, err := replicahandler.NewMetrics()
+	if err != nil {
+		return nil, err
+	}
+	svc := &Service{
 		queue: queue,
 		adapter: &adapter{
 			id:         id,
@@ -58,7 +63,9 @@ func New(
 			receipts:   rstore,
 			uploadConn: uploadConn,
 		},
-	}, nil
+		metrics: metrics,
+	}
+	return svc, nil
 }
 
 const TransferTaskName = "transfer-task"
@@ -69,7 +76,7 @@ func (r *Service) Replicate(ctx context.Context, task *replicahandler.TransferRe
 
 func (r *Service) RegisterTransferTask(queue *jobqueue.JobQueue[*replicahandler.TransferRequest]) error {
 	return queue.Register(TransferTaskName, func(ctx context.Context, request *replicahandler.TransferRequest) error {
-		return replicahandler.Transfer(ctx, r.adapter, request)
+		return replicahandler.Transfer(ctx, r.adapter, request, r.metrics)
 	}, jobqueue.WithOnFailure(func(ctx context.Context, msg *replicahandler.TransferRequest, err error) error {
 		return replicahandler.SendFailureReceipt(ctx, r.adapter, msg, err)
 	}))
