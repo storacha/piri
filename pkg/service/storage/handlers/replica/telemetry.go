@@ -9,6 +9,10 @@ import (
 	"github.com/storacha/piri/lib/telemetry"
 )
 
+var (
+	tracer = otel.Tracer("github.com/storacha/piri/pkg/service/storage/handlers/replica")
+)
+
 var replicaDurationBounds = []float64{
 	(5 * time.Millisecond).Seconds(),
 	(10 * time.Millisecond).Seconds(),
@@ -51,9 +55,9 @@ func NewMetrics() (*Metrics, error) {
 	}, nil
 }
 
-func (m *Metrics) startDuration(sink string) *telemetry.StopWatch {
+func (m *Metrics) startDuration(source string) *telemetry.StopWatch {
 	if m == nil || m.durationTimer == nil {
 		return nil
 	}
-	return m.durationTimer.Start(attribute.String("sink", sink))
+	return m.durationTimer.Start(attribute.String("source", source))
 }

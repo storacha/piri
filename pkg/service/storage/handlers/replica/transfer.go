@@ -36,6 +36,8 @@ import (
 	"github.com/storacha/go-ucanto/ucan"
 	"github.com/storacha/go-ucanto/validator"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
@@ -184,13 +186,23 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		forks []fx.Effect
 	)
 
-	stopwatch := metrics.startDuration(sinkLabel(request.Sink))
+	ctx, span := tracer.Start(ctx, "transfer", trace.WithAttributes(
+		attribute.String("space", request.Space.String()),
+		attribute.String("blob", request.Blob.Digest.String()),
+		attribute.Int64("size", int64(request.Blob.Size)),
+		attribute.String("source", request.Source.ID.DID().String()),
+		attribute.String("source_url", request.Source.URL.String()),
+	))
+	stopwatch := metrics.startDuration(request.Source.ID.DID().String())
 	defer func() {
 		success := true
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			success = false
 		}
 		stopwatch.Stop(ctx, attribute.Bool("success", success))
+		span.End()
 	}()
 
 	// Check if the blob already exists
@@ -200,11 +212,13 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 	}
 
 	if request.Sink != nil && !blobExists {
+		span.SetAttributes(attribute.Bool("exists", false))
 		// Need to transfer the blob from source to sink
 		acceptResp, err := transferBlobFromSource(ctx, service, request)
 		if err != nil {
 			return fmt.Errorf("failed to accept replication source blob %s: %w", request.Blob.Digest, err)
 		}
+		span.AddEvent("transfer blob received")
 
 		forks = []fx.Effect{fx.FromInvocation(acceptResp.Claim)}
 		var pdpLink *ipld.Link
@@ -218,7 +232,9 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		if err != nil {
 			return err
 		}
+		span.AddEvent("issued transfer receipt")
 	} else {
+		span.SetAttributes(attribute.Bool("exists", true))
 		// Blob already exists (skip transfer for idempotency) or no sink specified - create location assertion
 		claim, pdpAcceptInv, err := createLocationAssertion(ctx, service, request)
 		if err != nil {
@@ -237,20 +253,11 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		if err != nil {
 			return err
 		}
+		span.AddEvent("issued transfer receipt")
 	}
 
 	// Build and send message to upload service
 	return sendMessageToUploadService(ctx, service, rcpt)
-}
-
-func sinkLabel(sink *url.URL) string {
-	if sink == nil {
-		return "none"
-	}
-	if sink.Host != "" {
-		return sink.Host
-	}
-	return sink.String()
 }
 
 // checkBlobExists checks if the blob already exists in either PDP or Blobs store
@@ -334,7 +341,7 @@ func transferBlobFromSource(ctx context.Context, service TransferService, reques
 	}
 
 	// Stream source to sink
-	req, err := http.NewRequest(http.MethodPut, request.Sink.String(), replicaResp.Body())
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, request.Sink.String(), replicaResp.Body())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create replication sink request: %w", err)
 	}
