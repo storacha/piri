@@ -315,7 +315,6 @@ func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
 		AutoMigrate(
 			&Task{},
 			&TaskHistory{},
-
 			&ParkedPiece{},
 			&ParkedPieceRef{},
 

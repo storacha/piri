@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"math/big"
@@ -9,9 +10,12 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	chaintypes "github.com/filecoin-project/lotus/chain/types"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/storacha/piri/lib/telemetry"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/promise"
@@ -21,6 +25,8 @@ import (
 )
 
 var _ scheduler.TaskInterface = &NextProvingPeriodTask{}
+
+//var _ = scheduler.Reg(&NextProvingPeriodTask{})
 
 type NextProvingPeriodTask struct {
 	db        *gorm.DB
@@ -32,6 +38,9 @@ type NextProvingPeriodTask struct {
 	fil ChainAPI
 
 	addFunc promise.Promise[scheduler.AddTaskFunc]
+
+	taskFailure     *telemetry.Counter
+	nextWindowGauge *telemetry.Int64Gauge
 }
 
 func NewNextProvingPeriodTask(
@@ -43,13 +52,33 @@ func NewNextProvingPeriodTask(
 	verifier smartcontracts.Verifier,
 	service smartcontracts.Service,
 ) (*NextProvingPeriodTask, error) {
+	meter := otel.GetMeterProvider().Meter("github.com/storacha/piri/pkg/pdp/tasks")
+	pdpNextFailureCounter, err := telemetry.NewCounter(
+		meter,
+		"pdp_next_failure",
+		"records failure of next pdp task",
+		"1",
+	)
+	if err != nil {
+		return nil, err
+	}
+	nextChallengeWindowStartEpoch, err := telemetry.NewInt64Gauge(meter,
+		"next_challenge_window_start_epoch",
+		"Epoch at which the next challenge window starts",
+		"1",
+	)
+	if err != nil {
+		return nil, err
+	}
 	n := &NextProvingPeriodTask{
-		db:        db,
-		ethClient: ethClient,
-		sender:    sender,
-		fil:       api,
-		verifier:  verifier,
-		service:   service,
+		db:              db,
+		ethClient:       ethClient,
+		sender:          sender,
+		fil:             api,
+		verifier:        verifier,
+		service:         service,
+		taskFailure:     pdpNextFailureCounter,
+		nextWindowGauge: nextChallengeWindowStartEpoch,
 	}
 
 	if err := chainSched.AddHandler(func(ctx context.Context, revert, apply *chaintypes.TipSet) error {
@@ -79,7 +108,7 @@ func NewNextProvingPeriodTask(
 					Where("id = ? AND challenge_request_task_id IS NULL", ps.ProofSetID).
 					Update("challenge_request_task_id", id)
 				if result.Error != nil {
-					return false, fmt.Errorf("failed to update pdp_proof_sets: %w", result.Error)
+					return false, fmt.Errorf("failed to update pdp_proof_sets: %w", err)
 				}
 				if result.RowsAffected == 0 {
 					// Someone else might have already scheduled the task
@@ -98,62 +127,21 @@ func NewNextProvingPeriodTask(
 	return n, nil
 }
 
-// adjustNextProveAt fixes the "Next challenge epoch must fall within the next challenge window" contract error
-// by calculating a proper next_prove_at epoch that's guaranteed to be valid.
-//
-// The contract requires:
-// 1. next_prove_at >= currentHeight + challengeFinality (enough time for tx processing)
-// 2. next_prove_at must fall within a challenge window boundary (windows are at multiples of challengeWindow)
-//
-// Algorithm: advance whole proving periods until the window [start, start+challengeWindow] reaches
-// minRequiredEpoch, then clamp to the earliest epoch that satisfies both rules (usually the window start,
-// or minRequiredEpoch if that falls inside the window).
-func adjustNextProveAt(nextProveAt int64, minRequiredEpoch int64, provingPeriod int64, challengeWindow int64) int64 {
-	// Fall back to minimum required epoch if metadata is missing
-	if provingPeriod <= 0 || challengeWindow <= 0 {
-		epoch := nextProveAt
-		if epoch < minRequiredEpoch {
-			epoch = minRequiredEpoch
-		}
-		return epoch
-	}
-
-	// nextProveAt marks the beginning of the current challenge window.
-	// When we miss a proving period the next valid window is always a multiple of the `provingPeriod` epochs laster.
-	// Slide the window forward by while proving periods until it covers minRequiredEpoch,
-	// which embeds the challenge finality rule.
-	windowStart := nextProveAt
-	windowEnd := windowStart + challengeWindow
-
-	// Move forward by whole proving periods until the window reaches the minimum required epoch.
-	for windowEnd < minRequiredEpoch {
-		windowStart += provingPeriod
-		windowEnd += provingPeriod
-	}
-
-	// At this point the contract will accept any epoch inside [windowStart, windowEnd].
-	// Chose one that also satisfies the finality requirement by clamping minRequiredEpoch to that range.
-	adjusted := windowStart
-	if minRequiredEpoch > adjusted {
-		adjusted = minRequiredEpoch
-	}
-	if adjusted > windowEnd {
-		adjusted = windowEnd
-	}
-
-	return adjusted
-}
-
 func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 	ctx := context.Background()
+	defer func() {
+		if err != nil {
+			n.taskFailure.Inc(ctx)
+		}
+	}()
 	// Select the proof set where challenge_request_task_id equals taskID and prove_at_epoch is not NULL
 	var pdp models.PDPProofSet
 	err = n.db.WithContext(ctx).
 		Model(&models.PDPProofSet{}).
 		Where("challenge_request_task_id = ? AND prove_at_epoch IS NOT NULL", taskID).
-		Select("id", "challenge_window", "proving_period").
+		Select("id").
 		First(&pdp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, sql.ErrNoRows) {
 		// No matching proof set, task is done (something weird happened, and e.g another task was spawned in place of this one)
 		return true, nil
 	}
@@ -166,50 +154,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 	if err != nil {
 		return false, fmt.Errorf("failed to get next challenge window start: %w", err)
 	}
-
-	if pdp.ChallengeWindow == nil {
-		return false, fmt.Errorf("proof set %d missing challenge window metadata", proofSetID)
-	}
-	if pdp.ProvingPeriod == nil {
-		return false, fmt.Errorf("proof set %d missing proving period", proofSetID)
-	}
-
-	challengeFinality, err := n.verifier.GetChallengeFinality(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get challenge finality: %w", err)
-	}
-
-	challengeWindow := *pdp.ChallengeWindow
-	provingPeriod := *pdp.ProvingPeriod
-
-	ts, err := n.fil.ChainHead(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get chain head: %w", err)
-	}
-
-	minEpoch := big.NewInt(int64(ts.Height()))
-	minEpoch.Add(minEpoch, challengeFinality)
-
-	if nextProveAt.Cmp(minEpoch) < 0 {
-		// The condition only runs when the listener contract hands us a challenge window start that is already behind
-		// the current epoch + challengeFinality. That happens when a proving period was missed, usually from:
-		// 1. piri was offline
-		// 2. lotus was stuck
-		// 3. the previous next proving period transaction never made it to the chain
-		// Thus the listener is still reporting the "stale" window from the previous proving period.
-		// When 1, 2, or 3 happen, and are fixed, we will hit this branch. Here we advance the window
-		// to the first future period the verifier will accept so we don't loop on invalid epochs forever.
-		adjusted := adjustNextProveAt(nextProveAt.Int64(), minEpoch.Int64(), provingPeriod, challengeWindow)
-		log.Warnw("adjusting next prove epoch",
-			"proof_set_id", proofSetID,
-			"original_epoch", nextProveAt,
-			"adjusted_epoch", adjusted,
-			"current_height", ts.Height(),
-			"challenge_window", challengeWindow,
-			"proving_period", provingPeriod,
-		)
-		nextProveAt = big.NewInt(adjusted)
-	}
+	n.nextWindowGauge.Record(ctx, nextProveAt.Int64(), attribute.Int64("proof_set_id", proofSetID))
 
 	// Prepare the transaction data
 	abiData, err := n.verifier.GetABI()
@@ -237,6 +182,12 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 		return false, fmt.Errorf("failed to get default sender address: %w", err)
 	}
 
+	// Get the current tipset
+	ts, err := n.fil.ChainHead(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get chain head: %w", err)
+	}
+
 	// Send the transaction
 	reason := "pdp-proving-period"
 	log.Infow("Sending next proving period transaction", "task_id", taskID, "proof_set_id", proofSetID,
@@ -256,7 +207,7 @@ func (n *NextProvingPeriodTask) Do(taskID scheduler.TaskID) (done bool, err erro
 				"prove_at_epoch":               nextProveAt.Uint64(),
 			})
 		if result.Error != nil {
-			return fmt.Errorf("failed to update pdp_proof_sets: %w", result.Error)
+			return fmt.Errorf("failed to update pdp_proof_sets: %w", err)
 		}
 		if result.RowsAffected == 0 {
 			return fmt.Errorf("pdp_proof_sets update affected 0 rows")

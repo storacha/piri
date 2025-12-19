@@ -35,6 +35,8 @@ import (
 	ucan_http "github.com/storacha/go-ucanto/transport/http"
 	"github.com/storacha/go-ucanto/ucan"
 	"github.com/storacha/go-ucanto/validator"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/storacha/piri/pkg/pdp"
 	"github.com/storacha/piri/pkg/service/blobs"
 	"github.com/storacha/piri/pkg/service/claims"
@@ -176,11 +178,20 @@ func (t *TransferRequest) UnmarshalJSON(b []byte) error {
 //
 // Both paths end with sending the receipt to the upload service, which confirms
 // successful replication to the requesting node.
-func Transfer(ctx context.Context, service TransferService, request *TransferRequest) error {
+func Transfer(ctx context.Context, service TransferService, request *TransferRequest, metrics *Metrics) (err error) {
 	var (
 		rcpt  receipt.AnyReceipt
 		forks []fx.Effect
 	)
+
+	stopwatch := metrics.startDuration(sinkLabel(request.Sink))
+	defer func() {
+		success := true
+		if err != nil {
+			success = false
+		}
+		stopwatch.Stop(ctx, attribute.Bool("success", success))
+	}()
 
 	// Check if the blob already exists
 	blobExists, err := checkBlobExists(ctx, service, request.Blob)
@@ -230,6 +241,16 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 
 	// Build and send message to upload service
 	return sendMessageToUploadService(ctx, service, rcpt)
+}
+
+func sinkLabel(sink *url.URL) string {
+	if sink == nil {
+		return "none"
+	}
+	if sink.Host != "" {
+		return sink.Host
+	}
+	return sink.String()
 }
 
 // checkBlobExists checks if the blob already exists in either PDP or Blobs store

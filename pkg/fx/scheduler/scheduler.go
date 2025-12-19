@@ -50,7 +50,10 @@ func ProvideEngine(lc fx.Lifecycle, params EngineParams) (*scheduler.TaskEngine,
 }
 
 func ProvideChainScheduler(lc fx.Lifecycle, client service.ChainClient) (*chainsched.Scheduler, error) {
-	cs := chainsched.New(client)
+	cs, err := chainsched.New(client)
+	if err != nil {
+		return nil, fmt.Errorf("creating chain scheduler: %w", err)
+	}
 
 	csCtx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
