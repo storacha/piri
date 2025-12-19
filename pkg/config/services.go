@@ -195,16 +195,16 @@ func (s *UploadServiceConfig) Validate() error {
 func (s *UploadServiceConfig) ToAppConfig() (app.UploadServiceConfig, error) {
 	sdid, err := did.Parse(s.DID)
 	if err != nil {
-		return app.UploadServiceConfig{}, fmt.Errorf("parsing indexing service DID: %w", err)
+		return app.UploadServiceConfig{}, fmt.Errorf("parsing upload service DID: %w", err)
 	}
 	surl, err := url.Parse(s.URL)
 	if err != nil {
-		return app.UploadServiceConfig{}, fmt.Errorf("parsing indexing service URL: %w", err)
+		return app.UploadServiceConfig{}, fmt.Errorf("parsing upload service URL: %w", err)
 	}
 	schannel := ucanhttp.NewChannel(surl)
 	sconn, err := client.NewConnection(sdid, schannel)
 	if err != nil {
-		return app.UploadServiceConfig{}, fmt.Errorf("creating indexing service connection: %w", err)
+		return app.UploadServiceConfig{}, fmt.Errorf("creating upload service connection: %w", err)
 	}
 	return app.UploadServiceConfig{
 		Connection: sconn,
