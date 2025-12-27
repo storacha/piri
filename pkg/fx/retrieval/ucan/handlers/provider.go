@@ -22,11 +22,11 @@ var log = logging.Logger("retrieval/ucan")
 var Module = fx.Module("retrieval/ucan/handlers",
 	fx.Provide(
 		fx.Annotate(
-			ucan.BlobRetrieve,
+			ucan.WithBlobRetrieveMethod,
 			fx.ResultTags(`group:"ucan_retrieval_options"`),
 		),
 		fx.Annotate(
-			ucan.SpaceContentRetrieve,
+			ucan.WithSpaceContentRetrieveMethod,
 			fx.ResultTags(`group:"ucan_retrieval_options"`),
 		),
 		fx.Annotate(

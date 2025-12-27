@@ -33,7 +33,7 @@ type PDPInfoService interface {
 	PDP() pdpservice.PDP
 }
 
-func PDPInfo(storageService PDPInfoService) server.Option {
+func WithPDPInfoMethod(storageService PDPInfoService) server.Option {
 	return server.WithServiceMethod(
 		pdp.InfoAbility,
 		server.Provide(
