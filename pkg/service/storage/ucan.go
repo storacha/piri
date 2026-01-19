@@ -12,11 +12,11 @@ var log = logging.Logger("storage")
 func NewUCANServer(storageService Service, options ...server.Option) (server.ServerView[server.Service], error) {
 	options = append(
 		options,
-		ucan.AccessGrant(storageService),
-		ucan.BlobAllocate(storageService),
-		ucan.BlobAccept(storageService),
-		ucan.PDPInfo(storageService),
-		ucan.ReplicaAllocate(storageService),
+		ucan.WithAccessGrantMethod(storageService),
+		ucan.WithBlobAllocateMethod(storageService),
+		ucan.WithBlobAcceptMethod(storageService),
+		ucan.WithPDPInfoMethod(storageService),
+		ucan.WithReplicaAllocateMethod(storageService),
 	)
 
 	return server.NewServer(storageService.ID(), options...)

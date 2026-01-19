@@ -23,7 +23,7 @@ type BlobAllocateService interface {
 	Blobs() blobs.Blobs
 }
 
-func BlobAllocate(storageService BlobAllocateService) server.Option {
+func WithBlobAllocateMethod(storageService BlobAllocateService) server.Option {
 	return server.WithServiceMethod(
 		blob.AllocateAbility,
 		server.Provide(

@@ -21,23 +21,23 @@ var log = logging.Logger("retrieval/ucan")
 var Module = fx.Module("storage/ucan/handlers",
 	fx.Provide(
 		fx.Annotate(
-			ucan.AccessGrant,
+			ucan.WithAccessGrantMethod,
 			fx.ResultTags(`group:"ucan_options"`),
 		),
 		fx.Annotate(
-			ucan.BlobAllocate,
+			ucan.WithBlobAllocateMethod,
 			fx.ResultTags(`group:"ucan_options"`),
 		),
 		fx.Annotate(
-			ucan.BlobAccept,
+			ucan.WithBlobAcceptMethod,
 			fx.ResultTags(`group:"ucan_options"`),
 		),
 		fx.Annotate(
-			ucan.PDPInfo,
+			ucan.WithPDPInfoMethod,
 			fx.ResultTags(`group:"ucan_options"`),
 		),
 		fx.Annotate(
-			ucan.ReplicaAllocate,
+			ucan.WithReplicaAllocateMethod,
 			fx.ResultTags(`group:"ucan_options"`),
 		),
 		fx.Annotate(
