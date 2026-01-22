@@ -14,6 +14,7 @@ func TestFlatFSKeyAdapterStore(t *testing.T) {
 	fun := flatfs.NextToLast(2)
 	memStore := memory.NewStore()
 	flatfsMemStore, err := flatfs.NewFlatFSKeyAdapter(t.Context(), memStore, fun)
+	require.NoError(t, err)
 
 	key := "ciqjkmoqchcaod3rhy26uo57r2ktpxq4lnmhye6njse7l2rkhoetrjy"
 	value := "hello world"
@@ -35,7 +36,7 @@ func TestFlatFSKeyAdapterStore(t *testing.T) {
 	require.Equal(t, value, string(b))
 
 	// check it was stored at the right path in the underlying store
-	obj, err = memStore.Get(t.Context(), "rj/"+key+".data")
+	_, err = memStore.Get(t.Context(), "rj/"+key+".data")
 	require.NoError(t, err)
 
 	// ensure can create from existing
