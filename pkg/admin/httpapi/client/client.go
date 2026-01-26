@@ -263,6 +263,64 @@ func (c *Client) GetWithdrawalStatus(ctx context.Context) (*httpapi.WithdrawalSt
 	return &resp, nil
 }
 
+// GetConfig retrieves the current dynamic configuration values.
+func (c *Client) GetConfig(ctx context.Context) (*httpapi.ConfigResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.ConfigRoutePath).String()
+
+	var resp httpapi.ConfigResponse
+	if err := c.getJSON(ctx, route, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+// UpdateConfig updates one or more dynamic configuration values.
+// Returns the updated configuration.
+func (c *Client) UpdateConfig(ctx context.Context, req httpapi.UpdateConfigRequest) (*httpapi.ConfigResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.ConfigRoutePath).String()
+
+	res, err := c.patchJSON(ctx, route, req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		return nil, errFromResponse(res)
+	}
+
+	var resp httpapi.ConfigResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	}
+
+	return &resp, nil
+}
+
+// ReloadConfig reloads the configuration from the config file.
+// Returns the reloaded configuration.
+func (c *Client) ReloadConfig(ctx context.Context) (*httpapi.ConfigResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.ConfigRoutePath + httpapi.ConfigReloadRoutePath).String()
+
+	res, err := c.postJSON(ctx, route, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		return nil, errFromResponse(res)
+	}
+
+	var resp httpapi.ConfigResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	}
+
+	return &resp, nil
+}
+
 func createAuthBearerTokenFromID(id principal.Signer) (string, error) {
 	claims := jwt.MapClaims{
 		"service_name": "storacha",
@@ -315,6 +373,19 @@ func (c *Client) postJSON(ctx context.Context, url string, params interface{}) (
 	}
 
 	return c.sendRequest(ctx, http.MethodPost, url, body, nil)
+}
+
+func (c *Client) patchJSON(ctx context.Context, url string, params interface{}) (*http.Response, error) {
+	var body io.Reader
+	if params != nil {
+		asBytes, err := json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("encoding request parameters: %w", err)
+		}
+		body = bytes.NewReader(asBytes)
+	}
+
+	return c.sendRequest(ctx, http.MethodPatch, url, body, nil)
 }
 
 func (c *Client) getJSON(ctx context.Context, url string, target interface{}) error {

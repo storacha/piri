@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -32,6 +33,7 @@ type PDPServiceConfig struct {
 	Contracts      ContractAddresses    `mapstructure:"contracts" validate:"required" toml:"contracts,omitempty"`
 	ChainID        string               `mapstructure:"chain_id" validate:"required" flag:"chain-id" toml:"chain_id,omitempty"`
 	PayerAddress   string               `mapstructure:"payer_address" validate:"required" flag:"payer-address" toml:"payer_address,omitempty"`
+	Aggregation    AggregationConfig    `mapstructure:"aggregation" toml:"aggregation,omitempty"`
 }
 
 func (c PDPServiceConfig) Validate() error {
@@ -86,6 +88,11 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		return app.PDPServiceConfig{}, fmt.Errorf("invalid payer address: %s", c.PayerAddress)
 	}
 
+	aggregationCfg, err := c.Aggregation.ToAppConfig()
+	if err != nil {
+		return app.PDPServiceConfig{}, fmt.Errorf("converting aggregation config: %w", err)
+	}
+
 	return app.PDPServiceConfig{
 		OwnerAddress:   common.HexToAddress(c.OwnerAddress),
 		LotusEndpoint:  lotusEndpoint,
@@ -100,6 +107,7 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		},
 		ChainID:      chainID,
 		PayerAddress: common.HexToAddress(c.PayerAddress),
+		Aggregation:  aggregationCfg,
 	}, nil
 }
 
@@ -164,4 +172,93 @@ func (c SigningServiceConfig) ToAppConfig() (app.SigningServiceConfig, error) {
 			PrivateKey: privateKey,
 		}, nil
 	}
+}
+
+// AggregationConfig configures the PDP aggregation system.
+type AggregationConfig struct {
+	CommP      CommpConfig            `mapstructure:"commp" toml:"commp,omitempty"`
+	Aggregator AggregatorConfig       `mapstructure:"aggregator" toml:"aggregator,omitempty"`
+	Manager    AggregateManagerConfig `mapstructure:"manager" toml:"manager,omitempty"`
+}
+
+type CommpConfig struct {
+	JobQueue JobQueueConfig `mapstructure:"job_queue" toml:"job_queue,omitempty"`
+}
+
+type AggregatorConfig struct {
+	JobQueue JobQueueConfig `mapstructure:"job_queue" toml:"job_queue,omitempty"`
+}
+
+type AggregateManagerConfig struct {
+	// PollInterval is how often the aggregation manager flushes its buffer.
+	PollInterval time.Duration `mapstructure:"poll_interval" toml:"poll_interval,omitempty"`
+	// MaxBatchSize is the maximum number of aggregates per batch submission.
+	BatchSize uint           `mapstructure:"batch_size" toml:"batch_size,omitempty"`
+	JobQueue  JobQueueConfig `mapstructure:"job_queue" toml:"job_queue,omitempty"`
+}
+
+func (a AggregateManagerConfig) ToAppConfig() (app.AggregateManagerConfig, error) {
+	if a.BatchSize == 0 {
+		return app.AggregateManagerConfig{}, fmt.Errorf("batch size must be greater than zero")
+	}
+	if a.PollInterval == 0 {
+		return app.AggregateManagerConfig{}, fmt.Errorf("poll_interval must be greater than zero")
+	}
+
+	jqcfg, err := a.JobQueue.ToAppConfig()
+	if err != nil {
+		return app.AggregateManagerConfig{}, err
+	}
+	return app.AggregateManagerConfig{
+		PollInterval: a.PollInterval,
+		BatchSize:    a.BatchSize,
+		JobQueue:     jqcfg,
+	}, nil
+}
+
+type JobQueueConfig struct {
+	// The number of jobs the queue can process in parallel.
+	Workers uint `mapstructure:"workers" toml:"workers,omitempty"`
+	// The number of times a job can be retried before being considered failed.
+	Retries uint `mapstructure:"retries" toml:"retries,omitempty"`
+	// The duration between successive retries
+	RetryDelay time.Duration `mapstructure:"retry_delay" toml:"retry_delay,omitempty"`
+}
+
+func (j JobQueueConfig) ToAppConfig() (app.JobQueueConfig, error) {
+	if j.Workers == 0 {
+		return app.JobQueueConfig{}, fmt.Errorf("job_queue must have at least one worker")
+	}
+	if j.RetryDelay == 0 {
+		return app.JobQueueConfig{}, fmt.Errorf("job_queue retry delay must be greater than zero")
+	}
+	return app.JobQueueConfig{
+		Workers:    j.Workers,
+		Retries:    j.Retries,
+		RetryDelay: j.RetryDelay,
+	}, nil
+}
+
+func (c AggregationConfig) ToAppConfig() (app.AggregationConfig, error) {
+	commpJobQueueCfg, err := c.CommP.JobQueue.ToAppConfig()
+	if err != nil {
+		return app.AggregationConfig{}, err
+	}
+	aggregatorJobQueueCfg, err := c.Aggregator.JobQueue.ToAppConfig()
+	if err != nil {
+		return app.AggregationConfig{}, err
+	}
+	managerCfg, err := c.Manager.ToAppConfig()
+	if err != nil {
+		return app.AggregationConfig{}, err
+	}
+	return app.AggregationConfig{
+		CommP: app.CommpConfig{
+			JobQueue: commpJobQueueCfg,
+		},
+		Aggregator: app.AggregatorConfig{
+			JobQueue: aggregatorJobQueueCfg,
+		},
+		Manager: managerCfg,
+	}, nil
 }

@@ -14,6 +14,9 @@ type Normalizable interface {
 
 func Load[T Validatable]() (T, error) {
 	var out T
+
+	SetDefaults()
+
 	if err := viper.Unmarshal(&out); err != nil {
 		return out, err
 	}

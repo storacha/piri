@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/pkg/config"
 )
 
 var log = logging.Logger("aggregator/manager")
@@ -32,10 +33,15 @@ type Manager struct {
 	taskHandler jobqueue.TaskHandler[[]datamodel.Link]
 	queue       jobqueue.Service[[]datamodel.Link]
 
-	// options
-	pollInterval time.Duration
-	maxBatchSize int
-	clock        clock.Clock
+	// configuration provider (abstracts static vs dynamic config)
+	configProvider ConfigProvider
+
+	// clock for testing
+	clock clock.Clock
+
+	// dynamic configuration support
+	tickerResetCh chan struct{}
+	unsubscribers []func()
 
 	// locking
 	submitMu sync.Mutex
@@ -50,25 +56,14 @@ type Manager struct {
 type ManagerParams struct {
 	fx.In
 
-	Queue       jobqueue.Service[[]datamodel.Link]
-	TaskHandler jobqueue.TaskHandler[[]datamodel.Link]
-	Buffer      BufferStore
-	Options     []ManagerOption `optional:"true"`
+	Queue          jobqueue.Service[[]datamodel.Link]
+	TaskHandler    jobqueue.TaskHandler[[]datamodel.Link]
+	Buffer         BufferStore
+	ConfigProvider ConfigProvider
+	Options        []ManagerOption `group:"manager_options"`
 }
 
 type ManagerOption func(*Manager)
-
-func WithPollInterval(pollInterval time.Duration) ManagerOption {
-	return func(mgr *Manager) {
-		mgr.pollInterval = pollInterval
-	}
-}
-
-func WithMaxBatchSize(maxBatchSize int) ManagerOption {
-	return func(mgr *Manager) {
-		mgr.maxBatchSize = maxBatchSize
-	}
-}
 
 func WithClock(clock clock.Clock) ManagerOption {
 	return func(mgr *Manager) {
@@ -80,14 +75,14 @@ func WithClock(clock clock.Clock) ManagerOption {
 func NewManager(lc fx.Lifecycle, params ManagerParams) (*Manager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &Manager{
-		taskHandler: params.TaskHandler,
-		buffer:      params.Buffer,
-		queue:       params.Queue,
+		taskHandler:    params.TaskHandler,
+		buffer:         params.Buffer,
+		queue:          params.Queue,
+		configProvider: params.ConfigProvider,
+		clock:          clock.New(),
 
-		// can override with options
-		pollInterval: DefaultPollInterval,
-		maxBatchSize: DefaultMaxBatchSizeBytes,
-		clock:        clock.New(),
+		// channel for signaling ticker reset on config changes
+		tickerResetCh: make(chan struct{}, 1),
 
 		ctx:    ctx,
 		cancel: cancel,
@@ -97,6 +92,15 @@ func NewManager(lc fx.Lifecycle, params ManagerParams) (*Manager, error) {
 	for _, opt := range params.Options {
 		opt(m)
 	}
+
+	unsubscriber, err := m.configProvider.Subscribe(config.ManagerPollInterval, func(old, new any) {
+		m.onPollIntervalChange(old.(time.Duration), new.(time.Duration))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("developer error! failed to subscribe to manager poll interval: %w", err)
+	}
+	// Subscribe to dynamic config changes via the provider
+	m.unsubscribers = append(m.unsubscribers, unsubscriber)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -110,6 +114,27 @@ func NewManager(lc fx.Lifecycle, params ManagerParams) (*Manager, error) {
 	return m, nil
 }
 
+// onPollIntervalChange is called when the poll interval changes.
+func (m *Manager) onPollIntervalChange(old, new time.Duration) {
+	// Non-blocking send to signal ticker reset
+	select {
+	case m.tickerResetCh <- struct{}{}:
+		log.Infow("Poll interval change signaled", "old_value", old, "new_value", new)
+	default:
+		// Channel already has a pending signal
+	}
+}
+
+// getPollInterval returns the current poll interval from the config provider.
+func (m *Manager) getPollInterval() time.Duration {
+	return m.configProvider.PollInterval()
+}
+
+// getMaxBatchSize returns the current max batch size from the config provider.
+func (m *Manager) getMaxBatchSize() int {
+	return int(m.configProvider.BatchSize())
+}
+
 // Submit adds aggregates to the buffer for submission
 func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) error {
 	if !m.running.Load() {
@@ -121,6 +146,9 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 		return nil
 	}
 
+	// Cache max batch size for consistent behavior throughout this operation
+	maxBatchSize := m.getMaxBatchSize()
+
 	aggregates, err := m.buffer.Aggregation(ctx)
 	if err != nil {
 		return fmt.Errorf("getting buffer: %w", err)
@@ -130,7 +158,7 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 	newSize := currentSize + len(aggregateLinks)
 
 	// If adding new aggregates would NOT exceed max, append and return
-	if newSize <= m.maxBatchSize {
+	if newSize <= maxBatchSize {
 		log.Infow("Buffering aggregates for submission", "new_count", len(aggregateLinks), "new_size", newSize)
 		if err := m.buffer.AppendRoots(ctx, aggregateLinks); err != nil {
 			return fmt.Errorf("appending aggregates: %w", err)
@@ -142,10 +170,10 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 	log.Infow("Buffer would exceed max size, optimizing submission",
 		"current_size", currentSize,
 		"new_size", newSize,
-		"max_size", m.maxBatchSize)
+		"max_size", maxBatchSize)
 
 	// Calculate how many items we can add to reach max size
-	itemsToAdd := m.maxBatchSize - currentSize
+	itemsToAdd := maxBatchSize - currentSize
 
 	// If current buffer has items, fill it to max and submit
 	if currentSize > 0 && itemsToAdd > 0 {
@@ -160,7 +188,7 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 
 		log.Infow("Filling buffer to max size before submission",
 			"adding", len(fillItems),
-			"total", m.maxBatchSize)
+			"total", maxBatchSize)
 
 		// Append to buffer to reach max size
 		if err := m.buffer.AppendRoots(ctx, fillItems); err != nil {
@@ -187,7 +215,7 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 	remaining := aggregateLinks
 	for len(remaining) > 0 {
 		// Determine batch size
-		batchSize := m.maxBatchSize
+		batchSize := maxBatchSize
 		if len(remaining) < batchSize {
 			batchSize = len(remaining)
 		}
@@ -196,7 +224,7 @@ func (m *Manager) Submit(ctx context.Context, aggregateLinks ...datamodel.Link) 
 		remaining = remaining[batchSize:]
 
 		// If this is a full batch, submit immediately
-		if len(batch) == m.maxBatchSize {
+		if len(batch) == maxBatchSize {
 			log.Infow("Submitting full batch of aggregates", "count", len(batch))
 			if err := m.doSubmit(Aggregation{Roots: batch}); err != nil {
 				return fmt.Errorf("submitting batch: %w", err)
@@ -236,6 +264,12 @@ func (m *Manager) Start() error {
 func (m *Manager) Stop(ctx context.Context) error {
 	m.running.Store(false)
 	log.Info("Stopping submission manager")
+
+	// Unsubscribe from dynamic config changes
+	for _, unsub := range m.unsubscribers {
+		unsub()
+	}
+
 	// close processLoop, preventing new attempts to submit batches to queue
 	m.cancel()
 
@@ -259,16 +293,24 @@ func (m *Manager) Stop(ctx context.Context) error {
 func (m *Manager) processLoop() {
 	defer close(m.done)
 
-	ticker := m.clock.Ticker(m.pollInterval)
+	pollInterval := m.getPollInterval()
+	ticker := m.clock.Ticker(pollInterval)
 	defer ticker.Stop()
 
-	log.Infow("Starting submission process loop", "poll_interval", m.pollInterval)
+	log.Infow("Starting submission process loop", "poll_interval", pollInterval)
 
 	for {
 		select {
 		case <-m.ctx.Done():
 			log.Info("Process loop exiting due to context cancellation")
 			return
+
+		case <-m.tickerResetCh:
+			// Reset ticker with new poll interval from config provider
+			ticker.Stop()
+			newInterval := m.getPollInterval()
+			ticker = m.clock.Ticker(newInterval)
+			log.Infow("Poll interval updated, ticker reset", "new_interval", newInterval)
 
 		case <-ticker.C:
 			m.submitMu.Lock()

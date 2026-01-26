@@ -60,6 +60,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/ncruces/go-sqlite3 v0.24.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/raulk/clock v1.1.0
 	github.com/samber/lo v1.39.0
 	github.com/schollz/progressbar/v3 v3.18.0
@@ -264,7 +265,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/petar/GoLLRB v0.0.0-20210522233825-ae3b015fd3e9 // indirect
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/pion/dtls/v3 v3.0.7 // indirect
