@@ -11,22 +11,26 @@ import (
 
 	"github.com/storacha/piri/pkg/admin/httpapi"
 	"github.com/storacha/piri/pkg/config/app"
+	"github.com/storacha/piri/pkg/config/dynamic"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 )
 
 type AdminRoutes struct {
 	jwtMiddleware  echo.MiddlewareFunc
 	paymentHandler *PaymentHandler
+	configHandler  *ConfigHandler
 }
 
-type NewRoutesParams struct {
+type AdminRoutesParams struct {
 	fx.In
 
 	Identity       app.IdentityConfig
 	PaymentHandler *PaymentHandler `optional:"true"`
+	Registry       *dynamic.Registry
+	Bridge         *dynamic.ViperBridge
 }
 
-func NewRoutes(params NewRoutesParams) (echofx.RouteRegistrar, error) {
+func NewRoutes(params AdminRoutesParams) (echofx.RouteRegistrar, error) {
 	if params.Identity.Signer == nil {
 		return nil, fmt.Errorf("missing identity signer for jwt auth")
 	}
@@ -36,15 +40,22 @@ func NewRoutes(params NewRoutesParams) (echofx.RouteRegistrar, error) {
 		SigningMethod: jwt.SigningMethodEdDSA.Alg(),
 	})
 
+	var configHandler *ConfigHandler
+	if params.Registry != nil {
+		configHandler = NewConfigHandler(params.Registry, params.Bridge)
+
+	}
 	return &AdminRoutes{
 		jwtMiddleware:  jwtMiddleware,
 		paymentHandler: params.PaymentHandler,
+		configHandler:  configHandler,
 	}, nil
 }
 
 func (a *AdminRoutes) RegisterRoutes(e *echo.Echo) {
 	adminGroup := e.Group(httpapi.AdminRoutePath, a.jwtMiddleware)
 
+	// Log routes
 	logGroup := adminGroup.Group(httpapi.LogRoutePath)
 	logGroup.GET("/list", listLogLevels)
 	logGroup.POST("/set", setLogLevel)
@@ -59,5 +70,13 @@ func (a *AdminRoutes) RegisterRoutes(e *echo.Echo) {
 		paymentGroup.POST("/withdraw/estimate", a.paymentHandler.EstimateWithdraw)
 		paymentGroup.POST("/withdraw", a.paymentHandler.Withdraw)
 		paymentGroup.GET("/withdraw/status", a.paymentHandler.GetWithdrawalStatus)
+	}
+
+	// Config routes (only if dynamic config is enabled)
+	if a.configHandler != nil {
+		configGroup := adminGroup.Group(httpapi.ConfigRoutePath)
+		configGroup.GET("", a.configHandler.GetConfig)
+		configGroup.PATCH("", a.configHandler.UpdateConfig)
+		configGroup.POST(httpapi.ConfigReloadRoutePath, a.configHandler.ReloadConfig)
 	}
 }
