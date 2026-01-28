@@ -10,9 +10,9 @@ import (
 
 	logging "github.com/ipfs/go-log/v2"
 
-	"github.com/storacha/piri/lib/jobqueue/logger"
-
 	"github.com/storacha/piri/lib/jobqueue/dedup"
+	"github.com/storacha/piri/lib/jobqueue/dialect"
+	"github.com/storacha/piri/lib/jobqueue/logger"
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/lib/jobqueue/worker"
@@ -34,6 +34,7 @@ type Config struct {
 	MaxRetries    uint
 	MaxTimeout    time.Duration
 	ExtendDelay   time.Duration
+	Dialect       dialect.Dialect
 	queueProvider QueueProvider
 	isDedupQueue  bool
 }
@@ -86,15 +87,29 @@ func WithExtendDelay(extendDelay time.Duration) Option {
 	}
 }
 
-func defaultQueueProvider() QueueProvider {
+// WithDialect sets the SQL dialect for the job queue.
+// Use dialect.Postgres for PostgreSQL or dialect.SQLite (default) for SQLite.
+func WithDialect(d dialect.Dialect) Option {
+	return func(c *Config) error {
+		c.Dialect = d
+		return nil
+	}
+}
+
+func defaultQueueProvider(d dialect.Dialect) QueueProvider {
+	setup := queue.Setup
+	if d.IsPostgres() {
+		setup = queue.SetupPostgres
+	}
 	return QueueProvider{
-		Setup: queue.Setup,
+		Setup: setup,
 		New: func(name string, db *sql.DB, opts QueueProviderOpts) (queue.Interface, error) {
 			return queue.New(queue.NewOpts{
 				DB:         db,
 				MaxReceive: opts.MaxReceive,
 				Name:       name,
 				Timeout:    opts.Timeout,
+				Dialect:    d,
 			})
 		},
 	}
@@ -129,6 +144,7 @@ type DedupQueueConfig struct {
 	DedupeEnabled     *bool
 	BlockRepeatsOnDLQ *bool
 	HashFunc          dedup.HashFunc
+	Dialect           dialect.Dialect
 }
 
 func WithDedupQueue(cfg *DedupQueueConfig) Option {
@@ -138,8 +154,19 @@ func WithDedupQueue(cfg *DedupQueueConfig) Option {
 			dedupCfg = *cfg
 		}
 
+		// Use the dialect from config or fall back to the one set on the job queue config
+		d := dedupCfg.Dialect
+		if d == "" {
+			d = c.Dialect
+		}
+
+		setup := dedup.Setup
+		if d.IsPostgres() {
+			setup = dedup.SetupPostgres
+		}
+
 		provider := QueueProvider{
-			Setup: dedup.Setup,
+			Setup: setup,
 			New: func(name string, db *sql.DB, opts QueueProviderOpts) (queue.Interface, error) {
 				dOpts := dedup.NewOpts{
 					DB:         db,
@@ -148,6 +175,7 @@ func WithDedupQueue(cfg *DedupQueueConfig) Option {
 					Timeout:    opts.Timeout,
 					Logger:     opts.Logger,
 					HashFunc:   dedupCfg.HashFunc,
+					Dialect:    d,
 				}
 				if dedupCfg.DedupeEnabled != nil {
 					dOpts.DedupeEnabled = dedupCfg.DedupeEnabled
@@ -182,12 +210,12 @@ type JobQueue[T any] struct {
 func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...Option) (*JobQueue[T], error) {
 	// set defaults
 	c := &Config{
-		Logger:        &logger.DiscardLogger{},
-		MaxWorkers:    1,
-		MaxRetries:    3,
-		MaxTimeout:    5 * time.Second,
-		ExtendDelay:   5 * time.Second,
-		queueProvider: defaultQueueProvider(),
+		Logger:      &logger.DiscardLogger{},
+		MaxWorkers:  1,
+		MaxRetries:  3,
+		MaxTimeout:  5 * time.Second,
+		ExtendDelay: 5 * time.Second,
+		Dialect:     dialect.SQLite, // default dialect
 	}
 	// apply overrides of defaults
 	for _, opt := range opts {
@@ -196,8 +224,10 @@ func New[T any](name string, db *sql.DB, ser serializer.Serializer[T], opts ...O
 		}
 	}
 
+	// Set default queue provider if not already configured
+	// This is done after options are applied so we can use the correct dialect
 	if c.queueProvider.Setup == nil || c.queueProvider.New == nil {
-		return nil, errors.New("queue provider is not configured")
+		c.queueProvider = defaultQueueProvider(c.Dialect)
 	}
 
 	if c.MaxWorkers == 0 {
