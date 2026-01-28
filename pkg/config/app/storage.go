@@ -1,10 +1,42 @@
 package app
 
+// DatabaseType represents the database backend type.
+type DatabaseType string
+
+const (
+	// DatabaseTypeSQLite uses SQLite as the database backend (default).
+	DatabaseTypeSQLite DatabaseType = "sqlite"
+	// DatabaseTypePostgres uses PostgreSQL as the database backend.
+	DatabaseTypePostgres DatabaseType = "postgres"
+)
+
+// DatabaseConfig contains database connection configuration.
+type DatabaseConfig struct {
+	// Type is the database backend type: "sqlite" (default) or "postgres".
+	Type DatabaseType
+	// URL is the PostgreSQL connection string (only used when Type is "postgres").
+	// Format: postgres://user:password@host:port/dbname?sslmode=disable
+	URL string
+}
+
+// IsSQLite returns true if using SQLite backend (or if type is empty/default).
+func (c DatabaseConfig) IsSQLite() bool {
+	return c.Type == "" || c.Type == DatabaseTypeSQLite
+}
+
+// IsPostgres returns true if using PostgreSQL backend.
+func (c DatabaseConfig) IsPostgres() bool {
+	return c.Type == DatabaseTypePostgres
+}
+
 // StorageConfig contains all storage paths and directories
 type StorageConfig struct {
 	// Root directories
 	DataDir string
 	TempDir string
+
+	// Database configuration (sqlite or postgres)
+	Database DatabaseConfig
 
 	// Service-specific storage subdirectories
 	Aggregator       AggregatorStorageConfig

@@ -17,15 +17,18 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue/dialect"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/lib/jobqueue/traceutil"
+	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/pdp/aggregation/aggregator"
 	"github.com/storacha/piri/pkg/pdp/types"
 )
 
 type CommpQueueParams struct {
 	fx.In
-	DB *sql.DB `name:"aggregator_db"`
+	DB            *sql.DB `name:"aggregator_db"`
+	StorageConfig app.StorageConfig
 }
 
 const (
@@ -34,6 +37,12 @@ const (
 )
 
 func NewQueue(params CommpQueueParams) (jobqueue.Service[multihash.Multihash], error) {
+	// Determine dialect from storage config
+	d := dialect.SQLite
+	if params.StorageConfig.Database.IsPostgres() {
+		d = dialect.Postgres
+	}
+
 	var commpQueue, err = jobqueue.New[multihash.Multihash](
 		TaskName,
 		params.DB,
@@ -45,6 +54,7 @@ func NewQueue(params CommpQueueParams) (jobqueue.Service[multihash.Multihash], e
 		// TODO(forrest) make these configuration parameters.
 		jobqueue.WithMaxRetries(50),
 		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
+		jobqueue.WithDialect(d),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating commp queue: %w", err)
