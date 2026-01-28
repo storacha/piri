@@ -1,5 +1,7 @@
 package app
 
+import "time"
+
 // DatabaseType represents the database backend type.
 type DatabaseType string
 
@@ -17,6 +19,15 @@ type DatabaseConfig struct {
 	// URL is the PostgreSQL connection string (only used when Type is "postgres").
 	// Format: postgres://user:password@host:port/dbname?sslmode=disable
 	URL string
+	// MaxOpenConns is the maximum number of open connections to the database.
+	// Only used for PostgreSQL. Zero means use default (5).
+	MaxOpenConns int
+	// MaxIdleConns is the maximum number of idle connections in the pool.
+	// Only used for PostgreSQL. Zero means use default (5).
+	MaxIdleConns int
+	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
+	// Only used for PostgreSQL. Zero means use default (30 minutes).
+	ConnMaxLifetime time.Duration
 }
 
 // IsSQLite returns true if using SQLite backend (or if type is empty/default).
@@ -27,6 +38,32 @@ func (c DatabaseConfig) IsSQLite() bool {
 // IsPostgres returns true if using PostgreSQL backend.
 func (c DatabaseConfig) IsPostgres() bool {
 	return c.Type == DatabaseTypePostgres
+}
+
+// PoolConfig returns the connection pool configuration for PostgreSQL.
+// Returns nil if using SQLite (pool settings don't apply to SQLite).
+func (c DatabaseConfig) PoolConfig() *PoolConfig {
+	if c.IsSQLite() {
+		return nil
+	}
+	return &PoolConfig{
+		MaxOpenConns:    c.MaxOpenConns,
+		MaxIdleConns:    c.MaxIdleConns,
+		ConnMaxLifetime: c.ConnMaxLifetime,
+	}
+}
+
+// PoolConfig contains PostgreSQL connection pool configuration.
+type PoolConfig struct {
+	// MaxOpenConns is the maximum number of open connections to the database.
+	// Zero means use default.
+	MaxOpenConns int
+	// MaxIdleConns is the maximum number of idle connections in the pool.
+	// Zero means use default.
+	MaxIdleConns int
+	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
+	// Zero means use default.
+	ConnMaxLifetime time.Duration
 }
 
 // StorageConfig contains all storage paths and directories
@@ -56,8 +93,7 @@ type StorageConfig struct {
 
 // AggregatorStorageConfig contains aggregator-specific storage paths
 type AggregatorStorageConfig struct {
-	Dir    string
-	DBPath string
+	Dir string
 }
 
 // BlobStorageConfig contains blob-specific storage paths
@@ -83,8 +119,7 @@ type ReceiptStorageConfig struct {
 
 // EgressTrackerStorageConfig contains egress tracker store-specific storage paths
 type EgressTrackerStorageConfig struct {
-	Dir    string
-	DBPath string
+	Dir string
 }
 
 // AllocationStorageConfig contains allocation-specific storage paths
@@ -97,10 +132,9 @@ type AcceptanceStorageConfig struct {
 	Dir string
 }
 
-// ReplicatorStorageConfig contains replicator-specific storage paths
-type ReplicatorStorageConfig struct {
-	DBPath string
-}
+// ReplicatorStorageConfig contains replicator-specific storage paths.
+// Currently empty - SQLite paths are derived by providers.
+type ReplicatorStorageConfig struct{}
 
 type KeyStoreConfig struct {
 	Dir string
@@ -129,6 +163,6 @@ type Credentials struct {
 	SecretAccessKey string
 }
 
-type SchedulerConfig struct {
-	DBPath string
-}
+// SchedulerConfig contains scheduler-specific storage paths.
+// Currently empty - SQLite paths are derived by providers.
+type SchedulerConfig struct{}

@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/database"
 )
 
@@ -88,9 +89,9 @@ type PostgresOptions struct {
 func NewPostgres(connURL string, schema string, opts *PostgresOptions) (*gorm.DB, error) {
 	if opts == nil {
 		opts = &PostgresOptions{
-			MaxOpenConns:    25,
+			MaxOpenConns:    5,
 			MaxIdleConns:    5,
-			ConnMaxLifetime: 5 * time.Minute,
+			ConnMaxLifetime: 30 * time.Minute,
 		}
 	}
 
@@ -290,4 +291,27 @@ func bool2int(b bool) int {
 		i = 0
 	}
 	return i
+}
+
+// PostgresOptionsFromConfig creates PostgresOptions from app.PoolConfig.
+// Uses conservative defaults for any zero values.
+func PostgresOptionsFromConfig(cfg *app.PoolConfig) *PostgresOptions {
+	opts := &PostgresOptions{
+		MaxOpenConns:    5,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: 30 * time.Minute,
+	}
+	if cfg == nil {
+		return opts
+	}
+	if cfg.MaxOpenConns > 0 {
+		opts.MaxOpenConns = cfg.MaxOpenConns
+	}
+	if cfg.MaxIdleConns > 0 {
+		opts.MaxIdleConns = cfg.MaxIdleConns
+	}
+	if cfg.ConnMaxLifetime > 0 {
+		opts.ConnMaxLifetime = cfg.ConnMaxLifetime
+	}
+	return opts
 }

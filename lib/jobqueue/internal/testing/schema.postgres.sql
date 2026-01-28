@@ -1,15 +1,12 @@
 -- Combined PostgreSQL schema for testing
 -- This includes both the classic queue and dedup queue schemas.
 
--- Enable pgcrypto extension for gen_random_bytes() function
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 ----------------------------------------------------------------
 -- Classic Queue Schema (from lib/jobqueue/queue/schema.postgres.sql)
 ----------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS jobqueue (
-  id TEXT PRIMARY KEY DEFAULT ('m_' || lower(encode(gen_random_bytes(16), 'hex'))),
+  id TEXT PRIMARY KEY DEFAULT ('m_' || replace(gen_random_uuid()::text, '-', '')),
   created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   queue TEXT NOT NULL,
@@ -65,7 +62,7 @@ CREATE TABLE IF NOT EXISTS queues (
 
 ----------------------------------------------------------------
 -- job_ns
--- Maps (queue, task name) → compact integer namespace id
+-- Maps (queue, task name) -> compact integer namespace id
 -- Reduces size of foreign keys and PRIMARY KEYs in large tables.
 ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS job_ns (

@@ -1,9 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/storacha/piri/pkg/config/app"
 )
@@ -33,6 +35,15 @@ type DatabaseConfig struct {
 	// URL is the PostgreSQL connection string (only used when type is "postgres")
 	// Format: postgres://user:password@host:port/dbname?sslmode=disable
 	URL string `mapstructure:"url" flag:"db-url" toml:"url,omitempty"`
+	// MaxOpenConns is the maximum number of open connections to the database.
+	// Only used for PostgreSQL. Default: 5
+	MaxOpenConns int `mapstructure:"max_open_conns" toml:"max_open_conns,omitempty"`
+	// MaxIdleConns is the maximum number of idle connections in the pool.
+	// Only used for PostgreSQL. Default: 5
+	MaxIdleConns int `mapstructure:"max_idle_conns" toml:"max_idle_conns,omitempty"`
+	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
+	// Only used for PostgreSQL. Accepts Go duration strings (e.g., "30m", "1h"). Default: "30m"
+	ConnMaxLifetime string `mapstructure:"conn_max_lifetime" toml:"conn_max_lifetime,omitempty"`
 }
 
 type RepoConfig struct {
@@ -47,13 +58,34 @@ func (r RepoConfig) Validate() error {
 }
 
 func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
+	// Parse connection lifetime duration if specified
+	var connMaxLifetime time.Duration
+	if r.Database.ConnMaxLifetime != "" {
+		var err error
+		connMaxLifetime, err = time.ParseDuration(r.Database.ConnMaxLifetime)
+		if err != nil {
+			return app.StorageConfig{}, fmt.Errorf("invalid conn_max_lifetime %q: %w", r.Database.ConnMaxLifetime, err)
+		}
+	}
+
+	// Build database config to use helper methods
+	dbCfg := app.DatabaseConfig{
+		Type:            app.DatabaseType(r.Database.Type),
+		URL:             r.Database.URL,
+		MaxOpenConns:    r.Database.MaxOpenConns,
+		MaxIdleConns:    r.Database.MaxIdleConns,
+		ConnMaxLifetime: connMaxLifetime,
+	}
+
+	// Validate PostgreSQL requires URL
+	if dbCfg.IsPostgres() && r.Database.URL == "" {
+		return app.StorageConfig{}, errors.New("database URL is required when using PostgreSQL")
+	}
+
 	if r.DataDir == "" {
 		// Return empty config for memory stores
 		return app.StorageConfig{
-			Database: app.DatabaseConfig{
-				Type: app.DatabaseType(r.Database.Type),
-				URL:  r.Database.URL,
-			},
+			Database: dbCfg,
 		}, nil
 	}
 
@@ -68,7 +100,7 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		}
 	}
 
-	// Ensure directories exist
+	// Ensure root directories exist
 	if err := os.MkdirAll(r.DataDir, 0755); err != nil {
 		return app.StorageConfig{}, err
 	}
@@ -76,16 +108,13 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		return app.StorageConfig{}, err
 	}
 
+	// Build storage config - database paths are derived by providers, not set here
 	out := app.StorageConfig{
-		DataDir: r.DataDir,
-		TempDir: r.TempDir,
-		Database: app.DatabaseConfig{
-			Type: app.DatabaseType(r.Database.Type),
-			URL:  r.Database.URL,
-		},
+		DataDir:  r.DataDir,
+		TempDir:  r.TempDir,
+		Database: dbCfg,
 		Aggregator: app.AggregatorStorageConfig{
-			Dir:    filepath.Join(r.DataDir, "aggregator", "datastore"),
-			DBPath: filepath.Join(r.DataDir, "aggregator", "jobqueue", "jobqueue.db"),
+			Dir: filepath.Join(r.DataDir, "aggregator", "datastore"),
 		},
 		Blobs: app.BlobStorageConfig{
 			Dir:    filepath.Join(r.DataDir, "blobs"),
@@ -101,8 +130,7 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 			Dir: filepath.Join(r.DataDir, "receipt"),
 		},
 		EgressTracker: app.EgressTrackerStorageConfig{
-			Dir:    filepath.Join(r.DataDir, "egress_tracker", "journal"),
-			DBPath: filepath.Join(r.DataDir, "egress_tracker", "jobqueue", "jobqueue.db"),
+			Dir: filepath.Join(r.DataDir, "egress_tracker", "journal"),
 		},
 		Allocations: app.AllocationStorageConfig{
 			Dir: filepath.Join(r.DataDir, "allocation"),
@@ -110,32 +138,18 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		Acceptance: app.AcceptanceStorageConfig{
 			Dir: filepath.Join(r.DataDir, "acceptance"),
 		},
-		Replicator: app.ReplicatorStorageConfig{
-			DBPath: filepath.Join(r.DataDir, "replicator", "replicator.db"),
-		},
+		Replicator: app.ReplicatorStorageConfig{},
 		KeyStore: app.KeyStoreConfig{
 			Dir: filepath.Join(r.DataDir, "wallet"),
 		},
 		StashStore: app.StashStoreConfig{
 			Dir: filepath.Join(r.DataDir, "pdp"),
 		},
-		SchedulerStorage: app.SchedulerConfig{
-			DBPath: filepath.Join(r.DataDir, "pdp", "state", "state.db"),
-		},
+		SchedulerStorage: app.SchedulerConfig{},
 		PDPStore: app.PDPStoreConfig{
 			Dir:   filepath.Join(r.DataDir, "pdp", "datastore"),
 			Minio: pdpMinio,
 		},
-	}
-
-	if err := os.MkdirAll(filepath.Dir(out.Aggregator.DBPath), 0755); err != nil {
-		return app.StorageConfig{}, fmt.Errorf("creating aggregator db: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(out.Replicator.DBPath), 0755); err != nil {
-		return app.StorageConfig{}, fmt.Errorf("creating replicator db: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(out.SchedulerStorage.DBPath), 0755); err != nil {
-		return app.StorageConfig{}, fmt.Errorf("creating scheduler db: %w", err)
 	}
 
 	return out, nil
