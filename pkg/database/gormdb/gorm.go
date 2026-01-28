@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"path"
 	"runtime"
 	"strings"
@@ -11,9 +12,11 @@ import (
 
 	"github.com/glebarez/sqlite"
 	logging "github.com/ipfs/go-log/v2"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/database"
 )
 
@@ -66,6 +69,72 @@ func New(dbPath string, opts ...database.Option) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %s", err)
 	}
+	return db, nil
+}
+
+// PostgresOptions configures a GORM PostgreSQL connection.
+type PostgresOptions struct {
+	// MaxOpenConns is the maximum number of open connections to the database.
+	MaxOpenConns int
+	// MaxIdleConns is the maximum number of idle connections in the pool.
+	MaxIdleConns int
+	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
+	ConnMaxLifetime time.Duration
+}
+
+// NewPostgres creates a new GORM PostgreSQL connection.
+// The connURL should be a PostgreSQL connection string in the format:
+// postgres://user:password@host:port/dbname?sslmode=disable
+// If schema is provided, a separate PostgreSQL schema will be created and used.
+func NewPostgres(connURL string, schema string, opts *PostgresOptions) (*gorm.DB, error) {
+	if opts == nil {
+		opts = &PostgresOptions{
+			MaxOpenConns:    5,
+			MaxIdleConns:    5,
+			ConnMaxLifetime: 30 * time.Minute,
+		}
+	}
+
+	// If schema is specified, append search_path to connection string
+	dsn := connURL
+	if schema != "" {
+		u, err := url.Parse(connURL)
+		if err != nil {
+			return nil, fmt.Errorf("parsing connection URL: %w", err)
+		}
+		q := u.Query()
+		q.Set("search_path", schema)
+		u.RawQuery = q.Encode()
+		dsn = u.String()
+	}
+
+	log.Infof("connecting to GORM PostgreSQL (schema: %s)", schema)
+	db, err := gorm.Open(
+		postgres.Open(dsn),
+		&gorm.Config{
+			SkipDefaultTransaction: true,
+			Logger:                 newGormLogger(log),
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %s", err)
+	}
+
+	// Create schema if specified
+	if schema != "" {
+		if err := db.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema)).Error; err != nil {
+			return nil, fmt.Errorf("creating schema %s: %w", schema, err)
+		}
+	}
+
+	// Configure connection pool
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("getting underlying sql.DB: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(opts.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(opts.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(opts.ConnMaxLifetime)
+
 	return db, nil
 }
 
@@ -222,4 +291,27 @@ func bool2int(b bool) int {
 		i = 0
 	}
 	return i
+}
+
+// PostgresOptionsFromConfig creates PostgresOptions from app.PoolConfig.
+// Uses conservative defaults for any zero values.
+func PostgresOptionsFromConfig(cfg *app.PoolConfig) *PostgresOptions {
+	opts := &PostgresOptions{
+		MaxOpenConns:    5,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: 30 * time.Minute,
+	}
+	if cfg == nil {
+		return opts
+	}
+	if cfg.MaxOpenConns > 0 {
+		opts.MaxOpenConns = cfg.MaxOpenConns
+	}
+	if cfg.MaxIdleConns > 0 {
+		opts.MaxIdleConns = cfg.MaxIdleConns
+	}
+	if cfg.ConnMaxLifetime > 0 {
+		opts.ConnMaxLifetime = cfg.ConnMaxLifetime
+	}
+	return opts
 }

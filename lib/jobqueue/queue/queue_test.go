@@ -27,34 +27,47 @@ import (
 //go:embed schema.sql
 var schema string
 
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+	if err := testing2.SetupPostgresContainer(ctx); err != nil {
+		// Log but continue - Postgres tests will skip
+		fmt.Printf("Warning: PostgreSQL container setup failed: %v\n", err)
+	}
+	code := m.Run()
+	testing2.TeardownPostgresContainer(ctx)
+	os.Exit(code)
+}
+
 func TestQueue(t *testing.T) {
-	t.Run("can send and receive and delete a message", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{Timeout: time.Millisecond})
+	testing2.RunForAllBackends(t, func(t *testing.T, backend testing2.Backend) {
+		t.Run("can send and receive and delete a message", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{Timeout: time.Millisecond}, backend)
 
-		m, err := q.Receive(t.Context())
-		require.NoError(t, err)
-		require.Nil(t, m)
+			m, err := q.Receive(t.Context())
+			require.NoError(t, err)
+			require.Nil(t, m)
 
-		m = &queue.Message{
-			Body: []byte("yo"),
-		}
+			m = &queue.Message{
+				Body: []byte("yo"),
+			}
 
-		err = q.Send(t.Context(), *m)
-		require.NoError(t, err)
+			err = q.Send(t.Context(), *m)
+			require.NoError(t, err)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, m)
-		require.Equal(t, "yo", string(m.Body))
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, m)
+			require.Equal(t, "yo", string(m.Body))
 
-		err = q.Delete(t.Context(), m.ID)
-		require.NoError(t, err)
+			err = q.Delete(t.Context(), m.ID)
+			require.NoError(t, err)
 
-		time.Sleep(time.Millisecond)
+			time.Sleep(time.Millisecond)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.Nil(t, m)
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.Nil(t, m)
+		})
 	})
 }
 
@@ -81,200 +94,213 @@ func TestQueue_New(t *testing.T) {
 }
 
 func TestQueue_Send(t *testing.T) {
-	t.Run("panics if delay is negative", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{})
+	testing2.RunForAllBackends(t, func(t *testing.T, backend testing2.Backend) {
+		t.Run("panics if delay is negative", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{}, backend)
 
-		var err error
-		defer func() {
-			require.NoError(t, err)
-			r := recover()
-			require.Equal(t, "delay cannot be negative", r)
-		}()
+			var err error
+			defer func() {
+				require.NoError(t, err)
+				r := recover()
+				require.Equal(t, "delay cannot be negative", r)
+			}()
 
-		err = q.Send(t.Context(), queue.Message{Delay: -1})
+			err = q.Send(t.Context(), queue.Message{Delay: -1})
+		})
 	})
 }
 
 func TestQueue_Receive(t *testing.T) {
-	t.Run("does not receive a delayed message immediately", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{})
+	testing2.RunForAllBackends(t, func(t *testing.T, backend testing2.Backend) {
+		t.Run("does not receive a delayed message immediately", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{}, backend)
 
-		m := &queue.Message{
-			Body:  []byte("yo"),
-			Delay: time.Second,
-		}
+			m := &queue.Message{
+				Body:  []byte("yo"),
+				Delay: time.Second,
+			}
 
-		err := q.Send(t.Context(), *m)
-		require.NoError(t, err)
+			err := q.Send(t.Context(), *m)
+			require.NoError(t, err)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.Nil(t, m)
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.Nil(t, m)
 
-		time.Sleep(time.Second)
+			time.Sleep(time.Second)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, m)
-		require.Equal(t, "yo", string(m.Body))
-	})
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, m)
+			require.Equal(t, "yo", string(m.Body))
+		})
 
-	t.Run("does not receive a message twice in a row", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{})
+		t.Run("does not receive a message twice in a row", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{}, backend)
 
-		m := &queue.Message{
-			Body: []byte("yo"),
-		}
+			m := &queue.Message{
+				Body: []byte("yo"),
+			}
 
-		err := q.Send(t.Context(), *m)
-		require.NoError(t, err)
+			err := q.Send(t.Context(), *m)
+			require.NoError(t, err)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, m)
-		require.Equal(t, "yo", string(m.Body))
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, m)
+			require.Equal(t, "yo", string(m.Body))
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.Nil(t, m)
-	})
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.Nil(t, m)
+		})
 
-	t.Run("does receive a message up to two times if set and timeout has passed", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{Timeout: time.Millisecond, MaxReceive: 2})
+		t.Run("does receive a message up to two times if set and timeout has passed", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{Timeout: time.Millisecond, MaxReceive: 2}, backend)
 
-		m := &queue.Message{
-			Body: []byte("yo"),
-		}
+			m := &queue.Message{
+				Body: []byte("yo"),
+			}
 
-		err := q.Send(t.Context(), *m)
-		require.NoError(t, err)
+			err := q.Send(t.Context(), *m)
+			require.NoError(t, err)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, m)
-		require.Equal(t, "yo", string(m.Body))
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, m)
+			require.Equal(t, "yo", string(m.Body))
 
-		time.Sleep(time.Millisecond)
+			time.Sleep(time.Millisecond)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, m)
-		require.Equal(t, "yo", string(m.Body))
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, m)
+			require.Equal(t, "yo", string(m.Body))
 
-		time.Sleep(time.Millisecond)
+			time.Sleep(time.Millisecond)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.Nil(t, m)
-	})
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.Nil(t, m)
+		})
 
-	t.Run("does not receive a message from a different queue", func(t *testing.T) {
-		q1 := newQ(t, queue.NewOpts{})
-		q2 := newQ(t, queue.NewOpts{Name: "q2"})
+		t.Run("does not receive a message from a different queue", func(t *testing.T) {
+			db := testing2.NewDBForBackend(t, backend)
+			q1, err := queue.New(queue.NewOpts{DB: db, Name: "q1", Dialect: backend.Dialect()})
+			require.NoError(t, err)
+			q2, err := queue.New(queue.NewOpts{DB: db, Name: "q2", Dialect: backend.Dialect()})
+			require.NoError(t, err)
 
-		err := q1.Send(t.Context(), queue.Message{Body: []byte("yo")})
-		require.NoError(t, err)
+			err = q1.Send(t.Context(), queue.Message{Body: []byte("yo")})
+			require.NoError(t, err)
 
-		m, err := q2.Receive(t.Context())
-		require.NoError(t, err)
-		require.Nil(t, m)
+			m, err := q2.Receive(t.Context())
+			require.NoError(t, err)
+			require.Nil(t, m)
+		})
 	})
 }
 
 func TestQueue_SendAndGetID(t *testing.T) {
-	t.Run("returns the message ID", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{})
+	testing2.RunForAllBackends(t, func(t *testing.T, backend testing2.Backend) {
+		t.Run("returns the message ID", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{}, backend)
 
-		m := queue.Message{
-			Body: []byte("yo"),
-		}
+			m := queue.Message{
+				Body: []byte("yo"),
+			}
 
-		id, err := q.SendAndGetID(t.Context(), m)
-		require.NoError(t, err)
-		require.Equal(t, 34, len(id))
+			id, err := q.SendAndGetID(t.Context(), m)
+			require.NoError(t, err)
+			require.Equal(t, 34, len(id))
 
-		err = q.Delete(t.Context(), id)
-		require.NoError(t, err)
+			err = q.Delete(t.Context(), id)
+			require.NoError(t, err)
+		})
 	})
 }
 
 func TestQueue_Extend(t *testing.T) {
-	t.Run("does not receive a message that has had the timeout extended", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{Timeout: time.Millisecond})
+	testing2.RunForAllBackends(t, func(t *testing.T, backend testing2.Backend) {
+		t.Run("does not receive a message that has had the timeout extended", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{Timeout: time.Millisecond}, backend)
 
-		m := &queue.Message{
-			Body: []byte("yo"),
-		}
+			m := &queue.Message{
+				Body: []byte("yo"),
+			}
 
-		err := q.Send(t.Context(), *m)
-		require.NoError(t, err)
-
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, m)
-
-		err = q.Extend(t.Context(), m.ID, time.Second)
-		require.NoError(t, err)
-
-		time.Sleep(time.Millisecond)
-
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.Nil(t, m)
-	})
-
-	t.Run("panics if delay is negative", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{})
-
-		var err error
-		defer func() {
+			err := q.Send(t.Context(), *m)
 			require.NoError(t, err)
-			r := recover()
-			require.Equal(t, "delay cannot be negative", r)
-		}()
 
-		m := &queue.Message{
-			Body: []byte("yo"),
-		}
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, m)
 
-		err = q.Send(t.Context(), *m)
-		require.NoError(t, err)
+			err = q.Extend(t.Context(), m.ID, time.Second)
+			require.NoError(t, err)
 
-		m, err = q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, m)
+			time.Sleep(time.Millisecond)
 
-		err = q.Extend(t.Context(), m.ID, -1)
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.Nil(t, m)
+		})
+
+		t.Run("panics if delay is negative", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{}, backend)
+
+			var err error
+			defer func() {
+				require.NoError(t, err)
+				r := recover()
+				require.Equal(t, "delay cannot be negative", r)
+			}()
+
+			m := &queue.Message{
+				Body: []byte("yo"),
+			}
+
+			err = q.Send(t.Context(), *m)
+			require.NoError(t, err)
+
+			m, err = q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, m)
+
+			err = q.Extend(t.Context(), m.ID, -1)
+		})
 	})
 }
 
 func TestQueue_ReceiveAndWait(t *testing.T) {
-	t.Run("waits for a message until the context is cancelled", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{Timeout: time.Millisecond})
+	testing2.RunForAllBackends(t, func(t *testing.T, backend testing2.Backend) {
+		t.Run("waits for a message until the context is cancelled", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{Timeout: time.Millisecond}, backend)
 
-		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
-		defer cancel()
+			ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
+			defer cancel()
 
-		m, err := q.ReceiveAndWait(ctx, time.Millisecond)
-		require.Error(t, context.DeadlineExceeded, err)
-		require.Nil(t, m)
-	})
+			m, err := q.ReceiveAndWait(ctx, time.Millisecond)
+			require.Error(t, context.DeadlineExceeded, err)
+			require.Nil(t, m)
+		})
 
-	t.Run("gets a message immediately if there is one", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{Timeout: time.Millisecond})
+		t.Run("gets a message immediately if there is one", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{Timeout: time.Millisecond}, backend)
 
-		err := q.Send(t.Context(), queue.Message{Body: []byte("yo")})
-		require.NoError(t, err)
+			err := q.Send(t.Context(), queue.Message{Body: []byte("yo")})
+			require.NoError(t, err)
 
-		m, err := q.ReceiveAndWait(t.Context(), time.Millisecond)
-		require.NoError(t, err)
-		require.NotNil(t, m)
-		require.Equal(t, "yo", string(m.Body))
+			m, err := q.ReceiveAndWait(t.Context(), time.Millisecond)
+			require.NoError(t, err)
+			require.NotNil(t, m)
+			require.Equal(t, "yo", string(m.Body))
+		})
 	})
 }
 
 func TestSetup(t *testing.T) {
-	t.Run("creates the database table", func(t *testing.T) {
+	t.Run("creates the database table for sqlite", func(t *testing.T) {
 		db, err := sqlitedb.NewMemory()
 		if err != nil {
 			t.Fatal(err)
@@ -289,83 +315,110 @@ func TestSetup(t *testing.T) {
 		_, err = db.Exec(`select * from jobqueue`)
 		require.NoError(t, err)
 	})
+
+	t.Run("creates the database table for postgres", func(t *testing.T) {
+		if !testing2.PostgresAvailable() {
+			t.Skip("PostgreSQL not available")
+		}
+		db := testing2.NewPostgresDB(t)
+
+		// Drop table if it exists from previous tests (shared container)
+		_, _ = db.Exec(`DROP TABLE IF EXISTS jobqueue_dead, jobqueue CASCADE`)
+
+		_, err := db.Exec(`select * from jobqueue`)
+		require.Error(t, err)
+		err = queue.SetupPostgres(t.Context(), db)
+		require.NoError(t, err)
+		_, err = db.Exec(`select * from jobqueue`)
+		require.NoError(t, err)
+	})
 }
 
 func TestQueue_MoveToDeadLetter(t *testing.T) {
-	t.Run("moves a message to the dead letter queue", func(t *testing.T) {
-		db := testing2.NewInMemoryDB(t)
-		q, err := queue.New(queue.NewOpts{DB: db, Name: "test"})
-		require.NoError(t, err)
+	testing2.RunForAllBackends(t, func(t *testing.T, backend testing2.Backend) {
+		t.Run("moves a message to the dead letter queue", func(t *testing.T) {
+			db := testing2.NewDBForBackend(t, backend)
+			q, err := queue.New(queue.NewOpts{DB: db, Name: "test", Dialect: backend.Dialect()})
+			require.NoError(t, err)
 
-		// Send a message
-		m := queue.Message{Body: []byte("test message")}
-		id, err := q.SendAndGetID(t.Context(), m)
-		require.NoError(t, err)
+			// Send a message
+			m := queue.Message{Body: []byte("test message")}
+			id, err := q.SendAndGetID(t.Context(), m)
+			require.NoError(t, err)
 
-		// Receive it to get the full message
-		received, err := q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, received)
+			// Receive it to get the full message
+			received, err := q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, received)
 
-		// Move to dead letter queue
-		err = q.MoveToDeadLetter(t.Context(), received.ID, "test-job", "permanent_error", "test error")
-		require.NoError(t, err)
+			// Move to dead letter queue
+			err = q.MoveToDeadLetter(t.Context(), received.ID, "test-job", "permanent_error", "test error")
+			require.NoError(t, err)
 
-		// Verify it's no longer in the main queue
-		m2, err := q.Receive(t.Context())
-		require.NoError(t, err)
-		require.Nil(t, m2)
+			// Verify it's no longer in the main queue
+			m2, err := q.Receive(t.Context())
+			require.NoError(t, err)
+			require.Nil(t, m2)
 
-		// Verify it's in the dead letter queue
-		var count int
-		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE id = ?", id).Scan(&count)
-		require.NoError(t, err)
-		require.Equal(t, 1, count)
+			// Verify it's in the dead letter queue
+			var count int
+			placeholder := "?"
+			if backend.IsPostgres() {
+				placeholder = "$1"
+			}
+			err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE id = "+placeholder, id).Scan(&count)
+			require.NoError(t, err)
+			require.Equal(t, 1, count)
 
-		// Verify the metadata
-		var jobName, failureReason, errorMessage string
-		err = db.QueryRowContext(t.Context(),
-			"SELECT job_name, failure_reason, error_message FROM jobqueue_dead WHERE id = ?",
-			id).Scan(&jobName, &failureReason, &errorMessage)
-		require.NoError(t, err)
-		require.Equal(t, "test-job", jobName)
-		require.Equal(t, "permanent_error", failureReason)
-		require.Equal(t, "test error", errorMessage)
-	})
+			// Verify the metadata
+			var jobName, failureReason, errorMessage string
+			err = db.QueryRowContext(t.Context(),
+				"SELECT job_name, failure_reason, error_message FROM jobqueue_dead WHERE id = "+placeholder,
+				id).Scan(&jobName, &failureReason, &errorMessage)
+			require.NoError(t, err)
+			require.Equal(t, "test-job", jobName)
+			require.Equal(t, "permanent_error", failureReason)
+			require.Equal(t, "test error", errorMessage)
+		})
 
-	t.Run("errors if message does not exist", func(t *testing.T) {
-		q := newQ(t, queue.NewOpts{})
+		t.Run("errors if message does not exist", func(t *testing.T) {
+			q := newQWithBackend(t, queue.NewOpts{}, backend)
 
-		err := q.MoveToDeadLetter(t.Context(), "non-existent-id", "test-job", "permanent_error", "test error")
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "not found")
-	})
+			err := q.MoveToDeadLetter(t.Context(), "non-existent-id", "test-job", "permanent_error", "test error")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "not found")
+		})
 
-	t.Run("handles max_retries failure reason", func(t *testing.T) {
-		db := testing2.NewInMemoryDB(t)
-		q, err := queue.New(queue.NewOpts{DB: db, Name: "test"})
-		require.NoError(t, err)
+		t.Run("handles max_retries failure reason", func(t *testing.T) {
+			db := testing2.NewDBForBackend(t, backend)
+			q, err := queue.New(queue.NewOpts{DB: db, Name: "test", Dialect: backend.Dialect()})
+			require.NoError(t, err)
 
-		// Send and receive a message
-		m := queue.Message{Body: []byte("test message")}
-		id, err := q.SendAndGetID(t.Context(), m)
-		require.NoError(t, err)
+			// Send and receive a message
+			m := queue.Message{Body: []byte("test message")}
+			id, err := q.SendAndGetID(t.Context(), m)
+			require.NoError(t, err)
 
-		received, err := q.Receive(t.Context())
-		require.NoError(t, err)
-		require.NotNil(t, received)
+			received, err := q.Receive(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, received)
 
-		// Move to dead letter queue with max_retries reason
-		err = q.MoveToDeadLetter(t.Context(), received.ID, "test-job", "max_retries", "failed after 3 attempts")
-		require.NoError(t, err)
+			// Move to dead letter queue with max_retries reason
+			err = q.MoveToDeadLetter(t.Context(), received.ID, "test-job", "max_retries", "failed after 3 attempts")
+			require.NoError(t, err)
 
-		// Verify the failure reason
-		var failureReason string
-		err = db.QueryRowContext(t.Context(),
-			"SELECT failure_reason FROM jobqueue_dead WHERE id = ?",
-			id).Scan(&failureReason)
-		require.NoError(t, err)
-		require.Equal(t, "max_retries", failureReason)
+			// Verify the failure reason
+			var failureReason string
+			placeholder := "?"
+			if backend.IsPostgres() {
+				placeholder = "$1"
+			}
+			err = db.QueryRowContext(t.Context(),
+				"SELECT failure_reason FROM jobqueue_dead WHERE id = "+placeholder,
+				id).Scan(&failureReason)
+			require.NoError(t, err)
+			require.Equal(t, "max_retries", failureReason)
+		})
 	})
 }
 
@@ -492,6 +545,21 @@ func newQ(t testing.TB, opts queue.NewOpts) *queue.Queue {
 	t.Helper()
 
 	opts.DB = testing2.NewInMemoryDB(t)
+
+	if opts.Name == "" {
+		opts.Name = "test"
+	}
+
+	q, err := queue.New(opts)
+	require.NoError(t, err)
+	return q
+}
+
+func newQWithBackend(t testing.TB, opts queue.NewOpts, backend testing2.Backend) *queue.Queue {
+	t.Helper()
+
+	opts.DB = testing2.NewDBForBackend(t, backend)
+	opts.Dialect = backend.Dialect()
 
 	if opts.Name == "" {
 		opts.Name = "test"

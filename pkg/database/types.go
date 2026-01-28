@@ -5,7 +5,20 @@ import (
 	"time"
 
 	"github.com/glebarez/go-sqlite"
+	"github.com/jackc/pgx/v5/pgconn"
 	sqlite3 "modernc.org/sqlite/lib"
+)
+
+// PostgreSQL error codes
+// See: https://www.postgresql.org/docs/current/errcodes-appendix.html
+const (
+	pgUniqueViolation     = "23505" // unique_violation
+	pgSerializationFail   = "40001" // serialization_failure
+	pgDeadlockDetected    = "40P01" // deadlock_detected
+	pgLockNotAvailable    = "55P03" // lock_not_available
+	pgForeignKeyViolation = "23503" // foreign_key_violation
+	pgCheckViolation      = "23514" // check_violation
+	pgNotNullViolation    = "23502" // not_null_violation
 )
 
 var (
@@ -34,20 +47,56 @@ var (
 )
 
 func IsLockedError(err error) bool {
+	// Check SQLite errors
 	var sqliteErr *sqlite.Error
 	if errors.As(err, &sqliteErr) {
 		_, ok := lockedCodes[sqliteErr.Code()]
 		return ok
 	}
-	return false
 
+	// Check PostgreSQL errors
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case pgSerializationFail, pgDeadlockDetected, pgLockNotAvailable:
+			return true
+		}
+	}
+	return false
 }
 
 func IsUniqueConstraintError(err error) bool {
+	// Check SQLite errors
 	var sqliteErr *sqlite.Error
 	if errors.As(err, &sqliteErr) {
 		_, ok := constraintCodes[sqliteErr.Code()]
 		return ok
+	}
+
+	// Check PostgreSQL errors
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == pgUniqueViolation
+	}
+	return false
+}
+
+// IsConstraintError returns true if the error is any constraint violation (unique, foreign key, check, etc.)
+func IsConstraintError(err error) bool {
+	// Check SQLite errors
+	var sqliteErr *sqlite.Error
+	if errors.As(err, &sqliteErr) {
+		_, ok := constraintCodes[sqliteErr.Code()]
+		return ok
+	}
+
+	// Check PostgreSQL errors
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case pgUniqueViolation, pgForeignKeyViolation, pgCheckViolation, pgNotNullViolation:
+			return true
+		}
 	}
 	return false
 }
