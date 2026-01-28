@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -21,6 +22,17 @@ import (
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/lib/jobqueue/worker"
 )
+
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+	if err := internaltesting.SetupPostgresContainer(ctx); err != nil {
+		// Log but continue - Postgres tests will skip
+		fmt.Printf("Warning: PostgreSQL container setup failed: %v\n", err)
+	}
+	code := m.Run()
+	internaltesting.TeardownPostgresContainer(ctx)
+	os.Exit(code)
+}
 
 func TestRunner_Register(t *testing.T) {
 	t.Run("can register a new job", func(t *testing.T) {
@@ -44,409 +56,439 @@ func TestRunner_Register(t *testing.T) {
 }
 
 func TestOnFailure(t *testing.T) {
-	t.Run("calls OnFailure after max retries", func(t *testing.T) {
-		q := internaltesting.NewQ(t, queue.NewOpts{
-			MaxReceive: 3, // Max 3 attempts
-			Timeout:    10 * time.Millisecond,
+	internaltesting.RunForAllBackends(t, func(t *testing.T, backend internaltesting.Backend) {
+		t.Run("calls OnFailure after max retries", func(t *testing.T) {
+			q := internaltesting.NewQForBackend(t, queue.NewOpts{
+				MaxReceive: 3, // Max 3 attempts
+				Timeout:    10 * time.Millisecond,
+			}, backend)
+			r, err := worker.New[[]byte](
+				q,
+				&PassThroughSerializer[[]byte]{},
+				worker.WithLimit(10),
+			)
+			require.NoError(t, err)
+
+			var onFailureCalled bool
+			var capturedMsg []byte
+			var capturedErr error
+
+			ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+			defer cancel()
+
+			// Register a job that always fails
+			err = r.Register("failing-job",
+				func(ctx context.Context, m []byte) error {
+					return fmt.Errorf("job failed")
+				},
+				worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
+					onFailureCalled = true
+					capturedMsg = msg
+					capturedErr = err
+					return err
+				}),
+			)
+			require.NoError(t, err)
+
+			// Enqueue the job
+			err = r.Enqueue(ctx, "failing-job", []byte("test-message"))
+			require.NoError(t, err)
+
+			// Start the worker
+			r.Start(ctx)
+
+			// Verify OnFailure was called
+			require.True(t, onFailureCalled, "OnFailure should have been called")
+			require.Equal(t, []byte("test-message"), capturedMsg)
+			require.Error(t, capturedErr)
+			require.Contains(t, capturedErr.Error(), "job failed")
 		})
-		r, err := worker.New[[]byte](
-			q,
-			&PassThroughSerializer[[]byte]{},
-			worker.WithLimit(10),
-		)
-		require.NoError(t, err)
 
-		var onFailureCalled bool
-		var capturedMsg []byte
-		var capturedErr error
+		t.Run("does not call OnFailure on success", func(t *testing.T) {
+			q := internaltesting.NewQForBackend(t, queue.NewOpts{
+				MaxReceive: 3,
+				Timeout:    10 * time.Millisecond,
+			}, backend)
+			r, err := worker.New[[]byte](
+				q,
+				&PassThroughSerializer[[]byte]{},
+				worker.WithLimit(10),
+			)
+			require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
-		defer cancel()
+			var onFailureCalled bool
 
-		// Register a job that always fails
-		err = r.Register("failing-job",
-			func(ctx context.Context, m []byte) error {
-				return fmt.Errorf("job failed")
-			},
-			worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
-				onFailureCalled = true
-				capturedMsg = msg
-				capturedErr = err
-				return err
-			}),
-		)
-		require.NoError(t, err)
+			ctx, cancel := context.WithCancel(t.Context())
 
-		// Enqueue the job
-		err = r.Enqueue(ctx, "failing-job", []byte("test-message"))
-		require.NoError(t, err)
+			// Register a job that succeeds
+			err = r.Register("success-job",
+				func(ctx context.Context, m []byte) error {
+					cancel()
+					return nil
+				},
+				worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
+					onFailureCalled = true
+					return nil
+				}),
+			)
+			require.NoError(t, err)
 
-		// Start the worker
-		r.Start(ctx)
+			// Enqueue the job
+			err = r.Enqueue(ctx, "success-job", []byte("test"))
+			require.NoError(t, err)
 
-		// Verify OnFailure was called
-		require.True(t, onFailureCalled, "OnFailure should have been called")
-		require.Equal(t, []byte("test-message"), capturedMsg)
-		require.Error(t, capturedErr)
-		require.Contains(t, capturedErr.Error(), "job failed")
-	})
+			// Start the worker
+			r.Start(ctx)
 
-	t.Run("does not call OnFailure on success", func(t *testing.T) {
-		q := internaltesting.NewQ(t, queue.NewOpts{
-			MaxReceive: 3,
-			Timeout:    10 * time.Millisecond,
+			// Verify OnFailure was NOT called
+			require.False(t, onFailureCalled, "OnFailure should not be called on success")
 		})
-		r, err := worker.New[[]byte](
-			q,
-			&PassThroughSerializer[[]byte]{},
-			worker.WithLimit(10),
-		)
-		require.NoError(t, err)
 
-		var onFailureCalled bool
+		t.Run("does not call OnFailure before max retries", func(t *testing.T) {
+			q := internaltesting.NewQForBackend(t, queue.NewOpts{
+				MaxReceive: 3, // Max 3 attempts
+				Timeout:    10 * time.Millisecond,
+			}, backend)
+			r, err := worker.New[[]byte](
+				q,
+				&PassThroughSerializer[[]byte]{},
+				worker.WithLimit(10),
+			)
+			require.NoError(t, err)
 
-		ctx, cancel := context.WithCancel(t.Context())
+			var onFailureCalled bool
+			var attempts int
 
-		// Register a job that succeeds
-		err = r.Register("success-job",
-			func(ctx context.Context, m []byte) error {
-				cancel()
-				return nil
-			},
-			worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
-				onFailureCalled = true
-				return nil
-			}),
-		)
-		require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+			defer cancel()
 
-		// Enqueue the job
-		err = r.Enqueue(ctx, "success-job", []byte("test"))
-		require.NoError(t, err)
+			// Register a job that fails twice then succeeds
+			err = r.Register("eventual-success",
+				func(ctx context.Context, m []byte) error {
+					attempts++
+					if attempts < 3 {
+						return fmt.Errorf("attempt %d failed", attempts)
+					}
+					cancel()
+					return nil
+				},
+				worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
+					onFailureCalled = true
+					return nil
+				}),
+			)
+			require.NoError(t, err)
 
-		// Start the worker
-		r.Start(ctx)
+			// Enqueue the job
+			err = r.Enqueue(ctx, "eventual-success", []byte("test"))
+			require.NoError(t, err)
 
-		// Verify OnFailure was NOT called
-		require.False(t, onFailureCalled, "OnFailure should not be called on success")
-	})
+			// Start the worker
+			r.Start(ctx)
 
-	t.Run("does not call OnFailure before max retries", func(t *testing.T) {
-		q := internaltesting.NewQ(t, queue.NewOpts{
-			MaxReceive: 3, // Max 3 attempts
-			Timeout:    10 * time.Millisecond,
+			// Verify OnFailure was NOT called
+			require.False(t, onFailureCalled, "OnFailure should not be called if job eventually succeeds")
+			require.Equal(t, 3, attempts, "Should have attempted 3 times")
 		})
-		r, err := worker.New[[]byte](
-			q,
-			&PassThroughSerializer[[]byte]{},
-			worker.WithLimit(10),
-		)
-		require.NoError(t, err)
-
-		var onFailureCalled bool
-		var attempts int
-
-		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
-		defer cancel()
-
-		// Register a job that fails twice then succeeds
-		err = r.Register("eventual-success",
-			func(ctx context.Context, m []byte) error {
-				attempts++
-				if attempts < 3 {
-					return fmt.Errorf("attempt %d failed", attempts)
-				}
-				cancel()
-				return nil
-			},
-			worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
-				onFailureCalled = true
-				return nil
-			}),
-		)
-		require.NoError(t, err)
-
-		// Enqueue the job
-		err = r.Enqueue(ctx, "eventual-success", []byte("test"))
-		require.NoError(t, err)
-
-		// Start the worker
-		r.Start(ctx)
-
-		// Verify OnFailure was NOT called
-		require.False(t, onFailureCalled, "OnFailure should not be called if job eventually succeeds")
-		require.Equal(t, 3, attempts, "Should have attempted 3 times")
 	})
 }
 
 func TestDeadLetterQueue(t *testing.T) {
-	t.Run("moves job to dead letter queue on PermanentError", func(t *testing.T) {
-		db := internaltesting.NewInMemoryDB(t)
-		q := internaltesting.NewQ(t, queue.NewOpts{
-			DB:         db,
-			MaxReceive: 3,
-			Timeout:    10 * time.Millisecond,
+	internaltesting.RunForAllBackends(t, func(t *testing.T, backend internaltesting.Backend) {
+		t.Run("moves job to dead letter queue on PermanentError", func(t *testing.T) {
+			db := internaltesting.NewDBForBackend(t, backend)
+			q, err := queue.New(queue.NewOpts{
+				DB:         db,
+				Name:       "test",
+				MaxReceive: 3,
+				Timeout:    10 * time.Millisecond,
+				Dialect:    backend.Dialect(),
+			})
+			require.NoError(t, err)
+			r, err := worker.New[[]byte](
+				q,
+				&PassThroughSerializer[[]byte]{},
+				worker.WithLimit(10),
+			)
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+			defer cancel()
+
+			// Register a job that returns a permanent error
+			err = r.Register("permanent-error-job", func(ctx context.Context, m []byte) error {
+				cancel()
+				return worker.Permanent(fmt.Errorf("this is a permanent error"))
+			})
+			require.NoError(t, err)
+
+			// Enqueue the job
+			err = r.Enqueue(ctx, "permanent-error-job", []byte("test-message"))
+			require.NoError(t, err)
+
+			// Start the worker
+			r.Start(ctx)
+
+			// Verify the job is in the dead letter queue
+			var count int
+			p1, p2 := "?", "?"
+			if backend.IsPostgres() {
+				p1, p2 = "$1", "$2"
+			}
+			err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = "+p1+" AND failure_reason = "+p2,
+				"permanent-error-job", "permanent_error").Scan(&count)
+			require.NoError(t, err)
+			require.Equal(t, 1, count, "Job should be in dead letter queue")
+
+			// Verify the job is not in the main queue
+			err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue WHERE queue = "+p1, "test").Scan(&count)
+			require.NoError(t, err)
+			require.Equal(t, 0, count, "Job should not be in main queue")
 		})
-		r, err := worker.New[[]byte](
-			q,
-			&PassThroughSerializer[[]byte]{},
-			worker.WithLimit(10),
-		)
-		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
-		defer cancel()
+		t.Run("moves job to dead letter queue after max retries", func(t *testing.T) {
+			db := internaltesting.NewDBForBackend(t, backend)
+			q, err := queue.New(queue.NewOpts{
+				DB:         db,
+				Name:       "test",
+				MaxReceive: 3, // Max 3 attempts
+				Timeout:    10 * time.Millisecond,
+				Dialect:    backend.Dialect(),
+			})
+			require.NoError(t, err)
+			r, err := worker.New[[]byte](
+				q,
+				&PassThroughSerializer[[]byte]{},
+				worker.WithLimit(10),
+			)
+			require.NoError(t, err)
 
-		// Register a job that returns a permanent error
-		err = r.Register("permanent-error-job", func(ctx context.Context, m []byte) error {
-			cancel()
-			return worker.Permanent(fmt.Errorf("this is a permanent error"))
-		})
-		require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+			defer cancel()
 
-		// Enqueue the job
-		err = r.Enqueue(ctx, "permanent-error-job", []byte("test-message"))
-		require.NoError(t, err)
-
-		// Start the worker
-		r.Start(ctx)
-
-		// Verify the job is in the dead letter queue
-		var count int
-		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = ? AND failure_reason = ?",
-			"permanent-error-job", "permanent_error").Scan(&count)
-		require.NoError(t, err)
-		require.Equal(t, 1, count, "Job should be in dead letter queue")
-
-		// Verify the job is not in the main queue
-		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue WHERE queue = ?", "test").Scan(&count)
-		require.NoError(t, err)
-		require.Equal(t, 0, count, "Job should not be in main queue")
-	})
-
-	t.Run("moves job to dead letter queue after max retries", func(t *testing.T) {
-		db := internaltesting.NewInMemoryDB(t)
-		q := internaltesting.NewQ(t, queue.NewOpts{
-			DB:         db,
-			MaxReceive: 3, // Max 3 attempts
-			Timeout:    10 * time.Millisecond,
-		})
-		r, err := worker.New[[]byte](
-			q,
-			&PassThroughSerializer[[]byte]{},
-			worker.WithLimit(10),
-		)
-		require.NoError(t, err)
-
-		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
-		defer cancel()
-
-		// Register a job that always fails
-		err = r.Register("max-retries-job", func(ctx context.Context, m []byte) error {
-			return fmt.Errorf("job failed")
-		})
-		require.NoError(t, err)
-
-		// Enqueue the job
-		err = r.Enqueue(ctx, "max-retries-job", []byte("test-message"))
-		require.NoError(t, err)
-
-		// Start the worker
-		r.Start(ctx)
-
-		// Verify the job is in the dead letter queue
-		var count int
-		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = ? AND failure_reason = ?",
-			"max-retries-job", "max_retries").Scan(&count)
-		require.NoError(t, err)
-		require.Equal(t, 1, count, "Job should be in dead letter queue after max retries")
-
-		// Verify the job is not in the main queue
-		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue WHERE queue = ?", "test").Scan(&count)
-		require.NoError(t, err)
-		require.Equal(t, 0, count, "Job should not be in main queue")
-	})
-
-	t.Run("calls OnFailure before moving to dead letter queue", func(t *testing.T) {
-		db := internaltesting.NewInMemoryDB(t)
-		q := internaltesting.NewQ(t, queue.NewOpts{
-			DB:         db,
-			MaxReceive: 3,
-			Timeout:    10 * time.Millisecond,
-		})
-		r, err := worker.New[[]byte](
-			q,
-			&PassThroughSerializer[[]byte]{},
-			worker.WithLimit(10),
-		)
-		require.NoError(t, err)
-
-		var onFailureCalled bool
-
-		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
-		defer cancel()
-
-		// Register a job that fails with OnFailure callback
-		err = r.Register("failing-job-with-callback",
-			func(ctx context.Context, m []byte) error {
+			// Register a job that always fails
+			err = r.Register("max-retries-job", func(ctx context.Context, m []byte) error {
 				return fmt.Errorf("job failed")
-			},
-			worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
-				onFailureCalled = true
-				return nil
-			}),
-		)
-		require.NoError(t, err)
+			})
+			require.NoError(t, err)
 
-		// Enqueue the job
-		err = r.Enqueue(ctx, "failing-job-with-callback", []byte("test-message"))
-		require.NoError(t, err)
+			// Enqueue the job
+			err = r.Enqueue(ctx, "max-retries-job", []byte("test-message"))
+			require.NoError(t, err)
 
-		// Start the worker
-		r.Start(ctx)
+			// Start the worker
+			r.Start(ctx)
 
-		// Verify OnFailure was called
-		require.True(t, onFailureCalled, "OnFailure should have been called before moving to DLQ")
+			// Verify the job is in the dead letter queue
+			var count int
+			p1, p2 := "?", "?"
+			if backend.IsPostgres() {
+				p1, p2 = "$1", "$2"
+			}
+			err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = "+p1+" AND failure_reason = "+p2,
+				"max-retries-job", "max_retries").Scan(&count)
+			require.NoError(t, err)
+			require.Equal(t, 1, count, "Job should be in dead letter queue after max retries")
 
-		// Verify the job is in the dead letter queue
-		var count int
-		err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = ?",
-			"failing-job-with-callback").Scan(&count)
-		require.NoError(t, err)
-		require.Equal(t, 1, count, "Job should be in dead letter queue after OnFailure")
+			// Verify the job is not in the main queue
+			err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue WHERE queue = "+p1, "test").Scan(&count)
+			require.NoError(t, err)
+			require.Equal(t, 0, count, "Job should not be in main queue")
+		})
+
+		t.Run("calls OnFailure before moving to dead letter queue", func(t *testing.T) {
+			db := internaltesting.NewDBForBackend(t, backend)
+			q, err := queue.New(queue.NewOpts{
+				DB:         db,
+				Name:       "test",
+				MaxReceive: 3,
+				Timeout:    10 * time.Millisecond,
+				Dialect:    backend.Dialect(),
+			})
+			require.NoError(t, err)
+			r, err := worker.New[[]byte](
+				q,
+				&PassThroughSerializer[[]byte]{},
+				worker.WithLimit(10),
+			)
+			require.NoError(t, err)
+
+			var onFailureCalled bool
+
+			ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+			defer cancel()
+
+			// Register a job that fails with OnFailure callback
+			err = r.Register("failing-job-with-callback",
+				func(ctx context.Context, m []byte) error {
+					return fmt.Errorf("job failed")
+				},
+				worker.WithOnFailure(func(ctx context.Context, msg []byte, err error) error {
+					onFailureCalled = true
+					return nil
+				}),
+			)
+			require.NoError(t, err)
+
+			// Enqueue the job
+			err = r.Enqueue(ctx, "failing-job-with-callback", []byte("test-message"))
+			require.NoError(t, err)
+
+			// Start the worker
+			r.Start(ctx)
+
+			// Verify OnFailure was called
+			require.True(t, onFailureCalled, "OnFailure should have been called before moving to DLQ")
+
+			// Verify the job is in the dead letter queue
+			var count int
+			p := "?"
+			if backend.IsPostgres() {
+				p = "$1"
+			}
+			err = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM jobqueue_dead WHERE job_name = "+p,
+				"failing-job-with-callback").Scan(&count)
+			require.NoError(t, err)
+			require.Equal(t, 1, count, "Job should be in dead letter queue after OnFailure")
+		})
 	})
 }
 
 func TestRunner_Start(t *testing.T) {
-	t.Run("can run a named job", func(t *testing.T) {
-		_, r := newRunner(t)
+	internaltesting.RunForAllBackends(t, func(t *testing.T, backend internaltesting.Backend) {
+		t.Run("can run a named job", func(t *testing.T) {
+			_, r := newRunnerForBackend(t, backend)
 
-		var ran bool
-		ctx, cancel := context.WithCancel(t.Context())
-		err := r.Register("test", func(ctx context.Context, m []byte) error {
-			ran = true
-			require.Equal(t, "yo", string(m))
-			cancel()
-			return nil
+			var ran bool
+			ctx, cancel := context.WithCancel(t.Context())
+			err := r.Register("test", func(ctx context.Context, m []byte) error {
+				ran = true
+				require.Equal(t, "yo", string(m))
+				cancel()
+				return nil
+			})
+			require.NoError(t, err)
+
+			err = r.Enqueue(ctx, "test", []byte("yo"))
+			require.NoError(t, err)
+
+			r.Start(ctx)
+			require.True(t, ran)
 		})
-		require.NoError(t, err)
 
-		err = r.Enqueue(ctx, "test", []byte("yo"))
-		require.NoError(t, err)
+		t.Run("doesn't run a different job", func(t *testing.T) {
+			_, r := newRunnerForBackend(t, backend)
 
-		r.Start(ctx)
-		require.True(t, ran)
-	})
+			var ranTest, ranDifferentTest bool
+			ctx, cancel := context.WithCancel(t.Context())
+			require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
+				ranTest = true
+				return nil
+			}))
+			require.NoError(t, r.Register("different-test", func(ctx context.Context, m []byte) error {
+				ranDifferentTest = true
+				cancel()
+				return nil
+			}))
 
-	t.Run("doesn't run a different job", func(t *testing.T) {
-		_, r := newRunner(t)
+			err := r.Enqueue(ctx, "different-test", []byte("yo"))
+			require.NoError(t, err)
 
-		var ranTest, ranDifferentTest bool
-		ctx, cancel := context.WithCancel(t.Context())
-		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
-			ranTest = true
-			return nil
-		}))
-		require.NoError(t, r.Register("different-test", func(ctx context.Context, m []byte) error {
-			ranDifferentTest = true
-			cancel()
-			return nil
-		}))
+			r.Start(ctx)
+			require.True(t, !ranTest)
+			require.True(t, ranDifferentTest)
+		})
 
-		err := r.Enqueue(ctx, "different-test", []byte("yo"))
-		require.NoError(t, err)
+		t.Run("panics if the job is not registered", func(t *testing.T) {
+			_, r := newRunnerForBackend(t, backend)
 
-		r.Start(ctx)
-		require.True(t, !ranTest)
-		require.True(t, ranDifferentTest)
-	})
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
 
-	t.Run("panics if the job is not registered", func(t *testing.T) {
-		_, r := newRunner(t)
+			err := r.Enqueue(ctx, "test", []byte("yo"))
+			require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
-		defer cancel()
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Fatal("did not panic")
+				}
+				require.Equal(t, `job "test" not registered`, r)
+			}()
+			r.Start(ctx)
+		})
 
-		err := r.Enqueue(ctx, "test", []byte("yo"))
-		require.NoError(t, err)
+		t.Run("does not panic if job panics", func(t *testing.T) {
+			_, r := newRunnerForBackend(t, backend)
 
-		defer func() {
-			r := recover()
-			if r == nil {
-				t.Fatal("did not panic")
-			}
-			require.Equal(t, `job "test" not registered`, r)
-		}()
-		r.Start(ctx)
-	})
+			ctx, cancel := context.WithCancel(t.Context())
 
-	t.Run("does not panic if job panics", func(t *testing.T) {
-		_, r := newRunner(t)
+			require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
+				cancel()
+				panic("test panic")
+			}))
 
-		ctx, cancel := context.WithCancel(t.Context())
+			err := r.Enqueue(ctx, "test", []byte("yo"))
+			require.NoError(t, err)
 
-		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
-			cancel()
-			panic("test panic")
-		}))
+			r.Start(ctx)
+		})
 
-		err := r.Enqueue(ctx, "test", []byte("yo"))
-		require.NoError(t, err)
+		t.Run("extends a job's timeout if it takes longer than the default timeout", func(t *testing.T) {
+			_, r := newRunnerForBackend(t, backend)
 
-		r.Start(ctx)
-	})
+			var runCount int
+			ctx, cancel := context.WithCancel(t.Context())
+			require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
+				runCount++
+				// This is more than the default timeout, so it should extend
+				time.Sleep(150 * time.Millisecond)
+				cancel()
+				return nil
+			}))
 
-	t.Run("extends a job's timeout if it takes longer than the default timeout", func(t *testing.T) {
-		_, r := newRunner(t)
+			err := r.Enqueue(ctx, "test", []byte("yo"))
+			require.NoError(t, err)
 
-		var runCount int
-		ctx, cancel := context.WithCancel(t.Context())
-		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
-			runCount++
-			// This is more than the default timeout, so it should extend
-			time.Sleep(150 * time.Millisecond)
-			cancel()
-			return nil
-		}))
-
-		err := r.Enqueue(ctx, "test", []byte("yo"))
-		require.NoError(t, err)
-
-		r.Start(ctx)
-		require.Equal(t, 1, runCount)
+			r.Start(ctx)
+			require.Equal(t, 1, runCount)
+		})
 	})
 }
 
 func TestCreateTx(t *testing.T) {
-	t.Run("can create a job inside a transaction", func(t *testing.T) {
-		db := internaltesting.NewInMemoryDB(t)
-		q := internaltesting.NewQ(t, queue.NewOpts{DB: db})
-		r, err := worker.New[[]byte](q, &PassThroughSerializer[[]byte]{})
-		require.NoError(t, err)
+	internaltesting.RunForAllBackends(t, func(t *testing.T, backend internaltesting.Backend) {
+		t.Run("can create a job inside a transaction", func(t *testing.T) {
+			db := internaltesting.NewDBForBackend(t, backend)
+			q, err := queue.New(queue.NewOpts{DB: db, Name: "test", Dialect: backend.Dialect()})
+			require.NoError(t, err)
+			r, err := worker.New[[]byte](q, &PassThroughSerializer[[]byte]{})
+			require.NoError(t, err)
 
-		var ran bool
-		ctx, cancel := context.WithCancel(t.Context())
-		require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
-			ran = true
-			require.Equal(t, "yo", string(m))
-			cancel()
-			return nil
-		}))
+			var ran bool
+			ctx, cancel := context.WithCancel(t.Context())
+			require.NoError(t, r.Register("test", func(ctx context.Context, m []byte) error {
+				ran = true
+				require.Equal(t, "yo", string(m))
+				cancel()
+				return nil
+			}))
 
-		err = internalsql.InTx(db, func(tx *sql.Tx) error {
-			return r.EnqueueTx(ctx, tx, "test", []byte("yo"))
+			err = internalsql.InTx(db, func(tx *sql.Tx) error {
+				return r.EnqueueTx(ctx, tx, "test", []byte("yo"))
+			})
+			require.NoError(t, err)
+
+			r.Start(ctx)
+			require.True(t, ran)
 		})
-		require.NoError(t, err)
-
-		r.Start(ctx)
-		require.True(t, ran)
 	})
 }
 
-func newRunner(t *testing.T) (*queue.Queue, *worker.Worker[[]byte]) {
+func newRunnerForBackend(t *testing.T, backend internaltesting.Backend) (*queue.Queue, *worker.Worker[[]byte]) {
 	t.Helper()
 
-	q := internaltesting.NewQ(t, queue.NewOpts{Timeout: 100 * time.Millisecond})
+	q := internaltesting.NewQForBackend(t, queue.NewOpts{Timeout: 100 * time.Millisecond}, backend)
 	r, err := worker.New[[]byte](
 		q,
 		&PassThroughSerializer[[]byte]{},

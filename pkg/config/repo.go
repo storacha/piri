@@ -26,10 +26,20 @@ type BlobStorageConfig struct {
 	Minio MinioConfig `mapstructure:"minio" toml:"minio,omitempty"`
 }
 
+// DatabaseConfig configures the database backend.
+type DatabaseConfig struct {
+	// Type is the database backend: "sqlite" (default) or "postgres"
+	Type string `mapstructure:"type" validate:"omitempty,oneof=sqlite postgres" toml:"type,omitempty"`
+	// URL is the PostgreSQL connection string (only used when type is "postgres")
+	// Format: postgres://user:password@host:port/dbname?sslmode=disable
+	URL string `mapstructure:"url" flag:"db-url" toml:"url,omitempty"`
+}
+
 type RepoConfig struct {
 	DataDir     string             `mapstructure:"data_dir" validate:"required" flag:"data-dir" toml:"data_dir"`
 	TempDir     string             `mapstructure:"temp_dir" validate:"required" flag:"temp-dir" toml:"temp_dir"`
 	BlobStorage *BlobStorageConfig `mapstructure:"blob_storage" validate:"omitempty" toml:"blob_storage,omitempty"`
+	Database    DatabaseConfig     `mapstructure:"database" validate:"omitempty" toml:"database,omitempty"`
 }
 
 func (r RepoConfig) Validate() error {
@@ -39,7 +49,12 @@ func (r RepoConfig) Validate() error {
 func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 	if r.DataDir == "" {
 		// Return empty config for memory stores
-		return app.StorageConfig{}, nil
+		return app.StorageConfig{
+			Database: app.DatabaseConfig{
+				Type: app.DatabaseType(r.Database.Type),
+				URL:  r.Database.URL,
+			},
+		}, nil
 	}
 
 	// Blob storage is optional; only populate Minio settings when provided.
@@ -64,6 +79,10 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 	out := app.StorageConfig{
 		DataDir: r.DataDir,
 		TempDir: r.TempDir,
+		Database: app.DatabaseConfig{
+			Type: app.DatabaseType(r.Database.Type),
+			URL:  r.Database.URL,
+		},
 		Aggregator: app.AggregatorStorageConfig{
 			Dir:    filepath.Join(r.DataDir, "aggregator", "datastore"),
 			DBPath: filepath.Join(r.DataDir, "aggregator", "jobqueue", "jobqueue.db"),
