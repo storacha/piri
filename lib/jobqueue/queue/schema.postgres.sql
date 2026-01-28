@@ -1,10 +1,7 @@
 -- PostgreSQL version of the jobqueue schema
 
--- Enable pgcrypto extension for gen_random_bytes() function
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TABLE IF NOT EXISTS jobqueue (
-  id TEXT PRIMARY KEY DEFAULT ('m_' || lower(encode(gen_random_bytes(16), 'hex'))),
+  id TEXT PRIMARY KEY DEFAULT ('m_' || replace(gen_random_uuid()::text, '-', '')),
   created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   queue TEXT NOT NULL,
