@@ -32,12 +32,7 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 		database.Module, // Provides SQLite database for job queues
 
 		admin.Module, // Provides admin module with http routes.
-	}
-
-	if cfg.Storage.DataDir == "" {
-		modules = append(modules, store.MemoryStoreModule)
-	} else {
-		modules = append(modules, store.FileSystemStoreModule)
+		store.StorageModule(cfg.Storage),
 	}
 
 	return fx.Module("common", modules...)

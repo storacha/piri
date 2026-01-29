@@ -8,8 +8,6 @@ import (
 
 	"github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
 	"go.uber.org/fx"
@@ -22,11 +20,11 @@ import (
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/keystore"
 	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
-	minio_store "github.com/storacha/piri/pkg/store/objectstore/minio"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
+// Module provides all stores backed by the local filesystem.
 var Module = fx.Module("filesystem-store",
 	fx.Provide(
 		ProvideConfigs,
@@ -59,6 +57,12 @@ var Module = fx.Module("filesystem-store",
 		NewKeyStore,
 		NewPDPStore,
 	),
+)
+
+// KeyStoreModule provides only the KeyStore, backed by filesystem.
+// Use this with s3.Module when S3 is configured (KeyStore must always be on disk).
+var KeyStoreModule = fx.Module("filesystem-keystore",
+	fx.Provide(NewKeyStore),
 )
 
 type Configs struct {
@@ -137,7 +141,7 @@ func NewAcceptanceStore(cfg app.AcceptanceStorageConfig, lc fx.Lifecycle) (accep
 
 	ds, err := newDs(cfg.Dir)
 	if err != nil {
-		return nil, fmt.Errorf("creating allocation store: %w", err)
+		return nil, fmt.Errorf("creating acceptance store: %w", err)
 	}
 
 	lc.Append(fx.Hook{
@@ -163,15 +167,6 @@ func NewBlobStore(cfg app.BlobStorageConfig) (blobstore.Blobstore, error) {
 		return nil, fmt.Errorf("creating blob store: %w", err)
 	}
 	return bs, nil
-	// TODO(forrest): unsure of the purpose of a DS based blobstore, currently not used.
-	/*
-		ds, err := newDs(cfg.BlobStoreDir)
-		if err != nil {
-			return nil, fmt.Errorf("creating blob store: %w", err)
-		}
-
-		return blobstore.NewDsBlobstore(ds), nil
-	*/
 }
 
 func NewClaimStore(cfg app.ClaimStorageConfig, lc fx.Lifecycle) (claimstore.ClaimStore, error) {
@@ -226,7 +221,6 @@ func NewReceiptStore(cfg app.ReceiptStorageConfig, lc fx.Lifecycle) (receiptstor
 	})
 
 	return receiptstore.NewDsReceiptStore(ds)
-
 }
 
 func NewRetrievalJournal(storeCfg app.EgressTrackerStorageConfig, svcCfg app.UCANServiceConfig, lc fx.Lifecycle) (retrievaljournal.Journal, error) {
@@ -266,19 +260,6 @@ func NewKeyStore(cfg app.KeyStoreConfig, lc fx.Lifecycle) (keystore.KeyStore, er
 }
 
 func NewPDPStore(cfg app.PDPStoreConfig, lc fx.Lifecycle) (blobstore.PDPStore, error) {
-	if cfg.Minio.Bucket != "" && cfg.Minio.Endpoint != "" {
-		options := minio.Options{Secure: !cfg.Minio.Insecure}
-		creds := cfg.Minio.Credentials
-		if creds.AccessKeyID != "" && creds.SecretAccessKey != "" {
-			options.Creds = credentials.NewStaticV4(creds.AccessKeyID, creds.SecretAccessKey, "")
-		}
-		objStore, err := minio_store.New(cfg.Minio.Endpoint, cfg.Minio.Bucket, options)
-		if err != nil {
-			return nil, fmt.Errorf("creating pdp object store: %w", err)
-		}
-		return blobstore.NewObjectBlobstore(objStore), nil
-	}
-
 	if cfg.Dir == "" {
 		return nil, fmt.Errorf("no data dir provided for pdp store")
 	}
