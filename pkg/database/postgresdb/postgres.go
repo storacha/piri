@@ -132,10 +132,7 @@ func createSchema(db *sql.DB, schema string) error {
 
 // OptionsFromConfig creates functional options from app.PoolConfig.
 // Returns nil if cfg is nil. Zero values in cfg use the defaults.
-func OptionsFromConfig(cfg *app.PoolConfig) []Option {
-	if cfg == nil {
-		return nil
-	}
+func OptionsFromConfig(cfg app.PostgresConfig) []Option {
 	var opts []Option
 	if cfg.MaxOpenConns > 0 {
 		opts = append(opts, WithMaxOpenConns(cfg.MaxOpenConns))
