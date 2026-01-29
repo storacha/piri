@@ -9,19 +9,18 @@ package testing
 
 import (
 	"database/sql"
-	_ "embed"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/storacha/piri/lib/jobqueue/dedup"
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 )
 
-//go:embed schema.sql
-var schema string
-
+// NewInMemoryDB creates a new in-memory SQLite database for testing
+// with both classic queue and dedup queue schemas initialized.
 func NewInMemoryDB(t testing.TB) *sql.DB {
 	t.Helper()
 	db, err := sqlitedb.NewMemory()
@@ -31,7 +30,14 @@ func NewInMemoryDB(t testing.TB) *sql.DB {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
-	_, err = db.Exec(schema)
+	// Execute classic queue schema
+	_, err = db.Exec(queue.SchemaSQLite)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute dedup queue schema
+	_, err = db.Exec(dedup.SchemaSQLite)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,6 +45,39 @@ func NewInMemoryDB(t testing.TB) *sql.DB {
 	return db
 }
 
+// NewDBForBackend creates a new database connection for the given backend.
+// For SQLite, it creates an in-memory database.
+// For PostgreSQL, it connects to the test container and sets up the schema.
+func NewDBForBackend(t testing.TB, backend Backend) *sql.DB {
+	t.Helper()
+	switch backend {
+	case BackendPostgres:
+		db := NewPostgresDB(t)
+
+		// Execute classic queue schema
+		_, err := db.Exec(queue.SchemaPostgres)
+		if err != nil {
+			t.Fatalf("setup postgres queue schema: %v", err)
+		}
+
+		// Execute dedup queue schema
+		_, err = db.Exec(dedup.SchemaPostgres)
+		if err != nil {
+			t.Fatalf("setup postgres dedup schema: %v", err)
+		}
+
+		// Truncate tables to ensure clean state for each test
+		_, err = db.Exec(`TRUNCATE TABLE job_dead, job_done, jobs, job_ns, queues, jobqueue_dead, jobqueue CASCADE`)
+		if err != nil {
+			t.Fatalf("truncate postgres tables: %v", err)
+		}
+		return db
+	default:
+		return NewInMemoryDB(t)
+	}
+}
+
+// NewQ creates a new queue using an in-memory SQLite database for testing.
 func NewQ(t testing.TB, opts queue.NewOpts) *queue.Queue {
 	t.Helper()
 
@@ -49,6 +88,32 @@ func NewQ(t testing.TB, opts queue.NewOpts) *queue.Queue {
 	if opts.Name == "" {
 		opts.Name = "test"
 	}
+
+	q, err := queue.New(opts)
+	require.NoError(t, err)
+	return q
+}
+
+// NewQForBackend creates a new queue using the specified backend for testing.
+func NewQForBackend(t testing.TB, opts queue.NewOpts, backend Backend) *queue.Queue {
+	t.Helper()
+
+	if opts.DB == nil {
+		opts.DB = NewDBForBackend(t, backend)
+	}
+
+	// For PostgreSQL, clean up tables between tests
+	if backend.IsPostgres() {
+		_, err := opts.DB.Exec(`TRUNCATE TABLE jobqueue_dead, jobqueue CASCADE`)
+		require.NoError(t, err)
+	}
+
+	if opts.Name == "" {
+		opts.Name = "test"
+	}
+
+	// Set the dialect based on the backend
+	opts.Dialect = backend.Dialect()
 
 	q, err := queue.New(opts)
 	require.NoError(t, err)

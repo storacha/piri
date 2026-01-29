@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue/dialect"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/pkg/client/receipts"
 	"github.com/storacha/piri/pkg/config/app"
@@ -45,10 +46,16 @@ var Module = fx.Module("egresstracker",
 type QueueParams struct {
 	fx.In
 
-	DB *sql.DB `name:"egress_tracker_db"`
+	DB            *sql.DB `name:"egress_tracker_db"`
+	StorageConfig app.StorageConfig
 }
 
 func ProvideEgressTrackerQueue(lc fx.Lifecycle, params QueueParams) (EgressTrackerQueue, error) {
+	// Determine dialect from storage config
+	d := dialect.SQLite
+	if params.StorageConfig.Database.IsPostgres() {
+		d = dialect.Postgres
+	}
 	// non-configurable defaults
 	maxRetries := uint(10)
 	maxWorkers := uint(runtime.NumCPU())
@@ -62,6 +69,7 @@ func ProvideEgressTrackerQueue(lc fx.Lifecycle, params QueueParams) (EgressTrack
 		jobqueue.WithMaxRetries(maxRetries),
 		jobqueue.WithMaxWorkers(maxWorkers),
 		jobqueue.WithMaxTimeout(maxTimeout),
+		jobqueue.WithDialect(d),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating egress-tracker queue: %w", err)
