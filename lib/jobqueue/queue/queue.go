@@ -21,10 +21,10 @@ import (
 )
 
 //go:embed schema.sql
-var schemaSQLite string
+var SchemaSQLite string
 
 //go:embed schema.postgres.sql
-var schemaPostgres string
+var SchemaPostgres string
 
 // rfc3339Milli is like time.RFC3339Nano, but with millisecond precision, and fractional seconds do not have trailing
 // zeros removed.
@@ -319,9 +319,9 @@ func SetupWithDialect(ctx context.Context, db *sql.DB, d dialect.Dialect) error 
 	var schema string
 	switch d {
 	case dialect.Postgres:
-		schema = schemaPostgres
+		schema = SchemaPostgres
 	default:
-		schema = schemaSQLite
+		schema = SchemaSQLite
 	}
 	_, err := db.ExecContext(ctx, schema)
 	if err != nil {

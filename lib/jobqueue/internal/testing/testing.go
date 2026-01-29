@@ -9,24 +9,18 @@ package testing
 
 import (
 	"database/sql"
-	_ "embed"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/storacha/piri/lib/jobqueue/dedup"
 	"github.com/storacha/piri/lib/jobqueue/queue"
 	"github.com/storacha/piri/pkg/database/sqlitedb"
 )
 
-//go:embed schema.sql
-var schema string
-
-//go:embed schema.postgres.sql
-var schemaPostgres string
-
 // NewInMemoryDB creates a new in-memory SQLite database for testing
-// with the classic queue schema initialized.
+// with both classic queue and dedup queue schemas initialized.
 func NewInMemoryDB(t testing.TB) *sql.DB {
 	t.Helper()
 	db, err := sqlitedb.NewMemory()
@@ -36,7 +30,14 @@ func NewInMemoryDB(t testing.TB) *sql.DB {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
-	_, err = db.Exec(schema)
+	// Execute classic queue schema
+	_, err = db.Exec(queue.SchemaSQLite)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute dedup queue schema
+	_, err = db.Exec(dedup.SchemaSQLite)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,11 +53,19 @@ func NewDBForBackend(t testing.TB, backend Backend) *sql.DB {
 	switch backend {
 	case BackendPostgres:
 		db := NewPostgresDB(t)
-		// Setup combined schema for PostgreSQL
-		_, err := db.Exec(schemaPostgres)
+
+		// Execute classic queue schema
+		_, err := db.Exec(queue.SchemaPostgres)
 		if err != nil {
-			t.Fatalf("setup postgres schema: %v", err)
+			t.Fatalf("setup postgres queue schema: %v", err)
 		}
+
+		// Execute dedup queue schema
+		_, err = db.Exec(dedup.SchemaPostgres)
+		if err != nil {
+			t.Fatalf("setup postgres dedup schema: %v", err)
+		}
+
 		// Truncate tables to ensure clean state for each test
 		_, err = db.Exec(`TRUNCATE TABLE job_dead, job_done, jobs, job_ns, queues, jobqueue_dead, jobqueue CASCADE`)
 		if err != nil {

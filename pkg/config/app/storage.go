@@ -1,6 +1,9 @@
 package app
 
-import "time"
+import (
+	"net/url"
+	"time"
+)
 
 // DatabaseType represents the database backend type.
 type DatabaseType string
@@ -16,18 +19,10 @@ const (
 type DatabaseConfig struct {
 	// Type is the database backend type: "sqlite" (default) or "postgres".
 	Type DatabaseType
-	// URL is the PostgreSQL connection string (only used when Type is "postgres").
-	// Format: postgres://user:password@host:port/dbname?sslmode=disable
-	URL string
-	// MaxOpenConns is the maximum number of open connections to the database.
-	// Only used for PostgreSQL. Zero means use default (5).
-	MaxOpenConns int
-	// MaxIdleConns is the maximum number of idle connections in the pool.
-	// Only used for PostgreSQL. Zero means use default (5).
-	MaxIdleConns int
-	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
-	// Only used for PostgreSQL. Zero means use default (30 minutes).
-	ConnMaxLifetime time.Duration
+
+	// NB: sqlite doesn't have a config.
+
+	Postgres PostgresConfig
 }
 
 // IsSQLite returns true if using SQLite backend (or if type is empty/default).
@@ -40,29 +35,18 @@ func (c DatabaseConfig) IsPostgres() bool {
 	return c.Type == DatabaseTypePostgres
 }
 
-// PoolConfig returns the connection pool configuration for PostgreSQL.
-// Returns nil if using SQLite (pool settings don't apply to SQLite).
-func (c DatabaseConfig) PoolConfig() *PoolConfig {
-	if c.IsSQLite() {
-		return nil
-	}
-	return &PoolConfig{
-		MaxOpenConns:    c.MaxOpenConns,
-		MaxIdleConns:    c.MaxIdleConns,
-		ConnMaxLifetime: c.ConnMaxLifetime,
-	}
-}
-
-// PoolConfig contains PostgreSQL connection pool configuration.
-type PoolConfig struct {
+type PostgresConfig struct {
+	// URL is the PostgreSQL connection string (only used when Type is "postgres").
+	// Format: postgres://user:password@host:port/dbname?sslmode=disable
+	URL url.URL
 	// MaxOpenConns is the maximum number of open connections to the database.
-	// Zero means use default.
+	// Only used for PostgreSQL. Zero means use default (5).
 	MaxOpenConns int
 	// MaxIdleConns is the maximum number of idle connections in the pool.
-	// Zero means use default.
+	// Only used for PostgreSQL. Zero means use default (5).
 	MaxIdleConns int
 	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
-	// Zero means use default.
+	// Only used for PostgreSQL. Zero means use default (30 minutes).
 	ConnMaxLifetime time.Duration
 }
 

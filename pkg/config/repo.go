@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -31,7 +32,28 @@ type BlobStorageConfig struct {
 // DatabaseConfig configures the database backend.
 type DatabaseConfig struct {
 	// Type is the database backend: "sqlite" (default) or "postgres"
-	Type string `mapstructure:"type" validate:"omitempty,oneof=sqlite postgres" toml:"type,omitempty"`
+	Type     string         `mapstructure:"type" validate:"omitempty,oneof=sqlite postgres" toml:"type,omitempty"`
+	Postgres PostgresConfig `mapstructure:"postgres" validate:"omitempty" toml:"postgres,omitempty"`
+}
+
+// ToAppConfig converts DatabaseConfig to app.DatabaseConfig.
+func (c DatabaseConfig) ToAppConfig() (app.DatabaseConfig, error) {
+	if c.Type == "postgres" {
+		pgCfg, err := c.Postgres.ToAppConfig()
+		if err != nil {
+			return app.DatabaseConfig{}, err
+		}
+		return app.DatabaseConfig{
+			Type:     app.DatabaseTypePostgres,
+			Postgres: pgCfg,
+		}, nil
+	}
+	return app.DatabaseConfig{
+		Type: app.DatabaseTypeSQLite,
+	}, nil
+}
+
+type PostgresConfig struct {
 	// URL is the PostgreSQL connection string (only used when type is "postgres")
 	// Format: postgres://user:password@host:port/dbname?sslmode=disable
 	URL string `mapstructure:"url" flag:"db-url" toml:"url,omitempty"`
@@ -46,6 +68,33 @@ type DatabaseConfig struct {
 	ConnMaxLifetime string `mapstructure:"conn_max_lifetime" toml:"conn_max_lifetime,omitempty"`
 }
 
+// ToAppConfig converts PostgresConfig to app.PostgresConfig.
+// Parses the URL string and duration string into their typed equivalents.
+func (c PostgresConfig) ToAppConfig() (app.PostgresConfig, error) {
+	if c.URL == "" {
+		return app.PostgresConfig{}, errors.New("postgres URL is required")
+	}
+	pgurl, err := url.Parse(c.URL)
+	if err != nil {
+		return app.PostgresConfig{}, fmt.Errorf("invalid postgres URL %q: %w", c.URL, err)
+	}
+
+	var connMaxLifetime time.Duration
+	if c.ConnMaxLifetime != "" {
+		connMaxLifetime, err = time.ParseDuration(c.ConnMaxLifetime)
+		if err != nil {
+			return app.PostgresConfig{}, fmt.Errorf("invalid conn_max_lifetime %q: %w", c.ConnMaxLifetime, err)
+		}
+	}
+
+	return app.PostgresConfig{
+		URL:             *pgurl,
+		MaxOpenConns:    c.MaxOpenConns,
+		MaxIdleConns:    c.MaxIdleConns,
+		ConnMaxLifetime: connMaxLifetime,
+	}, nil
+}
+
 type RepoConfig struct {
 	DataDir     string             `mapstructure:"data_dir" validate:"required" flag:"data-dir" toml:"data_dir"`
 	TempDir     string             `mapstructure:"temp_dir" validate:"required" flag:"temp-dir" toml:"temp_dir"`
@@ -58,28 +107,9 @@ func (r RepoConfig) Validate() error {
 }
 
 func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
-	// Parse connection lifetime duration if specified
-	var connMaxLifetime time.Duration
-	if r.Database.ConnMaxLifetime != "" {
-		var err error
-		connMaxLifetime, err = time.ParseDuration(r.Database.ConnMaxLifetime)
-		if err != nil {
-			return app.StorageConfig{}, fmt.Errorf("invalid conn_max_lifetime %q: %w", r.Database.ConnMaxLifetime, err)
-		}
-	}
-
-	// Build database config to use helper methods
-	dbCfg := app.DatabaseConfig{
-		Type:            app.DatabaseType(r.Database.Type),
-		URL:             r.Database.URL,
-		MaxOpenConns:    r.Database.MaxOpenConns,
-		MaxIdleConns:    r.Database.MaxIdleConns,
-		ConnMaxLifetime: connMaxLifetime,
-	}
-
-	// Validate PostgreSQL requires URL
-	if dbCfg.IsPostgres() && r.Database.URL == "" {
-		return app.StorageConfig{}, errors.New("database URL is required when using PostgreSQL")
+	dbCfg, err := r.Database.ToAppConfig()
+	if err != nil {
+		return app.StorageConfig{}, fmt.Errorf("database config: %w", err)
 	}
 
 	if r.DataDir == "" {
