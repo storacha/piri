@@ -55,8 +55,8 @@ func ProvideReplicatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error
 
 	if cfg.Database.IsPostgres() {
 		// Use PostgreSQL with separate schema
-		opts := postgresdb.OptionsFromConfig(cfg.Database.PoolConfig())
-		db, err = postgresdb.New(cfg.Database.URL, SchemaReplicator, opts...)
+		opts := postgresdb.OptionsFromConfig(cfg.Database.Postgres)
+		db, err = postgresdb.New(cfg.Database.Postgres.URL.String(), SchemaReplicator, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("creating postgres replicator database: %w", err)
 		}
@@ -106,8 +106,8 @@ func ProvideAggregatorDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, error
 
 	if cfg.Database.IsPostgres() {
 		// Use PostgreSQL with separate schema
-		opts := postgresdb.OptionsFromConfig(cfg.Database.PoolConfig())
-		db, err = postgresdb.New(cfg.Database.URL, SchemaAggregator, opts...)
+		opts := postgresdb.OptionsFromConfig(cfg.Database.Postgres)
+		db, err = postgresdb.New(cfg.Database.Postgres.URL.String(), SchemaAggregator, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("creating postgres aggregator database: %w", err)
 		}
@@ -157,8 +157,8 @@ func ProvideTaskEngineDB(lc fx.Lifecycle, cfg app.StorageConfig) (*gorm.DB, erro
 
 	if cfg.Database.IsPostgres() {
 		// Use PostgreSQL with separate schema
-		opts := gormdb.PostgresOptionsFromConfig(cfg.Database.PoolConfig())
-		db, err = gormdb.NewPostgres(cfg.Database.URL, SchemaScheduler, opts)
+		opts := gormdb.PostgresOptionsFromConfig(cfg.Database.Postgres)
+		db, err = gormdb.NewPostgres(cfg.Database.Postgres.URL.String(), SchemaScheduler, opts)
 		if err != nil {
 			return nil, fmt.Errorf("creating postgres task engine db: %w", err)
 		}
@@ -221,8 +221,8 @@ func ProvideEgressTrackerDB(lc fx.Lifecycle, cfg app.StorageConfig) (*sql.DB, er
 
 	if cfg.Database.IsPostgres() {
 		// Use PostgreSQL with separate schema
-		opts := postgresdb.OptionsFromConfig(cfg.Database.PoolConfig())
-		db, err = postgresdb.New(cfg.Database.URL, SchemaEgressTracker, opts...)
+		opts := postgresdb.OptionsFromConfig(cfg.Database.Postgres)
+		db, err = postgresdb.New(cfg.Database.Postgres.URL.String(), SchemaEgressTracker, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("creating postgres egress tracker database: %w", err)
 		}

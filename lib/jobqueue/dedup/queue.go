@@ -18,10 +18,10 @@ import (
 )
 
 //go:embed schema.sqlite.sql
-var schemaSQLite string
+var SchemaSQLite string
 
 //go:embed schema.postgres.sql
-var schemaPostgres string
+var SchemaPostgres string
 
 type jobDoneStatus int
 
@@ -76,9 +76,9 @@ func SetupWithDialect(ctx context.Context, db *sql.DB, d dialect.Dialect) error 
 	var schema string
 	switch d {
 	case dialect.Postgres:
-		schema = schemaPostgres
+		schema = SchemaPostgres
 	default:
-		schema = schemaSQLite
+		schema = SchemaSQLite
 	}
 	_, err := db.ExecContext(ctx, schema)
 	if err != nil {

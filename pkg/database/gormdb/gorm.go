@@ -295,14 +295,11 @@ func bool2int(b bool) int {
 
 // PostgresOptionsFromConfig creates PostgresOptions from app.PoolConfig.
 // Uses conservative defaults for any zero values.
-func PostgresOptionsFromConfig(cfg *app.PoolConfig) *PostgresOptions {
+func PostgresOptionsFromConfig(cfg app.PostgresConfig) *PostgresOptions {
 	opts := &PostgresOptions{
 		MaxOpenConns:    5,
 		MaxIdleConns:    5,
 		ConnMaxLifetime: 30 * time.Minute,
-	}
-	if cfg == nil {
-		return opts
 	}
 	if cfg.MaxOpenConns > 0 {
 		opts.MaxOpenConns = cfg.MaxOpenConns
