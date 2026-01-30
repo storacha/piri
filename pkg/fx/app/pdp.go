@@ -22,8 +22,9 @@ import (
 
 var PDPModule = fx.Module("pdp",
 	fx.Provide(
+		ProvideEthClient, // provides concrete *ethclient.Client
 		fx.Annotate(
-			ProvideEthClient,
+			provideEthClientAsInterfaces,
 			// provide as interface required by service(s)
 			fx.As(new(service.EthClient)),
 			fx.As(new(bind.ContractBackend)),
@@ -41,6 +42,11 @@ var PDPModule = fx.Module("pdp",
 	piece.Module,
 	wallet.Module,
 )
+
+// provideEthClientAsInterfaces is a helper for fx.As to provide the concrete type as interfaces
+func provideEthClientAsInterfaces(c *ethclient.Client) *ethclient.Client {
+	return c
+}
 
 func ProvideEthClient(lc fx.Lifecycle, cfg app.AppConfig) (*ethclient.Client, error) {
 	ethAPI, err := ethclient.Dial(cfg.PDPService.LotusEndpoint.String())

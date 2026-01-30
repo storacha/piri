@@ -16,6 +16,7 @@ type Service interface {
 	GetDataSet(ctx context.Context, dataSetId *big.Int) (*DataSetInfo, error)
 	IsProviderApproved(ctx context.Context, providerId *big.Int) (bool, error)
 	NextPDPChallengeWindowStart(ctx context.Context, proofSetID *big.Int) (*big.Int, error)
+	RailToDataSet(ctx context.Context, railId *big.Int) (*big.Int, error)
 
 	// not part of contract code, added for convience in testing and usage
 	Address() common.Address
@@ -135,4 +136,12 @@ func (v *serviceContract) NextPDPChallengeWindowStart(ctx context.Context, proof
 
 func (v *serviceContract) Address() common.Address {
 	return v.address
+}
+
+func (v *serviceContract) RailToDataSet(ctx context.Context, railId *big.Int) (*big.Int, error) {
+	dataSetId, err := v.viewContract.RailToDataSet(&bind.CallOpts{Context: ctx}, railId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get dataset for rail %s: %w", railId.String(), err)
+	}
+	return dataSetId, nil
 }

@@ -139,6 +139,52 @@ func (c *Client) SetLogLevelRegex(ctx context.Context, expression, level string)
 	return c.verifySuccess(c.postJSON(ctx, route, req))
 }
 
+// GetAccountInfo fetches the payment account information for the storage operator.
+func (c *Client) GetAccountInfo(ctx context.Context) (*httpapi.GetAccountInfoResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.PaymentRoutePath + "/account").String()
+
+	var resp httpapi.GetAccountInfoResponse
+	if err := c.getJSON(ctx, route, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+// EstimateSettlement returns estimated gas and fees for settling a rail.
+func (c *Client) EstimateSettlement(ctx context.Context, railID string) (*httpapi.EstimateSettlementResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.PaymentRoutePath + "/settle/" + railID + "/estimate").String()
+
+	var resp httpapi.EstimateSettlementResponse
+	if err := c.getJSON(ctx, route, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+// SettleRail submits a settlement transaction for a rail.
+func (c *Client) SettleRail(ctx context.Context, railID string) (*httpapi.SettleRailResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.PaymentRoutePath + "/settle/" + railID).String()
+
+	res, err := c.postJSON(ctx, route, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		return nil, errFromResponse(res)
+	}
+
+	var resp httpapi.SettleRailResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	}
+
+	return &resp, nil
+}
+
 func createAuthBearerTokenFromID(id principal.Signer) (string, error) {
 	claims := jwt.MapClaims{
 		"service_name": "storacha",

@@ -299,6 +299,8 @@ func loadPresets() error {
 	viper.SetDefault("pdp.contracts.provider_registry", preset.SmartContracts.ProviderRegistry.String())
 	viper.SetDefault("pdp.contracts.service", preset.SmartContracts.Service.String())
 	viper.SetDefault("pdp.contracts.service_view", preset.SmartContracts.ServiceView.String())
+	viper.SetDefault("pdp.contracts.payments", preset.SmartContracts.Payments.String())
+	viper.SetDefault("pdp.contracts.usdfc_token", preset.SmartContracts.USDFCToken.String())
 	viper.SetDefault("pdp.chain_id", preset.SmartContracts.ChainID.String())
 	viper.SetDefault("pdp.payer_address", preset.SmartContracts.PayerAddress.String())
 

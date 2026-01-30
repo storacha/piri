@@ -14,6 +14,8 @@ type ContractAddresses struct {
 	ProviderRegistry common.Address
 	Service          common.Address
 	ServiceView      common.Address
+	Payments         common.Address
+	USDFCToken       common.Address
 }
 
 type PDPServiceConfig struct {
