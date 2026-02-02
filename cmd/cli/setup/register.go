@@ -60,8 +60,8 @@ func init() {
 		"",
 		fmt.Sprintf("Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses. Available values are: %q", presets.AvailableNetworks),
 	)
-	InitCmd.Flags().String("host", "localhost", "Host piri listens for connections on")
-	InitCmd.Flags().Uint("port", 3000, "Port piri listens for connections on")
+	InitCmd.Flags().String("host", "localhost", "Host Piri listens for connections on")
+	InitCmd.Flags().Uint("port", 3000, "Port Piri listens for connections on")
 	InitCmd.Flags().String("data-dir", "", "Path to a data directory Piri will maintain its permanent state in")
 	InitCmd.Flags().String("temp-dir", "", "Path to a temporary directory Piri will maintain ephemeral state in")
 	InitCmd.Flags().String("key-file", "", "Path to a PEM file containing ed25519 private key used as Piri's identity on the Storacha network")
