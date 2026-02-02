@@ -13,7 +13,7 @@ type FullServerConfig struct {
 	Server      ServerConfig      `mapstructure:"server" toml:"server"`
 	PDPService  PDPServiceConfig  `mapstructure:"pdp" toml:"pdp"`
 	UCANService UCANServiceConfig `mapstructure:"ucan" toml:"ucan"`
-	Telemetry   TelemetryConfig   `mapstructure:"telemetry" toml:"telemetry"`
+	Telemetry   TelemetryConfig   `mapstructure:"telemetry" toml:"telemetry,omitempty"`
 }
 
 func (f FullServerConfig) Validate() error {
