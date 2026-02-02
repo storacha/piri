@@ -1,20 +1,28 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/labstack/echo/v4"
-
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
+
 	"github.com/storacha/piri/pkg/admin/httpapi"
 	"github.com/storacha/piri/pkg/config/app"
 	ethsender "github.com/storacha/piri/pkg/pdp/ethereum"
+	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
+
+var log = logging.Logger("admin/payment")
 
 type PaymentHandler struct {
 	payment          smartcontracts.Payment
@@ -23,9 +31,10 @@ type PaymentHandler struct {
 	serviceValidator smartcontracts.ServiceValidator
 	ethClient        *ethclient.Client
 	sender           ethsender.Sender
+	db               *gorm.DB
 }
 
-func NewPaymentHandler(payment smartcontracts.Payment, pdpConfig app.PDPServiceConfig, serviceView smartcontracts.Service, serviceValidator smartcontracts.ServiceValidator, ethClient *ethclient.Client, sender ethsender.Sender) *PaymentHandler {
+func NewPaymentHandler(payment smartcontracts.Payment, pdpConfig app.PDPServiceConfig, serviceView smartcontracts.Service, serviceValidator smartcontracts.ServiceValidator, ethClient *ethclient.Client, sender ethsender.Sender, db *gorm.DB) *PaymentHandler {
 	return &PaymentHandler{
 		payment:          payment,
 		pdpConfig:        pdpConfig,
@@ -33,6 +42,7 @@ func NewPaymentHandler(payment smartcontracts.Payment, pdpConfig app.PDPServiceC
 		serviceValidator: serviceValidator,
 		ethClient:        ethClient,
 		sender:           sender,
+		db:               db,
 	}
 }
 
@@ -359,6 +369,26 @@ func (h *PaymentHandler) SettleRail(ctx echo.Context) error {
 	token := h.pdpConfig.Contracts.USDFCToken
 	owner := h.pdpConfig.OwnerAddress
 
+	// Check for pending settlement (if db is available)
+	if h.db != nil {
+		var pending models.RailSettlementWaits
+		err := h.db.Where("rail_id = ?", railIDStr).First(&pending).Error
+		if err == nil {
+			// Check if the tx is still pending
+			var msgWait models.MessageWaitsEth
+			err := h.db.Where("signed_tx_hash = ?", pending.SignedTxHash).First(&msgWait).Error
+			if err == nil && msgWait.TxStatus == "pending" {
+				return ctx.JSON(http.StatusConflict, &httpapi.SettleRailResponse{
+					TxHash: pending.SignedTxHash,
+					Status: "pending",
+					Error:  "settlement already in progress",
+				})
+			}
+			// If confirmed/failed, delete the old record
+			h.db.Delete(&pending)
+		}
+	}
+
 	// Get rail info
 	rail, err := h.payment.GetRail(reqCtx, railID)
 	if err != nil {
@@ -418,7 +448,374 @@ func (h *PaymentHandler) SettleRail(ctx echo.Context) error {
 		return ctx.String(http.StatusInternalServerError, "sending transaction: "+err.Error())
 	}
 
+	// Insert into tracking tables (if db is available)
+	if h.db != nil {
+		if err := h.db.Transaction(func(txdb *gorm.DB) error {
+			msgWait := models.MessageWaitsEth{
+				SignedTxHash: txHash.Hex(),
+				TxStatus:     "pending",
+			}
+			if err := txdb.Create(&msgWait).Error; err != nil {
+				return err
+			}
+
+			railWait := models.RailSettlementWaits{
+				RailID:       railIDStr,
+				SignedTxHash: txHash.Hex(),
+				CreatedAt:    time.Now(),
+			}
+			if err := txdb.Create(&railWait).Error; err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			// Log but don't fail - tx was sent, just not tracked
+			log.Errorw("failed to insert settlement tracking", "error", err, "txHash", txHash)
+		}
+	}
+
 	return ctx.JSON(http.StatusOK, &httpapi.SettleRailResponse{
 		TxHash: txHash.Hex(),
+		Status: "pending",
 	})
+}
+
+// GetSettlementStatus returns the status of a pending settlement for a rail
+func (h *PaymentHandler) GetSettlementStatus(ctx echo.Context) error {
+	railIDStr := ctx.Param("railId")
+
+	if h.db == nil {
+		return ctx.JSON(http.StatusOK, &httpapi.SettlementStatusResponse{
+			RailID: railIDStr,
+			Status: "none",
+		})
+	}
+
+	var railWait models.RailSettlementWaits
+	err := h.db.Where("rail_id = ?", railIDStr).First(&railWait).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusOK, &httpapi.SettlementStatusResponse{
+				RailID: railIDStr,
+				Status: "none",
+			})
+		}
+		return ctx.String(http.StatusInternalServerError, err.Error())
+	}
+
+	var msgWait models.MessageWaitsEth
+	err = h.db.Where("signed_tx_hash = ?", railWait.SignedTxHash).First(&msgWait).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// MessageWait not found - clean up orphaned rail wait
+			h.db.Delete(&railWait)
+			return ctx.JSON(http.StatusOK, &httpapi.SettlementStatusResponse{
+				RailID: railIDStr,
+				Status: "none",
+			})
+		}
+		return ctx.String(http.StatusInternalServerError, err.Error())
+	}
+
+	resp := &httpapi.SettlementStatusResponse{
+		RailID: railIDStr,
+		TxHash: railWait.SignedTxHash,
+		Status: msgWait.TxStatus,
+	}
+
+	if msgWait.TxSuccess != nil {
+		resp.Success = *msgWait.TxSuccess
+	}
+	if msgWait.ConfirmedBlockNumber != nil {
+		resp.ConfirmedBlock = fmt.Sprintf("%d", *msgWait.ConfirmedBlockNumber)
+	}
+
+	// Clean up if confirmed
+	if msgWait.TxStatus == "confirmed" {
+		h.db.Delete(&railWait)
+	}
+
+	return ctx.JSON(http.StatusOK, resp)
+}
+
+// EstimateWithdraw returns estimated gas for a withdrawal
+func (h *PaymentHandler) EstimateWithdraw(ctx echo.Context) error {
+	reqCtx := ctx.Request().Context()
+
+	if h.ethClient == nil {
+		return ctx.String(http.StatusServiceUnavailable, "eth client not available")
+	}
+
+	token := h.pdpConfig.Contracts.USDFCToken
+	owner := h.pdpConfig.OwnerAddress
+
+	// Parse optional request body
+	var req httpapi.EstimateWithdrawRequest
+	_ = ctx.Bind(&req) // Ignore error - fields are optional
+
+	// Determine recipient (default to owner)
+	recipient := owner
+	if req.Recipient != "" {
+		if !isValidAddress(req.Recipient) {
+			return ctx.String(http.StatusBadRequest, "invalid recipient address")
+		}
+		recipient = ethcommon.HexToAddress(req.Recipient)
+	}
+
+	// Get account info for available balance
+	info, err := h.payment.Account(reqCtx, token, owner)
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "getting account info: "+err.Error())
+	}
+
+	// Calculate available to withdraw
+	availableToWithdraw := new(big.Int).Sub(info.Funds, info.LockupCurrent)
+	if availableToWithdraw.Sign() < 0 {
+		availableToWithdraw = big.NewInt(0)
+	}
+
+	// Determine amount (default to max available)
+	amount := availableToWithdraw
+	if req.Amount != "" {
+		var ok bool
+		amount, ok = new(big.Int).SetString(req.Amount, 10)
+		if !ok {
+			return ctx.String(http.StatusBadRequest, "invalid amount")
+		}
+		if amount.Cmp(availableToWithdraw) > 0 {
+			return ctx.String(http.StatusBadRequest, "amount exceeds available balance")
+		}
+	}
+
+	if amount.Sign() == 0 {
+		return ctx.String(http.StatusBadRequest, "nothing to withdraw")
+	}
+
+	// Estimate gas
+	callData, err := h.payment.PackWithdrawTo(token, recipient, amount)
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "packing call data: "+err.Error())
+	}
+
+	contractAddr := h.payment.Address()
+	gasLimit, err := h.ethClient.EstimateGas(reqCtx, ethereum.CallMsg{
+		From: owner,
+		To:   &contractAddr,
+		Data: callData,
+	})
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "estimating gas: "+err.Error())
+	}
+
+	// Get gas price
+	gasPrice, err := h.ethClient.SuggestGasPrice(reqCtx)
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "getting gas price: "+err.Error())
+	}
+
+	// Calculate gas cost in wei
+	gasCost := new(big.Int).Mul(big.NewInt(int64(gasLimit)), gasPrice)
+
+	return ctx.JSON(http.StatusOK, &httpapi.EstimateWithdrawResponse{
+		AvailableToWithdraw: availableToWithdraw.String(),
+		WithdrawAmount:      amount.String(),
+		Recipient:           recipient.Hex(),
+		GasLimit:            fmt.Sprintf("%d", gasLimit),
+		GasPrice:            gasPrice.String(),
+		GasCost:             gasCost.String(),
+	})
+}
+
+// Withdraw submits a withdrawal transaction
+func (h *PaymentHandler) Withdraw(ctx echo.Context) error {
+	reqCtx := ctx.Request().Context()
+
+	if h.sender == nil {
+		return ctx.String(http.StatusServiceUnavailable, "sender not available")
+	}
+
+	if h.ethClient == nil {
+		return ctx.String(http.StatusServiceUnavailable, "eth client not available")
+	}
+
+	token := h.pdpConfig.Contracts.USDFCToken
+	owner := h.pdpConfig.OwnerAddress
+
+	// Check for pending withdrawal (if db is available)
+	if h.db != nil {
+		var pending models.WithdrawalWaits
+		err := h.db.Order("created_at DESC").First(&pending).Error
+		if err == nil {
+			// Check if the tx is still pending
+			var msgWait models.MessageWaitsEth
+			err := h.db.Where("signed_tx_hash = ?", pending.SignedTxHash).First(&msgWait).Error
+			if err == nil && msgWait.TxStatus == "pending" {
+				return ctx.JSON(http.StatusConflict, &httpapi.WithdrawResponse{
+					TxHash: pending.SignedTxHash,
+					Status: "pending",
+					Error:  "withdrawal already in progress",
+				})
+			}
+			// If confirmed/failed, delete the old record
+			h.db.Delete(&pending)
+		}
+	}
+
+	// Parse request body
+	var req httpapi.WithdrawRequest
+	_ = ctx.Bind(&req) // Ignore error - fields are optional
+
+	// Determine recipient (default to owner)
+	recipient := owner
+	if req.Recipient != "" {
+		if !isValidAddress(req.Recipient) {
+			return ctx.String(http.StatusBadRequest, "invalid recipient address")
+		}
+		recipient = ethcommon.HexToAddress(req.Recipient)
+	}
+
+	// Get account info for available balance
+	info, err := h.payment.Account(reqCtx, token, owner)
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "getting account info: "+err.Error())
+	}
+
+	// Calculate available to withdraw
+	availableToWithdraw := new(big.Int).Sub(info.Funds, info.LockupCurrent)
+	if availableToWithdraw.Sign() < 0 {
+		availableToWithdraw = big.NewInt(0)
+	}
+
+	// Determine amount (default to max available)
+	amount := availableToWithdraw
+	if req.Amount != "" {
+		var ok bool
+		amount, ok = new(big.Int).SetString(req.Amount, 10)
+		if !ok {
+			return ctx.String(http.StatusBadRequest, "invalid amount")
+		}
+		if amount.Cmp(availableToWithdraw) > 0 {
+			return ctx.String(http.StatusBadRequest, "amount exceeds available balance")
+		}
+	}
+
+	if amount.Sign() == 0 {
+		return ctx.String(http.StatusBadRequest, "nothing to withdraw")
+	}
+
+	// Pack the call data
+	callData, err := h.payment.PackWithdrawTo(token, recipient, amount)
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "packing call data: "+err.Error())
+	}
+
+	// Create transaction (nonce and gas will be filled by sender)
+	contractAddr := h.payment.Address()
+	tx := ethtypes.NewTransaction(
+		0,             // nonce - will be set by sender
+		contractAddr,  // to
+		big.NewInt(0), // value
+		0,             // gas limit - will be estimated by sender
+		nil,           // gas price - will be set by sender
+		callData,
+	)
+
+	// Send transaction
+	txHash, err := h.sender.Send(reqCtx, owner, tx, "withdraw")
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "sending transaction: "+err.Error())
+	}
+
+	// Insert into tracking tables (if db is available)
+	if h.db != nil {
+		if err := h.db.Transaction(func(txdb *gorm.DB) error {
+			msgWait := models.MessageWaitsEth{
+				SignedTxHash: txHash.Hex(),
+				TxStatus:     "pending",
+			}
+			if err := txdb.Create(&msgWait).Error; err != nil {
+				return err
+			}
+
+			withdrawWait := models.WithdrawalWaits{
+				SignedTxHash: txHash.Hex(),
+				CreatedAt:    time.Now(),
+			}
+			if err := txdb.Create(&withdrawWait).Error; err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			// Log but don't fail - tx was sent, just not tracked
+			log.Errorw("failed to insert withdrawal tracking", "error", err, "txHash", txHash)
+		}
+	}
+
+	return ctx.JSON(http.StatusOK, &httpapi.WithdrawResponse{
+		TxHash: txHash.Hex(),
+		Status: "pending",
+	})
+}
+
+// GetWithdrawalStatus returns the status of a pending withdrawal
+func (h *PaymentHandler) GetWithdrawalStatus(ctx echo.Context) error {
+	if h.db == nil {
+		return ctx.JSON(http.StatusOK, &httpapi.WithdrawalStatusResponse{
+			Status: "none",
+		})
+	}
+
+	var withdrawWait models.WithdrawalWaits
+	err := h.db.Order("created_at DESC").First(&withdrawWait).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusOK, &httpapi.WithdrawalStatusResponse{
+				Status: "none",
+			})
+		}
+		return ctx.String(http.StatusInternalServerError, err.Error())
+	}
+
+	var msgWait models.MessageWaitsEth
+	err = h.db.Where("signed_tx_hash = ?", withdrawWait.SignedTxHash).First(&msgWait).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// MessageWait not found - clean up orphaned withdraw wait
+			h.db.Delete(&withdrawWait)
+			return ctx.JSON(http.StatusOK, &httpapi.WithdrawalStatusResponse{
+				Status: "none",
+			})
+		}
+		return ctx.String(http.StatusInternalServerError, err.Error())
+	}
+
+	resp := &httpapi.WithdrawalStatusResponse{
+		TxHash: withdrawWait.SignedTxHash,
+		Status: msgWait.TxStatus,
+	}
+
+	if msgWait.TxSuccess != nil {
+		resp.Success = *msgWait.TxSuccess
+	}
+	if msgWait.ConfirmedBlockNumber != nil {
+		resp.ConfirmedBlock = fmt.Sprintf("%d", *msgWait.ConfirmedBlockNumber)
+	}
+
+	// Clean up if confirmed
+	if msgWait.TxStatus == "confirmed" {
+		h.db.Delete(&withdrawWait)
+	}
+
+	return ctx.JSON(http.StatusOK, resp)
+}
+
+// isValidAddress checks if the given string is a valid Ethereum address
+func isValidAddress(addr string) bool {
+	if len(addr) != 42 {
+		return false
+	}
+	if addr[:2] != "0x" && addr[:2] != "0X" {
+		return false
+	}
+	return true
 }

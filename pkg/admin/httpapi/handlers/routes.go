@@ -9,6 +9,7 @@ import (
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/fx"
+	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/admin/httpapi"
 	"github.com/storacha/piri/pkg/config/app"
@@ -32,6 +33,7 @@ type NewRoutesParams struct {
 	ServiceValidator smartcontracts.ServiceValidator `optional:"true"`
 	EthClient        *ethclient.Client               `optional:"true"`
 	Sender           ethereum.Sender                 `optional:"true"`
+	DB               *gorm.DB                        `name:"engine_db" optional:"true"`
 }
 
 func NewRoutes(params NewRoutesParams) (echofx.RouteRegistrar, error) {
@@ -46,7 +48,7 @@ func NewRoutes(params NewRoutesParams) (echofx.RouteRegistrar, error) {
 
 	var paymentHandler *PaymentHandler
 	if params.Payment != nil {
-		paymentHandler = NewPaymentHandler(params.Payment, params.PDPConfig, params.ServiceView, params.ServiceValidator, params.EthClient, params.Sender)
+		paymentHandler = NewPaymentHandler(params.Payment, params.PDPConfig, params.ServiceView, params.ServiceValidator, params.EthClient, params.Sender, params.DB)
 	}
 
 	return &AdminRoutes{
@@ -67,6 +69,10 @@ func (a *AdminRoutes) RegisterRoutes(e *echo.Echo) {
 		paymentGroup := adminGroup.Group(httpapi.PaymentRoutePath)
 		paymentGroup.GET("/account", a.paymentHandler.GetAccountInfo)
 		paymentGroup.GET("/settle/:railId/estimate", a.paymentHandler.EstimateSettlement)
+		paymentGroup.GET("/settle/:railId/status", a.paymentHandler.GetSettlementStatus)
 		paymentGroup.POST("/settle/:railId", a.paymentHandler.SettleRail)
+		paymentGroup.POST("/withdraw/estimate", a.paymentHandler.EstimateWithdraw)
+		paymentGroup.POST("/withdraw", a.paymentHandler.Withdraw)
+		paymentGroup.GET("/withdraw/status", a.paymentHandler.GetWithdrawalStatus)
 	}
 }

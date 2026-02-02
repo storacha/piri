@@ -37,9 +37,19 @@ type viewState int
 const (
 	viewMain viewState = iota
 	viewConfirmSettle
-	viewSettling
+	viewSettling       // Sending transaction
+	viewWaitingConfirm // Waiting for on-chain confirmation
 	viewSettled
+	// Withdraw states
+	viewEnterWithdrawAddress   // Address selection
+	viewConfirmWithdraw        // Confirmation screen
+	viewWithdrawing            // Sending transaction
+	viewWaitingWithdrawConfirm // Waiting for on-chain confirmation
+	viewWithdrawn              // Success
 )
+
+// Spinner frames for animation
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // Message types for async operations
 type statusRefreshMsg struct {
@@ -54,6 +64,31 @@ type estimateMsg struct {
 
 type settleMsg struct {
 	txHash string
+	status string
+	err    error
+}
+
+type animationTickMsg struct{}
+
+type settlementStatusMsg struct {
+	status *httpapi.SettlementStatusResponse
+	err    error
+}
+
+// Withdraw message types
+type withdrawEstimateMsg struct {
+	estimate *httpapi.EstimateWithdrawResponse
+	err      error
+}
+
+type withdrawMsg struct {
+	txHash string
+	status string
+	err    error
+}
+
+type withdrawalStatusMsg struct {
+	status *httpapi.WithdrawalStatusResponse
 	err    error
 }
 
@@ -73,6 +108,13 @@ type statusModel struct {
 	settleEstimate *httpapi.EstimateSettlementResponse
 	settleError    error
 	settleTxHash   string
+	animationFrame int
+
+	// For withdrawal
+	withdrawRecipient string
+	withdrawEstimate  *httpapi.EstimateWithdrawResponse
+	withdrawTxHash    string
+	withdrawError     error
 }
 
 func newStatusModel(accountInfo *httpapi.GetAccountInfoResponse, apiClient *client.Client) statusModel {
@@ -102,11 +144,20 @@ func (m statusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleMainKeys(msg)
 		case viewConfirmSettle:
 			return m.handleConfirmKeys(msg)
-		case viewSettling:
-			// No key handling while settling
+		case viewSettling, viewWaitingConfirm:
+			// No key handling while settling/waiting
 			return m, nil
 		case viewSettled:
 			return m.handleSettledKeys(msg)
+		case viewEnterWithdrawAddress:
+			return m.handleEnterAddressKeys(msg)
+		case viewConfirmWithdraw:
+			return m.handleConfirmWithdrawKeys(msg)
+		case viewWithdrawing, viewWaitingWithdrawConfirm:
+			// No key handling while withdrawing/waiting
+			return m, nil
+		case viewWithdrawn:
+			return m.handleWithdrawnKeys(msg)
 		}
 
 	case statusRefreshMsg:
@@ -136,8 +187,77 @@ func (m statusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.settleTxHash = msg.txHash
-		m.viewState = viewSettled
+		m.viewState = viewWaitingConfirm
+		// Start polling for confirmation
+		return m, tea.Batch(
+			m.tickAnimation(),
+			m.pollSettlementStatus(),
+		)
+
+	case animationTickMsg:
+		m.animationFrame = (m.animationFrame + 1) % len(spinnerFrames)
+		// Continue animation only while settling/waiting/withdrawing
+		if m.viewState == viewSettling || m.viewState == viewWaitingConfirm ||
+			m.viewState == viewWithdrawing || m.viewState == viewWaitingWithdrawConfirm {
+			return m, m.tickAnimation()
+		}
 		return m, nil
+
+	case settlementStatusMsg:
+		if msg.err != nil {
+			// Continue polling on error
+			return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+				return m.pollSettlementStatus()()
+			})
+		}
+		if msg.status.Status == "confirmed" {
+			m.viewState = viewSettled
+			return m, nil
+		}
+		// Still pending, continue polling
+		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+			return m.pollSettlementStatus()()
+		})
+
+	case withdrawEstimateMsg:
+		if msg.err != nil {
+			m.withdrawError = msg.err
+			m.viewState = viewMain
+			return m, nil
+		}
+		m.withdrawEstimate = msg.estimate
+		m.viewState = viewConfirmWithdraw
+		return m, nil
+
+	case withdrawMsg:
+		if msg.err != nil {
+			m.withdrawError = msg.err
+			m.viewState = viewMain
+			return m, nil
+		}
+		m.withdrawTxHash = msg.txHash
+		m.viewState = viewWaitingWithdrawConfirm
+		// Start polling for confirmation
+		return m, tea.Batch(
+			m.tickAnimation(),
+			m.pollWithdrawalStatus(),
+		)
+
+	case withdrawalStatusMsg:
+		if msg.err != nil {
+			// Continue polling on error
+			return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+				return m.pollWithdrawalStatus()()
+			})
+		}
+		if msg.status.Status == "confirmed" {
+			m.viewState = viewWithdrawn
+			return m, nil
+		}
+		// Still pending, continue polling
+		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+			return m.pollWithdrawalStatus()()
+		})
 	}
 
 	// Update the table (for scrolling) - only in main view
@@ -167,6 +287,13 @@ func (m statusModel) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, m.fetchEstimate()
 			}
 		}
+	case "W":
+		// Initiate withdrawal
+		m.withdrawError = nil
+		m.withdrawEstimate = nil
+		m.withdrawRecipient = "" // Will default to owner address
+		m.viewState = viewEnterWithdrawAddress
+		return m, nil
 	}
 
 	// Let table handle navigation keys
@@ -182,7 +309,11 @@ func (m statusModel) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter", "y":
 		// Confirm settlement
 		m.viewState = viewSettling
-		return m, m.submitSettle()
+		m.animationFrame = 0
+		return m, tea.Batch(
+			m.submitSettle(),
+			m.tickAnimation(),
+		)
 	case "esc", "n":
 		// Cancel - return to main view
 		m.viewState = viewMain
@@ -204,6 +335,75 @@ func (m statusModel) handleSettledKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.selectedRail = nil
 		m.settleEstimate = nil
 		m.settleTxHash = ""
+		m.animationFrame = 0
+		return m, m.fetchStatus()
+	}
+	return m, nil
+}
+
+func (m statusModel) handleEnterAddressKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "enter":
+		// Use current address (empty means default owner) and fetch estimate
+		m.viewState = viewConfirmWithdraw
+		return m, m.fetchWithdrawEstimate()
+	case "esc":
+		// Cancel - return to main view
+		m.viewState = viewMain
+		m.withdrawRecipient = ""
+		m.withdrawError = nil
+		return m, nil
+	case "backspace":
+		if len(m.withdrawRecipient) > 0 {
+			m.withdrawRecipient = m.withdrawRecipient[:len(m.withdrawRecipient)-1]
+		}
+		return m, nil
+	default:
+		// Handle character input for address
+		key := msg.String()
+		if len(key) == 1 {
+			m.withdrawRecipient += key
+		}
+		return m, nil
+	}
+}
+
+func (m statusModel) handleConfirmWithdrawKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "enter", "y":
+		// Confirm withdrawal
+		m.viewState = viewWithdrawing
+		m.animationFrame = 0
+		return m, tea.Batch(
+			m.submitWithdraw(),
+			m.tickAnimation(),
+		)
+	case "esc", "n":
+		// Cancel - return to main view
+		m.viewState = viewMain
+		m.withdrawRecipient = ""
+		m.withdrawEstimate = nil
+		m.withdrawError = nil
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m statusModel) handleWithdrawnKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "enter", "esc":
+		// Return to main view and refresh
+		m.viewState = viewMain
+		m.withdrawRecipient = ""
+		m.withdrawEstimate = nil
+		m.withdrawTxHash = ""
+		m.animationFrame = 0
 		return m, m.fetchStatus()
 	}
 	return m, nil
@@ -240,7 +440,63 @@ func (m statusModel) submitSettle() tea.Cmd {
 		if err != nil {
 			return settleMsg{err: err}
 		}
-		return settleMsg{txHash: result.TxHash}
+		return settleMsg{txHash: result.TxHash, status: result.Status}
+	}
+}
+
+func (m statusModel) tickAnimation() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return animationTickMsg{}
+	})
+}
+
+func (m statusModel) pollSettlementStatus() tea.Cmd {
+	railID := m.selectedRail.RailID
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		status, err := m.apiClient.GetSettlementStatus(ctx, railID)
+		return settlementStatusMsg{status: status, err: err}
+	}
+}
+
+func (m statusModel) fetchWithdrawEstimate() tea.Cmd {
+	recipient := m.withdrawRecipient
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		estimate, err := m.apiClient.EstimateWithdraw(ctx, recipient, "")
+		return withdrawEstimateMsg{estimate: estimate, err: err}
+	}
+}
+
+func (m statusModel) submitWithdraw() tea.Cmd {
+	recipient := m.withdrawRecipient
+	amount := ""
+	if m.withdrawEstimate != nil {
+		amount = m.withdrawEstimate.WithdrawAmount
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		result, err := m.apiClient.Withdraw(ctx, recipient, amount)
+		if err != nil {
+			return withdrawMsg{err: err}
+		}
+		return withdrawMsg{txHash: result.TxHash, status: result.Status}
+	}
+}
+
+func (m statusModel) pollWithdrawalStatus() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		status, err := m.apiClient.GetWithdrawalStatus(ctx)
+		return withdrawalStatusMsg{status: status, err: err}
 	}
 }
 
@@ -248,10 +504,18 @@ func (m statusModel) View() string {
 	switch m.viewState {
 	case viewConfirmSettle:
 		return m.renderConfirmSettle()
-	case viewSettling:
+	case viewSettling, viewWaitingConfirm:
 		return m.renderSettling()
 	case viewSettled:
 		return m.renderSettled()
+	case viewEnterWithdrawAddress:
+		return m.renderEnterWithdrawAddress()
+	case viewConfirmWithdraw:
+		return m.renderConfirmWithdraw()
+	case viewWithdrawing, viewWaitingWithdrawConfirm:
+		return m.renderWithdrawing()
+	case viewWithdrawn:
+		return m.renderWithdrawn()
 	default:
 		return m.renderMain()
 	}
@@ -279,6 +543,10 @@ func (m statusModel) renderMain() string {
 		doc.WriteString(errorStyle.Render("Settlement error: " + m.settleError.Error()))
 		doc.WriteString("\n")
 	}
+	if m.withdrawError != nil {
+		doc.WriteString(errorStyle.Render("Withdrawal error: " + m.withdrawError.Error()))
+		doc.WriteString("\n")
+	}
 
 	// Show refresh status
 	if m.refreshError != nil {
@@ -290,7 +558,7 @@ func (m statusModel) renderMain() string {
 		doc.WriteString("\n")
 	}
 
-	doc.WriteString(helpStyle.Render("↑ ↓ scroll │ r refresh │ S settle selected │ q quit"))
+	doc.WriteString(helpStyle.Render("↑ ↓ scroll │ r refresh │ S settle selected │ W withdraw │ q quit"))
 
 	return docStyle.Render(doc.String())
 }
@@ -382,14 +650,52 @@ func (m statusModel) renderConfirmSettle() string {
 
 func (m statusModel) renderSettling() string {
 	var b strings.Builder
+	spinner := spinnerFrames[m.animationFrame]
 
-	b.WriteString(titleStyle.Render("SETTLING RAIL"))
+	// Title based on state
+	title := "SETTLING RAIL"
+	if m.viewState == viewWaitingConfirm {
+		title = "WAITING FOR CONFIRMATION"
+	}
+	b.WriteString(titleStyle.Render(title))
 	b.WriteString("\n\n")
 
-	b.WriteString(warningStyle.Render("Submitting transaction..."))
+	// Show the settlement details (same as confirmation screen)
+	if m.settleEstimate != nil {
+		est := m.settleEstimate
+
+		b.WriteString(labelStyle.Render("Rail ID:"))
+		b.WriteString(valueStyle.Render(est.RailID))
+		b.WriteString("\n")
+
+		if est.DataSetID != "" && est.DataSetID != "0" {
+			b.WriteString(labelStyle.Render("Dataset ID:"))
+			b.WriteString(valueStyle.Render(est.DataSetID))
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+
+		// Settlement amounts
+		b.WriteString(labelStyle.Render("Net Amount:"))
+		b.WriteString(successStyle.Render(formatTokenAmount(est.NetAmount)))
+		b.WriteString("\n\n")
+	}
+
+	// Status message with spinner
+	if m.viewState == viewSettling {
+		b.WriteString(warningStyle.Render(spinner + " Sending transaction..."))
+	} else {
+		b.WriteString(warningStyle.Render(spinner + " Pending confirmation..."))
+		if m.settleTxHash != "" {
+			b.WriteString("\n\n")
+			b.WriteString(labelStyle.Render("Transaction Hash:"))
+			b.WriteString("\n")
+			b.WriteString(valueStyle.Render(m.settleTxHash))
+		}
+	}
 	b.WriteString("\n\n")
 
-	b.WriteString(helpStyle.Render("Please wait, this may take a moment."))
+	b.WriteString(helpStyle.Render("Please wait, this may take a few minutes."))
 
 	return docStyle.Render(b.String())
 }
@@ -397,10 +703,10 @@ func (m statusModel) renderSettling() string {
 func (m statusModel) renderSettled() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("SETTLEMENT SUBMITTED"))
+	b.WriteString(titleStyle.Render("SETTLEMENT CONFIRMED"))
 	b.WriteString("\n\n")
 
-	b.WriteString(successStyle.Render("Transaction submitted successfully!"))
+	b.WriteString(successStyle.Render("Transaction confirmed on chain!"))
 	b.WriteString("\n\n")
 
 	b.WriteString(labelStyle.Render("Transaction Hash:"))
@@ -408,9 +714,158 @@ func (m statusModel) renderSettled() string {
 	b.WriteString(valueStyle.Render(m.settleTxHash))
 	b.WriteString("\n\n")
 
-	b.WriteString(helpStyle.Render("The transaction has been submitted to the network."))
+	b.WriteString(helpStyle.Render("The settlement has been confirmed."))
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("It may take a few moments to be confirmed."))
+	b.WriteString(helpStyle.Render("Your balance will be updated shortly."))
+	b.WriteString("\n\n")
+
+	b.WriteString(boxStyle.Render("Press [Enter] to return to main view"))
+
+	return docStyle.Render(b.String())
+}
+
+func (m statusModel) renderEnterWithdrawAddress() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("WITHDRAW FUNDS"))
+	b.WriteString("\n\n")
+
+	b.WriteString(labelStyle.Render("Available to Withdraw:"))
+	b.WriteString(successStyle.Render(formatTokenAmount(m.accountInfo.AvailableToWithdraw)))
+	b.WriteString("\n\n")
+
+	b.WriteString(titleStyle.Render("RECIPIENT ADDRESS"))
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Enter recipient address or press Enter to use default (owner address)"))
+	b.WriteString("\n\n")
+
+	// Show address input field
+	addressDisplay := m.withdrawRecipient
+	if addressDisplay == "" {
+		addressDisplay = helpStyle.Render("(default: owner address)")
+	}
+	b.WriteString(labelStyle.Render("Recipient:"))
+	b.WriteString(valueStyle.Render(addressDisplay))
+	b.WriteString("\n\n")
+
+	b.WriteString(boxStyle.Render("Press [Enter] to continue or [Esc] to cancel"))
+
+	return docStyle.Render(b.String())
+}
+
+func (m statusModel) renderConfirmWithdraw() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("CONFIRM WITHDRAWAL"))
+	b.WriteString("\n\n")
+
+	if m.withdrawEstimate == nil {
+		b.WriteString(helpStyle.Render("Loading estimate..."))
+		return docStyle.Render(b.String())
+	}
+
+	est := m.withdrawEstimate
+
+	// Withdrawal info
+	b.WriteString(labelStyle.Render("Recipient:"))
+	b.WriteString(valueStyle.Render(est.Recipient))
+	b.WriteString("\n\n")
+
+	// Withdrawal breakdown
+	b.WriteString(titleStyle.Render("WITHDRAWAL BREAKDOWN"))
+	b.WriteString("\n")
+
+	b.WriteString(labelStyle.Render("Available to Withdraw:"))
+	b.WriteString(valueStyle.Render(formatTokenAmount(est.AvailableToWithdraw)))
+	b.WriteString("\n")
+
+	b.WriteString(labelStyle.Render("Withdraw Amount:"))
+	b.WriteString(successStyle.Render(formatTokenAmount(est.WithdrawAmount)))
+	b.WriteString("\n\n")
+
+	// Gas estimate
+	b.WriteString(titleStyle.Render("GAS ESTIMATE"))
+	b.WriteString("\n")
+
+	b.WriteString(labelStyle.Render("Gas Limit:"))
+	b.WriteString(valueStyle.Render(formatBigIntWithCommas(parseOrZero(est.GasLimit))))
+	b.WriteString("\n")
+
+	b.WriteString(labelStyle.Render("Gas Price:"))
+	b.WriteString(valueStyle.Render(formatGasPrice(est.GasPrice)))
+	b.WriteString("\n")
+
+	b.WriteString(labelStyle.Render("Gas Cost (FIL):"))
+	b.WriteString(warningStyle.Render(formatFIL(est.GasCost)))
+	b.WriteString("\n\n")
+
+	// Action prompt
+	b.WriteString(boxStyle.Render("Press [Enter] to confirm or [Esc] to cancel"))
+
+	return docStyle.Render(b.String())
+}
+
+func (m statusModel) renderWithdrawing() string {
+	var b strings.Builder
+	spinner := spinnerFrames[m.animationFrame]
+
+	// Title based on state
+	title := "WITHDRAWING"
+	if m.viewState == viewWaitingWithdrawConfirm {
+		title = "WAITING FOR CONFIRMATION"
+	}
+	b.WriteString(titleStyle.Render(title))
+	b.WriteString("\n\n")
+
+	// Show the withdrawal details
+	if m.withdrawEstimate != nil {
+		est := m.withdrawEstimate
+
+		b.WriteString(labelStyle.Render("Recipient:"))
+		b.WriteString(valueStyle.Render(est.Recipient))
+		b.WriteString("\n")
+
+		b.WriteString(labelStyle.Render("Withdraw Amount:"))
+		b.WriteString(successStyle.Render(formatTokenAmount(est.WithdrawAmount)))
+		b.WriteString("\n\n")
+	}
+
+	// Status message with spinner
+	if m.viewState == viewWithdrawing {
+		b.WriteString(warningStyle.Render(spinner + " Sending transaction..."))
+	} else {
+		b.WriteString(warningStyle.Render(spinner + " Pending confirmation..."))
+		if m.withdrawTxHash != "" {
+			b.WriteString("\n\n")
+			b.WriteString(labelStyle.Render("Transaction Hash:"))
+			b.WriteString("\n")
+			b.WriteString(valueStyle.Render(m.withdrawTxHash))
+		}
+	}
+	b.WriteString("\n\n")
+
+	b.WriteString(helpStyle.Render("Please wait, this may take a few minutes."))
+
+	return docStyle.Render(b.String())
+}
+
+func (m statusModel) renderWithdrawn() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("WITHDRAWAL CONFIRMED"))
+	b.WriteString("\n\n")
+
+	b.WriteString(successStyle.Render("Transaction confirmed on chain!"))
+	b.WriteString("\n\n")
+
+	b.WriteString(labelStyle.Render("Transaction Hash:"))
+	b.WriteString("\n")
+	b.WriteString(valueStyle.Render(m.withdrawTxHash))
+	b.WriteString("\n\n")
+
+	b.WriteString(helpStyle.Render("The withdrawal has been confirmed."))
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Funds have been sent to the recipient."))
 	b.WriteString("\n\n")
 
 	b.WriteString(boxStyle.Render("Press [Enter] to return to main view"))

@@ -185,6 +185,84 @@ func (c *Client) SettleRail(ctx context.Context, railID string) (*httpapi.Settle
 	return &resp, nil
 }
 
+// GetSettlementStatus returns the status of a pending settlement for a rail.
+func (c *Client) GetSettlementStatus(ctx context.Context, railID string) (*httpapi.SettlementStatusResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.PaymentRoutePath + "/settle/" + railID + "/status").String()
+
+	var resp httpapi.SettlementStatusResponse
+	if err := c.getJSON(ctx, route, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+// EstimateWithdraw returns estimated gas and fees for a withdrawal.
+func (c *Client) EstimateWithdraw(ctx context.Context, recipient, amount string) (*httpapi.EstimateWithdrawResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.PaymentRoutePath + "/withdraw/estimate").String()
+
+	req := httpapi.EstimateWithdrawRequest{
+		Recipient: recipient,
+		Amount:    amount,
+	}
+
+	res, err := c.postJSON(ctx, route, req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		return nil, errFromResponse(res)
+	}
+
+	var resp httpapi.EstimateWithdrawResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	}
+
+	return &resp, nil
+}
+
+// Withdraw submits a withdrawal transaction.
+func (c *Client) Withdraw(ctx context.Context, recipient, amount string) (*httpapi.WithdrawResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.PaymentRoutePath + "/withdraw").String()
+
+	req := httpapi.WithdrawRequest{
+		Recipient: recipient,
+		Amount:    amount,
+	}
+
+	res, err := c.postJSON(ctx, route, req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		return nil, errFromResponse(res)
+	}
+
+	var resp httpapi.WithdrawResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	}
+
+	return &resp, nil
+}
+
+// GetWithdrawalStatus returns the status of a pending withdrawal.
+func (c *Client) GetWithdrawalStatus(ctx context.Context) (*httpapi.WithdrawalStatusResponse, error) {
+	route := c.endpoint.JoinPath(httpapi.AdminRoutePath + httpapi.PaymentRoutePath + "/withdraw/status").String()
+
+	var resp httpapi.WithdrawalStatusResponse
+	if err := c.getJSON(ctx, route, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
 func createAuthBearerTokenFromID(id principal.Signer) (string, error) {
 	claims := jwt.MapClaims{
 		"service_name": "storacha",

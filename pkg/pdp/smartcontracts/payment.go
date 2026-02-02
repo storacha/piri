@@ -20,6 +20,10 @@ type Payment interface {
 	// PackSettleRail returns the packed ABI call data for settleRail
 	// This can be used with a Sender to submit the transaction
 	PackSettleRail(railId, untilEpoch *big.Int) ([]byte, error)
+
+	// PackWithdrawTo returns the packed ABI call data for withdrawTo
+	// This can be used with a Sender to submit the transaction
+	PackWithdrawTo(token, to common.Address, amount *big.Int) ([]byte, error)
 }
 
 type paymentContract struct {
@@ -145,4 +149,12 @@ func (p *paymentContract) PackSettleRail(railId, untilEpoch *big.Int) ([]byte, e
 		return nil, err
 	}
 	return abi.Pack("settleRail", railId, untilEpoch)
+}
+
+func (p *paymentContract) PackWithdrawTo(token, to common.Address, amount *big.Int) ([]byte, error) {
+	abi, err := bindings.PaymentsMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	return abi.Pack("withdrawTo", token, to, amount)
 }

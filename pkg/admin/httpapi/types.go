@@ -68,5 +68,50 @@ type (
 
 	SettleRailResponse struct {
 		TxHash string `json:"tx_hash"`
+		Status string `json:"status"`          // "pending", "confirmed", "failed"
+		Error  string `json:"error,omitempty"` // error message if any
+	}
+
+	SettlementStatusResponse struct {
+		RailID         string `json:"rail_id"`
+		TxHash         string `json:"tx_hash,omitempty"`
+		Status         string `json:"status"` // "none", "pending", "confirmed"
+		Success        bool   `json:"success,omitempty"`
+		ConfirmedBlock string `json:"confirmed_block,omitempty"`
+	}
+)
+
+// Withdrawal
+type (
+	EstimateWithdrawRequest struct {
+		Recipient string `json:"recipient"` // optional, defaults to owner
+		Amount    string `json:"amount"`    // optional, defaults to max available
+	}
+
+	EstimateWithdrawResponse struct {
+		AvailableToWithdraw string `json:"available_to_withdraw"`
+		WithdrawAmount      string `json:"withdraw_amount"`
+		Recipient           string `json:"recipient"`
+		GasLimit            string `json:"gas_limit"`
+		GasPrice            string `json:"gas_price"`
+		GasCost             string `json:"gas_cost"`
+	}
+
+	WithdrawRequest struct {
+		Recipient string `json:"recipient"` // optional, defaults to owner
+		Amount    string `json:"amount"`    // optional, defaults to max available
+	}
+
+	WithdrawResponse struct {
+		TxHash string `json:"tx_hash"`
+		Status string `json:"status"`          // "pending", "confirmed", "failed"
+		Error  string `json:"error,omitempty"` // error message if any
+	}
+
+	WithdrawalStatusResponse struct {
+		TxHash         string `json:"tx_hash,omitempty"`
+		Status         string `json:"status"` // "none", "pending", "confirmed"
+		Success        bool   `json:"success,omitempty"`
+		ConfirmedBlock string `json:"confirmed_block,omitempty"`
 	}
 )
