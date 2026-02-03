@@ -60,6 +60,8 @@ func init() {
 		"",
 		fmt.Sprintf("Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses. Available values are: %q", presets.AvailableNetworks),
 	)
+	InitCmd.Flags().String("host", "localhost", "Host Piri listens for connections on")
+	InitCmd.Flags().Uint("port", 3000, "Port Piri listens for connections on")
 	InitCmd.Flags().String("data-dir", "", "Path to a data directory Piri will maintain its permanent state in")
 	InitCmd.Flags().String("temp-dir", "", "Path to a temporary directory Piri will maintain ephemeral state in")
 	InitCmd.Flags().String("key-file", "", "Path to a PEM file containing ed25519 private key used as Piri's identity on the Storacha network")
@@ -149,6 +151,8 @@ func init() {
 // initFlags holds all the parsed command flags
 type initFlags struct {
 	network                 presets.Network
+	host                    string
+	port                    uint
 	dataDir                 string
 	tempDir                 string
 	keyFile                 string
@@ -320,8 +324,19 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		return nil, fmt.Errorf("error reading --payer-address: %w", err)
 	}
 
+	host, err := cmd.Flags().GetString("host")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --host: %w", err)
+	}
+	port, err := cmd.Flags().GetUint("port")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --port: %w", err)
+	}
+
 	return &initFlags{
 		network:                 network,
+		host:                    host,
+		port:                    port,
 		dataDir:                 dataDir,
 		tempDir:                 tempDir,
 		keyFile:                 keyFile,
@@ -351,8 +366,8 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 	cfg := appcfg.AppConfig{
 		Identity: lo.Must(config.IdentityConfig{KeyFile: flags.keyFile}.ToAppConfig()),
 		Server: appcfg.ServerConfig{
-			Host:      "localhost",
-			Port:      3000,
+			Host:      flags.host,
+			Port:      flags.port,
 			PublicURL: *flags.publicURL,
 		},
 		Storage: lo.Must(config.RepoConfig{
