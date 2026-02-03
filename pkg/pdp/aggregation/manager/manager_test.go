@@ -14,13 +14,77 @@ import (
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/raulk/clock"
 	"github.com/storacha/go-libstoracha/testutil"
-	"github.com/storacha/piri/lib/jobqueue"
-	"github.com/storacha/piri/lib/jobqueue/worker"
-	"github.com/storacha/piri/pkg/pdp/aggregation/manager"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
+
+	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue/worker"
+	"github.com/storacha/piri/pkg/config"
+	"github.com/storacha/piri/pkg/pdp/aggregation/manager"
 )
+
+// mockConfigProvider implements manager.ConfigProvider for testing.
+// Tests must set pollInterval and batchSize explicitly - there are no defaults.
+// This mock supports dynamic config changes via SetPollInterval and SetBatchSize methods.
+type mockConfigProvider struct {
+	mu           sync.RWMutex
+	pollInterval time.Duration
+	batchSize    uint
+	workers      uint
+	subscribers  map[config.Key][]func(old, new any)
+}
+
+func (m *mockConfigProvider) PollInterval() time.Duration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.pollInterval
+}
+
+func (m *mockConfigProvider) BatchSize() uint {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.batchSize
+}
+
+func (m *mockConfigProvider) Workers() uint {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.workers
+}
+
+func (m *mockConfigProvider) Subscribe(key config.Key, fn func(old, new any)) (func(), error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.subscribers == nil {
+		m.subscribers = make(map[config.Key][]func(old, new any))
+	}
+	m.subscribers[key] = append(m.subscribers[key], fn)
+	return func() {
+		// Unsubscribe - not strictly needed for tests but good for completeness
+	}, nil
+}
+
+// SetPollInterval changes the poll interval and notifies subscribers.
+func (m *mockConfigProvider) SetPollInterval(d time.Duration) {
+	m.mu.Lock()
+	old := m.pollInterval
+	m.pollInterval = d
+	callbacks := append([]func(old, new any){}, m.subscribers[config.ManagerPollInterval]...)
+	m.mu.Unlock()
+
+	// Call callbacks outside lock to avoid deadlock
+	for _, fn := range callbacks {
+		fn(old, d)
+	}
+}
+
+// SetBatchSize changes the batch size. No subscription mechanism - read on demand.
+func (m *mockConfigProvider) SetBatchSize(size uint) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.batchSize = size
+}
 
 // mockQueue is a simple implementation of jobqueue.Service for testing
 type mockQueue struct {
@@ -97,7 +161,7 @@ func (f *fakeTaskHandler) Name() string {
 }
 
 // setupTestManager creates a test manager with mocked dependencies
-func setupTestManager(t *testing.T, opts ...manager.ManagerOption) (*manager.Manager, manager.BufferStore, *fakeTaskHandler) {
+func setupTestManager(t *testing.T, cfgProvider *mockConfigProvider, opts ...manager.ManagerOption) (*manager.Manager, manager.BufferStore, *fakeTaskHandler) {
 	t.Helper()
 
 	// Create real buffer store
@@ -109,6 +173,18 @@ func setupTestManager(t *testing.T, opts ...manager.ManagerOption) (*manager.Man
 
 	// Create a mock queue for testing
 	queue := &mockQueue{taskHandler: taskHandler}
+
+	// Build option providers with proper group annotations for fx
+	optProviders := make([]fx.Option, 0, len(opts))
+	for _, opt := range opts {
+		o := opt // capture loop variable
+		optProviders = append(optProviders, fx.Provide(
+			fx.Annotate(
+				func() manager.ManagerOption { return o },
+				fx.ResultTags(`group:"manager_options"`),
+			),
+		))
+	}
 
 	// Create test app with fx for lifecycle management
 	var m *manager.Manager
@@ -126,7 +202,10 @@ func setupTestManager(t *testing.T, opts ...manager.ManagerOption) (*manager.Man
 		fx.Provide(func() manager.BufferStore {
 			return bufferStore
 		}),
-		fx.Supply(opts),
+		fx.Provide(func() manager.ConfigProvider {
+			return cfgProvider
+		}),
+		fx.Options(optProviders...),
 		fx.Provide(manager.NewManager),
 		fx.Populate(&m),
 	)
@@ -141,8 +220,11 @@ func setupTestManager(t *testing.T, opts ...manager.ManagerOption) (*manager.Man
 
 // TestManagerInitialization tests the manager initialization
 func TestManagerInitialization(t *testing.T) {
-	manager, buffer, handler := setupTestManager(t)
-	require.NotNil(t, manager)
+	mgr, buffer, handler := setupTestManager(t, &mockConfigProvider{
+		pollInterval: manager.DefaultPollInterval,
+		batchSize:    manager.DefaultMaxBatchSizeBytes,
+	})
+	require.NotNil(t, mgr)
 	require.NotNil(t, buffer)
 	require.Equal(t, int64(0), handler.called.Load())
 }
@@ -150,10 +232,13 @@ func TestManagerInitialization(t *testing.T) {
 // TestManager_Submit tests the Submit method
 func TestManagerSubmit(t *testing.T) {
 	t.Run("single link no task spawned", func(t *testing.T) {
-		manager, buffer, handler := setupTestManager(t)
+		mgr, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: manager.DefaultPollInterval,
+			batchSize:    manager.DefaultMaxBatchSizeBytes,
+		})
 
 		link := testutil.RandomCID(t)
-		err := manager.Submit(t.Context(), link)
+		err := mgr.Submit(t.Context(), link)
 		require.NoError(t, err)
 
 		aggs, err := buffer.Aggregation(t.Context())
@@ -164,7 +249,10 @@ func TestManagerSubmit(t *testing.T) {
 
 	t.Run("single link task spawned after poll interval", func(t *testing.T) {
 		tClock := clock.NewMock()
-		m, buffer, handler := setupTestManager(t, manager.WithClock(tClock))
+		m, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: manager.DefaultPollInterval,
+			batchSize:    manager.DefaultMaxBatchSizeBytes,
+		}, manager.WithClock(tClock))
 
 		link := testutil.RandomCID(t)
 		err := m.Submit(t.Context(), link)
@@ -190,12 +278,15 @@ func TestManagerSubmit(t *testing.T) {
 
 	t.Run("single link task spawned after max size reached", func(t *testing.T) {
 		tClock := clock.NewMock()
-		batchSize := 3
+		batchSize := uint(3)
 
-		m, buffer, handler := setupTestManager(t, manager.WithMaxBatchSize(batchSize), manager.WithClock(tClock))
+		m, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: manager.DefaultPollInterval,
+			batchSize:    batchSize,
+		}, manager.WithClock(tClock))
 
 		// add a batch size
-		for i := 1; i < batchSize+1; i++ {
+		for i := 1; i < int(batchSize)+1; i++ {
 			link := testutil.RandomCID(t)
 			err := m.Submit(t.Context(), link)
 			require.NoError(t, err)
@@ -230,9 +321,12 @@ func TestManagerSubmit(t *testing.T) {
 
 	t.Run("large input exceeding batch size is properly batched", func(t *testing.T) {
 		tClock := clock.NewMock()
-		batchSize := 10
+		batchSize := uint(10)
 
-		m, buffer, handler := setupTestManager(t, manager.WithMaxBatchSize(batchSize), manager.WithClock(tClock))
+		m, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: manager.DefaultPollInterval,
+			batchSize:    batchSize,
+		}, manager.WithClock(tClock))
 
 		// First, add some links to partially fill the buffer
 		initialLinks := 3
@@ -277,11 +371,14 @@ func TestManagerSubmit(t *testing.T) {
 func TestManagerParallelSubmit(t *testing.T) {
 	t.Run("10 concurrent submits", func(t *testing.T) {
 		// Use a large batch size to prevent immediate submissions
-		maxBatchSize := 500 // Can hold ~2000 links
-		m, buffer, handler := setupTestManager(t, manager.WithMaxBatchSize(maxBatchSize))
+		maxBatchSize := uint(500) // Can hold ~2000 links
+		m, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: manager.DefaultPollInterval,
+			batchSize:    maxBatchSize,
+		})
 
 		numGoroutines := 10
-		linksPerGoroutine := maxBatchSize
+		linksPerGoroutine := int(maxBatchSize)
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 
@@ -330,9 +427,10 @@ func TestManagerParallelSubmit(t *testing.T) {
 
 	t.Run("submit while processLoop is submitting", func(t *testing.T) {
 		tClock := clock.NewMock()
-		m, buffer, handler := setupTestManager(t,
-			manager.WithClock(tClock),
-			manager.WithPollInterval(100*time.Millisecond))
+		m, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: 100 * time.Millisecond,
+			batchSize:    manager.DefaultMaxBatchSizeBytes,
+		}, manager.WithClock(tClock))
 
 		// Add initial links
 		for i := 0; i < 5; i++ {
@@ -383,9 +481,10 @@ func TestManagerParallelSubmit(t *testing.T) {
 func TestManagerShutdownUnderLoad(t *testing.T) {
 	t.Run("stop while submitting", func(t *testing.T) {
 		tClock := clock.NewMock()
-		m, buffer, handler := setupTestManager(t,
-			manager.WithClock(tClock),
-			manager.WithPollInterval(50*time.Millisecond))
+		m, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: 50 * time.Millisecond,
+			batchSize:    manager.DefaultMaxBatchSizeBytes,
+		}, manager.WithClock(tClock))
 
 		// Start continuous submissions
 		stopSubmitting := make(chan struct{})
@@ -448,10 +547,10 @@ func TestManagerShutdownUnderLoad(t *testing.T) {
 func TestManagerSustainedLoadPatterns(t *testing.T) {
 	t.Run("burst load pattern", func(t *testing.T) {
 		tClock := clock.NewMock()
-		m, buffer, handler := setupTestManager(t,
-			manager.WithClock(tClock),
-			manager.WithPollInterval(100*time.Millisecond),
-			manager.WithMaxBatchSize(1024))
+		m, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: 100 * time.Millisecond,
+			batchSize:    1024,
+		}, manager.WithClock(tClock))
 
 		// Burst phase: submit many links quickly
 		burstSize := 500
@@ -483,10 +582,10 @@ func TestManagerSustainedLoadPatterns(t *testing.T) {
 	t.Run("steady load pattern", func(t *testing.T) {
 		tClock := clock.NewMock()
 		pollInterval := 50 * time.Millisecond
-		m, _, handler := setupTestManager(t,
-			manager.WithClock(tClock),
-			manager.WithPollInterval(pollInterval),
-			manager.WithMaxBatchSize(512))
+		m, _, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: pollInterval,
+			batchSize:    512,
+		}, manager.WithClock(tClock))
 
 		// Simulate steady load over multiple poll intervals
 		stop := make(chan struct{})
@@ -519,9 +618,10 @@ func TestManagerSustainedLoadPatterns(t *testing.T) {
 
 	t.Run("variable load pattern", func(t *testing.T) {
 		tClock := clock.NewMock()
-		m, _, handler := setupTestManager(t,
-			manager.WithClock(tClock),
-			manager.WithPollInterval(50*time.Millisecond))
+		m, _, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: 50 * time.Millisecond,
+			batchSize:    manager.DefaultMaxBatchSizeBytes,
+		}, manager.WithClock(tClock))
 
 		// High load phase
 		for i := 0; i < 100; i++ {
@@ -571,10 +671,10 @@ func TestManagerLongRunningStress(t *testing.T) {
 
 	t.Run("extended continuous load", func(t *testing.T) {
 		tClock := clock.NewMock()
-		m, buffer, handler := setupTestManager(t,
-			manager.WithClock(tClock),
-			manager.WithPollInterval(50*time.Millisecond),
-			manager.WithMaxBatchSize(2048))
+		m, buffer, handler := setupTestManager(t, &mockConfigProvider{
+			pollInterval: 50 * time.Millisecond,
+			batchSize:    2048,
+		}, manager.WithClock(tClock))
 
 		// Track initial goroutine count
 		initialGoroutines := runtime.NumGoroutine()
@@ -669,5 +769,146 @@ func TestManagerLongRunningStress(t *testing.T) {
 
 		t.Logf("Long-running test completed: %d submissions, %d batches processed, %d links processed",
 			totalSubmitted, handler.called.Load(), totalProcessed)
+	})
+}
+
+// TestManagerDynamicConfig tests that the manager responds correctly to runtime
+// configuration changes for poll interval and batch size.
+func TestManagerDynamicConfig(t *testing.T) {
+	t.Run("poll_interval_change_resets_ticker", func(t *testing.T) {
+		tClock := clock.NewMock()
+		cfgProvider := &mockConfigProvider{
+			pollInterval: manager.DefaultPollInterval, // 30s
+			batchSize:    manager.DefaultMaxBatchSizeBytes,
+		}
+
+		m, buffer, handler := setupTestManager(t, cfgProvider, manager.WithClock(tClock))
+
+		// Submit a link to buffer
+		link := testutil.RandomCID(t)
+		err := m.Submit(t.Context(), link)
+		require.NoError(t, err)
+
+		// Verify link is in buffer
+		aggs, err := buffer.Aggregation(t.Context())
+		require.NoError(t, err)
+		require.Len(t, aggs.Roots, 1)
+		require.Equal(t, int64(0), handler.called.Load())
+
+		// Change poll interval to 100ms (much shorter than 30s)
+		cfgProvider.SetPollInterval(100 * time.Millisecond)
+
+		// Give the manager time to process the config change signal
+		time.Sleep(10 * time.Millisecond)
+
+		// Advance clock by the NEW interval (100ms), not the old one (30s)
+		// If ticker reset worked, this should trigger the processLoop
+		require.Eventually(t, func() bool {
+			tClock.Add(100 * time.Millisecond)
+			aggs, err = buffer.Aggregation(t.Context())
+			require.NoError(t, err)
+			return len(aggs.Roots) == 0
+		}, 5*time.Second, 10*time.Millisecond)
+
+		// Verify submission occurred
+		require.Equal(t, int64(1), handler.called.Load(), "Should have processed one batch after poll interval change")
+	})
+
+	t.Run("batch_size_decrease_triggers_submission", func(t *testing.T) {
+		tClock := clock.NewMock()
+		cfgProvider := &mockConfigProvider{
+			pollInterval: manager.DefaultPollInterval,
+			batchSize:    10, // Start with batch size of 10
+		}
+
+		m, buffer, handler := setupTestManager(t, cfgProvider, manager.WithClock(tClock))
+
+		// Submit 5 items (under threshold of 10)
+		for i := 0; i < 5; i++ {
+			err := m.Submit(t.Context(), testutil.RandomCID(t))
+			require.NoError(t, err)
+		}
+
+		// Verify 5 items in buffer, no submission yet
+		aggs, err := buffer.Aggregation(t.Context())
+		require.NoError(t, err)
+		require.Len(t, aggs.Roots, 5)
+		require.Equal(t, int64(0), handler.called.Load())
+
+		// Decrease batch size to 3
+		cfgProvider.SetBatchSize(3)
+
+		// Submit 1 more item - now total is 6 which exceeds new batch size of 3
+		// This triggers submission. The manager's behavior when buffer exceeds new limit:
+		// - Current buffer (5 items) exceeds new max (3), so submit current buffer
+		// - Then buffer the 1 new item
+		err = m.Submit(t.Context(), testutil.RandomCID(t))
+		require.NoError(t, err)
+
+		// Verify submission occurred: current buffer of 5 was submitted, 1 new item buffered
+		aggs, err = buffer.Aggregation(t.Context())
+		require.NoError(t, err)
+
+		require.Equal(t, int64(1), handler.called.Load(), "Should have submitted 1 batch (the existing buffer)")
+		require.Equal(t, int64(5), handler.totalLinks.Load(), "Should have processed 5 links")
+		require.Len(t, aggs.Roots, 1, "Should have 1 new item in buffer")
+	})
+
+	t.Run("batch_size_increase_delays_submission", func(t *testing.T) {
+		tClock := clock.NewMock()
+		cfgProvider := &mockConfigProvider{
+			pollInterval: manager.DefaultPollInterval,
+			batchSize:    3, // Start with small batch size
+		}
+
+		m, buffer, handler := setupTestManager(t, cfgProvider, manager.WithClock(tClock))
+
+		// Submit 2 items (under threshold of 3)
+		for i := 0; i < 2; i++ {
+			err := m.Submit(t.Context(), testutil.RandomCID(t))
+			require.NoError(t, err)
+		}
+
+		// Verify 2 items in buffer, no submission yet
+		aggs, err := buffer.Aggregation(t.Context())
+		require.NoError(t, err)
+		require.Len(t, aggs.Roots, 2)
+		require.Equal(t, int64(0), handler.called.Load())
+
+		// Increase batch size to 10
+		cfgProvider.SetBatchSize(10)
+
+		// Submit 1 more item - total is 3, but new threshold is 10
+		err = m.Submit(t.Context(), testutil.RandomCID(t))
+		require.NoError(t, err)
+
+		// Verify NO submission occurred - all 3 items still in buffer
+		aggs, err = buffer.Aggregation(t.Context())
+		require.NoError(t, err)
+		require.Len(t, aggs.Roots, 3, "All items should still be in buffer")
+		require.Equal(t, int64(0), handler.called.Load(), "No submission should have occurred")
+
+		// Submit more items to reach the new threshold
+		for i := 0; i < 7; i++ {
+			err = m.Submit(t.Context(), testutil.RandomCID(t))
+			require.NoError(t, err)
+		}
+
+		// Now we have 10 items, at the threshold - still no submission
+		aggs, err = buffer.Aggregation(t.Context())
+		require.NoError(t, err)
+		require.Len(t, aggs.Roots, 10, "Should have 10 items in buffer at threshold")
+		require.Equal(t, int64(0), handler.called.Load(), "No submission at exactly threshold")
+
+		// Submit one more to exceed threshold
+		err = m.Submit(t.Context(), testutil.RandomCID(t))
+		require.NoError(t, err)
+
+		// Now should have submitted: 10 items submitted, 1 remaining in buffer
+		aggs, err = buffer.Aggregation(t.Context())
+		require.NoError(t, err)
+		require.Len(t, aggs.Roots, 1, "Should have 1 item remaining in buffer")
+		require.Equal(t, int64(1), handler.called.Load(), "Should have submitted one batch")
+		require.Equal(t, int64(10), handler.totalLinks.Load(), "Should have processed 10 links")
 	})
 }
