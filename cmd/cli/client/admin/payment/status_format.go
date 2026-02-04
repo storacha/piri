@@ -59,17 +59,6 @@ func formatTokenCompact(wei string) string {
 	return fmt.Sprintf("$%.4f", f)
 }
 
-// formatAddress truncates an Ethereum address to 0x1234...abcd format
-func formatAddress(addr string) string {
-	if addr == "" {
-		return "-"
-	}
-	if len(addr) <= 12 {
-		return addr
-	}
-	return addr[:6] + "..." + addr[len(addr)-4:]
-}
-
 // formatEpoch formats an epoch number with thousands separators
 func formatEpoch(epoch string) string {
 	if epoch == "" {
@@ -127,12 +116,4 @@ func formatRate(rateWei string) string {
 		return fmt.Sprintf("$%.4f/ep", f)
 	}
 	return fmt.Sprintf("$%.6f/ep", f)
-}
-
-// formatStatus returns a status string based on termination state
-func formatStatus(isTerminated bool) string {
-	if isTerminated {
-		return "Terminated"
-	}
-	return "Active"
 }

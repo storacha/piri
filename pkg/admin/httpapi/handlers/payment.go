@@ -262,17 +262,10 @@ func (h *PaymentHandler) EstimateSettlement(ctx echo.Context) error {
 		}
 	}
 
-	// Calculate settleable amount and network fee
+	// Calculate settleable amount
 	_, _, settleableEpochs, settleableAmount, _ := h.calculateSettlement(
 		rail, false, currentEpoch, payerInfo.LockupLastSettledAt,
 	)
-
-	// Network fee: ceil(amount / 200) = 0.5%
-	networkFee := big.NewInt(0)
-	if settleableAmount.Sign() > 0 {
-		networkFee = new(big.Int).Add(settleableAmount, big.NewInt(199))
-		networkFee = networkFee.Div(networkFee, big.NewInt(200))
-	}
 
 	// Calculate the epoch to settle up to
 	untilEpoch := new(big.Int).Add(rail.SettledUpTo, settleableEpochs)
@@ -322,7 +315,7 @@ func (h *PaymentHandler) EstimateSettlement(ctx echo.Context) error {
 	}
 
 	// Network fee: ceil(amount / 200) = 0.5% (applied to net amount)
-	networkFee = big.NewInt(0)
+	networkFee := big.NewInt(0)
 	if netSettleableAmount.Sign() > 0 {
 		networkFee = new(big.Int).Add(netSettleableAmount, big.NewInt(199))
 		networkFee = networkFee.Div(networkFee, big.NewInt(200))
