@@ -14,7 +14,7 @@ import (
 
 // GetFreePort asks the OS for a free port that can be used for testing.
 // This helps avoid port conflicts when running tests in parallel.
-func GetFreePort(t *testing.T) int {
+func GetFreePort(t testing.TB) int {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "localhost:0")
