@@ -25,6 +25,7 @@ type (
 		LockupLastSettledAt string     `json:"lockup_last_settled_at"`
 		AvailableToWithdraw string     `json:"available_to_withdraw"`
 		CurrentEpoch        string     `json:"current_epoch"`
+		OwnerAddress        string     `json:"owner_address"`
 		Rails               []RailView `json:"rails"`
 	}
 
@@ -47,23 +48,23 @@ type (
 		UnsettledEpochs     string `json:"unsettled_epochs"`
 		UnsettledAmount     string `json:"unsettled_amount"`
 		SettleableEpochs    string `json:"settleable_epochs"`
-		SettleableAmount    string `json:"settleable_amount"`    // gross amount (epochs * rate)
+		SettleableAmount    string `json:"settleable_amount"`     // gross amount (epochs * rate)
 		NetSettleableAmount string `json:"net_settleable_amount"` // actual amount after proof validation
 		CommissionFee       string `json:"commission_fee"`
 	}
 
 	EstimateSettlementResponse struct {
-		RailID              string `json:"rail_id"`
-		DataSetID           string `json:"data_set_id"`
+		RailID                string `json:"rail_id"`
+		DataSetID             string `json:"data_set_id"`
 		GrossSettleableAmount string `json:"gross_settleable_amount"` // before proof reduction
-		NetSettleableAmount string `json:"net_settleable_amount"`   // after proof reduction
-		ProofReductionPct   string `json:"proof_reduction_pct"`     // percentage reduced due to missed proofs
-		NetworkFee          string `json:"network_fee"`
-		GasLimit            string `json:"gas_limit"`
-		GasPrice            string `json:"gas_price"`
-		GasCost             string `json:"gas_cost"`
-		NetAmount           string `json:"net_amount"` // final amount after all deductions
-		UntilEpoch          string `json:"until_epoch"`
+		NetSettleableAmount   string `json:"net_settleable_amount"`   // after proof reduction
+		ProofReductionPct     string `json:"proof_reduction_pct"`     // percentage reduced due to missed proofs
+		NetworkFee            string `json:"network_fee"`
+		GasLimit              string `json:"gas_limit"`
+		GasPrice              string `json:"gas_price"`
+		GasCost               string `json:"gas_cost"`
+		NetAmount             string `json:"net_amount"` // final amount after all deductions
+		UntilEpoch            string `json:"until_epoch"`
 	}
 
 	SettleRailResponse struct {

@@ -153,6 +153,7 @@ func (h *PaymentHandler) GetAccountInfo(ctx echo.Context) error {
 		LockupLastSettledAt: info.LockupLastSettledAt.String(),
 		AvailableToWithdraw: availableToWithdraw.String(),
 		CurrentEpoch:        currentEpoch.String(),
+		OwnerAddress:        owner.Hex(),
 		Rails:               rails,
 	})
 }

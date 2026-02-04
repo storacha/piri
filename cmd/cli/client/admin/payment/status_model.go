@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -26,9 +27,10 @@ var (
 	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 
 	// Confirmation view styles
-	boxStyle     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Padding(1, 2)
-	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	boxStyle      = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Padding(1, 2)
+	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	warningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
 )
 
 // View states
@@ -41,7 +43,8 @@ const (
 	viewWaitingConfirm // Waiting for on-chain confirmation
 	viewSettled
 	// Withdraw states
-	viewEnterWithdrawAddress   // Address selection
+	viewSelectWithdrawAddress  // Address selection (owner or custom)
+	viewEnterCustomAddress     // Custom address entry
 	viewConfirmWithdraw        // Confirmation screen
 	viewWithdrawing            // Sending transaction
 	viewWaitingWithdrawConfirm // Waiting for on-chain confirmation
@@ -111,17 +114,25 @@ type statusModel struct {
 	animationFrame int
 
 	// For withdrawal
-	withdrawRecipient string
-	withdrawEstimate  *httpapi.EstimateWithdrawResponse
-	withdrawTxHash    string
-	withdrawError     error
+	withdrawRecipient     string
+	withdrawAddressChoice int // 0 = owner address, 1 = custom
+	withdrawInput         textinput.Model
+	withdrawEstimate      *httpapi.EstimateWithdrawResponse
+	withdrawTxHash        string
+	withdrawError         error
 }
 
 func newStatusModel(accountInfo *httpapi.GetAccountInfoResponse, apiClient *client.Client) statusModel {
+	ti := textinput.New()
+	ti.Placeholder = accountInfo.OwnerAddress
+	ti.CharLimit = 42
+	ti.Width = 44
+
 	m := statusModel{
-		apiClient:   apiClient,
-		lastRefresh: time.Now(),
-		viewState:   viewMain,
+		apiClient:     apiClient,
+		lastRefresh:   time.Now(),
+		viewState:     viewMain,
+		withdrawInput: ti,
 	}
 	m.updateFromAccountInfo(accountInfo)
 	return m
@@ -149,8 +160,10 @@ func (m statusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case viewSettled:
 			return m.handleSettledKeys(msg)
-		case viewEnterWithdrawAddress:
-			return m.handleEnterAddressKeys(msg)
+		case viewSelectWithdrawAddress:
+			return m.handleSelectAddressKeys(msg)
+		case viewEnterCustomAddress:
+			return m.handleEnterCustomAddressKeys(msg)
 		case viewConfirmWithdraw:
 			return m.handleConfirmWithdrawKeys(msg)
 		case viewWithdrawing, viewWaitingWithdrawConfirm:
@@ -291,8 +304,10 @@ func (m statusModel) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Initiate withdrawal
 		m.withdrawError = nil
 		m.withdrawEstimate = nil
-		m.withdrawRecipient = "" // Will default to owner address
-		m.viewState = viewEnterWithdrawAddress
+		m.withdrawRecipient = ""
+		m.withdrawAddressChoice = 0 // Default to owner address
+		m.withdrawInput.Reset()
+		m.viewState = viewSelectWithdrawAddress
 		return m, nil
 	}
 
@@ -341,33 +356,66 @@ func (m statusModel) handleSettledKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m statusModel) handleEnterAddressKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m statusModel) handleSelectAddressKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "up", "k":
+		if m.withdrawAddressChoice > 0 {
+			m.withdrawAddressChoice--
+		}
+		return m, nil
+	case "down", "j":
+		if m.withdrawAddressChoice < 1 {
+			m.withdrawAddressChoice++
+		}
+		return m, nil
+	case "enter":
+		if m.withdrawAddressChoice == 0 {
+			// Use owner address
+			m.withdrawRecipient = "" // Empty means use owner address
+			m.viewState = viewConfirmWithdraw
+			return m, m.fetchWithdrawEstimate()
+		}
+		// Custom address - go to input screen
+		m.withdrawInput.Reset()
+		m.withdrawInput.Focus()
+		m.viewState = viewEnterCustomAddress
+		return m, nil
+	case "esc":
+		// Cancel - return to main view
+		m.viewState = viewMain
+		m.withdrawError = nil
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m statusModel) handleEnterCustomAddressKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
 	case "enter":
-		// Use current address (empty means default owner) and fetch estimate
+		// Use entered address
+		m.withdrawRecipient = m.withdrawInput.Value()
+		if m.withdrawRecipient == "" {
+			// If empty, go back to selection
+			m.viewState = viewSelectWithdrawAddress
+			return m, nil
+		}
 		m.viewState = viewConfirmWithdraw
 		return m, m.fetchWithdrawEstimate()
 	case "esc":
-		// Cancel - return to main view
-		m.viewState = viewMain
-		m.withdrawRecipient = ""
-		m.withdrawError = nil
-		return m, nil
-	case "backspace":
-		if len(m.withdrawRecipient) > 0 {
-			m.withdrawRecipient = m.withdrawRecipient[:len(m.withdrawRecipient)-1]
-		}
-		return m, nil
-	default:
-		// Handle character input for address
-		key := msg.String()
-		if len(key) == 1 {
-			m.withdrawRecipient += key
-		}
+		// Go back to selection
+		m.viewState = viewSelectWithdrawAddress
+		m.withdrawInput.Reset()
 		return m, nil
 	}
+
+	// Let textinput handle all other keys (including paste)
+	var cmd tea.Cmd
+	m.withdrawInput, cmd = m.withdrawInput.Update(msg)
+	return m, cmd
 }
 
 func (m statusModel) handleConfirmWithdrawKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -508,8 +556,10 @@ func (m statusModel) View() string {
 		return m.renderSettling()
 	case viewSettled:
 		return m.renderSettled()
-	case viewEnterWithdrawAddress:
-		return m.renderEnterWithdrawAddress()
+	case viewSelectWithdrawAddress:
+		return m.renderSelectWithdrawAddress()
+	case viewEnterCustomAddress:
+		return m.renderEnterCustomAddress()
 	case viewConfirmWithdraw:
 		return m.renderConfirmWithdraw()
 	case viewWithdrawing, viewWaitingWithdrawConfirm:
@@ -557,6 +607,23 @@ func (m statusModel) renderMain() string {
 		doc.WriteString(helpStyle.Render("Last refresh: " + ago.String() + " ago"))
 		doc.WriteString("\n")
 	}
+
+	// Add definitions legend
+	doc.WriteString("\n")
+	doc.WriteString(helpStyle.Render("─────────────────────────────────────────────────────────────────────────────"))
+	doc.WriteString("\n")
+	doc.WriteString(helpStyle.Render("Definitions:"))
+	doc.WriteString("\n")
+	doc.WriteString(helpStyle.Render("  Settled Balance = Funds held in payment contract (withdrawable)"))
+	doc.WriteString("\n")
+	doc.WriteString(helpStyle.Render("  Gross           = Total earnings before deductions"))
+	doc.WriteString("\n")
+	doc.WriteString(helpStyle.Render("  Net Earnings    = Settleable earnings (Gross - Forfeited)"))
+	doc.WriteString("\n")
+	doc.WriteString(helpStyle.Render("  Forfeited       = Gross - Net (earnings lost to missed proofs)"))
+	doc.WriteString("\n")
+	doc.WriteString(helpStyle.Render("  Settled To      = Last epoch settled for this rail (earnings after are pending)"))
+	doc.WriteString("\n\n")
 
 	doc.WriteString(helpStyle.Render("↑ ↓ scroll │ r refresh │ S settle selected │ W withdraw │ q quit"))
 
@@ -724,7 +791,7 @@ func (m statusModel) renderSettled() string {
 	return docStyle.Render(b.String())
 }
 
-func (m statusModel) renderEnterWithdrawAddress() string {
+func (m statusModel) renderSelectWithdrawAddress() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("WITHDRAW FUNDS"))
@@ -734,21 +801,52 @@ func (m statusModel) renderEnterWithdrawAddress() string {
 	b.WriteString(successStyle.Render(formatTokenAmount(m.accountInfo.AvailableToWithdraw)))
 	b.WriteString("\n\n")
 
-	b.WriteString(titleStyle.Render("RECIPIENT ADDRESS"))
+	b.WriteString(titleStyle.Render("SELECT RECIPIENT"))
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Enter recipient address or press Enter to use default (owner address)"))
+	b.WriteString(helpStyle.Render("Use ↑/↓ to select, Enter to confirm"))
 	b.WriteString("\n\n")
 
-	// Show address input field
-	addressDisplay := m.withdrawRecipient
-	if addressDisplay == "" {
-		addressDisplay = helpStyle.Render("(default: owner address)")
+	// Option 1: Owner address
+	if m.withdrawAddressChoice == 0 {
+		b.WriteString(selectedStyle.Render("> Owner Address: " + m.accountInfo.OwnerAddress))
+	} else {
+		b.WriteString(valueStyle.Render("  Owner Address: " + m.accountInfo.OwnerAddress))
 	}
-	b.WriteString(labelStyle.Render("Recipient:"))
-	b.WriteString(valueStyle.Render(addressDisplay))
+	b.WriteString("\n")
+
+	// Option 2: Custom address
+	if m.withdrawAddressChoice == 1 {
+		b.WriteString(selectedStyle.Render("> Enter custom address..."))
+	} else {
+		b.WriteString(valueStyle.Render("  Enter custom address..."))
+	}
 	b.WriteString("\n\n")
 
 	b.WriteString(boxStyle.Render("Press [Enter] to continue or [Esc] to cancel"))
+
+	return docStyle.Render(b.String())
+}
+
+func (m statusModel) renderEnterCustomAddress() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("WITHDRAW FUNDS"))
+	b.WriteString("\n\n")
+
+	b.WriteString(labelStyle.Render("Available to Withdraw:"))
+	b.WriteString(successStyle.Render(formatTokenAmount(m.accountInfo.AvailableToWithdraw)))
+	b.WriteString("\n\n")
+
+	b.WriteString(titleStyle.Render("ENTER RECIPIENT ADDRESS"))
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Paste or type the recipient wallet address"))
+	b.WriteString("\n\n")
+
+	b.WriteString(labelStyle.Render("Recipient: "))
+	b.WriteString(m.withdrawInput.View())
+	b.WriteString("\n\n")
+
+	b.WriteString(boxStyle.Render("Press [Enter] to continue or [Esc] to go back"))
 
 	return docStyle.Render(b.String())
 }
@@ -887,22 +985,22 @@ func (m statusModel) renderOverview() string {
 	b.WriteString(valueStyle.Render(formatEpoch(m.accountInfo.CurrentEpoch)))
 	b.WriteString("\n")
 
-	b.WriteString(labelStyle.Render("Balance (withdrawable):"))
+	b.WriteString(labelStyle.Render("Settled Balance:"))
 	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render(
 		formatTokenAmount(m.accountInfo.Funds)))
 	b.WriteString("\n\n")
 
 	// Aggregate stats
-	totalGross, totalNet, totalUnsettled := m.calculateAggregates()
+	totalGross, totalNet, totalForfeited := m.calculateAggregates()
 
-	b.WriteString(titleStyle.Render("AGGREGATE STATS"))
+	b.WriteString(titleStyle.Render("EARNINGS (SINCE LAST SETTLED)"))
 	b.WriteString("\n")
 
 	b.WriteString(labelStyle.Render("Total Rails/Datasets:"))
 	b.WriteString(valueStyle.Render(formatBigIntWithCommas(big.NewInt(int64(len(m.accountInfo.Rails))))))
 	b.WriteString("\n")
 
-	b.WriteString(labelStyle.Render("Total Gross Settleable:"))
+	b.WriteString(labelStyle.Render("Gross:"))
 	b.WriteString(valueStyle.Render(formatTokenAmountBigInt(totalGross)))
 	b.WriteString("\n")
 
@@ -913,22 +1011,22 @@ func (m statusModel) renderOverview() string {
 		pct = pct.Div(pct, totalGross)
 		netPctStr = fmt.Sprintf(" (%s%% of gross)", pct.String())
 	}
-	b.WriteString(labelStyle.Render("Total Net Settleable:"))
+	b.WriteString(labelStyle.Render("Net:"))
 	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render(
 		formatTokenAmountBigInt(totalNet) + netPctStr))
 	b.WriteString("\n")
 
-	b.WriteString(labelStyle.Render("Total Unsettled:"))
-	b.WriteString(valueStyle.Render(formatTokenAmountBigInt(totalUnsettled)))
+	b.WriteString(labelStyle.Render("Forfeited:"))
+	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
+		formatTokenAmountBigInt(totalForfeited)))
 	b.WriteString("\n")
 
 	return b.String()
 }
 
-func (m statusModel) calculateAggregates() (totalGross, totalNet, totalUnsettled *big.Int) {
+func (m statusModel) calculateAggregates() (totalGross, totalNet, totalForfeited *big.Int) {
 	totalGross = big.NewInt(0)
 	totalNet = big.NewInt(0)
-	totalUnsettled = big.NewInt(0)
 
 	for _, rail := range m.accountInfo.Rails {
 		if amt, ok := new(big.Int).SetString(rail.SettleableAmount, 10); ok {
@@ -937,9 +1035,12 @@ func (m statusModel) calculateAggregates() (totalGross, totalNet, totalUnsettled
 		if amt, ok := new(big.Int).SetString(rail.NetSettleableAmount, 10); ok {
 			totalNet.Add(totalNet, amt)
 		}
-		if amt, ok := new(big.Int).SetString(rail.UnsettledAmount, 10); ok {
-			totalUnsettled.Add(totalUnsettled, amt)
-		}
+	}
+
+	// Forfeited = Gross - Net (earnings lost to missed proofs)
+	totalForfeited = new(big.Int).Sub(totalGross, totalNet)
+	if totalForfeited.Sign() < 0 {
+		totalForfeited = big.NewInt(0)
 	}
 	return
 }
@@ -955,13 +1056,10 @@ func buildRailsTable(rails []httpapi.RailView) table.Model {
 	columns := []table.Column{
 		{Title: "Rail", Width: 6},
 		{Title: "DS ID", Width: 6},
-		{Title: "From", Width: 12},
+		{Title: "Payer", Width: 42},
 		{Title: "Rate/ep", Width: 10},
 		{Title: "Settled To", Width: 10},
-		{Title: "Gross", Width: 9},
-		{Title: "Net", Width: 9},
-		{Title: "Unsettled", Width: 9},
-		{Title: "Status", Width: 8},
+		{Title: "Net Earnings", Width: 12},
 	}
 
 	var rows []table.Row
@@ -974,13 +1072,10 @@ func buildRailsTable(rails []httpapi.RailView) table.Model {
 		rows = append(rows, table.Row{
 			rail.RailID,
 			dsID,
-			formatAddress(rail.From),
+			rail.From,
 			formatRate(rail.PaymentRate),
 			formatEpoch(rail.SettledUpTo),
-			formatTokenCompact(rail.SettleableAmount),
 			formatTokenCompact(rail.NetSettleableAmount),
-			formatTokenCompact(rail.UnsettledAmount),
-			formatStatus(rail.IsTerminated),
 		})
 	}
 
@@ -1047,4 +1142,3 @@ func formatFIL(attoStr string) string {
 	}
 	return fmt.Sprintf("%.18f FIL", f)
 }
-
