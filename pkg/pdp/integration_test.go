@@ -27,6 +27,7 @@ import (
 // 2. Contract owner can approve the provider
 // 3. Provider status reflects registration and approval state
 func TestPDPProviderRegistration(t *testing.T) {
+	t.Parallel()
 	harness := testutil.NewHarness(t)
 	nodeInfo, stop := testutil.NewNode(t, harness.Container, libstorachatestutil.Alice)
 	t.Cleanup(stop)
@@ -73,6 +74,7 @@ func TestPDPProviderRegistration(t *testing.T) {
 
 // TestPDPProviderAlreadyRegistered verifies that registering an already-registered provider fails.
 func TestPDPProviderAlreadyRegistered(t *testing.T) {
+	t.Parallel()
 	harness := testutil.NewHarness(t)
 	nodeInfo, stop := testutil.NewNode(t, harness.Container, libstorachatestutil.Alice)
 	t.Cleanup(stop)
@@ -106,6 +108,7 @@ func TestPDPProviderAlreadyRegistered(t *testing.T) {
 
 // TestPDPCreateProofSet tests creating a proof set after provider registration.
 func TestPDPCreateProofSet(t *testing.T) {
+	t.Parallel()
 	harness := testutil.NewHarness(t)
 	nodeInfo, stop := testutil.NewNode(t, harness.Container, libstorachatestutil.Alice)
 	t.Cleanup(stop)
@@ -162,6 +165,7 @@ func TestPDPCreateProofSet(t *testing.T) {
 
 // TestPDPCreateProofSetNotApproved tests that creating a proof set fails if provider is not approved.
 func TestPDPCreateProofSetNotApproved(t *testing.T) {
+	t.Parallel()
 	harness := testutil.NewHarness(t)
 	nodeInfo, stop := testutil.NewNode(t, harness.Container, libstorachatestutil.Alice)
 	t.Cleanup(stop)
@@ -191,6 +195,7 @@ func TestPDPCreateProofSetNotApproved(t *testing.T) {
 
 // TestPDPPieceUpload tests allocating and uploading a piece.
 func TestPDPPieceUpload(t *testing.T) {
+	t.Parallel()
 	harness := testutil.NewHarness(t)
 	nodeInfo, stop := testutil.NewNode(t, harness.Container, libstorachatestutil.Alice)
 	t.Cleanup(stop)
@@ -246,6 +251,7 @@ func TestPDPPieceUpload(t *testing.T) {
 
 // TestPDPCommPCalculation tests calculating CommP for uploaded piece.
 func TestPDPCommPCalculation(t *testing.T) {
+	t.Parallel()
 	harness := testutil.NewHarness(t)
 	nodeInfo, stop := testutil.NewNode(t, harness.Container, libstorachatestutil.Alice)
 	t.Cleanup(stop)
@@ -302,6 +308,7 @@ func TestPDPCommPCalculation(t *testing.T) {
 // 2. Proof set creation
 // 3. Piece upload and CommP calculation
 func TestPDPFullLifecycle(t *testing.T) {
+	t.Parallel()
 	harness := testutil.NewHarness(t)
 	nodeInfo, stop := testutil.NewNode(t, harness.Container, libstorachatestutil.Alice)
 	t.Cleanup(stop)
@@ -401,6 +408,7 @@ func TestPDPFullLifecycle(t *testing.T) {
 }
 
 func TestBlobUploadFlow(t *testing.T) {
+	t.Parallel()
 	harness := testutil.NewHarness(t)
 
 	// Explicit signers - node and client use different identities

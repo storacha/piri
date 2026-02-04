@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
@@ -16,6 +17,9 @@ type Harness struct {
 }
 
 func NewHarness(t testing.TB) *Harness {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping: container tests not supported on macOS")
+	}
 	ctx := t.Context()
 	container, err := localdev.Run(ctx,
 		localdev.WithStartupTimeout(3*time.Minute), // Allow ample time for container startup

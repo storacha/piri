@@ -17,6 +17,7 @@
 package localdev
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -207,21 +208,6 @@ func Run(ctx context.Context, opts ...func(*Options)) (*Container, error) {
 		opt(&options)
 	}
 
-	// Handle embedded state files - write to temp files for bind mounting
-	if options.UseEmbeddedState {
-		stateFile, err := writeTempFile("anvil-state-*.json", AnvilStateJSON)
-		if err != nil {
-			return nil, fmt.Errorf("writing embedded state file: %w", err)
-		}
-		addressesFile, err := writeTempFile("deployed-addresses-*.json", DeployedAddressesJSON)
-		if err != nil {
-			os.Remove(stateFile)
-			return nil, fmt.Errorf("writing embedded addresses file: %w", err)
-		}
-		options.StateFile = stateFile
-		options.DeployedAddressesFile = addressesFile
-	}
-
 	req := testcontainers.ContainerRequest{
 		Image:        options.Image,
 		ExposedPorts: []string{DefaultRPCPort},
@@ -230,15 +216,41 @@ func Run(ctx context.Context, opts ...func(*Options)) (*Container, error) {
 		},
 	}
 
-	// If state file is provided, mount it and use faster wait strategy
-	if options.StateFile != "" {
-		if options.DeployedAddressesFile == "" {
-			return nil, fmt.Errorf("DeployedAddressesFile is required when using StateFile")
+	// If state file is provided (either embedded or path), copy files into container
+	if options.UseEmbeddedState || options.StateFile != "" {
+		var stateContent, addressesContent []byte
+
+		if options.UseEmbeddedState {
+			stateContent = AnvilStateJSON
+			addressesContent = DeployedAddressesJSON
+		} else {
+			if options.DeployedAddressesFile == "" {
+				return nil, fmt.Errorf("DeployedAddressesFile is required when using StateFile")
+			}
+			var err error
+			stateContent, err = os.ReadFile(options.StateFile)
+			if err != nil {
+				return nil, fmt.Errorf("reading state file: %w", err)
+			}
+			addressesContent, err = os.ReadFile(options.DeployedAddressesFile)
+			if err != nil {
+				return nil, fmt.Errorf("reading addresses file: %w", err)
+			}
 		}
-		req.Mounts = testcontainers.Mounts(
-			testcontainers.BindMount(options.StateFile, "/app/anvil-state.json"),
-			testcontainers.BindMount(options.DeployedAddressesFile, "/deployed-addresses.json"),
-		)
+
+		req.Files = []testcontainers.ContainerFile{
+			{
+				Reader:            bytes.NewReader(stateContent),
+				ContainerFilePath: "/app/anvil-state.json",
+				FileMode:          0644,
+			},
+			{
+				Reader:            bytes.NewReader(addressesContent),
+				ContainerFilePath: "/deployed-addresses.json",
+				FileMode:          0644,
+			},
+		}
+
 		// With pre-loaded state, startup is much faster - just wait for RPC ready
 		req.WaitingFor = wait.ForAll(
 			wait.ForLog("Local Environment Ready!").WithStartupTimeout(30*time.Second),
@@ -350,24 +362,10 @@ func WithDeployedAddressesFile(path string) func(*Options) {
 }
 
 // WithEmbeddedState uses the embedded anvil-state.json and deployed-addresses.json files.
-// This writes the embedded content to temp files and mounts them into the container.
+// The embedded files are copied directly into the container using the Files API.
 // This is the recommended option for portable tests that work across different machines.
 func WithEmbeddedState() func(*Options) {
 	return func(o *Options) {
 		o.UseEmbeddedState = true
 	}
-}
-
-// writeTempFile writes content to a temporary file and returns the file path.
-func writeTempFile(pattern string, content []byte) (string, error) {
-	f, err := os.CreateTemp("", pattern)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	if _, err := f.Write(content); err != nil {
-		os.Remove(f.Name())
-		return "", err
-	}
-	return f.Name(), nil
 }
