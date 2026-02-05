@@ -1,0 +1,29 @@
+{
+  "chainId": 31337,
+  "rpcUrl": "http://localhost:8545",
+  "deployer": {
+    "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "privateKey": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+  },
+  "payer": {
+    "address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "privateKey": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+  },
+  "contracts": {
+    "MockUSDFC": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    "SessionKeyRegistry": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+    "PDPVerifier": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+    "FilecoinPayV1": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "ServiceProviderRegistry": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "SignatureVerificationLib": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    "FilecoinWarmStorageService": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
+    "FilecoinWarmStorageServiceStateView": "0x9A676e781A523b5d0C0e43731313A708CB607508"
+  },
+  "config": {
+    "challengeFinality": 3,
+    "maxProvingPeriod": 25,
+    "challengeWindowSize": 5,
+    "serviceName": "Local Test Service",
+    "serviceDescription": "Local development environment for testing"
+  }
+}
