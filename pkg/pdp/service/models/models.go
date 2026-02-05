@@ -11,7 +11,10 @@ import (
 )
 
 //go:embed triggers.sqlite.sql
-var Triggers string
+var triggersSQLite string
+
+//go:embed triggers.postgres.sql
+var triggersPostgres string
 
 // Task represents the task table.
 type Task struct {
@@ -360,9 +363,19 @@ func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
 		); err != nil {
 		return fmt.Errorf("failed to auto migrate database: %s", err)
 	}
+
+	// Select appropriate triggers based on database dialect
+	var triggers string
+	switch db.Dialector.Name() {
+	case "postgres":
+		triggers = triggersPostgres
+	default: // sqlite
+		triggers = triggersSQLite
+	}
+
 	if err := db.
 		WithContext(ctx).
-		Exec(Triggers).Error; err != nil {
+		Exec(triggers).Error; err != nil {
 		return fmt.Errorf("failed to install database triggers: %s", err)
 	}
 	return nil
