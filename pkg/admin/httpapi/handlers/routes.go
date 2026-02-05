@@ -4,18 +4,14 @@ import (
 	"crypto/ed25519"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/golang-jwt/jwt/v4"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/fx"
-	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/admin/httpapi"
 	"github.com/storacha/piri/pkg/config/app"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
-	"github.com/storacha/piri/pkg/pdp/ethereum"
-	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 )
 
 type AdminRoutes struct {
@@ -26,14 +22,8 @@ type AdminRoutes struct {
 type NewRoutesParams struct {
 	fx.In
 
-	Identity         app.IdentityConfig
-	Payment          smartcontracts.Payment          `optional:"true"`
-	PDPConfig        app.PDPServiceConfig            `optional:"true"`
-	ServiceView      smartcontracts.Service          `optional:"true"`
-	ServiceValidator smartcontracts.ServiceValidator `optional:"true"`
-	EthClient        *ethclient.Client               `optional:"true"`
-	Sender           ethereum.Sender                 `optional:"true"`
-	DB               *gorm.DB                        `name:"engine_db" optional:"true"`
+	Identity       app.IdentityConfig
+	PaymentHandler *PaymentHandler `optional:"true"`
 }
 
 func NewRoutes(params NewRoutesParams) (echofx.RouteRegistrar, error) {
@@ -46,14 +36,9 @@ func NewRoutes(params NewRoutesParams) (echofx.RouteRegistrar, error) {
 		SigningMethod: jwt.SigningMethodEdDSA.Alg(),
 	})
 
-	var paymentHandler *PaymentHandler
-	if params.Payment != nil {
-		paymentHandler = NewPaymentHandler(params.Payment, params.PDPConfig, params.ServiceView, params.ServiceValidator, params.EthClient, params.Sender, params.DB)
-	}
-
 	return &AdminRoutes{
 		jwtMiddleware:  jwtMiddleware,
-		paymentHandler: paymentHandler,
+		paymentHandler: params.PaymentHandler,
 	}, nil
 }
 

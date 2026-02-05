@@ -8,10 +8,13 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
+	"github.com/storacha/piri/pkg/admin/httpapi/handlers"
 	"github.com/storacha/piri/pkg/pdp/aggregation"
+	ethsender "github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/piece"
 	"github.com/storacha/piri/pkg/pdp/smartcontracts"
 	"go.uber.org/fx"
+	"gorm.io/gorm"
 
 	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/pdp"
@@ -34,6 +37,7 @@ var PDPModule = fx.Module("pdp",
 			// provide as interface required by service(s)
 			fx.As(new(service.ChainClient)),
 		),
+		ProvidePaymentHandler,
 	),
 	smartcontracts.Module,
 	aggregation.Module,
@@ -76,4 +80,30 @@ func ProvideLotusClient(lc fx.Lifecycle, cfg app.AppConfig) (api.FullNode, error
 		},
 	})
 	return lotusAPI, nil
+}
+
+// ProvidePaymentHandlerParams contains the dependencies for the payment handler
+type ProvidePaymentHandlerParams struct {
+	fx.In
+
+	Payment          smartcontracts.Payment
+	PDPConfig        app.PDPServiceConfig
+	ServiceView      smartcontracts.Service          `optional:"true"`
+	ServiceValidator smartcontracts.ServiceValidator `optional:"true"`
+	EthClient        *ethclient.Client
+	Sender           ethsender.Sender
+	DB               *gorm.DB `name:"engine_db"`
+}
+
+// ProvidePaymentHandler creates the payment handler for admin routes
+func ProvidePaymentHandler(params ProvidePaymentHandlerParams) *handlers.PaymentHandler {
+	return handlers.NewPaymentHandler(
+		params.Payment,
+		params.PDPConfig,
+		params.ServiceView,
+		params.ServiceValidator,
+		params.EthClient,
+		params.Sender,
+		params.DB,
+	)
 }
