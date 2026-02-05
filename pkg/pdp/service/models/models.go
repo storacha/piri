@@ -305,6 +305,30 @@ func (MessageWaitsEth) TableName() string {
 	return "message_waits_eth"
 }
 
+// RailSettlementWaits tracks pending settlement transactions per rail.
+// Used to prevent duplicate settlements and to poll for confirmation status.
+type RailSettlementWaits struct {
+	RailID       string    `gorm:"primaryKey;column:rail_id;not null"`
+	SignedTxHash string    `gorm:"column:signed_tx_hash;not null;uniqueIndex"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+}
+
+func (RailSettlementWaits) TableName() string {
+	return "rail_settlement_waits"
+}
+
+// WithdrawalWaits tracks pending withdrawal transactions.
+// Used to prevent duplicate withdrawals and to poll for confirmation status.
+type WithdrawalWaits struct {
+	ID           uint      `gorm:"primaryKey"`
+	SignedTxHash string    `gorm:"column:signed_tx_hash;not null;uniqueIndex"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+}
+
+func (WithdrawalWaits) TableName() string {
+	return "withdrawal_waits"
+}
+
 func Ptr[T any](v T) *T {
 	return &v
 }
@@ -331,6 +355,8 @@ func AutoMigrateDB(ctx context.Context, db *gorm.DB) error {
 			&MessageSendsEth{},
 			&MessageSendEthLock{},
 			&MessageWaitsEth{},
+			&RailSettlementWaits{},
+			&WithdrawalWaits{},
 		); err != nil {
 		return fmt.Errorf("failed to auto migrate database: %s", err)
 	}

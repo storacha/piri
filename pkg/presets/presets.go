@@ -69,6 +69,8 @@ type SmartContractSettings struct {
 	ProviderRegistry common.Address
 	Service          common.Address
 	ServiceView      common.Address
+	Payments         common.Address
+	USDFCToken       common.Address
 	ChainID          *big.Int
 	PayerAddress     common.Address
 }
@@ -241,6 +243,10 @@ var calibnetSettings = SmartContractSettings{
 	// This contract and its address are owned by storacha, and uses ProviderRegistry for membership
 	Service:     common.HexToAddress("0x0c6875983B20901a7C3c86871f43FdEE77946424"),
 	ServiceView: common.HexToAddress("0xEAD67d775f36D1d2894854D20e042C77A3CC20a5"),
+	// Payments contract address
+	Payments: common.HexToAddress("0x09a0fDc2723fAd1A7b8e3e00eE5DF73841df55a0"),
+	// USDFC token address
+	USDFCToken: common.HexToAddress("0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0"),
 	// Filecoin calibration chain ID
 	ChainID: big.NewInt(314159),
 	// PayerAddress is the Storacha Owned address that pays SPs
@@ -256,6 +262,10 @@ var mainnetSettings = SmartContractSettings{
 	// This contract and its address are owned by storacha, and uses ProviderRegistry for membership
 	Service:     common.HexToAddress("0x56e53c5e7F27504b810494cc3b88b2aa0645a839"),
 	ServiceView: common.HexToAddress("0x778Bbb8F50d759e2AA03ab6FAEF830Ca329AFF9D"),
+	// Payments contract address
+	Payments: common.HexToAddress("0x23b1e018F08BB982348b15a86ee926eEBf7F4DAa"),
+	// USDFC token address
+	USDFCToken: common.HexToAddress("0x80B98d3aa09ffff255c3ba4A241111Ff1262F045"),
 	// Filecoin mainnet chain ID
 	ChainID: big.NewInt(314),
 	// PayerAddress is the Storacha Owned address that pays SPs

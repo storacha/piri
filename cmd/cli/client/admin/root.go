@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/storacha/piri/cmd/cli/client/admin/log"
+	"github.com/storacha/piri/cmd/cli/client/admin/payment"
 )
 
 var Cmd = &cobra.Command{
@@ -13,4 +14,5 @@ var Cmd = &cobra.Command{
 
 func init() {
 	Cmd.AddCommand(log.Cmd)
+	Cmd.AddCommand(payment.Cmd)
 }

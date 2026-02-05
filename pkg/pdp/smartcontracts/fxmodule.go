@@ -11,7 +11,9 @@ var Module = fx.Module("smartcontracts",
 	fx.Provide(
 		ProvideRegistry,
 		ProvideServiceView,
+		ProvideServiceValidator,
 		ProvideVerifierContract,
+		ProvidePayment,
 	),
 )
 
@@ -23,6 +25,14 @@ func ProvideServiceView(cfg appconfig.PDPServiceConfig, client bind.ContractBack
 	return NewServiceView(cfg.Contracts.ServiceView, client)
 }
 
+func ProvideServiceValidator(cfg appconfig.PDPServiceConfig, client bind.ContractBackend) (ServiceValidator, error) {
+	return NewServiceValidator(cfg.Contracts.Service, client)
+}
+
 func ProvideVerifierContract(cfg appconfig.PDPServiceConfig, client bind.ContractBackend) (Verifier, error) {
 	return NewVerifierContract(cfg.Contracts.Verifier, client)
+}
+
+func ProvidePayment(cfg appconfig.PDPServiceConfig, client bind.ContractBackend) (Payment, error) {
+	return NewPaymentContract(cfg.Contracts.Payments, client)
 }

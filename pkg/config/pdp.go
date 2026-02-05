@@ -21,6 +21,8 @@ type ContractAddresses struct {
 	ProviderRegistry string `mapstructure:"provider_registry" validate:"required" flag:"provider-registry-address" toml:"provider_registry,omitempty"`
 	Service          string `mapstructure:"service" validate:"required" flag:"service-address" toml:"service,omitempty"`
 	ServiceView      string `mapstructure:"service_view" validate:"required" flag:"service-view-address" toml:"service_view,omitempty"`
+	Payments         string `mapstructure:"payments" flag:"payments-address" toml:"payments,omitempty"`
+	USDFCToken       string `mapstructure:"usdfc_token" flag:"usdfc-token-address" toml:"usdfc_token,omitempty"`
 }
 
 type PDPServiceConfig struct {
@@ -66,6 +68,14 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		return app.PDPServiceConfig{}, fmt.Errorf("invalid service view address: %s", c.Contracts.ServiceView)
 	}
 
+	if c.Contracts.Payments != "" && !common.IsHexAddress(c.Contracts.Payments) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid payments address: %s", c.Contracts.Payments)
+	}
+
+	if c.Contracts.USDFCToken != "" && !common.IsHexAddress(c.Contracts.USDFCToken) {
+		return app.PDPServiceConfig{}, fmt.Errorf("invalid USDFC token address: %s", c.Contracts.USDFCToken)
+	}
+
 	chainID := new(big.Int)
 	_, ok := chainID.SetString(c.ChainID, 10)
 	if !ok {
@@ -85,6 +95,8 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 			ProviderRegistry: common.HexToAddress(c.Contracts.ProviderRegistry),
 			Service:          common.HexToAddress(c.Contracts.Service),
 			ServiceView:      common.HexToAddress(c.Contracts.ServiceView),
+			Payments:         common.HexToAddress(c.Contracts.Payments),
+			USDFCToken:       common.HexToAddress(c.Contracts.USDFCToken),
 		},
 		ChainID:      chainID,
 		PayerAddress: common.HexToAddress(c.PayerAddress),
