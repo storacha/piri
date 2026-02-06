@@ -166,11 +166,11 @@ func NewEgressTrackerService(
 	cleanupCtx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			return svc.StartCleanupTask(cleanupCtx)
+			return svc.Start(cleanupCtx)
 		},
 		OnStop: func(ctx context.Context) error {
 			cancel()
-			return svc.StopCleanupTask(ctx)
+			return svc.Stop(ctx)
 		},
 	})
 

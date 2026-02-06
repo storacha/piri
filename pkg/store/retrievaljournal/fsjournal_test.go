@@ -199,6 +199,44 @@ func TestRotate(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, files, 1, "expected one batch file")
 	})
+
+	t.Run("forces a rotation", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		journal, err := NewFSJournal(tempDir, 0)
+		require.NoError(t, err)
+
+		// Create a test receipt
+		rcpt := createTestReceipt(t)
+
+		// Append the receipt. A single receipt is not enough to trigger a rotation.
+		batchRotated, _, err := journal.Append(t.Context(), rcpt)
+		require.NoError(t, err)
+		require.False(t, batchRotated)
+
+		// Rotate the batch
+		rotated, batchID, err := journal.ForceRotate(t.Context())
+		require.NoError(t, err)
+		require.True(t, rotated)
+		require.NotEmpty(t, batchID)
+
+		// Check that the batch file was created
+		files, err := filepath.Glob(filepath.Join(tempDir, fmt.Sprintf("%s%s%s", batchFilePrefix, batchID.String(), batchFileSuffix)))
+		require.NoError(t, err)
+		require.Len(t, files, 1, "expected one batch file")
+	})
+
+	t.Run("does not force rotate if empty", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		journal, err := NewFSJournal(tempDir, 0)
+		require.NoError(t, err)
+
+		rotated, batchID, err := journal.ForceRotate(t.Context())
+		require.NoError(t, err)
+		require.False(t, rotated) // cannot rotate nothing
+		require.Equal(t, cid.Undef, batchID)
+	})
 }
 
 func TestGetBatch(t *testing.T) {
