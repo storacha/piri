@@ -162,11 +162,11 @@ func NewEgressTrackerService(
 		return nil, err
 	}
 
-	// Add lifecycle hooks for cleanup task
-	cleanupCtx, cancel := context.WithCancel(context.Background())
+	// Add lifecycle hooks for start and stop
+	ctx, cancel := context.WithCancel(context.Background())
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			return svc.Start(cleanupCtx)
+			return svc.Start(ctx)
 		},
 		OnStop: func(ctx context.Context) error {
 			cancel()
