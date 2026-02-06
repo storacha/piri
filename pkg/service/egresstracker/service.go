@@ -27,6 +27,8 @@ import (
 	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
+const journalRotationPeriod = time.Hour * 12
+
 // Service stores receipts from `space/content/retrieve` invocations, batches them and sends
 // them to an egress tracking service via `space/egress/track` invocations.
 type Service struct {
@@ -36,6 +38,7 @@ type Service struct {
 	egressTrackerConn    client.Connection
 	batchEndpoint        *url.URL
 	journal              retrievaljournal.Journal
+	journalRotator       *retrievaljournal.PeriodicRotator
 	queue                EgressTrackerQueue
 	consolidationStore   consolidationstore.Store
 	rcptsClient          *receipts.Client
@@ -55,6 +58,13 @@ func New(
 	rcptsClient *receipts.Client,
 	cleanupCheckInterval time.Duration,
 ) (*Service, error) {
+	// if the journal supports forced rotation, set up a periodic rotator to
+	// ensure batches are rotated even during low traffic periods
+	var journalRotator *retrievaljournal.PeriodicRotator
+	if fr, ok := journal.(retrievaljournal.ForceRotator); ok {
+		journalRotator = retrievaljournal.NewPeriodicRotator(fr, journalRotationPeriod)
+	}
+
 	svc := &Service{
 		id:                   id,
 		egressTrackerDID:     egressTrackerConn.ID().DID(),
@@ -62,6 +72,7 @@ func New(
 		egressTrackerConn:    egressTrackerConn,
 		batchEndpoint:        batchEndpoint,
 		journal:              journal,
+		journalRotator:       journalRotator,
 		consolidationStore:   consolidationStore,
 		queue:                queue,
 		rcptsClient:          rcptsClient,
@@ -71,6 +82,16 @@ func New(
 
 	if err := queue.Register(svc.egressTrack); err != nil {
 		return nil, fmt.Errorf("registering egress track task: %w", err)
+	}
+
+	// set the RotateFunc to enqueue a track task for the rotated batch when a
+	// rotation occurs periodically
+	if journalRotator != nil {
+		journalRotator.RotateFunc = func(batchID cid.Cid) {
+			if err := svc.enqueueEgressTrackTask(context.Background(), batchID); err != nil {
+				log.Errorw("enqueuing egress track task", "batch", batchID, "error", err)
+			}
+		}
 	}
 
 	return svc, nil
@@ -165,9 +186,10 @@ func (s *Service) egressTrack(ctx context.Context, batchCID cid.Cid) error {
 	return nil
 }
 
-// StartCleanupTask starts the periodic cleanup task that checks for consolidated batches
-// and removes them from the store.
-func (s *Service) StartCleanupTask(ctx context.Context) error {
+// Start starts the periodic cleanup task that checks for consolidated batches
+// and removes them from the store as well as starting the journal rotator if
+// enabled.
+func (s *Service) Start(ctx context.Context) error {
 	if s.cleanupCheckInterval <= 0 {
 		log.Info("cleanup task disabled (interval is 0)")
 		close(s.cleanupDone)
@@ -180,11 +202,21 @@ func (s *Service) StartCleanupTask(ctx context.Context) error {
 	go s.runCleanupTask(cleanupCtx)
 
 	log.Infof("cleanup task started with interval: %v", s.cleanupCheckInterval)
+
+	if s.journalRotator != nil {
+		s.journalRotator.Start()
+		log.Info("periodic journal rotator started")
+	}
 	return nil
 }
 
-// StopCleanupTask stops the periodic cleanup task gracefully.
-func (s *Service) StopCleanupTask(ctx context.Context) error {
+// Stop stops the periodic cleanup task and journal rotator gracefully.
+func (s *Service) Stop(ctx context.Context) error {
+	if s.journalRotator != nil {
+		s.journalRotator.Stop(ctx)
+		log.Info("periodic journal rotator stopped")
+	}
+
 	if s.cleanupCancel != nil {
 		s.cleanupCancel()
 	}

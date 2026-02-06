@@ -28,3 +28,15 @@ type Journal interface {
 	// Remove removes a batch by its CID.
 	Remove(ctx context.Context, cid cid.Cid) error
 }
+
+// ForceRotator is an optional interface that a Journal can implement to allow
+// external forces to trigger batch rotation.
+type ForceRotator interface {
+	// ForceRotate causes a rotation of the current journal batch, regardless of
+	// its size or any other factors that may influence rotation normally. It
+	// returns a CID that identifies the rotated batch.
+	//
+	// Note: If there are no entries in the current batch then rotation is not
+	// possible and it returns (false, [cid.Undef], nil).
+	ForceRotate(ctx context.Context) (bool, cid.Cid, error)
+}

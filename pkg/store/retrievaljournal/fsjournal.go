@@ -180,6 +180,32 @@ func (j *fsJournal) Append(ctx context.Context, rcpt receipt.Receipt[content.Ret
 	return false, cid.Cid{}, nil
 }
 
+// ForceRotate causes a rotation of the current journal batch, regardless of
+// its size. It returns a CID that identifies the rotated batch. If there are no
+// entries in the current batch it returns (false, [cid.Undef], nil).
+func (j *fsJournal) ForceRotate(ctx context.Context) (bool, cid.Cid, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	hdr := &car.CarHeader{Roots: []cid.Cid{}, Version: 1}
+	hdrSize, err := car.HeaderSize(hdr)
+	if err != nil {
+		return false, cid.Cid{}, fmt.Errorf("calculating CAR header size: %w", err)
+	}
+
+	// If the current batch is empty, we cannot rotate
+	if j.currSize <= int64(hdrSize) {
+		return false, cid.Cid{}, nil
+	}
+
+	batchID, err := j.rotate()
+	if err != nil {
+		return false, cid.Cid{}, fmt.Errorf("rotating batch: %w", err)
+	}
+
+	return true, batchID, nil
+}
+
 func (j *fsJournal) rotate() (cid.Cid, error) {
 	// Close the current batch file
 	if err := j.currBatch.Close(); err != nil {
