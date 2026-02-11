@@ -31,7 +31,7 @@ var log = logging.Logger("egresstracker")
 var Module = fx.Module("egresstracker",
 	fx.Provide(
 		ProvideEgressTrackerQueue,
-		ProvideConsolidationStore,
+		//ProvideConsolidationStore,
 		ProvideReceiptsClient,
 		NewEgressTrackerService,
 		fx.Annotate(
