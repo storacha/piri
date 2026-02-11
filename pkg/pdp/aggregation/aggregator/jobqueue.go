@@ -19,8 +19,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/lib/jobqueue"
+	"github.com/storacha/piri/lib/jobqueue/dialect"
 	"github.com/storacha/piri/lib/jobqueue/serializer"
 	"github.com/storacha/piri/lib/jobqueue/traceutil"
+	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/pdp/aggregation/manager"
 	"github.com/storacha/piri/pkg/pdp/aggregation/types"
 )
@@ -74,10 +76,17 @@ const (
 
 type QueueParams struct {
 	fx.In
-	DB *sql.DB `name:"aggregator_db"`
+	DB            *sql.DB `name:"aggregator_db"`
+	StorageConfig app.StorageConfig
 }
 
 func NewQueue(params QueueParams) (jobqueue.Service[piece.PieceLink], error) {
+	// Determine dialect from storage config
+	d := dialect.SQLite
+	if params.StorageConfig.Database.IsPostgres() {
+		d = dialect.Postgres
+	}
+
 	// The deduping is required to ensure we don't produce an aggregate with sub roots that exist in another aggregate
 	// the behavior here is to ignore duplicate pieces we have already aggregated
 	// this is required to ensure roots are added with distinct sub roots from existing roots.
@@ -99,6 +108,7 @@ func NewQueue(params QueueParams) (jobqueue.Service[piece.PieceLink], error) {
 		jobqueue.WithMaxWorkers(uint(runtime.NumCPU())),
 		// one filecoin epoch since this is wrongly running tasks, we need yet another queue.....
 		jobqueue.WithMaxTimeout(30*time.Second),
+		jobqueue.WithDialect(d),
 		// we enable de-duplication for this queue since we only want to aggregate a piece once.
 		jobqueue.WithDedupQueue(&jobqueue.DedupQueueConfig{
 			DedupeEnabled:     &dedupEnabled,
