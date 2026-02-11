@@ -68,6 +68,7 @@ func makeHandler(cfg aws.Config) (lambda.SQSBatchEventHandler, error) {
 				failures = append(failures, events.SQSBatchItemFailure{
 					ItemIdentifier: msg.MessageId,
 				})
+				continue
 			}
 			advertisementPublisher.AddToBatch(ad.Job)
 		}
