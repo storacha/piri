@@ -42,6 +42,10 @@ func SetupPostgresContainer(ctx context.Context) error {
 			postgres.WithDatabase("testdb"),
 			postgres.WithUsername("test"),
 			postgres.WithPassword("test"),
+			// wait for two occurrences of this log since its logged twice at startup:
+			// 1. After initial database initialization
+			// 2. After PostgreSQL restarts and is truly ready
+			// This is a quirk with Postgres containers, only after the second log line is the database ready.
 			testcontainers.WithWaitStrategy(
 				wait.ForLog("database system is ready to accept connections").
 					WithOccurrence(2)),
