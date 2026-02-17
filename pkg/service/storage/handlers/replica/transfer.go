@@ -184,7 +184,7 @@ func Transfer(ctx context.Context, service TransferService, request *TransferReq
 		forks []fx.Effect
 	)
 
-	stopwatch := metrics.startDuration(sinkLabel(request.Sink))
+	stopwatch := metrics.startDuration(sourceLabel(&request.Source.URL), sinkLabel(request.Sink))
 	defer func() {
 		success := true
 		if err != nil {
@@ -247,10 +247,14 @@ func sinkLabel(sink *url.URL) string {
 	if sink == nil {
 		return "none"
 	}
-	if sink.Host != "" {
-		return sink.Host
-	}
 	return sink.String()
+}
+
+func sourceLabel(source *url.URL) string {
+	if source == nil {
+		return "none"
+	}
+	return source.String()
 }
 
 // checkBlobExists checks if the blob already exists in either PDP or Blobs store

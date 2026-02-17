@@ -51,9 +51,12 @@ func NewMetrics() (*Metrics, error) {
 	}, nil
 }
 
-func (m *Metrics) startDuration(sink string) *telemetry.StopWatch {
+func (m *Metrics) startDuration(source, sink string) *telemetry.StopWatch {
 	if m == nil || m.durationTimer == nil {
 		return nil
 	}
-	return m.durationTimer.Start(attribute.String("sink", sink))
+	return m.durationTimer.Start(
+		attribute.String("source", source),
+		attribute.String("sink", sink),
+	)
 }
