@@ -17,10 +17,6 @@ Directory for persistent data (databases, blobs, claims).
 
 Directory for temporary files during processing.
 
-### [`blob-storage`](blob-storage.md)
-
-External S3-compatible storage configuration.
-
 ## TOML
 
 ```toml

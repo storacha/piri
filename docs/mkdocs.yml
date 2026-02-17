@@ -59,7 +59,7 @@ nav:
       - identity: configuration/identity.md
       - repo:
           - configuration/repo/index.md
-          - blob-storage: configuration/repo/blob-storage.md
+          - database: configuration/repo/database.md
       - server: configuration/server.md
       - pdp:
           - configuration/pdp/index.md
@@ -75,6 +75,11 @@ nav:
       - Best Practices: operations/best-practices.md
       - Upgrading: operations/upgrading.md
       - Telemetry: operations/telemetry.md
+  - Concepts:
+      - concepts/index.md
+      - Database: concepts/database.md
+      - Networks: concepts/networks.md
+      - Telemetry: concepts/telemetry.md
   - CLI Reference:
       - cli/index.md
       - init: cli/init.md

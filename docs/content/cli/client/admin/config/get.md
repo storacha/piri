@@ -1,6 +1,8 @@
 # get
 
-Get a specific dynamic configuration value.
+Get the current runtime value of a dynamic configuration key.
+
+This is the value Piri is using right now, which may differ from the config file if a runtime override has been applied via `set`.
 
 ## Usage
 

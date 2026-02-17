@@ -1,6 +1,8 @@
 # list
 
-List all dynamic configuration values.
+List the current runtime values of all dynamic configuration keys.
+
+These are the values Piri is using right now. They may differ from the config file if runtime overrides have been applied via `set`.
 
 ## Usage
 

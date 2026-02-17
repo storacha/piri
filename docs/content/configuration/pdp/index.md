@@ -29,10 +29,10 @@ lotus_endpoint = "wss://lotus.example.com/rpc/v1"
 
 Aggregation system configuration.
 
-<details>
+<details markdown="1">
 <summary>Preset-Managed Fields</summary>
 
-These fields are automatically configured by the `network` preset. You typically don't need to set them manually. See [presets](../../presets.md) for details.
+These fields are automatically configured by the `network` preset. You almost never should set them manually. See [Networks](../../concepts/networks.md) for details.
 
 | Key | Default | Env | Dynamic |
 |-----|---------|-----|---------|
@@ -47,7 +47,7 @@ Filecoin chain ID. `314` for mainnet, `314159` for calibration.
 
 Ethereum address that pays storage providers.
 
-## [pdp.signing_service]
+## pdp.signing_service
 
 Configure transaction signing. Use either remote signing service OR local private key (not both).
 
@@ -66,7 +66,7 @@ url = "https://signer.forge.storacha.network"
 private_key = "0x..."  # Hex-encoded ECDSA private key
 ```
 
-## [pdp.contracts]
+## pdp.contracts
 
 Smart contract addresses.
 
