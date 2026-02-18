@@ -47,6 +47,16 @@ extra:
 
 nav:
   - Getting Started: index.md
+  - Operator Guide:
+      - operator-guide/index.md
+      - Joining the Network: operator-guide/joining.md
+      - Lotus Node Setup: operator-guide/lotus.md
+      - How Storage Works: operator-guide/storage.md
+      - How Proving Works: operator-guide/proving.md
+      - How Retrieval Works: operator-guide/retrieval.md
+      - Getting Paid: operator-guide/payments.md
+      - Monitoring: operator-guide/monitoring.md
+      - Common Questions: operator-guide/faq.md
   - Setup:
       - Prerequisites: setup/prerequisites.md
       - Installation: setup/installation.md
