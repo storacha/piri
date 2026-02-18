@@ -18,6 +18,7 @@ const (
 	Prod        Network = "prod"
 	Staging     Network = "staging"
 	WarmStaging Network = "warm-staging"
+	ForgeTest   Network = "forge-test"
 )
 
 var AvailableNetworks = []Network{ForgeProd, Prod, Staging, WarmStaging}
@@ -25,7 +26,7 @@ var AvailableNetworks = []Network{ForgeProd, Prod, Staging, WarmStaging}
 // String returns the string representation of the network
 func (n Network) String() string {
 	switch n {
-	case ForgeProd, Prod, Staging, WarmStaging:
+	case ForgeProd, Prod, Staging, WarmStaging, ForgeTest:
 		return string(n)
 	default:
 		return "unknown"
@@ -43,6 +44,8 @@ func ParseNetwork(s string) (Network, error) {
 		return Staging, nil
 	case string(WarmStaging):
 		return WarmStaging, nil
+	case string(ForgeTest):
+		return ForgeTest, nil
 	default:
 		return Network(""), fmt.Errorf("unknown network: %q (valid networks are: %q)", s, AvailableNetworks)
 	}
@@ -148,6 +151,45 @@ func warmStagingServiceSettings() ServiceSettings {
 	warmStagingSigningServiceURL := lo.Must(url.Parse("https://staging.signer.warm.storacha.network"))
 
 	warmStagingRegistrarServiceURL := lo.Must(url.Parse("https://staging.registrar.warm.storacha.network"))
+
+	return ServiceSettings{
+		IPNIAnnounceURLs:        warmStagingIPNIAnnounceURLs,
+		IndexingServiceURL:      warmStagingIndexingServiceURL,
+		IndexingServiceDID:      warmStagingIndexingServiceDID,
+		EgressTrackerServiceURL: warmStagingEgressTrackerServiceURL,
+		EgressTrackerServiceDID: warmStagingEgressTrackerServiceDID,
+		UploadServiceURL:        warmStagingUploadServiceURL,
+		UploadServiceDID:        warmStagingUploadServiceDID,
+		SigningServiceURL:       warmStagingSigningServiceURL,
+		SigningServiceDID:       warmStagingSigningServiceDID,
+		RegistrarServiceURL:     warmStagingRegistrarServiceURL,
+		PrincipalMapping:        warmStagingPrincipalMapping,
+	}
+}
+
+func forgeTestServiceSettings() ServiceSettings {
+	ipniAnnounceURL := lo.Must(url.Parse("https://ipni.test.storacha.network"))
+	warmStagingIPNIAnnounceURLs := []url.URL{*defaultIPNIAnnounceURL, *ipniAnnounceURL}
+
+	warmStagingIndexingServiceURL := lo.Must(url.Parse("https://indexer.test.storacha.network/claims"))
+	warmStagingIndexingServiceDID := lo.Must(did.Parse("did:web:indexer.test.storacha.network"))
+
+	warmStagingEgressTrackerServiceURL := lo.Must(url.Parse("https://etracker.test.storacha.network"))
+	warmStagingEgressTrackerServiceDID := lo.Must(did.Parse("did:web:etracker.test.storacha.network"))
+
+	warmStagingUploadServiceURL := lo.Must(url.Parse("https://up.test.storacha.network"))
+	warmStagingUploadServiceDID := lo.Must(did.Parse("did:web:up.test.storacha.network"))
+
+	warmStagingPrincipalMapping := map[string]string{
+		warmStagingUploadServiceDID.String():        "did:key:z6MkgSttS3n3R56yGX2Eufvbwc58fphomhAsLoBCZpZJzQbr",
+		warmStagingIndexingServiceDID.String():      "did:key:z6Mkgq6MpoVxPdjyi6NSmvV933jdwAg1SkDL8RG9t9F9KZ4X",
+		warmStagingEgressTrackerServiceDID.String(): "did:key:z6MkftcMtJtnxw7ZpRahxyv45ukiUxFzcwYuQLC7JKj76Yqt",
+	}
+
+	warmStagingSigningServiceDID := lo.Must(did.Parse("did:web:signer.test.storacha.network"))
+	warmStagingSigningServiceURL := lo.Must(url.Parse("https://signer.test.storacha.network"))
+
+	warmStagingRegistrarServiceURL := lo.Must(url.Parse("https://registrar.test.storacha.network"))
 
 	return ServiceSettings{
 		IPNIAnnounceURLs:        warmStagingIPNIAnnounceURLs,
@@ -275,6 +317,11 @@ var mainnetSettings = SmartContractSettings{
 // GetPreset returns the complete preset configuration for a given network
 func GetPreset(network Network) (Preset, error) {
 	switch network {
+	case ForgeTest:
+		return Preset{
+			Services:       forgeTestServiceSettings(),
+			SmartContracts: calibnetSettings,
+		}, nil
 	case ForgeProd:
 		return Preset{
 			Services:       forgeProdServiceSettings(),
