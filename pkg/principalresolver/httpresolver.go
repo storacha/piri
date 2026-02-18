@@ -181,7 +181,11 @@ func NewHTTPResolver(webKeys []did.DID, opts ...Option) (*HTTPResolver, error) {
 func (r *HTTPResolver) ResolveDIDKey(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 	endpoint, ok := r.webKeys[input]
 	if !ok {
-		log.Error("failed to find did in set for resolution")
+		existing := make(map[string]string)
+		for k, v := range r.webKeys {
+			existing[k.String()] = v.String()
+		}
+		log.Errorw("failed to find did in set for resolution", "input", input.DID().String(), "allowed", existing)
 		return did.Undef, validator.NewDIDKeyResolutionError(input, fmt.Errorf("not found in mapping"))
 	}
 	ctx, cancel := context.WithTimeout(ctx, r.cfg.timeout)
