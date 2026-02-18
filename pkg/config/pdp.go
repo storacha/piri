@@ -199,10 +199,12 @@ type AggregateManagerConfig struct {
 
 func (a AggregateManagerConfig) ToAppConfig() (app.AggregateManagerConfig, error) {
 	if a.BatchSize == 0 {
-		return app.AggregateManagerConfig{}, fmt.Errorf("batch size must be greater than zero")
+		a.BatchSize = 10
+		//return app.AggregateManagerConfig{}, fmt.Errorf("batch size must be greater than zero")
 	}
 	if a.PollInterval == 0 {
-		return app.AggregateManagerConfig{}, fmt.Errorf("poll_interval must be greater than zero")
+		a.PollInterval = 10 * time.Second
+		//return app.AggregateManagerConfig{}, fmt.Errorf("poll_interval must be greater than zero")
 	}
 
 	jqcfg, err := a.JobQueue.ToAppConfig()
@@ -227,10 +229,12 @@ type JobQueueConfig struct {
 
 func (j JobQueueConfig) ToAppConfig() (app.JobQueueConfig, error) {
 	if j.Workers == 0 {
-		return app.JobQueueConfig{}, fmt.Errorf("job_queue must have at least one worker")
+		j.Workers = 1
+		//return app.JobQueueConfig{}, fmt.Errorf("job_queue must have at least one worker")
 	}
 	if j.RetryDelay == 0 {
-		return app.JobQueueConfig{}, fmt.Errorf("job_queue retry delay must be greater than zero")
+		j.RetryDelay = 5 * time.Second
+		//return app.JobQueueConfig{}, fmt.Errorf("job_queue retry delay must be greater than zero")
 	}
 	return app.JobQueueConfig{
 		Workers:    j.Workers,
