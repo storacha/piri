@@ -94,3 +94,14 @@ func Decode(data []byte, dec codec.Decoder) (Allocation, error) {
 	al := bindnode.Unwrap(nd).(*Allocation)
 	return *al, nil
 }
+
+// Codec implements genericstore.Codec for Allocation values.
+type Codec struct{}
+
+func (Codec) Encode(a Allocation) ([]byte, error) {
+	return Encode(a, dagcbor.Encode)
+}
+
+func (Codec) Decode(data []byte) (Allocation, error) {
+	return Decode(data, dagcbor.Decode)
+}

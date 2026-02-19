@@ -31,7 +31,7 @@ import (
 	"github.com/storacha/piri/pkg/pdp/tasks"
 	"github.com/storacha/piri/pkg/pdp/types"
 
-	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/store/local/keystore"
 	"github.com/storacha/piri/pkg/wallet"
 
 	delgclient "github.com/storacha/delegator/client"

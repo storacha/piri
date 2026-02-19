@@ -581,14 +581,10 @@ func getAddPieceProofs(
 	// for the blob to PDP once. So it doesn't really matter which acceptance
 	// record we retrieve here, but there will only be one anyway, since this will
 	// be the first (and only) time this blob is added to PDP.
-	accs, err := accStore.List(ctx, blob)
+	acc, err := accStore.GetAny(ctx, blob)
 	if err != nil {
-		return nil, nil, fmt.Errorf("listing acceptances: %w", err)
+		return nil, nil, fmt.Errorf("getting acceptance: %w", err)
 	}
-	if len(accs) == 0 {
-		return nil, nil, fmt.Errorf("missing acceptance: %w", err)
-	}
-	acc := accs[0]
 	if acc.PDPAccept == nil {
 		return nil, nil, errors.New("missing PDP accept promise")
 	}

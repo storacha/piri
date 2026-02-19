@@ -58,22 +58,25 @@ func (s *memoryStore) Get(ctx context.Context, key string, opts ...objectstore.G
 	cfg.ProcessOptions(opts)
 	r := cfg.Range()
 
-	var start, end int64
-	start = int64(r.Start)
-	if r.End != nil {
-		end = int64(*r.End) + 1
-	} else {
-		end = int64(len(data))
+	size := int64(len(data))
+	start := int64(r.Start)
+
+	// Only validate range if explicitly specified
+	rangeSpecified := r.Start != 0 || r.End != nil
+	if rangeSpecified {
+		if start >= size {
+			return nil, objectstore.ErrRangeNotSatisfiable{Range: r}
+		}
+		if r.End != nil && int64(*r.End) >= size {
+			return nil, objectstore.ErrRangeNotSatisfiable{Range: r}
+		}
 	}
 
-	if start > int64(len(data)) {
-		return nil, fmt.Errorf("range start %d exceeds data size %d", start, len(data))
-	}
-	if end > int64(len(data)) {
-		end = int64(len(data))
-	}
-	if start > end {
-		return nil, fmt.Errorf("invalid range: start %d > end %d", start, end)
+	var end int64
+	if r.End != nil {
+		end = int64(*r.End) + 1 // End is inclusive
+	} else {
+		end = size
 	}
 
 	rangedData := data[start:end]

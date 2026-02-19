@@ -277,10 +277,11 @@ func Construct(cfg Config) (storage.Service, error) {
 	blobStore := NewS3BlobStore(cfg.Config, cfg.BlobStoreBucket, formatKey, blobStoreOpts...)
 	allocationStore := NewDynamoAllocationStore(cfg.Config, cfg.AllocationsTableName, cfg.DynamoOptions...)
 	acceptanceStore := NewDynamoAcceptanceStore(cfg.Config, cfg.AcceptanceTableName, cfg.DynamoOptions...)
-	claimStore, err := delegationstore.NewDelegationStore(NewS3Store(cfg.Config, cfg.ClaimStoreBucket, cfg.ClaimStorePrefix, cfg.S3Options...))
-	if err != nil {
-		return nil, fmt.Errorf("constructing claim store: %w", err)
-	}
+	claimStore := delegationstore.New(
+		NewSimpleStoreObjectAdapter(NewS3Store(cfg.Config, cfg.ClaimStoreBucket, cfg.ClaimStorePrefix, cfg.S3Options...)),
+		"",
+		delegationstore.S3KeyEncoder{},
+	)
 	ipniStore := NewS3Store(cfg.Config, cfg.IPNIStoreBucket, cfg.IPNIStorePrefix, cfg.S3Options...)
 	chunkLinksTable := NewDynamoProviderContextTable(cfg.Config, cfg.ChunkLinksTableName, cfg.DynamoOptions...)
 	metadataTable := NewDynamoProviderContextTable(cfg.Config, cfg.MetadataTableName, cfg.DynamoOptions...)
@@ -312,10 +313,12 @@ func Construct(cfg Config) (storage.Service, error) {
 	}
 	ranLinkIndex := NewDynamoRanLinkIndex(cfg.Config, cfg.RanLinkIndexTableName, cfg.DynamoOptions...)
 	s3ReceiptStore := NewS3Store(cfg.Config, cfg.ReceiptStoreBucket, cfg.ReceiptStorePrefix, cfg.S3Options...)
-	receiptStore, err := receiptstore.NewReceiptStore(s3ReceiptStore, ranLinkIndex)
-	if err != nil {
-		return nil, fmt.Errorf("setting up receipt store: %w", err)
-	}
+	receiptStore := receiptstore.New(
+		NewSimpleStoreObjectAdapter(s3ReceiptStore),
+		"",
+		receiptstore.S3KeyEncoder{},
+		ranLinkIndex,
+	)
 
 	publishingQueue := awspublisherqueue.NewSQSPublishingQueue(cfg.Config, cfg.SQSPublishingQueueID, cfg.PublishingBucket)
 	queuePublisher := publisherqueue.NewQueuePublisher(publishingQueue)

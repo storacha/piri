@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 
 	"go.uber.org/zap/zapcore"
 )
@@ -39,6 +40,19 @@ type Store interface {
 	Get(ctx context.Context, key string, opts ...GetOption) (Object, error)
 	// Delete an object from the store by the given key.
 	Delete(ctx context.Context, key string) error
+}
+
+// ListableStore extends Store with the ability to list objects by prefix
+// and check for existence. This is implemented by stores that support
+// efficient prefix-based queries (like S3/MinIO).
+type ListableStore interface {
+	Store
+	// Exists checks if an object with the given key exists.
+	Exists(ctx context.Context, key string) (bool, error)
+	// ListPrefix returns an iterator over all object keys with the given prefix.
+	// The iterator yields (key, error) pairs. Errors during listing are yielded
+	// and iteration stops.
+	ListPrefix(ctx context.Context, prefix string) iter.Seq2[string, error]
 }
 
 type Object interface {
