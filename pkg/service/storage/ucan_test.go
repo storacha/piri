@@ -116,14 +116,13 @@ func TestServer(t *testing.T) {
 			fmt.Printf("%+v\n", ok)
 			require.Equal(t, size, uint64(ok.Size))
 
-			allocs, err := svc.Blobs().Allocations().List(t.Context(), digest)
+			alloc, err := svc.Blobs().Allocations().Get(t.Context(), digest, space)
 			require.NoError(t, err)
 
-			require.Len(t, allocs, 1)
-			require.Equal(t, digest, allocs[0].Blob.Digest)
-			require.Equal(t, size, allocs[0].Blob.Size)
-			require.Equal(t, space, allocs[0].Space)
-			require.Equal(t, inv.Link(), allocs[0].Cause)
+			require.Equal(t, digest, alloc.Blob.Digest)
+			require.Equal(t, size, alloc.Blob.Size)
+			require.Equal(t, space, alloc.Space)
+			require.Equal(t, inv.Link(), alloc.Cause)
 		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)

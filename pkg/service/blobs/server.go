@@ -3,6 +3,7 @@ package blobs
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,10 +13,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multihash"
+	"github.com/storacha/go-libstoracha/digestutil"
 
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/presigner"
 	"github.com/storacha/piri/pkg/server/handler"
+	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 )
@@ -40,19 +43,40 @@ func (srv *Server) RegisterRoutes(e *echo.Echo) {
 }
 
 func NewBlobGetHandler(blobs blobstore.Blobstore) handler.Func {
-	if fsblobs, ok := blobs.(blobstore.FileSystemer); ok {
-		serveHTTP := http.FileServer(fsblobs.FileSystem()).ServeHTTP
-		return func(ctx handler.Context) error {
-			r, w := ctx.Request(), ctx.Response()
-			r.URL.Path = r.URL.Path[len("/blob"):]
-			serveHTTP(w, r)
-			return nil
-		}
-	}
-
-	log.Error("blobstore does not support filesystem access")
 	return func(ctx handler.Context) error {
-		return echo.ErrMethodNotAllowed
+		r, w := ctx.Request(), ctx.Response()
+
+		// Parse digest from path (e.g., /blob/{digest})
+		parts := strings.Split(r.URL.Path, "/")
+		digestStr := parts[len(parts)-1]
+
+		digest, err := digestutil.Parse(digestStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("invalid digest: %w", err))
+		}
+
+		obj, err := blobs.Get(r.Context(), digest)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return echo.NewHTTPError(http.StatusNotFound, "blob not found")
+			}
+			return fmt.Errorf("getting blob: %w", err)
+		}
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Length", strconv.FormatInt(obj.Size(), 10))
+		w.WriteHeader(http.StatusOK)
+
+		body := obj.Body()
+		defer body.Close()
+
+		_, err = io.Copy(w, body)
+		if err != nil {
+			log.Errorf("streaming blob z%s: %v", digest.B58String(), err)
+			return nil // Already started writing, can't change status code
+		}
+
+		return nil
 	}
 }
 
@@ -75,29 +99,19 @@ func NewBlobPutHandler(presigner presigner.RequestPresigner, allocs allocationst
 			return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("invalid multihash digest: %w", err))
 		}
 
-		results, err := allocs.List(r.Context(), digest)
+		alloc, err := allocs.GetAny(r.Context(), digest)
 		if err != nil {
-			return fmt.Errorf("listing allocations: %w", err)
-		}
-
-		if len(results) == 0 {
-			return echo.NewHTTPError(http.StatusForbidden, fmt.Errorf("missing allocation for write to: z%s", digest.B58String()))
-		}
-
-		expired := true
-		for _, a := range results {
-			exp := a.Expires
-			if exp > uint64(time.Now().Unix()) {
-				expired = false
-				break
+			if errors.Is(err, store.ErrNotFound) {
+				return echo.NewHTTPError(http.StatusForbidden, fmt.Errorf("missing allocation for write to: z%s", digest.B58String()))
 			}
+			return fmt.Errorf("getting allocation: %w", err)
 		}
 
-		if expired {
+		if alloc.Expires <= uint64(time.Now().Unix()) {
 			return echo.NewHTTPError(http.StatusForbidden, "expired allocation")
 		}
 
-		log.Infof("Found %d allocations for write to: z%s", len(results), digest.B58String())
+		log.Infof("Found allocation for write to: z%s", digest.B58String())
 
 		// ensure the size comes from a signed header
 		contentLength, err := strconv.ParseInt(sHeaders.Get("Content-Length"), 10, 64)

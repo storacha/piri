@@ -4,129 +4,149 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/namespace"
-	"github.com/storacha/go-ucanto/core/delegation"
-	"github.com/storacha/go-ucanto/core/invocation"
+	logging "github.com/ipfs/go-log/v2"
+
+	"github.com/storacha/piri/pkg/store"
+	"github.com/storacha/piri/pkg/store/consolidationstore/consolidation"
+	"github.com/storacha/piri/pkg/store/genericstore"
+	"github.com/storacha/piri/pkg/store/objectstore"
+	"github.com/storacha/piri/pkg/store/objectstore/dsadapter"
+	"github.com/storacha/piri/pkg/store/objectstore/minio"
 )
 
-const (
-	trackInvocationsPrefix   = "track/"
-	consolidateInvCIDsPrefix = "consolidate/"
-)
+var log = logging.Logger("consolidationstore")
 
 // Store stores egress/track invocations and their corresponding
 // consolidate invocation CIDs, indexed by batch CID.
-// When a batch is tracked via space/egress/track, the receipt contains an effect
-// with a space/egress/consolidate invocation. We store both the track invocation
-// and the consolidate invocation CID for later retrieval.
 type Store interface {
-	// Put stores an egress/track invocation and consolidate invocation CID indexed by batch CID.
-	Put(ctx context.Context, batchCID cid.Cid, trackInv invocation.Invocation, consolidateInvCID cid.Cid) error
-
-	// GetTrackInvocation retrieves the egress/track invocation for a given batch CID.
-	GetTrackInvocation(ctx context.Context, batchCID cid.Cid) (invocation.Invocation, error)
-
-	// GetConsolidateInvocationCID retrieves the consolidate invocation CID for a given batch CID.
-	GetConsolidateInvocationCID(ctx context.Context, batchCID cid.Cid) (cid.Cid, error)
-
-	// Delete removes the track invocation and consolidate CID for a given batch CID.
+	// Get retrieves the consolidation data for a given batch CID.
+	// Returns store.ErrNotFound if the consolidation does not exist.
+	Get(ctx context.Context, batchCID cid.Cid) (consolidation.Consolidation, error)
+	// Put stores a consolidation indexed by batch CID.
+	Put(ctx context.Context, batchCID cid.Cid, c consolidation.Consolidation) error
+	// Delete removes the consolidation for a given batch CID.
 	Delete(ctx context.Context, batchCID cid.Cid) error
 }
 
+// KeyEncoder defines how to encode keys for a specific backend.
+type KeyEncoder interface {
+	EncodeKey(batchCID cid.Cid) string
+}
+
+// S3KeyEncoder encodes keys for S3/MinIO backends.
+type S3KeyEncoder struct{}
+
+func (S3KeyEncoder) EncodeKey(batchCID cid.Cid) string {
+	return batchCID.String() + ".cbor"
+}
+
+// DatastoreKeyEncoder encodes keys for LevelDB/datastore backends.
+type DatastoreKeyEncoder struct{}
+
+func (DatastoreKeyEncoder) EncodeKey(batchCID cid.Cid) string {
+	return batchCID.String()
+}
+
+// consolidationStore implements Store backed by genericstore with legacy fallback.
 type consolidationStore struct {
-	trackInvocationsDS   datastore.Datastore
-	consolidateInvCIDsDS datastore.Datastore
+	store   *genericstore.Store[consolidation.Consolidation]
+	encoder KeyEncoder
+	legacy  LegacyReader
 }
 
-func (cs *consolidationStore) Put(ctx context.Context, batchCID cid.Cid, trackInv invocation.Invocation, consolidateInvCID cid.Cid) error {
-	// Archive the invocation to CAR format
-	b, err := io.ReadAll(trackInv.Archive())
-	if err != nil {
-		return fmt.Errorf("archiving track invocation: %w", err)
+var _ Store = (*consolidationStore)(nil)
+
+// New creates a ConsolidationStore with the given backend, prefix, key encoder, and legacy reader.
+func New(backend objectstore.ListableStore, prefix string, encoder KeyEncoder, legacy LegacyReader) *consolidationStore {
+	return &consolidationStore{
+		store:   genericstore.New[consolidation.Consolidation](backend, prefix, consolidation.Codec{}),
+		encoder: encoder,
+		legacy:  legacy,
 	}
-
-	key := datastore.NewKey(batchCID.String())
-
-	// Store track invocation
-	if err := cs.trackInvocationsDS.Put(ctx, key, b); err != nil {
-		return fmt.Errorf("writing track invocation to datastore: %w", err)
-	}
-
-	// Store consolidate invocation CID
-	if err := cs.consolidateInvCIDsDS.Put(ctx, key, consolidateInvCID.Bytes()); err != nil {
-		return fmt.Errorf("writing consolidate CID to datastore: %w", err)
-	}
-
-	return nil
 }
 
-func (cs *consolidationStore) GetTrackInvocation(ctx context.Context, batchCID cid.Cid) (invocation.Invocation, error) {
-	key := datastore.NewKey(batchCID.String())
+func (s *consolidationStore) Get(ctx context.Context, batchCID cid.Cid) (consolidation.Consolidation, error) {
+	// 1. Try new format first
+	c, err := s.store.Get(ctx, s.encoder.EncodeKey(batchCID))
+	if err == nil {
+		return c, nil
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return consolidation.Consolidation{}, fmt.Errorf("getting consolidation: %w", err)
+	}
 
-	data, err := cs.trackInvocationsDS.Get(ctx, key)
+	// 2. Fall back to legacy format
+	c, err = s.legacy.Get(ctx, batchCID)
 	if err != nil {
-		if errors.Is(err, datastore.ErrNotFound) {
-			return nil, fmt.Errorf("track invocation not found for batch CID: %s", batchCID.String())
+		if errors.Is(err, store.ErrNotFound) {
+			return consolidation.Consolidation{}, store.ErrNotFound
 		}
-		return nil, fmt.Errorf("getting %s from datastore: %w", batchCID, err)
+		return consolidation.Consolidation{}, fmt.Errorf("getting legacy consolidation: %w", err)
 	}
 
-	inv, err := delegation.Extract(data)
-	if err != nil {
-		return nil, fmt.Errorf("extracting invocation: %w", err)
+	// 3. Lazy migration: write to new format, delete from old
+	if err := s.store.Put(ctx, s.encoder.EncodeKey(batchCID), c); err != nil {
+		// Log but don't fail - we have the data
+		log.Warnw("failed to migrate consolidation to new format", "batchCID", batchCID, "error", err)
+		return c, nil
 	}
-
-	return inv, nil
-}
-
-func (cs *consolidationStore) GetConsolidateInvocationCID(ctx context.Context, batchCID cid.Cid) (cid.Cid, error) {
-	key := datastore.NewKey(batchCID.String())
-
-	data, err := cs.consolidateInvCIDsDS.Get(ctx, key)
-	if err != nil {
-		if errors.Is(err, datastore.ErrNotFound) {
-			return cid.Undef, fmt.Errorf("consolidate invocation CID not found for batch CID: %s", batchCID.String())
-		}
-		return cid.Undef, fmt.Errorf("getting %s from datastore: %w", batchCID, err)
-	}
-
-	// Parse CID from bytes
-	c, err := cid.Cast(data)
-	if err != nil {
-		return cid.Undef, fmt.Errorf("parsing consolidate invocation CID: %w", err)
+	if err := s.legacy.Delete(ctx, batchCID); err != nil {
+		log.Warnw("failed to delete legacy consolidation after migration", "batchCID", batchCID, "error", err)
+	} else {
+		log.Infow("migrated consolidation to new format", "batchCID", batchCID)
 	}
 
 	return c, nil
 }
 
-func (cs *consolidationStore) Delete(ctx context.Context, batchCID cid.Cid) error {
-	key := datastore.NewKey(batchCID.String())
+func (s *consolidationStore) Put(ctx context.Context, batchCID cid.Cid, c consolidation.Consolidation) error {
+	// Always write to new format only
+	return s.store.Put(ctx, s.encoder.EncodeKey(batchCID), c)
+}
 
-	// Delete track invocation
-	if err := cs.trackInvocationsDS.Delete(ctx, key); err != nil && !errors.Is(err, datastore.ErrNotFound) {
-		return fmt.Errorf("deleting track invocation from datastore: %w", err)
+func (s *consolidationStore) Delete(ctx context.Context, batchCID cid.Cid) error {
+	// Delete from new format
+	newErr := s.store.Delete(ctx, s.encoder.EncodeKey(batchCID))
+
+	// Also delete from legacy format to ensure cleanup
+	legacyErr := s.legacy.Delete(ctx, batchCID)
+
+	// Return error only if new format delete fails with non-NotFound error
+	if newErr != nil && !errors.Is(newErr, store.ErrNotFound) {
+		return fmt.Errorf("deleting consolidation: %w", newErr)
 	}
 
-	// Delete consolidate CID
-	if err := cs.consolidateInvCIDsDS.Delete(ctx, key); err != nil && !errors.Is(err, datastore.ErrNotFound) {
-		return fmt.Errorf("deleting consolidate CID from datastore: %w", err)
+	// If new format was not found but legacy also failed, return legacy error
+	if newErr != nil && legacyErr != nil && !errors.Is(legacyErr, store.ErrNotFound) {
+		return fmt.Errorf("deleting legacy consolidation: %w", legacyErr)
 	}
 
 	return nil
 }
 
-// New creates a [Store] backed by an IPFS datastore.
-// The datastore is partitioned using prefixes for track invocations and consolidate CIDs.
-func New(ds datastore.Datastore) Store {
-	trackInvocationsDS := namespace.Wrap(ds, datastore.NewKey(trackInvocationsPrefix))
-	consolidateInvCIDsDS := namespace.Wrap(ds, datastore.NewKey(consolidateInvCIDsPrefix))
+// NewS3Store creates a ConsolidationStore for S3/MinIO backends.
+// Consolidations are stored with keys formatted as "consolidations/{batchCID}.cbor".
+// Legacy data at "consolidation/track/" and "consolidation/consolidate/" is read and migrated.
+func NewS3Store(backend *minio.Store) *consolidationStore {
+	return New(
+		backend,
+		"consolidations/",
+		S3KeyEncoder{},
+		NewS3LegacyReader(backend),
+	)
+}
 
-	return &consolidationStore{
-		trackInvocationsDS:   trackInvocationsDS,
-		consolidateInvCIDsDS: consolidateInvCIDsDS,
-	}
+// NewDatastoreStore creates a ConsolidationStore for LevelDB/datastore backends.
+// Consolidations are stored with keys formatted as "{batchCID}".
+// Legacy data at "track/" and "consolidate/" namespaces is read and migrated.
+func NewDatastoreStore(ds datastore.Datastore) *consolidationStore {
+	return New(
+		dsadapter.New(ds),
+		"",
+		DatastoreKeyEncoder{},
+		NewDatastoreLegacyReader(ds),
+	)
 }

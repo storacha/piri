@@ -43,23 +43,6 @@ func (d *DynamoAllocationStore) Get(ctx context.Context, mh multihash.Multihash,
 	if err != nil {
 		return allocation.Allocation{}, fmt.Errorf("getting item: %w", err)
 	}
-
-	// HACK: (ash) Temporary hack to allow allocation to be found if it was
-	// stored with the old style key ("<digest>/<cause>") not the new key
-	// ("<digest>/<space>"). This works because listing works on digest
-	// prefix i.e. "<digest>/*".
-	if res.Item == nil {
-		allocs, listErr := d.List(ctx, mh)
-		if listErr != nil {
-			return allocation.Allocation{}, fmt.Errorf("listing items: %w", listErr)
-		}
-		for _, a := range allocs {
-			if a.Space == space {
-				return a, nil
-			}
-		}
-	}
-
 	if res.Item == nil {
 		return allocation.Allocation{}, store.ErrNotFound
 	}
@@ -75,53 +58,63 @@ func (d *DynamoAllocationStore) Get(ctx context.Context, mh multihash.Multihash,
 	return alloc, nil
 }
 
-// List implements allocationstore.AllocationStore.
-func (d *DynamoAllocationStore) List(ctx context.Context, mh multihash.Multihash, options ...allocationstore.ListOption) ([]allocation.Allocation, error) {
-	cfg := allocationstore.ListConfig{}
-	for _, opt := range options {
-		opt(&cfg)
-	}
-
+// GetAny retrieves any allocation for a blob (digest), regardless of space.
+func (d *DynamoAllocationStore) GetAny(ctx context.Context, mh multihash.Multihash) (allocation.Allocation, error) {
 	keyEx := expression.Key("hash").Equal(expression.Value(digestutil.Format(mh)))
 	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
 	if err != nil {
-		return nil, fmt.Errorf("building query: %w", err)
+		return allocation.Allocation{}, fmt.Errorf("building query: %w", err)
 	}
 
-	var limit *int32
-	if cfg.Limit > 0 {
-		limit = aws.Int32(int32(cfg.Limit))
-	}
-
-	var allocations []allocation.Allocation
-	queryPaginator := dynamodb.NewQueryPaginator(d.dynamoDbClient, &dynamodb.QueryInput{
+	res, err := d.dynamoDbClient.Query(ctx, &dynamodb.QueryInput{
 		TableName:                 aws.String(d.tableName),
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 		KeyConditionExpression:    expr.KeyCondition(),
 		ConsistentRead:            aws.Bool(true),
-		Limit:                     limit,
+		Limit:                     aws.Int32(1),
 	})
-	for queryPaginator.HasMorePages() {
-		response, err := queryPaginator.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("querying allocations: %w", err)
-		}
-		var allocationPage []allocationItem
-		err = attributevalue.UnmarshalListOfMaps(response.Items, &allocationPage)
-		if err != nil {
-			return nil, fmt.Errorf("parsing query responses: %w", err)
-		}
-
-		for _, item := range allocationPage {
-			a, err := allocation.Decode(item.Allocation, dagcbor.Decode)
-			if err != nil {
-				return nil, fmt.Errorf("decoding data: %w", err)
-			}
-			allocations = append(allocations, a)
-		}
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("querying allocation: %w", err)
 	}
-	return allocations, nil
+	if len(res.Items) == 0 {
+		return allocation.Allocation{}, store.ErrNotFound
+	}
+
+	var item allocationItem
+	err = attributevalue.UnmarshalMap(res.Items[0], &item)
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("unmarshalling allocation item: %w", err)
+	}
+	alloc, err := allocation.Decode(item.Allocation, dagcbor.Decode)
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("decoding allocation: %w", err)
+	}
+	return alloc, nil
+}
+
+// Exists checks if any allocation exists for a blob (digest).
+func (d *DynamoAllocationStore) Exists(ctx context.Context, mh multihash.Multihash) (bool, error) {
+	keyEx := expression.Key("hash").Equal(expression.Value(digestutil.Format(mh)))
+	proj := expression.NamesList(expression.Name("hash"))
+	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).WithProjection(proj).Build()
+	if err != nil {
+		return false, fmt.Errorf("building query: %w", err)
+	}
+
+	res, err := d.dynamoDbClient.Query(ctx, &dynamodb.QueryInput{
+		TableName:                 aws.String(d.tableName),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		KeyConditionExpression:    expr.KeyCondition(),
+		ProjectionExpression:      expr.Projection(),
+		ConsistentRead:            aws.Bool(true),
+		Limit:                     aws.Int32(1),
+	})
+	if err != nil {
+		return false, fmt.Errorf("querying allocation: %w", err)
+	}
+	return len(res.Items) > 0, nil
 }
 
 // Put implements allocationstore.AllocationStore.

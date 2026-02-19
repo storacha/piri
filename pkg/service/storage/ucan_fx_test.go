@@ -131,14 +131,13 @@ func TestFXServer(t *testing.T) {
 			fmt.Printf("%+v\n", ok)
 			require.Equal(t, size, ok.Size)
 
-			allocs, err := svc.Blobs().Allocations().List(context.Background(), digest)
+			alloc, err := svc.Blobs().Allocations().Get(context.Background(), digest, space)
 			require.NoError(t, err)
 
-			require.Len(t, allocs, 1)
-			require.Equal(t, digest, allocs[0].Blob.Digest)
-			require.Equal(t, size, allocs[0].Blob.Size)
-			require.Equal(t, space, allocs[0].Space)
-			require.Equal(t, inv.Link(), allocs[0].Cause)
+			require.Equal(t, digest, alloc.Blob.Digest)
+			require.Equal(t, size, alloc.Blob.Size)
+			require.Equal(t, space, alloc.Space)
+			require.Equal(t, inv.Link(), alloc.Cause)
 		}, func(f failure.FailureModel) {
 			fmt.Println(f.Message)
 			fmt.Println(*f.Stack)
@@ -778,22 +777,12 @@ func TestNewAllocationExistingData(t *testing.T) {
 		false,
 	)
 
-	// assert there are now two allocations for this blob
-	allocations, err := svc.Blobs().Allocations().List(ctx, expectedDigest)
-	require.NoError(t, err)
-	require.Len(t, allocations, 2)
-	initalSpaceAllocationExists := false
-	expectedSpaceAllocationExists := false
-	for _, a := range allocations {
-		if a.Space == expectedSpace {
-			expectedSpaceAllocationExists = true
-		}
-		if a.Space == initialAllocationSpace {
-			initalSpaceAllocationExists = true
-		}
-	}
-	require.True(t, initalSpaceAllocationExists, "expected allocation in initial allocation space")
-	require.True(t, expectedSpaceAllocationExists, "expected allocation in expected (replicated) allocation space")
+	// assert there are now two allocations for this blob (one per space)
+	_, err = svc.Blobs().Allocations().Get(ctx, expectedDigest, initialAllocationSpace)
+	require.NoError(t, err, "expected allocation in initial allocation space")
+
+	_, err = svc.Blobs().Allocations().Get(ctx, expectedDigest, expectedSpace)
+	require.NoError(t, err, "expected allocation in expected (replicated) allocation space")
 
 }
 

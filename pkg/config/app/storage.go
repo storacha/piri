@@ -59,6 +59,10 @@ type StorageConfig struct {
 	// Database configuration (sqlite or postgres)
 	Database DatabaseConfig
 
+	// Global S3 config - when set, all supported stores use S3 with separate buckets
+	// named using BucketPrefix (e.g., "piri-blobs", "piri-allocations")
+	S3 *S3Config
+
 	// Service-specific storage subdirectories
 	Aggregator       AggregatorStorageConfig
 	Blobs            BlobStorageConfig
@@ -73,6 +77,16 @@ type StorageConfig struct {
 	StashStore       StashStoreConfig
 	SchedulerStorage SchedulerConfig
 	PDPStore         PDPStoreConfig
+	Consolidation    ConsolidationStorageConfig
+}
+
+// S3Config configures S3-compatible storage (e.g., MinIO, AWS S3).
+// When set on StorageConfig, all supported stores use S3 with separate buckets.
+type S3Config struct {
+	Endpoint     string      // API URL (e.g., "minio.example.com:9000")
+	BucketPrefix string      // Prefix for bucket names (e.g., "piri-" creates piri-blobs, piri-allocations, etc.)
+	Credentials  Credentials // access credentials
+	Insecure     bool        // set to true to disable SSL (for development only)
 }
 
 // AggregatorStorageConfig contains aggregator-specific storage paths
@@ -129,19 +143,15 @@ type StashStoreConfig struct {
 }
 
 type PDPStoreConfig struct {
-	Dir   string
-	Minio MinioConfig
+	Dir string
 }
 
-// MinioConfig configures Minio - an S3 compatible object store.
-type MinioConfig struct {
-	Endpoint    string      // API URL
-	Bucket      string      // bucket name
-	Credentials Credentials // access credentials
-	Insecure    bool        // set to true to disable SSL
+// ConsolidationStorageConfig contains consolidation-specific storage paths
+type ConsolidationStorageConfig struct {
+	Dir string
 }
 
-// Credentials configures access credentials for Minio.
+// Credentials configures access credentials for S3-compatible storage.
 type Credentials struct {
 	AccessKeyID     string
 	SecretAccessKey string

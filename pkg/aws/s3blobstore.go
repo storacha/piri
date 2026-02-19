@@ -180,3 +180,12 @@ func (s *s3BlobObject) Body() io.ReadCloser {
 func (s *s3BlobObject) Size() int64 {
 	return *s.outPut.ContentLength
 }
+
+// Delete implements blobstore.Blobstore.
+func (s *S3BlobStore) Delete(ctx context.Context, digest multihash.Multihash) error {
+	_, err := s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(s.formatKey(digest)),
+	})
+	return err
+}

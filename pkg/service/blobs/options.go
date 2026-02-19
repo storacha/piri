@@ -92,11 +92,7 @@ func WithAllocationStore(allocationStore allocationstore.AllocationStore) Option
 
 func WithDSAllocationStore(allocsDatastore datastore.Datastore) Option {
 	return func(o *options) error {
-		allocStore, err := allocationstore.NewDsAllocationStore(allocsDatastore)
-		if err != nil {
-			return err
-		}
-		o.allocStore = allocStore
+		o.allocStore = allocationstore.NewDatastoreStore(allocsDatastore)
 		return nil
 	}
 }

@@ -88,7 +88,7 @@ type Params struct {
 	ServerConfig     app.ServerConfig
 	DB               *gorm.DB `name:"engine_db"`
 	Config           app.PDPServiceConfig
-	BlobStore        blobstore.PDPStore
+	BlobStore        blobstore.PDPStore `name:"pdp_store"`
 	AcceptanceStore  acceptancestore.AcceptanceStore
 	ReceiptStore     receiptstore.ReceiptStore
 	Resolver         types.PieceResolverAPI

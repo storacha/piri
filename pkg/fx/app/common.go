@@ -37,12 +37,11 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 
 		admin.Module,  // Provides admin module with http routes.
 		health.Module, // Provides health check endpoints.
-	}
 
-	if cfg.Storage.DataDir == "" {
-		modules = append(modules, store.MemoryStoreModule)
-	} else {
-		modules = append(modules, store.FileSystemStoreModule)
+		// StorageModule returns the appropriate storage module based on configuration.
+		// If S3 is configured, returns S3Module + KeyStoreModule (KeyStore always on disk).
+		// Otherwise, returns the full filesystem module.
+		store.StorageModule(cfg.Storage),
 	}
 
 	return fx.Module("common", modules...)
