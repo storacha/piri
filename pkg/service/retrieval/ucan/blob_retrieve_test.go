@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/multiformats/go-multihash"
 	blobcaps "github.com/storacha/go-libstoracha/capabilities/blob"
@@ -23,8 +25,9 @@ import (
 	"github.com/storacha/go-ucanto/server/retrieval"
 	"github.com/storacha/go-ucanto/transport/headercar"
 	"github.com/storacha/go-ucanto/ucan"
-	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/stretchr/testify/require"
+
+	"github.com/storacha/piri/pkg/store/blobstore"
 )
 
 type blobRetrievalService struct {
@@ -153,7 +156,7 @@ func TestBlobRetrieve(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			blobs := blobstore.NewMapBlobstore()
+			blobs := blobstore.NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore()))
 			for _, b := range tc.blobs {
 				digest, err := multihash.Sum(b, multihash.SHA2_256, -1)
 				require.NoError(t, err)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -167,4 +168,43 @@ func (s *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpti
 		object: obj,
 		size:   size,
 	}, nil
+}
+
+// Exists checks if an object with the given key exists in the store.
+// Returns true if the object exists, false if it doesn't exist, or an error
+// if the check fails for other reasons.
+func (s *Store) Exists(ctx context.Context, key string) (bool, error) {
+	_, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
+	if err != nil {
+		var merr minio.ErrorResponse
+		if errors.As(err, &merr) {
+			if merr.Code == "NoSuchKey" {
+				return false, nil
+			}
+		}
+		return false, fmt.Errorf("checking existence of key %s: %w", key, err)
+	}
+	return true, nil
+}
+
+// ListPrefix returns an iterator that yields all object keys with the given prefix.
+// The iterator yields (key, error) pairs. If an error is encountered during listing,
+// it will be yielded and iteration will stop.
+func (s *Store) ListPrefix(ctx context.Context, prefix string) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		objectCh := s.client.ListObjects(ctx, s.bucket, minio.ListObjectsOptions{
+			Prefix:    prefix,
+			Recursive: true,
+		})
+
+		for object := range objectCh {
+			if object.Err != nil {
+				yield("", fmt.Errorf("listing objects with prefix %s: %w", prefix, object.Err))
+				return
+			}
+			if !yield(object.Key, nil) {
+				return
+			}
+		}
+	}
 }

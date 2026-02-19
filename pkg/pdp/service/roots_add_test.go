@@ -7,6 +7,7 @@ import (
 
 	"github.com/filecoin-project/go-data-segment/merkletree"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/multiformats/go-multihash"
 	blobcaps "github.com/storacha/go-libstoracha/capabilities/blob"
@@ -18,10 +19,11 @@ import (
 	"github.com/storacha/go-ucanto/core/receipt"
 	"github.com/storacha/go-ucanto/core/receipt/ran"
 	"github.com/storacha/go-ucanto/core/result"
+	"github.com/stretchr/testify/require"
+
 	"github.com/storacha/piri/pkg/store/acceptancestore"
 	"github.com/storacha/piri/pkg/store/acceptancestore/acceptance"
 	"github.com/storacha/piri/pkg/store/receiptstore"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetAddPieceProofs(t *testing.T) {
@@ -90,8 +92,7 @@ func TestGetAddPieceProofs(t *testing.T) {
 		},
 	}
 
-	accStore, err := acceptancestore.NewDsAcceptanceStore(datastore.NewMapDatastore())
-	require.NoError(t, err)
+	accStore := acceptancestore.NewDatastoreStore(datastore.NewMapDatastore())
 
 	err = accStore.Put(t.Context(), acceptance.Acceptance{
 		Space: space.DID(),
@@ -110,9 +111,7 @@ func TestGetAddPieceProofs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rcptStore, err := receiptstore.NewDsReceiptStore(datastore.NewMapDatastore())
-	require.NoError(t, err)
-
+	rcptStore := receiptstore.NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore()))
 	err = rcptStore.Put(t.Context(), blobAccRcpt)
 	require.NoError(t, err)
 

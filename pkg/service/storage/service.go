@@ -9,6 +9,7 @@ import (
 	"runtime"
 
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
 	"github.com/ipni/go-libipni/maurl"
 	"github.com/storacha/go-libstoracha/ipnipublisher/store"
 	"github.com/storacha/go-libstoracha/metadata"
@@ -142,10 +143,7 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 			log.Warn("Acceptance datastore not configured, using in-memory datastore")
 		}
 		closeFuncs = append(closeFuncs, func(context.Context) error { return acceptDs.Close() })
-		acceptanceStore, err := acceptancestore.NewDsAcceptanceStore(acceptDs)
-		if err != nil {
-			return nil, err
-		}
+		acceptanceStore := acceptancestore.NewDatastoreStore(acceptDs)
 		blobOpts = append(blobOpts, blobs.WithAcceptanceStore(acceptanceStore))
 	} else {
 		blobOpts = append(blobOpts, blobs.WithAcceptanceStore(c.acceptanceStore))
@@ -159,11 +157,7 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 			log.Warn("Claim datastore not configured, using in-memory datastore")
 		}
 		closeFuncs = append(closeFuncs, func(context.Context) error { return claimDs.Close() })
-		var err error
-		claimStore, err = delegationstore.NewDsDelegationStore(claimDs)
-		if err != nil {
-			return nil, fmt.Errorf("creating claim store: %w", err)
-		}
+		claimStore = delegationstore.NewDatastoreStore(claimDs)
 	}
 	publisherStore := c.publisherStore
 	if publisherStore == nil {
@@ -190,16 +184,12 @@ func New(uploadServiceConn client.Connection, opts ...Option) (*StorageService, 
 			log.Warn("Receipt datastore not configured, using in-memory datastore")
 		}
 		closeFuncs = append(closeFuncs, func(context.Context) error { return receiptDS.Close() })
-		var err error
-		receiptStore, err = receiptstore.NewDsReceiptStore(receiptDS)
-		if err != nil {
-			return nil, fmt.Errorf("creating receipt store: %w", err)
-		}
+		receiptStore = receiptstore.NewDatastoreStore(receiptDS)
 	}
 
 	blobStore := c.blobStore
 	if blobStore == nil {
-		blobStore = blobstore.NewMapBlobstore()
+		blobStore = blobstore.NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore()))
 		log.Warn("Blob store not configured, using in-memory store")
 	}
 

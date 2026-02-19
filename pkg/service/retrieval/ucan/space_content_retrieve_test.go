@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/capabilities/space/content"
@@ -24,10 +26,11 @@ import (
 	"github.com/storacha/go-ucanto/server/retrieval"
 	"github.com/storacha/go-ucanto/transport/headercar"
 	"github.com/storacha/go-ucanto/ucan"
+	"github.com/stretchr/testify/require"
+
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
 	"github.com/storacha/piri/pkg/store/blobstore"
-	"github.com/stretchr/testify/require"
 )
 
 type retrievalService struct {
@@ -303,13 +306,13 @@ func TestSpaceContentRetrieve(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			allocations := allocationstore.NewMapAllocationStore()
+			allocations := allocationstore.NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore()))
 			for _, a := range test.allocations {
 				err := allocations.Put(t.Context(), a)
 				require.NoError(t, err)
 			}
 
-			blobs := blobstore.NewMapBlobstore()
+			blobs := blobstore.NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore()))
 			for _, b := range test.blobs {
 				digest, err := multihash.Sum(b, multihash.SHA2_256, -1)
 				require.NoError(t, err)

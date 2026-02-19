@@ -59,53 +59,67 @@ func (d *DynamoAcceptanceStore) Get(ctx context.Context, mh multihash.Multihash,
 	return acc, nil
 }
 
-// List implements acceptancestore.AcceptanceStore.
-func (d *DynamoAcceptanceStore) List(ctx context.Context, mh multihash.Multihash, options ...acceptancestore.ListOption) ([]acceptance.Acceptance, error) {
-	cfg := acceptancestore.ListConfig{}
-	for _, opt := range options {
-		opt(&cfg)
-	}
-
+// GetAny retrieves any acceptance for a blob (digest), regardless of space.
+func (d *DynamoAcceptanceStore) GetAny(ctx context.Context, mh multihash.Multihash) (acceptance.Acceptance, error) {
 	keyEx := expression.Key("hash").Equal(expression.Value(digestutil.Format(mh)))
 	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
 	if err != nil {
-		return nil, fmt.Errorf("building query: %w", err)
+		return acceptance.Acceptance{}, fmt.Errorf("building query: %w", err)
 	}
 
-	var limit *int32
-	if cfg.Limit > 0 {
-		limit = aws.Int32(int32(cfg.Limit))
-	}
-
-	var acceptances []acceptance.Acceptance
-	queryPaginator := dynamodb.NewQueryPaginator(d.dynamoDbClient, &dynamodb.QueryInput{
+	// Query for just one item
+	response, err := d.dynamoDbClient.Query(ctx, &dynamodb.QueryInput{
 		TableName:                 aws.String(d.tableName),
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 		KeyConditionExpression:    expr.KeyCondition(),
 		ConsistentRead:            aws.Bool(true),
-		Limit:                     limit,
+		Limit:                     aws.Int32(1),
 	})
-	for queryPaginator.HasMorePages() {
-		response, err := queryPaginator.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("querying acceptances: %w", err)
-		}
-		var acceptancePage []acceptanceItem
-		err = attributevalue.UnmarshalListOfMaps(response.Items, &acceptancePage)
-		if err != nil {
-			return nil, fmt.Errorf("parsing query responses: %w", err)
-		}
-
-		for _, item := range acceptancePage {
-			a, err := acceptance.Decode(item.Acceptance, dagcbor.Decode)
-			if err != nil {
-				return nil, fmt.Errorf("decoding data: %w", err)
-			}
-			acceptances = append(acceptances, a)
-		}
+	if err != nil {
+		return acceptance.Acceptance{}, fmt.Errorf("querying acceptances: %w", err)
 	}
-	return acceptances, nil
+
+	if len(response.Items) == 0 {
+		return acceptance.Acceptance{}, store.ErrNotFound
+	}
+
+	var item acceptanceItem
+	err = attributevalue.UnmarshalMap(response.Items[0], &item)
+	if err != nil {
+		return acceptance.Acceptance{}, fmt.Errorf("parsing query response: %w", err)
+	}
+
+	acc, err := acceptance.Decode(item.Acceptance, dagcbor.Decode)
+	if err != nil {
+		return acceptance.Acceptance{}, fmt.Errorf("decoding data: %w", err)
+	}
+	return acc, nil
+}
+
+// Exists checks if any acceptance exists for a blob (digest).
+func (d *DynamoAcceptanceStore) Exists(ctx context.Context, mh multihash.Multihash) (bool, error) {
+	keyEx := expression.Key("hash").Equal(expression.Value(digestutil.Format(mh)))
+	proj := expression.NamesList(expression.Name("hash"))
+	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).WithProjection(proj).Build()
+	if err != nil {
+		return false, fmt.Errorf("building query: %w", err)
+	}
+
+	response, err := d.dynamoDbClient.Query(ctx, &dynamodb.QueryInput{
+		TableName:                 aws.String(d.tableName),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		KeyConditionExpression:    expr.KeyCondition(),
+		ProjectionExpression:      expr.Projection(),
+		ConsistentRead:            aws.Bool(true),
+		Limit:                     aws.Int32(1),
+	})
+	if err != nil {
+		return false, fmt.Errorf("querying acceptances: %w", err)
+	}
+
+	return len(response.Items) > 0, nil
 }
 
 // Put implements acceptancestore.AcceptanceStore.

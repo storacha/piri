@@ -16,10 +16,11 @@ import (
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/blobstore"
 	"github.com/storacha/piri/pkg/store/claimstore"
+	"github.com/storacha/piri/pkg/store/consolidationstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
-	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/store/local/keystore"
+	"github.com/storacha/piri/pkg/store/local/retrievaljournal"
 	"github.com/storacha/piri/pkg/store/receiptstore"
-	"github.com/storacha/piri/pkg/store/retrievaljournal"
 )
 
 var Module = fx.Module("memory-store",
@@ -51,7 +52,12 @@ var Module = fx.Module("memory-store",
 		NewReceiptStore,
 		NewRetrievalJournal,
 		NewKeyStore,
-		NewPDPStore,
+		NewConsolidationStore,
+		fx.Annotate(
+			NewPDPStore,
+			// tagged as pdp_store since PDPStore is now an alias to Blobstore
+			fx.ResultTags(`name:"pdp_store"`),
+		),
 	),
 )
 
@@ -59,24 +65,23 @@ func NewAggregatorDatastore() datastore.Datastore {
 	return sync.MutexWrap(datastore.NewMapDatastore())
 }
 
-func NewAllocationStore() (allocationstore.AllocationStore, error) {
+func NewAllocationStore() allocationstore.AllocationStore {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
-	return allocationstore.NewDsAllocationStore(ds)
+	return allocationstore.NewDatastoreStore(ds)
 }
 
-func NewAcceptanceStore() (acceptancestore.AcceptanceStore, error) {
+func NewAcceptanceStore() acceptancestore.AcceptanceStore {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
-	return acceptancestore.NewDsAcceptanceStore(ds)
+	return acceptancestore.NewDatastoreStore(ds)
 }
 
 func NewBlobStore() blobstore.Blobstore {
-	ds := sync.MutexWrap(datastore.NewMapDatastore())
-	return blobstore.NewDsBlobstore(ds)
+	return blobstore.NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore()))
 }
 
-func NewClaimStore() (claimstore.ClaimStore, error) {
+func NewClaimStore() claimstore.ClaimStore {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
-	return delegationstore.NewDsDelegationStore(ds)
+	return delegationstore.NewDatastoreStore(ds)
 }
 
 func NewPublisherStore() store.FullStore {
@@ -84,9 +89,9 @@ func NewPublisherStore() store.FullStore {
 	return store.FromDatastore(ds, store.WithMetadataContext(metadata.MetadataContext))
 }
 
-func NewReceiptStore() (receiptstore.ReceiptStore, error) {
+func NewReceiptStore() receiptstore.ReceiptStore {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
-	return receiptstore.NewDsReceiptStore(ds)
+	return receiptstore.NewDatastoreStore(ds)
 }
 
 // TODO need an in-memory impl of the retrieval journal...
@@ -111,7 +116,11 @@ func NewKeyStore() (keystore.KeyStore, error) {
 	return keystore.NewKeyStore(ds)
 }
 
-func NewPDPStore() (blobstore.PDPStore, error) {
+func NewPDPStore() blobstore.Blobstore {
+	return blobstore.NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore()))
+}
+
+func NewConsolidationStore() consolidationstore.Store {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
-	return blobstore.NewTODO_DsBlobstore(ds), nil
+	return consolidationstore.NewDatastoreStore(ds)
 }

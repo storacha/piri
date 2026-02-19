@@ -24,7 +24,7 @@ import (
 	"github.com/storacha/piri/pkg/config/app"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/store/consolidationstore"
-	"github.com/storacha/piri/pkg/store/retrievaljournal"
+	"github.com/storacha/piri/pkg/store/local/retrievaljournal"
 )
 
 var log = logging.Logger("egresstracker")
@@ -32,7 +32,7 @@ var log = logging.Logger("egresstracker")
 var Module = fx.Module("egresstracker",
 	fx.Provide(
 		ProvideEgressTrackerQueue,
-		ProvideConsolidationStore,
+		//ProvideConsolidationStore,
 		ProvideReceiptsClient,
 		NewEgressTrackerService,
 		fx.Annotate(
@@ -121,7 +121,7 @@ func ProvideConsolidationStore(lc fx.Lifecycle, cfg app.AppConfig) (consolidatio
 		})
 	}
 
-	return consolidationstore.New(ds), nil
+	return consolidationstore.NewDatastoreStore(ds), nil
 }
 
 func ProvideReceiptsClient(lc fx.Lifecycle, cfg app.AppConfig) *receipts.Client {

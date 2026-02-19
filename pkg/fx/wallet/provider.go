@@ -7,7 +7,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/storacha/piri/pkg/config/app"
-	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/store/local/keystore"
 	"github.com/storacha/piri/pkg/wallet"
 )
 

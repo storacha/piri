@@ -28,6 +28,7 @@ import (
 	"github.com/storacha/piri/pkg/service/retrieval"
 	"github.com/storacha/piri/pkg/service/storage"
 	"github.com/storacha/piri/pkg/store/blobstore"
+	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
 )
 
 var (
@@ -126,16 +127,12 @@ func startServer(cmd *cobra.Command, _ []string) error {
 	if err := os.MkdirAll(cfg.Repo.DataDir, 0755); err != nil {
 		return fmt.Errorf("creating directory: %s: %w", cfg.Repo.DataDir, err)
 	}
-	if err := os.MkdirAll(cfg.Repo.TempDir, 0755); err != nil {
-		return fmt.Errorf("creating directory: %s: %w", cfg.Repo.TempDir, err)
-	}
-	blobStore, err := blobstore.NewFsBlobstore(
-		filepath.Join(cfg.Repo.DataDir, "blobs"),
-		filepath.Join(cfg.Repo.TempDir, "blobs"),
-	)
+	blobDir := filepath.Join(cfg.Repo.DataDir, "blobs")
+	blobObjStore, err := flatfs.New(blobDir, flatfs.NextToLast(2), false)
 	if err != nil {
 		return fmt.Errorf("creating blob storage: %w", err)
 	}
+	blobStore := blobstore.NewFlatfsStore(blobObjStore)
 
 	allocsDir, err := cliutil.Mkdirp(cfg.Repo.DataDir, "allocation")
 	if err != nil {

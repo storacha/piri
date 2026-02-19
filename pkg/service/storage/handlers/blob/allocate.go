@@ -65,23 +65,23 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (res
 	)
 
 	// check if we already have an allocation for the blob in this space
-	allocs, err := s.Blobs().Allocations().List(ctx, req.Blob.Digest)
-	if err != nil {
-		log.Errorw("getting allocations", "error", err)
-		return nil, fmt.Errorf("getting allocations: %w", err)
+	_, err = s.Blobs().Allocations().Get(ctx, req.Blob.Digest, req.Space)
+	allocated := err == nil
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		log.Errorw("getting allocation", "error", err)
+		return nil, fmt.Errorf("getting allocation: %w", err)
 	}
 
-	allocated := false
-	for _, a := range allocs {
-		if a.Space == req.Space {
-			allocated = true
-			break
-		}
+	// check if any allocation exists for the blob
+	anyAllocation, err := s.Blobs().Allocations().Exists(ctx, req.Blob.Digest)
+	if err != nil {
+		log.Errorw("checking allocation exists", "error", err)
+		return nil, fmt.Errorf("checking allocation exists: %w", err)
 	}
 
 	received := false
 	// check if we received the blob (only possible if we have an allocation)
-	if len(allocs) > 0 {
+	if anyAllocation {
 		if s.PDP() != nil {
 			has, err := s.PDP().API().Has(ctx, req.Blob.Digest)
 			if err != nil {

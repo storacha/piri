@@ -9,24 +9,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
 	"github.com/multiformats/go-multihash"
-	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/go-libstoracha/testutil"
+	"github.com/stretchr/testify/require"
+
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBlobstore(t *testing.T) {
 	rootdir := path.Join(os.TempDir(), fmt.Sprintf("blobstore%d", time.Now().UnixMilli()))
 	t.Cleanup(func() { os.RemoveAll(rootdir) })
-	tmpdir := path.Join(os.TempDir(), fmt.Sprintf("blobstore-tmp%d", time.Now().UnixMilli()))
-	t.Cleanup(func() { os.RemoveAll(tmpdir) })
+
+	flatfsDir := path.Join(rootdir, "flatfs")
+	err := os.MkdirAll(flatfsDir, 0755)
+	require.NoError(t, err)
 
 	impls := map[string]Blobstore{
-		"MapBlobstore":    NewMapBlobstore(),
-		"FsBlobstore":     testutil.Must(NewFsBlobstore(path.Join(rootdir, "fs"), tmpdir))(t),
-		"ObjectBlobstore": NewObjectBlobstore(testutil.Must(flatfs.New(path.Join(rootdir, "flatfs"), flatfs.NextToLast(2), false))(t)),
+		"MemoryStore": NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore())),
+		"Store":       NewFlatfsStore(testutil.Must(flatfs.New(flatfsDir, flatfs.NextToLast(2), false))(t)),
 	}
 
 	for k, s := range impls {
@@ -53,38 +56,18 @@ func TestBlobstore(t *testing.T) {
 			require.Nil(t, obj)
 		})
 
-		t.Run("data consistency "+k, func(t *testing.T) {
-			if k == "ObjectBlobstore" {
-				t.SkipNow() // Object blobstore does not (currently) check data consistency on write
-			}
-			data := testutil.RandomBytes(t, 10)
-			baddata := testutil.RandomBytes(t, 10)
-			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
-
-			err := s.Put(t.Context(), digest, uint64(len(data)), bytes.NewBuffer(baddata))
-			require.Equal(t, ErrDataInconsistent, err)
-		})
-
-		t.Run("filesystemer "+k, func(t *testing.T) {
-			if k == "ObjectBlobstore" {
-				t.SkipNow() // Object blobstore does not support filesystemer
-			}
+		t.Run("delete "+k, func(t *testing.T) {
 			data := testutil.RandomBytes(t, 10)
 			digest := testutil.Must(multihash.Sum(data, multihash.SHA2_256, -1))(t)
 
 			err := s.Put(t.Context(), digest, uint64(len(data)), bytes.NewBuffer(data))
 			require.NoError(t, err)
 
-			fsr, ok := s.(FileSystemer)
-			require.True(t, ok)
-
-			f, err := fsr.FileSystem().Open(fmt.Sprintf("/%s", digestutil.Format(digest)))
+			err = s.Delete(t.Context(), digest)
 			require.NoError(t, err)
 
-			b, err := io.ReadAll(f)
-			require.NoError(t, err)
-
-			require.Equal(t, data, b)
+			_, err = s.Get(t.Context(), digest)
+			require.Equal(t, store.ErrNotFound, err)
 		})
 
 		t.Run("range not satisfiable "+k, func(t *testing.T) {
