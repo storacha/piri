@@ -21,6 +21,7 @@ type MinioConfig struct {
 	Bucket      string      `mapstructure:"bucket" validate:"required" toml:"bucket"`
 	Credentials Credentials `mapstructure:"credentials" toml:"credentials,omitempty"`
 	Insecure    bool        `mapstructure:"insecure" toml:"insecure,omitempty"`
+	FlatFSKeys  bool        `mapstructure:"flatfs_keys" toml:"flatfs_keys,omitempty"`
 }
 
 // BlobStorageConfig is special configuration allowing blobs to be stored
@@ -127,6 +128,7 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 			Bucket:      r.BlobStorage.Minio.Bucket,
 			Credentials: app.Credentials(r.BlobStorage.Minio.Credentials),
 			Insecure:    r.BlobStorage.Minio.Insecure,
+			FlatFSKeys:  r.BlobStorage.Minio.FlatFSKeys,
 		}
 	}
 

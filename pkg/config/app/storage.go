@@ -139,6 +139,7 @@ type MinioConfig struct {
 	Bucket      string      // bucket name
 	Credentials Credentials // access credentials
 	Insecure    bool        // set to true to disable SSL
+	FlatFSKeys  bool        // use FlatFS key adapter
 }
 
 // Credentials configures access credentials for Minio.

@@ -21,6 +21,7 @@ import (
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
 	"github.com/storacha/piri/pkg/store/keystore"
+	"github.com/storacha/piri/pkg/store/objectstore"
 	"github.com/storacha/piri/pkg/store/objectstore/flatfs"
 	minio_store "github.com/storacha/piri/pkg/store/objectstore/minio"
 	"github.com/storacha/piri/pkg/store/receiptstore"
@@ -272,9 +273,16 @@ func NewPDPStore(cfg app.PDPStoreConfig, lc fx.Lifecycle) (blobstore.PDPStore, e
 		if creds.AccessKeyID != "" && creds.SecretAccessKey != "" {
 			options.Creds = credentials.NewStaticV4(creds.AccessKeyID, creds.SecretAccessKey, "")
 		}
+		var objStore objectstore.Store
 		objStore, err := minio_store.New(cfg.Minio.Endpoint, cfg.Minio.Bucket, options)
 		if err != nil {
 			return nil, fmt.Errorf("creating pdp object store: %w", err)
+		}
+		if cfg.Minio.FlatFSKeys {
+			objStore, err = flatfs.NewFlatFSKeyAdapter(context.Background(), objStore, flatfs.NextToLast(2))
+			if err != nil {
+				return nil, fmt.Errorf("creating flatfs key adapter for pdp object store: %w", err)
+			}
 		}
 		return blobstore.NewObjectBlobstore(objStore), nil
 	}
