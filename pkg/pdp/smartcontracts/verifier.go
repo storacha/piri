@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 
@@ -27,6 +28,8 @@ type Verifier interface {
 	FindPieceIds(ctx context.Context, setId *big.Int, leafIndexs []*big.Int) ([]bindings.IPDPTypesPieceIdAndOffset, error)
 	CalculateProofFee(ctx context.Context, setId *big.Int) (*big.Int, error)
 	MaxPieceSizeLog2(ctx context.Context) (*big.Int, error)
+	GetActivePieces(ctx context.Context, setID *big.Int, offset *big.Int, limit *big.Int) (*ActivePieces, error)
+	GetActivePieceCount(ctx context.Context, setId *big.Int) (*big.Int, error)
 
 	// not part of contract code, added for convience in testing and usage
 	Address() common.Address
@@ -58,6 +61,47 @@ func NewVerifierContract(address common.Address, backend bind.ContractBackend) (
 		client:   backend,
 		abi:      pdpABI,
 	}, nil
+}
+
+type ActivePieces struct {
+	Pieces   []cid.Cid
+	PieceIds []*big.Int
+	HasMore  bool
+}
+
+func (v *verifierContract) GetActivePieces(
+	ctx context.Context,
+	setID *big.Int,
+	offset *big.Int,
+	limit *big.Int,
+) (*ActivePieces, error) {
+	res, err := v.verifier.GetActivePieces(&bind.CallOpts{Context: ctx}, setID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	pieces := make([]cid.Cid, len(res.Pieces))
+	for i, piece := range res.Pieces {
+		parsedCid, err := cid.Cast(piece.Data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse piece CID at index %d: %w", i, err)
+		}
+		pieces[i] = parsedCid
+	}
+
+	out := &ActivePieces{
+		Pieces:   pieces,
+		PieceIds: res.PieceIds,
+		HasMore:  res.HasMore,
+	}
+
+	log.Debugw("cached GetActivePieces result", "setID", setID, "offset", offset, "limit", limit)
+
+	return out, nil
+}
+
+func (v *verifierContract) GetActivePieceCount(ctx context.Context, setId *big.Int) (*big.Int, error) {
+	return v.verifier.GetActivePieceCount(&bind.CallOpts{Context: ctx}, setId)
 }
 
 func (v *verifierContract) MaxPieceSizeLog2(ctx context.Context) (*big.Int, error) {
