@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"runtime"
 	"strings"
 	"time"
 
@@ -261,4 +262,34 @@ func (c AggregationConfig) ToAppConfig() (app.AggregationConfig, error) {
 		},
 		Manager: managerCfg,
 	}, nil
+}
+
+// DefaultAggregationConfig returns an AggregationConfig with sensible defaults.
+// These values match the viper defaults in defaults.go.
+func DefaultAggregationConfig() AggregationConfig {
+	return AggregationConfig{
+		CommP: CommpConfig{
+			JobQueue: JobQueueConfig{
+				Workers:    uint(runtime.NumCPU()),
+				Retries:    50,
+				RetryDelay: 10 * time.Second,
+			},
+		},
+		Aggregator: AggregatorConfig{
+			JobQueue: JobQueueConfig{
+				Workers:    uint(runtime.NumCPU()),
+				Retries:    50,
+				RetryDelay: 10 * time.Second,
+			},
+		},
+		Manager: AggregateManagerConfig{
+			PollInterval: 30 * time.Second,
+			BatchSize:    10,
+			JobQueue: JobQueueConfig{
+				Workers:    3,
+				Retries:    50,
+				RetryDelay: time.Minute,
+			},
+		},
+	}
 }
