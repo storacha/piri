@@ -145,7 +145,7 @@ func init() {
 	cobra.CheckErr(FullCmd.Flags().MarkHidden("upload-service-url"))
 	cobra.CheckErr(viper.BindPFlag("ucan.services.upload.url", FullCmd.Flags().Lookup("upload-service-url")))
 	// backwards compatibility
-	cobra.CheckErr(viper.BindEnv("ucan.services.upload.did", "PIRI_UPLOAD_SERVICE_URL"))
+	cobra.CheckErr(viper.BindEnv("ucan.services.upload.url", "PIRI_UPLOAD_SERVICE_URL"))
 
 	FullCmd.Flags().StringSlice(
 		"ipni-announce-urls",
@@ -255,6 +255,11 @@ func init() {
 
 func loadPresets() error {
 	networkStr := viper.GetString("network")
+	if networkStr == "" {
+		// No network specified - all values must come from config/env/flags
+		return nil
+	}
+
 	network, err := presets.ParseNetwork(networkStr)
 	if err != nil {
 		return err

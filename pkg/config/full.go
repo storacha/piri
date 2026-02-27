@@ -7,7 +7,7 @@ import (
 )
 
 type FullServerConfig struct {
-	Network     string            `mapstructure:"network" validate:"required" flag:"network" toml:"network"`
+	Network     string            `mapstructure:"network" flag:"network" toml:"network,omitempty"`
 	Identity    IdentityConfig    `mapstructure:"identity" toml:"identity"`
 	Repo        RepoConfig        `mapstructure:"repo" toml:"repo"`
 	Server      ServerConfig      `mapstructure:"server" toml:"server"`
