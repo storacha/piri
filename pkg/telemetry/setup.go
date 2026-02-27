@@ -20,6 +20,10 @@ const (
 )
 
 func Setup(ctx context.Context, network string, id string) (*telemetry.Telemetry, error) {
+	if network == "" {
+		log.Warn("network not configured; telemetry will use 'custom' as deployment environment")
+		network = "custom"
+	}
 	return telemetry.New(
 		ctx,
 		network,
