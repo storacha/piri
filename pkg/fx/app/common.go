@@ -11,6 +11,7 @@ import (
 	"github.com/storacha/piri/pkg/fx/identity"
 	"github.com/storacha/piri/pkg/fx/proofs"
 	"github.com/storacha/piri/pkg/fx/store"
+	"github.com/storacha/piri/pkg/health"
 )
 
 func CommonModules(cfg app.AppConfig) fx.Option {
@@ -34,7 +35,8 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 		database.Module, // Provides SQLite database for job queues
 		dynamic.Module,  // Provides dynamic configuration registry
 
-		admin.Module, // Provides admin module with http routes.
+		admin.Module,  // Provides admin module with http routes.
+		health.Module, // Provides health check endpoints.
 	}
 
 	if cfg.Storage.DataDir == "" {

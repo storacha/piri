@@ -48,12 +48,13 @@ func IsDockerAvailable(t testing.TB) bool {
 	return true
 }
 
-// WaitForHealthy waits for the URL to return HTTP 200 for up to 10 seconds.
-func WaitForHealthy(t testing.TB, url *url.URL) {
+// WaitForHealthy waits for the /healthz endpoint to return HTTP 200 for up to 10 seconds.
+func WaitForHealthy(t testing.TB, baseURL *url.URL) {
 	t.Helper()
+	healthURL := baseURL.JoinPath("/healthz")
 	start := time.Now()
 	for i := 0; i < 100; i++ {
-		resp, err := http.DefaultClient.Get(url.String())
+		resp, err := http.DefaultClient.Get(healthURL.String())
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -62,5 +63,5 @@ func WaitForHealthy(t testing.TB, url *url.URL) {
 		}
 		time.Sleep(time.Millisecond * 100)
 	}
-	t.Fatalf("%s was not healthy after %s", url.String(), time.Since(start).String())
+	t.Fatalf("%s was not healthy after %s", healthURL.String(), time.Since(start).String())
 }
