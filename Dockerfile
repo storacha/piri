@@ -1,10 +1,12 @@
 # ============================================
 # Build stage (shared)
 # ============================================
-FROM golang:1.25.3-trixie AS build
+# Use BUILDPLATFORM so Go runs natively (fast), while cross-compiling for TARGETPLATFORM
+FROM --platform=$BUILDPLATFORM golang:1.25.3-trixie AS build
 
-# Docker sets TARGETARCH automatically during multi-platform builds
+# Docker sets these automatically during multi-platform builds
 ARG TARGETARCH
+ARG TARGETOS=linux
 
 WORKDIR /go/src/piri
 
@@ -13,7 +15,7 @@ RUN go mod download
 COPY . .
 
 # Production build - with symbol stripping
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} make piri-prod
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} make piri-prod
 
 # ============================================
 # Debug build stage
@@ -21,12 +23,16 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} make piri-prod
 FROM build AS build-debug
 
 ARG TARGETARCH
+ARG TARGETOS=linux
 
 # Install delve debugger for target architecture
-RUN GOARCH=${TARGETARCH} go install github.com/go-delve/delve/cmd/dlv@latest
+# Cross-compiled binaries go to /go/bin/${GOOS}_${GOARCH}/, same-platform to /go/bin/
+# Normalize to /go/bin/dlv for consistent COPY path
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go install github.com/go-delve/delve/cmd/dlv@latest && \
+    ([ -f /go/bin/dlv ] || mv /go/bin/${TARGETOS}_${TARGETARCH}/dlv /go/bin/dlv)
 
 # Debug build - no optimizations, no inlining
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} make piri-debug
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} make piri-debug
 
 # ============================================
 # Production image
