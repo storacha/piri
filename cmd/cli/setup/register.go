@@ -441,6 +441,7 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			},
 			ChainID:      flags.baseConfig.chainID,
 			PayerAddress: flags.baseConfig.payerAddress,
+			Aggregation:  config.DefaultAggregationConfig(),
 		}.ToAppConfig()),
 		Replicator: appcfg.DefaultReplicatorConfig(),
 	}
@@ -731,6 +732,7 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 			},
 			ChainID:      flags.baseConfig.chainID,
 			PayerAddress: flags.baseConfig.payerAddress,
+			Aggregation:  config.DefaultAggregationConfig(),
 		},
 		UCANService: config.UCANServiceConfig{
 			Services: config.ServicesConfig{

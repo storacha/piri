@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 	"net/url"
+	"runtime"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -74,4 +75,35 @@ type JobQueueConfig struct {
 	Retries uint
 	// The duration between successive retries
 	RetryDelay time.Duration
+}
+
+// DefaultJobQueueConfig returns a JobQueueConfig with sensible defaults.
+func DefaultJobQueueConfig() JobQueueConfig {
+	return JobQueueConfig{
+		Workers:    uint(runtime.NumCPU()),
+		Retries:    50,
+		RetryDelay: 10 * time.Second,
+	}
+}
+
+// DefaultAggregateManagerConfig returns an AggregateManagerConfig with sensible defaults.
+func DefaultAggregateManagerConfig() AggregateManagerConfig {
+	return AggregateManagerConfig{
+		PollInterval: 30 * time.Second,
+		BatchSize:    10,
+		JobQueue: JobQueueConfig{
+			Workers:    3,
+			Retries:    50,
+			RetryDelay: time.Minute,
+		},
+	}
+}
+
+// DefaultAggregationConfig returns an AggregationConfig with sensible defaults.
+func DefaultAggregationConfig() AggregationConfig {
+	return AggregationConfig{
+		CommP:      CommpConfig{JobQueue: DefaultJobQueueConfig()},
+		Aggregator: AggregatorConfig{JobQueue: DefaultJobQueueConfig()},
+		Manager:    DefaultAggregateManagerConfig(),
+	}
 }
