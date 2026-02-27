@@ -21,6 +21,7 @@ import (
 	"github.com/storacha/piri/pkg/config"
 	appconfig "github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/app"
+	"github.com/storacha/piri/pkg/health"
 	"github.com/storacha/piri/pkg/presets"
 	"github.com/storacha/piri/pkg/telemetry"
 )
@@ -351,6 +352,9 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 		}),
 
 		fx.StopTimeout(setup.PiriServerShutdownTimeout),
+
+		// Supply server mode for health checks
+		fx.Supply(health.ModeFull),
 
 		// common dependencies of the PDP and UCAN module:
 		//   - identity

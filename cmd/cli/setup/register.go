@@ -41,6 +41,7 @@ import (
 	appcfg "github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/fx/app"
 	"github.com/storacha/piri/pkg/fx/root"
+	"github.com/storacha/piri/pkg/health"
 	"github.com/storacha/piri/pkg/pdp/service"
 	"github.com/storacha/piri/pkg/presets"
 )
@@ -455,6 +456,8 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			el.UseLogLevel(zapcore.DebugLevel)
 			return el
 		}),
+		// Supply init mode for health checks
+		fx.Supply(health.ModeInit),
 		app.CommonModules(cfg),
 		app.PDPModule,
 		root.Module,
