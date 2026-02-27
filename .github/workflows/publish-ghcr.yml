@@ -1,66 +1,103 @@
-name: Container
+name: Publish GHCR
 
 on:
   push:
     branches:
-      - 'main'
+      - main
     tags:
       - 'v*'
-  workflow_run:
-    workflows: [ Releaser ]
-    types:
-      - completed
   pull_request:
+    branches:
+      - main
 
 jobs:
-  prepare-checkout:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    name: Prepare ref
-    runs-on: ubuntu-latest
-    outputs:
-      ref: ${{ github.event_name != 'workflow_run' && github.ref || steps.releaser.outputs.version }}
-    steps:
-      - name: Get Ref from releaser
-        id: releaser
-        if: github.event_name == 'workflow_run'
-        uses: ipdxco/unified-github-workflows/.github/actions/inspect-releaser@v1.0
-        with:
-          artifacts-url: ${{ github.event.workflow_run.artifacts_url }}
-  publish:
-    name: Publish
-    needs: [ prepare-checkout ]
+  publish-dev:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Publish Dev
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ needs.prepare-checkout.outputs.ref }}
+        uses: actions/checkout@v4
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
       - name: Log in to the Container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: dev
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:dev-main
+            ghcr.io/${{ github.repository }}:dev-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish-prod:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    name: Publish Prod
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{raw}}
-            type=ref,event=branch
-            type=raw,value=${{ needs.prepare-checkout.outputs.ref }}
+            type=semver,pattern={{version}}
+            type=raw,value=latest
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          push: ${{ github.event_name != 'pull_request' }}
+          target: prod
+          platforms: linux/amd64,linux/arm64
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-check:
+    if: github.event_name == 'pull_request'
+    name: Build Check (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [dev, prod]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
