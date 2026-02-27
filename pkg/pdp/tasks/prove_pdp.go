@@ -256,11 +256,11 @@ func (p *ProveTask) Do(taskID scheduler.TaskID) (done bool, err error) {
 		}
 	}
 
-	log.Infow("PDP Prove Task",
+	log.Debugw("PDP Prove Task",
 		"proof_set_id", proofSetID,
 		"task_id", taskID,
-		"proofs", proofLogs,
-		"data", hex.EncodeToString(data),
+		//"proofs", proofLogs,
+		//"data", hex.EncodeToString(data),
 		"proof_fee initial", proofFee.Div(proofFee, big.NewInt(3)),
 		"proof_fee 3x", proofFee,
 		"tx_eth", txEth,

@@ -95,7 +95,9 @@ func InsecureResolution() Option {
 
 const didWebPrefix = "did:web:"
 
-// ExtractDomainFromDID extracts the domain from a DID web string
+// ExtractDomainFromDID extracts the domain from a DID web string.
+// Per the did:web spec, the domain is percent-encoded, so we decode it.
+// For example: did:web:example%3A8080 -> example:8080
 func ExtractDomainFromDID(didWeb did.DID) (string, error) {
 	// Check if it starts with the required prefix
 	if !strings.HasPrefix(didWeb.String(), didWebPrefix) {
@@ -109,6 +111,13 @@ func ExtractDomainFromDID(didWeb did.DID) (string, error) {
 	if domain == "" {
 		return "", fmt.Errorf("invalid DID web format: no domain specified")
 	}
+
+	// Percent-decode the domain per did:web spec (e.g., %3A -> :)
+	decoded, err := url.PathUnescape(domain)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode domain '%s': %w", domain, err)
+	}
+	domain = decoded
 
 	// Validate the domain format
 	if err := validateDomain(domain); err != nil {
@@ -145,6 +154,7 @@ func NewHTTPResolver(webKeys []did.DID, opts ...Option) (*HTTPResolver, error) {
 
 	// Convert string map to DID/URL map
 	didMap := make(map[did.DID]url.URL)
+	log.Infof("Creating HTTP resolver with %d DIDs, insecure=%v", len(webKeys), cfg.insecure)
 	for _, w := range webKeys {
 		if _, ok := didMap[w]; ok {
 			return nil, fmt.Errorf("duplicate did's provided")
@@ -169,6 +179,7 @@ func NewHTTPResolver(webKeys []did.DID, opts ...Option) (*HTTPResolver, error) {
 			return nil, fmt.Errorf("invalid did domain: %w", err)
 		}
 
+		log.Infof("HTTP resolver: registered DID %s -> %s", w.String(), endpoint.String())
 		didMap[w] = endpoint
 	}
 	// default timeout of 10 seconds, options can override
@@ -176,12 +187,14 @@ func NewHTTPResolver(webKeys []did.DID, opts ...Option) (*HTTPResolver, error) {
 	return resolver, nil
 }
 
-// TODO(forrest): the interface this implements in go-ucanto should probably accept a context
-// since means of resolution here are open ended, and may go to network or disk.
 func (r *HTTPResolver) ResolveDIDKey(ctx context.Context, input did.DID) (did.DID, validator.UnresolvedDID) {
 	endpoint, ok := r.webKeys[input]
 	if !ok {
-		log.Error("failed to find did in set for resolution")
+		knownDIDs := make([]string, 0, len(r.webKeys))
+		for d := range r.webKeys {
+			knownDIDs = append(knownDIDs, d.String())
+		}
+		log.Errorf("failed to find DID in set for resolution: requested=%s, known DIDs=%v", input.String(), knownDIDs)
 		return did.Undef, validator.NewDIDKeyResolutionError(input, fmt.Errorf("not found in mapping"))
 	}
 	ctx, cancel := context.WithTimeout(ctx, r.cfg.timeout)

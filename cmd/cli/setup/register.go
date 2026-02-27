@@ -70,7 +70,6 @@ func init() {
 	InitCmd.Flags().String("operator-email", "", "Email address of the piri operator (your email address for contact with the Storacha team)")
 	InitCmd.Flags().String("public-url", "", "URL Piri will advertise to the Storacha network")
 
-	cobra.CheckErr(InitCmd.MarkFlagRequired("network"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("data-dir"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("temp-dir"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("key-file"))
@@ -82,67 +81,14 @@ func init() {
 	InitCmd.Flags().String(
 		"registrar-url",
 		"",
-		"[Advanced] URL of the registrar service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
+		"[Advanced] URL of the registrar service. Required when using --base-config.")
 	cobra.CheckErr(InitCmd.Flags().MarkHidden("registrar-url"))
 
 	InitCmd.Flags().String(
-		"signing-service-did",
+		"base-config",
 		"",
-		"[Advanced] DID of the signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("signing-service-did"))
-
-	InitCmd.Flags().String(
-		"signing-service-url",
-		"",
-		"[Advanced] URL of the signing service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("signing-service-url"))
-
-	InitCmd.Flags().String(
-		"upload-service-did",
-		"",
-		"[Advanced] DID of the upload service. Only change if you know what you're doing. Use --network flag to set proper defaults.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("upload-service-did"))
-
-	InitCmd.Flags().String(
-		"verifier-address",
-		"",
-		"[Advanced] PDP Verifier contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
-	)
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("verifier-address"))
-
-	InitCmd.Flags().String(
-		"provider-registry-address",
-		"",
-		"[Advanced] Provider Registry contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
-	)
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("provider-registry-address"))
-
-	InitCmd.Flags().String(
-		"service-address",
-		"",
-		"[Advanced] PDP Service contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
-	)
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("service-address"))
-
-	InitCmd.Flags().String(
-		"service-view-address",
-		"",
-		"[Advanced] Service View contract address. Only change if you know what you're doing. Use --network flag to set proper defaults.",
-	)
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("service-view-address"))
-
-	InitCmd.Flags().String(
-		"chain-id",
-		"",
-		"[Advanced] Filecoin chain ID (314 for mainnet, 314159 for calibration). Only change if you know what you're doing. Use --network flag to set proper defaults.",
-	)
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("chain-id"))
-
-	InitCmd.Flags().String(
-		"payer-address",
-		"",
-		"[Advanced] Address of the payer. Only change if you know what you're doing. Use --network flag to set proper defaults.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("payer-address"))
+		"[Advanced] Path to base TOML config for custom environments. Merged with generated values.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("base-config"))
 
 	InitCmd.SetOut(os.Stdout)
 	InitCmd.SetErr(os.Stderr)
@@ -150,84 +96,240 @@ func init() {
 
 // initFlags holds all the parsed command flags
 type initFlags struct {
-	network                 presets.Network
-	host                    string
-	port                    uint
-	dataDir                 string
-	tempDir                 string
-	keyFile                 string
-	publicURL               *url.URL
-	walletPath              string
-	lotusEndpoint           string
-	operatorEmail           string
-	delegatorURL            string
+	network       presets.Network
+	host          string
+	port          uint
+	dataDir       string
+	tempDir       string
+	keyFile       string
+	publicURL     *url.URL
+	walletPath    string
+	lotusEndpoint string
+	operatorEmail string
+	delegatorURL  string
+	// baseConfig holds values from --base-config or network presets
+	baseConfig *baseConfigValues
+}
+
+// baseConfigValues holds service and contract configuration from base config or presets
+type baseConfigValues struct {
 	signingServiceDID       string
 	signingServiceURL       string
 	uploadServiceDID        did.DID
+	uploadServiceURL        string
 	verifierAddress         string
 	providerRegistryAddress string
 	serviceAddress          string
 	serviceViewAddress      string
+	paymentsAddress         string
+	usdfcAddress            string
 	chainID                 string
 	payerAddress            string
+	indexingServiceDID      string
+	indexingServiceURL      string
+	egressTrackerServiceDID string
+	egressTrackerServiceURL string
+	ipniAnnounceURLs        []string
+	principalMapping        map[string]string
 }
 
-// loadPresets loads network-specific presets and applies them to flags
-func loadPresets(cmd *cobra.Command) (presets.Network, error) {
-	networkStr, err := cmd.Flags().GetString("network")
+// baseConfig represents the structure of the base config TOML file
+type baseConfig struct {
+	PDP  basePDPConfig  `toml:"pdp"`
+	UCAN baseUCANConfig `toml:"ucan"`
+}
+
+type basePDPConfig struct {
+	SigningService struct {
+		DID string `toml:"did"`
+		URL string `toml:"url"`
+	} `toml:"signing_service"`
+	Contracts struct {
+		Verifier         string `toml:"verifier"`
+		ProviderRegistry string `toml:"provider_registry"`
+		Service          string `toml:"service"`
+		ServiceView      string `toml:"service_view"`
+		Payments         string `toml:"payments"`
+		USDFCToken       string `toml:"usdfc_token"`
+	} `toml:"contracts"`
+	ChainID      string `toml:"chain_id"`
+	PayerAddress string `toml:"payer_address"`
+}
+
+type baseUCANConfig struct {
+	Services struct {
+		Indexer struct {
+			DID string `toml:"did"`
+			URL string `toml:"url"`
+		} `toml:"indexer"`
+		EgressTracker struct {
+			DID string `toml:"did"`
+			URL string `toml:"url"`
+		} `toml:"etracker"`
+		Upload struct {
+			DID string `toml:"did"`
+			URL string `toml:"url"`
+		} `toml:"upload"`
+		Publisher struct {
+			IPNIAnnounceURLs []string `toml:"ipni_announce_urls"`
+		} `toml:"publisher"`
+		PrincipalMapping map[string]string `toml:"principal_mapping"`
+	} `toml:"services"`
+}
+
+// loadBaseConfig loads configuration values from a base config TOML file
+func loadBaseConfig(path string) (*baseConfigValues, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return presets.Network(""), fmt.Errorf("error reading --network: %w", err)
+		return nil, fmt.Errorf("reading base config file: %w", err)
 	}
 
+	var cfg baseConfig
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing base config file: %w", err)
+	}
+
+	uploadServiceDID := did.Undef
+	if cfg.UCAN.Services.Upload.DID != "" {
+		uploadServiceDID, err = did.Parse(cfg.UCAN.Services.Upload.DID)
+		if err != nil {
+			return nil, fmt.Errorf("parsing upload service DID: %w", err)
+		}
+	}
+
+	return &baseConfigValues{
+		signingServiceDID:       cfg.PDP.SigningService.DID,
+		signingServiceURL:       cfg.PDP.SigningService.URL,
+		uploadServiceDID:        uploadServiceDID,
+		uploadServiceURL:        cfg.UCAN.Services.Upload.URL,
+		verifierAddress:         cfg.PDP.Contracts.Verifier,
+		providerRegistryAddress: cfg.PDP.Contracts.ProviderRegistry,
+		serviceAddress:          cfg.PDP.Contracts.Service,
+		serviceViewAddress:      cfg.PDP.Contracts.ServiceView,
+		paymentsAddress:         cfg.PDP.Contracts.Payments,
+		usdfcAddress:            cfg.PDP.Contracts.USDFCToken,
+		chainID:                 cfg.PDP.ChainID,
+		payerAddress:            cfg.PDP.PayerAddress,
+		indexingServiceDID:      cfg.UCAN.Services.Indexer.DID,
+		indexingServiceURL:      cfg.UCAN.Services.Indexer.URL,
+		egressTrackerServiceDID: cfg.UCAN.Services.EgressTracker.DID,
+		egressTrackerServiceURL: cfg.UCAN.Services.EgressTracker.URL,
+		ipniAnnounceURLs:        cfg.UCAN.Services.Publisher.IPNIAnnounceURLs,
+		principalMapping:        cfg.UCAN.Services.PrincipalMapping,
+	}, nil
+}
+
+// loadPresets loads network-specific presets and returns base config values
+func loadPresets(cmd *cobra.Command) (presets.Network, *baseConfigValues, error) {
+	// Check if base config is provided
+	baseConfigPath, err := cmd.Flags().GetString("base-config")
+	if err != nil {
+		return presets.Network(""), nil, fmt.Errorf("error reading --base-config: %w", err)
+	}
+
+	networkStr, err := cmd.Flags().GetString("network")
+	if err != nil {
+		return presets.Network(""), nil, fmt.Errorf("error reading --network: %w", err)
+	}
+
+	// Validate: can't use both --network and --base-config
+	if baseConfigPath != "" && networkStr != "" {
+		return presets.Network(""), nil, fmt.Errorf("--network and --base-config are mutually exclusive")
+	}
+
+	// Must have either --network or --base-config
+	if baseConfigPath == "" && networkStr == "" {
+		return presets.Network(""), nil, fmt.Errorf("either --network or --base-config must be specified")
+	}
+
+	// If base config is provided, load it and return
+	if baseConfigPath != "" {
+		baseValues, err := loadBaseConfig(baseConfigPath)
+		if err != nil {
+			return presets.Network(""), nil, fmt.Errorf("loading base config: %w", err)
+		}
+		return presets.Network(""), baseValues, nil
+	}
+
+	// Otherwise, load from network preset
 	network, err := presets.ParseNetwork(networkStr)
 	if err != nil {
-		return presets.Network(""), fmt.Errorf("loading presets: %w", err)
+		return presets.Network(""), nil, fmt.Errorf("loading presets: %w", err)
 	}
 
 	preset, err := presets.GetPreset(network)
 	if err != nil {
-		return presets.Network(""), fmt.Errorf("loading presets: %w", err)
+		return presets.Network(""), nil, fmt.Errorf("loading presets: %w", err)
 	}
 
-	// Apply preset values for flags that weren't explicitly set
+	// Apply registrar URL from preset if not explicitly set
 	if !cmd.Flags().Changed("registrar-url") && preset.Services.RegistrarServiceURL != nil {
 		cmd.Flags().Set("registrar-url", preset.Services.RegistrarServiceURL.String())
 	}
-	if !cmd.Flags().Changed("signing-service-did") && preset.Services.SigningServiceDID != did.Undef {
-		cmd.Flags().Set("signing-service-did", preset.Services.SigningServiceDID.String())
-	}
-	if !cmd.Flags().Changed("signing-service-url") && preset.Services.SigningServiceURL != nil {
-		cmd.Flags().Set("signing-service-url", preset.Services.SigningServiceURL.String())
-	}
-	if !cmd.Flags().Changed("upload-service-did") {
-		cmd.Flags().Set("upload-service-did", preset.Services.UploadServiceDID.String())
-	}
-	if !cmd.Flags().Changed("verifier-address") {
-		cmd.Flags().Set("verifier-address", preset.SmartContracts.Verifier.String())
-	}
-	if !cmd.Flags().Changed("provider-registry-address") {
-		cmd.Flags().Set("provider-registry-address", preset.SmartContracts.ProviderRegistry.String())
-	}
-	if !cmd.Flags().Changed("service-address") {
-		cmd.Flags().Set("service-address", preset.SmartContracts.Service.String())
-	}
-	if !cmd.Flags().Changed("service-view-address") {
-		cmd.Flags().Set("service-view-address", preset.SmartContracts.ServiceView.String())
-	}
-	if !cmd.Flags().Changed("chain-id") {
-		cmd.Flags().Set("chain-id", preset.SmartContracts.ChainID.String())
-	}
-	if !cmd.Flags().Changed("payer-address") {
-		cmd.Flags().Set("payer-address", preset.SmartContracts.PayerAddress.String())
+
+	// Convert preset to baseConfigValues
+	ipniURLs := make([]string, len(preset.Services.IPNIAnnounceURLs))
+	for i, u := range preset.Services.IPNIAnnounceURLs {
+		ipniURLs[i] = u.String()
 	}
 
-	return network, nil
+	signingServiceDID := ""
+	if preset.Services.SigningServiceDID != did.Undef {
+		signingServiceDID = preset.Services.SigningServiceDID.String()
+	}
+	signingServiceURL := ""
+	if preset.Services.SigningServiceURL != nil {
+		signingServiceURL = preset.Services.SigningServiceURL.String()
+	}
+	uploadServiceURL := ""
+	if preset.Services.UploadServiceURL != nil {
+		uploadServiceURL = preset.Services.UploadServiceURL.String()
+	}
+	indexingServiceDID := ""
+	if preset.Services.IndexingServiceDID != did.Undef {
+		indexingServiceDID = preset.Services.IndexingServiceDID.String()
+	}
+	indexingServiceURL := ""
+	if preset.Services.IndexingServiceURL != nil {
+		indexingServiceURL = preset.Services.IndexingServiceURL.String()
+	}
+	egressTrackerDID := ""
+	if preset.Services.EgressTrackerServiceDID != did.Undef {
+		egressTrackerDID = preset.Services.EgressTrackerServiceDID.String()
+	}
+	egressTrackerURL := ""
+	if preset.Services.EgressTrackerServiceURL != nil {
+		egressTrackerURL = preset.Services.EgressTrackerServiceURL.String()
+	}
+
+	baseValues := &baseConfigValues{
+		signingServiceDID:       signingServiceDID,
+		signingServiceURL:       signingServiceURL,
+		uploadServiceDID:        preset.Services.UploadServiceDID,
+		uploadServiceURL:        uploadServiceURL,
+		verifierAddress:         preset.SmartContracts.Verifier.String(),
+		providerRegistryAddress: preset.SmartContracts.ProviderRegistry.String(),
+		serviceAddress:          preset.SmartContracts.Service.String(),
+		serviceViewAddress:      preset.SmartContracts.ServiceView.String(),
+		paymentsAddress:         preset.SmartContracts.Payments.String(),
+		usdfcAddress:            preset.SmartContracts.USDFCToken.String(),
+		chainID:                 preset.SmartContracts.ChainID.String(),
+		payerAddress:            preset.SmartContracts.PayerAddress.String(),
+		indexingServiceDID:      indexingServiceDID,
+		indexingServiceURL:      indexingServiceURL,
+		egressTrackerServiceDID: egressTrackerDID,
+		egressTrackerServiceURL: egressTrackerURL,
+		ipniAnnounceURLs:        ipniURLs,
+		principalMapping:        preset.Services.PrincipalMapping,
+	}
+
+	return network, baseValues, nil
 }
 
 // parseAndValidateFlags parses command flags and validates them
 func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
-	// Load network presets first
-	network, err := loadPresets(cmd)
+	// Load network presets or base config first
+	network, baseValues, err := loadPresets(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -276,54 +378,6 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		return nil, fmt.Errorf("error reading --registrar-url: %w", err)
 	}
 
-	signingServiceDID, err := cmd.Flags().GetString("signing-service-did")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --signing-service-did: %w", err)
-	}
-	signingServiceURL, err := cmd.Flags().GetString("signing-service-url")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --signing-service-url: %w", err)
-	}
-
-	uploadServiceDIDStr, err := cmd.Flags().GetString("upload-service-did")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --upload-service-did: %w", err)
-	}
-	uploadServiceDID, err := did.Parse(uploadServiceDIDStr)
-	if err != nil {
-		return nil, fmt.Errorf("parsing upload service DID: %w", err)
-	}
-
-	verifierAddress, err := cmd.Flags().GetString("verifier-address")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --verifier-address: %w", err)
-	}
-
-	providerRegistryAddress, err := cmd.Flags().GetString("provider-registry-address")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --provider-registry-address: %w", err)
-	}
-
-	serviceAddress, err := cmd.Flags().GetString("service-address")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --service-address: %w", err)
-	}
-
-	serviceViewAddress, err := cmd.Flags().GetString("service-view-address")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --service-view-address: %w", err)
-	}
-
-	chainID, err := cmd.Flags().GetString("chain-id")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --chain-id: %w", err)
-	}
-
-	payerAddress, err := cmd.Flags().GetString("payer-address")
-	if err != nil {
-		return nil, fmt.Errorf("error reading --payer-address: %w", err)
-	}
-
 	host, err := cmd.Flags().GetString("host")
 	if err != nil {
 		return nil, fmt.Errorf("error reading --host: %w", err)
@@ -334,26 +388,18 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 	}
 
 	return &initFlags{
-		network:                 network,
-		host:                    host,
-		port:                    port,
-		dataDir:                 dataDir,
-		tempDir:                 tempDir,
-		keyFile:                 keyFile,
-		publicURL:               parsedURL,
-		walletPath:              walletPath,
-		lotusEndpoint:           lotusEndpoint,
-		operatorEmail:           operatorEmail,
-		delegatorURL:            delegatorURL,
-		signingServiceDID:       signingServiceDID,
-		signingServiceURL:       signingServiceURL,
-		uploadServiceDID:        uploadServiceDID,
-		verifierAddress:         verifierAddress,
-		providerRegistryAddress: providerRegistryAddress,
-		serviceAddress:          serviceAddress,
-		serviceViewAddress:      serviceViewAddress,
-		chainID:                 chainID,
-		payerAddress:            payerAddress,
+		network:       network,
+		host:          host,
+		port:          port,
+		dataDir:       dataDir,
+		tempDir:       tempDir,
+		keyFile:       keyFile,
+		publicURL:     parsedURL,
+		walletPath:    walletPath,
+		lotusEndpoint: lotusEndpoint,
+		operatorEmail: operatorEmail,
+		delegatorURL:  delegatorURL,
+		baseConfig:    baseValues,
 	}, nil
 }
 
@@ -378,17 +424,19 @@ func createNode(ctx context.Context, flags *initFlags) (*fx.App, *service.PDPSer
 			OwnerAddress:  walletKey.Address.String(),
 			LotusEndpoint: flags.lotusEndpoint,
 			SigningService: config.SigningServiceConfig{
-				DID: flags.signingServiceDID,
-				URL: flags.signingServiceURL,
+				DID: flags.baseConfig.signingServiceDID,
+				URL: flags.baseConfig.signingServiceURL,
 			},
 			Contracts: config.ContractAddresses{
-				Verifier:         flags.verifierAddress,
-				ProviderRegistry: flags.providerRegistryAddress,
-				Service:          flags.serviceAddress,
-				ServiceView:      flags.serviceViewAddress,
+				Verifier:         flags.baseConfig.verifierAddress,
+				ProviderRegistry: flags.baseConfig.providerRegistryAddress,
+				Service:          flags.baseConfig.serviceAddress,
+				ServiceView:      flags.baseConfig.serviceViewAddress,
+				Payments:         flags.baseConfig.paymentsAddress,
+				USDFCToken:       flags.baseConfig.usdfcAddress,
 			},
-			ChainID:      flags.chainID,
-			PayerAddress: flags.payerAddress,
+			ChainID:      flags.baseConfig.chainID,
+			PayerAddress: flags.baseConfig.payerAddress,
 		}.ToAppConfig()),
 		Replicator: appcfg.DefaultReplicatorConfig(),
 	}
@@ -546,7 +594,7 @@ func registerWithDelegator(ctx context.Context, cmd *cobra.Command, cfg *appcfg.
 	// Generate delegation proof for upload service
 	d, err := delegate.MakeDelegation(
 		cfg.Identity.Signer,
-		flags.uploadServiceDID,
+		flags.baseConfig.uploadServiceDID,
 		[]string{
 			blob.AllocateAbility,
 			blob.AcceptAbility,
@@ -632,8 +680,18 @@ func requestContractApproval(ctx context.Context, id principal.Signer, flags *in
 
 // generateConfig generates the final configuration for the user
 func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common.Address, proofSetID uint64, indexerProof string, egressTrackerProof string) (config.FullServerConfig, error) {
+	// Derive egress tracker receipts endpoint from URL if available
+	egressTrackerReceiptsEndpoint := ""
+	if flags.baseConfig.egressTrackerServiceURL != "" {
+		parsed, err := url.Parse(flags.baseConfig.egressTrackerServiceURL)
+		if err == nil {
+			parsed.Path = "/receipts"
+			egressTrackerReceiptsEndpoint = parsed.String()
+		}
+	}
+
 	return config.FullServerConfig{
-		Network:  flags.network.String(),
+		Network:  string(flags.network), // Empty string when using base config
 		Identity: config.IdentityConfig{KeyFile: flags.keyFile},
 		Repo: config.RepoConfig{
 			DataDir: cfg.Storage.DataDir,
@@ -647,15 +705,42 @@ func generateConfig(cfg *appcfg.AppConfig, flags *initFlags, ownerAddress common
 		PDPService: config.PDPServiceConfig{
 			OwnerAddress:  ownerAddress.String(),
 			LotusEndpoint: flags.lotusEndpoint,
+			SigningService: config.SigningServiceConfig{
+				DID: flags.baseConfig.signingServiceDID,
+				URL: flags.baseConfig.signingServiceURL,
+			},
+			Contracts: config.ContractAddresses{
+				Verifier:         flags.baseConfig.verifierAddress,
+				ProviderRegistry: flags.baseConfig.providerRegistryAddress,
+				Service:          flags.baseConfig.serviceAddress,
+				ServiceView:      flags.baseConfig.serviceViewAddress,
+				Payments:         flags.baseConfig.paymentsAddress,
+				USDFCToken:       flags.baseConfig.usdfcAddress,
+			},
+			ChainID:      flags.baseConfig.chainID,
+			PayerAddress: flags.baseConfig.payerAddress,
 		},
 		UCANService: config.UCANServiceConfig{
 			Services: config.ServicesConfig{
+				ServicePrincipalMapping: flags.baseConfig.principalMapping,
 				Indexer: config.IndexingServiceConfig{
+					DID:   flags.baseConfig.indexingServiceDID,
+					URL:   flags.baseConfig.indexingServiceURL,
 					Proof: indexerProof,
 				},
 				EgressTracker: config.EgressTrackerServiceConfig{
+					DID:               flags.baseConfig.egressTrackerServiceDID,
+					URL:               flags.baseConfig.egressTrackerServiceURL,
+					ReceiptsEndpoint:  egressTrackerReceiptsEndpoint,
 					Proof:             egressTrackerProof,
 					MaxBatchSizeBytes: config.DefaultMinimumEgressBatchSize,
+				},
+				Upload: config.UploadServiceConfig{
+					DID: flags.baseConfig.uploadServiceDID.String(),
+					URL: flags.baseConfig.uploadServiceURL,
+				},
+				Publisher: config.PublisherServiceConfig{
+					AnnounceURLs: flags.baseConfig.ipniAnnounceURLs,
 				},
 			},
 			ProofSetID: proofSetID,

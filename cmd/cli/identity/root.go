@@ -45,14 +45,24 @@ The DID is printed to stderr for convenience.
 		Example: `piri identity parse my-key.pem`,
 		RunE:    doParse,
 	}
+
+	FormatCmd = &cobra.Command{
+		Use:     "format",
+		Short:   "output a PEM key in multibase format (for use as service_key)",
+		Args:    cobra.ExactArgs(1),
+		Example: `piri identity format my-key.pem`,
+		RunE:    doFormat,
+	}
 )
 
 func init() {
 	Cmd.AddCommand(GenerateCmd)
 	Cmd.AddCommand(ParseCmd)
+	Cmd.AddCommand(FormatCmd)
 	Cmd.SetHelpFunc(identityHelpFunc())
 	GenerateCmd.SetHelpFunc(identityHelpFunc())
 	ParseCmd.SetHelpFunc(identityHelpFunc())
+	FormatCmd.SetHelpFunc(identityHelpFunc())
 }
 
 func doGenerate(cmd *cobra.Command, _ []string) error {
@@ -116,6 +126,47 @@ func doParse(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("decoding ed25519 private key: %w", err)
 	}
 	cmd.Printf("# %s\n", key.DID().String())
+	return nil
+}
+
+func doFormat(cmd *cobra.Command, args []string) error {
+	pemPath := args[0]
+	pemFile, err := os.Open(pemPath)
+	if err != nil {
+		return fmt.Errorf("opening pem file: %w", err)
+	}
+	pemData, err := io.ReadAll(pemFile)
+	if err != nil {
+		return fmt.Errorf("reading pem file: %w", err)
+	}
+
+	blk, _ := pem.Decode(pemData)
+	if blk == nil {
+		return fmt.Errorf("no PEM block found")
+	}
+
+	sk, err := x509.ParsePKCS8PrivateKey(blk.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing PKCS#8 private key: %w", err)
+	}
+
+	ed25519SK, ok := sk.(crypto_ed25519.PrivateKey)
+	if !ok {
+		return fmt.Errorf("PKCS#8 private key does not implement ed25519")
+	}
+
+	key, err := ed25519.FromRaw(ed25519SK)
+	if err != nil {
+		return fmt.Errorf("decoding ed25519 private key: %w", err)
+	}
+
+	formatted, err := ed25519.Format(key)
+	if err != nil {
+		return fmt.Errorf("formatting key: %w", err)
+	}
+
+	cmd.Printf("# %s\n", key.DID().String())
+	cmd.Println(formatted)
 	return nil
 }
 

@@ -255,6 +255,11 @@ func init() {
 
 func loadPresets() error {
 	networkStr := viper.GetString("network")
+	if networkStr == "" {
+		// No network specified - all values must come from config/env/flags
+		return nil
+	}
+
 	network, err := presets.ParseNetwork(networkStr)
 	if err != nil {
 		return err

@@ -20,6 +20,9 @@ const (
 )
 
 func Setup(ctx context.Context, network string, id string) (*telemetry.Telemetry, error) {
+	if network == "" {
+		network = "unknown"
+	}
 	return telemetry.New(
 		ctx,
 		network,
