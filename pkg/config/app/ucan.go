@@ -1,6 +1,7 @@
 package app
 
 type UCANServiceConfig struct {
-	Services   ExternalServicesConfig
-	ProofSetID uint64
+	Services              ExternalServicesConfig
+	ProofSetID            uint64
+	InsecureDIDResolution bool
 }

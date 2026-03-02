@@ -52,6 +52,9 @@ func init() {
 	// backwards compatibility
 	cobra.CheckErr(viper.BindEnv("ucan.proof_set", "PIRI_PROOF_SET"))
 
+	// Developer only: enable HTTP (instead of HTTPS) for did:web resolution
+	cobra.CheckErr(viper.BindEnv("ucan.insecure_did_resolution", "PIRI_INSECURE_DID_RESOLUTION"))
+
 	FullCmd.Flags().String(
 		"network",
 		"",

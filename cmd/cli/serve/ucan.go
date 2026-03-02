@@ -108,6 +108,8 @@ func init() {
 	// backwards compatibility
 	cobra.CheckErr(viper.BindEnv("ucan.services.principal_mapping", "PIRI_SERVICE_PRINCIPAL_MAPPING"))
 
+	// Developer only: enable HTTP (instead of HTTPS) for did:web resolution
+	cobra.CheckErr(viper.BindEnv("ucan.insecure_did_resolution", "PIRI_INSECURE_DID_RESOLUTION"))
 }
 
 func startServer(cmd *cobra.Command, _ []string) error {
@@ -239,7 +241,11 @@ func startServer(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID})
+	var resolverOpts []principalresolver.Option
+	if cfg.UCANService.InsecureDIDResolution {
+		resolverOpts = append(resolverOpts, principalresolver.InsecureResolution())
+	}
+	presolv, err := principalresolver.NewHTTPResolver([]did.DID{indexingServiceDID, uploadServiceDID}, resolverOpts...)
 	if err != nil {
 		return fmt.Errorf("creating http principal resolver: %w", err)
 	}

@@ -42,7 +42,13 @@ func NewPrincipalResolver(cfg app.AppConfig) (validator.PrincipalResolver, error
 			services = append(services, uplSvc.ID().DID())
 		}
 	}
-	hr, err := principalresolver.NewHTTPResolver(services)
+	// Build resolver options
+	var opts []principalresolver.Option
+	if cfg.UCANService.InsecureDIDResolution {
+		opts = append(opts, principalresolver.InsecureResolution())
+	}
+
+	hr, err := principalresolver.NewHTTPResolver(services, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating http principal resolver: %w", err)
 	}

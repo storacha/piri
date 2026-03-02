@@ -25,6 +25,9 @@ func (u *UCANServerConfig) Normalize() {
 type UCANServiceConfig struct {
 	Services   ServicesConfig `mapstructure:"services" toml:"services"`
 	ProofSetID uint64         `mapstructure:"proof_set" flag:"proof-set" toml:"proof_set"`
+	// InsecureDIDResolution enables HTTP (instead of HTTPS) for did:web resolution.
+	// NB: this should only be used for development purposes.
+	InsecureDIDResolution bool `mapstructure:"insecure_did_resolution" toml:"insecure_did_resolution,omitempty"`
 }
 
 func (s UCANServiceConfig) Validate() error {
@@ -42,7 +45,8 @@ func (s UCANServiceConfig) ToAppConfig(publicURL url.URL) (app.UCANServiceConfig
 		return app.UCANServiceConfig{}, err
 	}
 	return app.UCANServiceConfig{
-		Services:   svcCfg,
-		ProofSetID: s.ProofSetID,
+		Services:              svcCfg,
+		ProofSetID:            s.ProofSetID,
+		InsecureDIDResolution: s.InsecureDIDResolution,
 	}, nil
 }
