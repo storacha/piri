@@ -3,7 +3,6 @@ package serve
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -424,16 +423,12 @@ func fullServer(cmd *cobra.Command, _ []string) error {
 }
 
 func initTelemetry(ctx context.Context, instanceID, network string, dataDir string, cfg appconfig.TelemetryConfig) error {
-	// bail if this has been disabled globally.
-	// backwards compatible env var
-	if os.Getenv("PIRI_DISABLE_ANALYTICS") != "" {
-		return nil
-	}
-	if cfg.DisableStorachaAnalytics {
+	// If no Storacha analytics AND no user collectors, skip setup entirely
+	if cfg.DisableStorachaAnalytics && len(cfg.Metrics) == 0 && len(cfg.Traces) == 0 {
 		return nil
 	}
 
-	t, err := telemetry.Setup(ctx, network, instanceID)
+	t, err := telemetry.Setup(ctx, network, instanceID, cfg)
 	if err != nil {
 		return fmt.Errorf("setting up telemetry: %w", err)
 	}
