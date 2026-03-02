@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"os"
 	"time"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -12,6 +13,7 @@ import (
 	"github.com/storacha/piri/lib/telemetry/metrics"
 	"github.com/storacha/piri/lib/telemetry/traces"
 	"github.com/storacha/piri/pkg/build"
+	"github.com/storacha/piri/pkg/config/app"
 )
 
 const (
@@ -19,11 +21,53 @@ const (
 	defaultPublishInterval = 30 * time.Second
 )
 
-func Setup(ctx context.Context, network string, id string) (*telemetry.Telemetry, error) {
+func Setup(ctx context.Context, network string, id string, cfg app.TelemetryConfig) (*telemetry.Telemetry, error) {
 	if network == "" {
 		log.Warn("network not configured; telemetry will use 'custom' as deployment environment")
 		network = "custom"
 	}
+
+	// backwards compatible env var - this disables everything
+	disableStorachaAnalytics := false
+	if os.Getenv("PIRI_DISABLE_ANALYTICS") != "" {
+		disableStorachaAnalytics = true
+	}
+
+	disableStorachaAnalytics = disableStorachaAnalytics || cfg.DisableStorachaAnalytics
+	// Build metrics collectors list
+	var metricCollectors []metrics.CollectorConfig
+
+	// Add default Storacha endpoint unless disabled
+	if !disableStorachaAnalytics {
+		metricCollectors = append(metricCollectors, metrics.CollectorConfig{
+			Endpoint:        defaultEndpoint,
+			PublishInterval: defaultPublishInterval,
+		})
+	}
+
+	// Add user-configured collectors
+	for _, c := range cfg.Metrics {
+		metricCollectors = append(metricCollectors, metrics.CollectorConfig{
+			Endpoint:        c.Endpoint,
+			Insecure:        c.Insecure,
+			Headers:         c.Headers,
+			PublishInterval: c.PublishInterval,
+		})
+	}
+
+	// Build trace collectors list
+	var traceCollectors []traces.CollectorConfig
+
+	// Add user-configured collectors
+	for _, c := range cfg.Traces {
+		traceCollectors = append(traceCollectors, traces.CollectorConfig{
+			Endpoint:        c.Endpoint,
+			Insecure:        c.Insecure,
+			Headers:         c.Headers,
+			PublishInterval: c.PublishInterval,
+		})
+	}
+
 	return telemetry.New(
 		ctx,
 		network,
@@ -31,12 +75,7 @@ func Setup(ctx context.Context, network string, id string) (*telemetry.Telemetry
 		build.Version,
 		id,
 		metrics.Config{
-			Collectors: []metrics.CollectorConfig{
-				{
-					Endpoint:        defaultEndpoint,
-					PublishInterval: defaultPublishInterval,
-				},
-			},
+			Collectors: metricCollectors,
 			Options: []sdkmetric.Option{
 				sdkmetric.WithView(
 					// custom views for http metics with more buckets for histograms
@@ -47,12 +86,7 @@ func Setup(ctx context.Context, network string, id string) (*telemetry.Telemetry
 			},
 		},
 		traces.Config{
-			Collectors: []traces.CollectorConfig{
-				{
-					Endpoint:        defaultEndpoint,
-					PublishInterval: defaultPublishInterval,
-				},
-			},
+			Collectors: traceCollectors,
 			Options: []sdktrace.TracerProviderOption{
 				// Only sample when there is a parent trace; never start local roots.
 				sdktrace.WithSampler(
