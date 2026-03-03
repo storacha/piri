@@ -355,6 +355,51 @@ func (c *Client) ListProofSet(ctx context.Context) ([]types.ProofSet, error) {
 	return out, nil
 }
 
+func (c *Client) RepairProofSet(ctx context.Context, proofSetID uint64) (*types.RepairResult, error) {
+	if !c.isPiriServer() {
+		return nil, fmt.Errorf("method requires piri server implementation: unsupported method")
+	}
+	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, strconv.FormatUint(proofSetID, 10), "repair").String()
+	res, err := c.postJson(ctx, route, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to repair proof set: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, errFromResponse(res)
+	}
+	var resp httpapi.RepairProofSetResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return nil, fmt.Errorf("failed to decode repair response: %w", err)
+	}
+
+	result := &types.RepairResult{
+		TotalOnChain:      resp.TotalOnChain,
+		TotalInDB:         resp.TotalInDB,
+		TotalRepaired:     resp.TotalRepaired,
+		TotalUnrepaired:   resp.TotalUnrepaired,
+		RepairedEntries:   make([]types.RepairedEntry, len(resp.RepairedEntries)),
+		UnrepairedEntries: make([]types.UnrepairedEntry, len(resp.UnrepairedEntries)),
+	}
+
+	for i, entry := range resp.RepairedEntries {
+		result.RepairedEntries[i] = types.RepairedEntry{
+			RootCID:  entry.RootCID,
+			RootID:   entry.RootID,
+			Subroots: entry.Subroots,
+		}
+	}
+
+	for i, entry := range resp.UnrepairedEntries {
+		result.UnrepairedEntries[i] = types.UnrepairedEntry{
+			RootCID: entry.RootCID,
+			RootID:  entry.RootID,
+			Reason:  entry.Reason,
+		}
+	}
+
+	return result, nil
+}
+
 func (c *Client) AddRoots(ctx context.Context, proofSetID uint64, roots []types.RootAdd) (common.Hash, error) {
 	route := c.endpoint.JoinPath(pdpRoutePath, proofSetsPath, "/", strconv.FormatUint(proofSetID, 10), rootsPath).String()
 

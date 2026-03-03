@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"golang.org/x/xerrors"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	chainyypes "github.com/filecoin-project/lotus/chain/types"
 
@@ -139,6 +140,7 @@ func insertRootIds(
 
 			rootId := rootIds[*entry.AddMessageIndex]
 			// Insert into pdp_proofset_roots
+			// Use ON CONFLICT DO NOTHING to handle race conditions with repair command
 			root := models.PDPProofsetRoot{
 				ProofsetID:      entry.ProofsetID,
 				Root:            entry.Root,
@@ -150,7 +152,7 @@ func insertRootIds(
 				AddMessageHash:  entry.AddMessageHash,
 				AddMessageIndex: *entry.AddMessageIndex,
 			}
-			err := tx.Create(&root).Error
+			err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&root).Error
 			if err != nil {
 				return fmt.Errorf("failed to insert into pdp_proofset_roots: %w", err)
 			}
