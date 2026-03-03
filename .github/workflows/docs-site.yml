@@ -1,11 +1,8 @@
 name: Docs Site
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - ".github/workflows/docs-site.yml"
+  release:
+    types: [published]
   workflow_dispatch: {}
 
 permissions:
@@ -30,7 +27,6 @@ jobs:
         run: mkdocs build --strict -f docs/mkdocs.yml
 
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
