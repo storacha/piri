@@ -17,7 +17,7 @@ Lotus has the following [resource requirements](https://lotus.filecoin.io/lotus/
 
 **Deployment options:**
 
-1. **Dedicated machine** (recommended): Run Lotus on its own server. This isolates Lotus resource usage from Piri and simplifies troubleshooting.
+1. **Dedicated machine** (recommended): Run Lotus on its own machine. This isolates Lotus resource usage from Piri and simplifies troubleshooting.
 
 2. **Combined machine**: Run Lotus and Piri together if you have sufficient resources. Add Lotus requirements to [Piri's requirements](../setup/prerequisites.md) when sizing your machine.
 
@@ -49,7 +49,7 @@ Use `wss://` (WebSocket over TLS) in production for security.
 
 Piri interacts with smart contracts on Filecoin and **requires Ethereum RPC to be enabled** in your Lotus node. Without this, Piri cannot function.
 
-You must enable both `EnableEthRPC` and `ChainIndexer` in your Lotus configuration. The ChainIndexer maintains the indices required for Ethereum-compatible queries.
+You must enable both `EnableEthRPC` and `ChainIndexer` in your Lotus configuration. The `ChainIndexer` configuration option ensures that indices required for Ethereum-compatible queries are maintained.
 
 See [Ethereum RPC](https://lotus.filecoin.io/lotus/configure/ethereum-rpc/) for configuration instructions.
 
@@ -117,12 +117,6 @@ A successful connection indicates the endpoint is accessible.
 - Verify Lotus API is enabled and listening
 - Check firewall rules allow the connection
 - Confirm the endpoint URL is correct
-
-**Authentication errors:**
-
-- Lotus requires an API token for some operations
-- Generate a token with `lotus auth create-token --perm admin`
-- Include the token in your connection URL or configuration
 
 ## Piri Configuration
 

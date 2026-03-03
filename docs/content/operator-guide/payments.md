@@ -80,15 +80,15 @@ Egress payments compensate you for serving data retrievals.
 
 1. **Retrieval happens**: Users fetch data from your node
 2. **Events tracked**: Your node logs retrieval events via the egress tracker
-3. **Batches submitted**: Retrieval data is batched and sent to Storacha
-4. **Monthly reconciliation**: Storacha reconciles egress data
-5. **Payment issued**: Storacha issues payment at the end of every month
+3. **Batches submitted**: Retrieval data is batched and sent to the network for verification
+4. **Monthly reconciliation**: Egress events are reconciled every month
+5. **Payment issued**: Payment is issued at the end of every month
 
 Unlike storage payments, egress is paid in fiat (traditional currency), not on-chain. There's no smart contract settlement—just money transferred through conventional payment rails.
 
 ### Mutual Accountability
 
-Your node reports what it served (bytes delivered). Clients report what they downloaded. Storacha reconciles both reports. This ensures neither side grades their own homework.
+Your node submits both what it served (bytes delivered) and what clients requested. Both documents are signed by the relevant party—the node signs what it served, the client signs what it requested—making them unforgeable. A valid, payable egress event requires both documents to exist, ensuring neither side can fabricate claims.
 
 ### Egress Tracking
 

@@ -68,6 +68,8 @@ Your node stores several types of data:
 
 **Location claims** are also blobs, but with different content—they record where data can be retrieved. When your node accepts user data, it creates a claim asserting "this content is available at this URL."
 
+**[IPNI](https://github.com/ipni) advertisements** are published by your node to the InterPlanetary Network Indexer. These advertisements form a chain that points to your claims, making your content discoverable by clients querying the network.
+
 In practice, almost all blobs uploaded to Piri are 256MiB. This will eventually expand to 512MiB—no operator action required, but it helps to understand the rate and size of data moving through your system.
 
 ## Aggregation
@@ -92,7 +94,7 @@ Piri manages several categories of data:
 
 The storage backend handles persistence. Configure storage paths during initialization or via the `repo.data_dir` configuration option.
 
-## Timing Considerations
+## Performance Considerations
 
 Some performance factors are within your control; others are not.
 

@@ -56,7 +56,6 @@ nav:
       - How Retrieval Works: operator-guide/retrieval.md
       - Getting Paid: operator-guide/payments.md
       - Monitoring: operator-guide/monitoring.md
-      - Common Questions: operator-guide/faq.md
   - Setup:
       - Prerequisites: setup/prerequisites.md
       - Installation: setup/installation.md

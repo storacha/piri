@@ -97,7 +97,7 @@ A **fault** occurs when you miss a challenge window. This can happen if:
 
 Faults have consequences:
 
-- Reduced or withheld payments for the affected period
+- Reduced or withheld payments for the affected period (see [Missed Proofs](payments.md#missed-proofs))
 - Potential reputation impact
 
 Avoiding faults is your primary operational concern.
@@ -116,7 +116,7 @@ To maintain reliable proving:
 
 ## Gas Costs
 
-Proof submission consumes gas. Empirical measurements:
+Proof submission consumes gas. Empirical measurements from the [PDP Gas Calculator](https://pdp.vxb.ai/gas-calculator) maintained by the [FilOz team](https://www.filoz.org/):
 
 - **ProvePossession** for a data set of 100 roots costs approximately 140M gas units
 - Data set size (total bytes) does not significantly impact gas usage

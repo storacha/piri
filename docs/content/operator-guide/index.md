@@ -20,7 +20,7 @@ Operators earn revenue from two sources:
 
 **Storage payments** are earned continuously for data you store and prove. These are settled on-chain in USDFC tokens via smart contracts on Filecoin. The more data you store and the more reliably you prove it, the more you earn.
 
-**Egress payments** are earned when users retrieve data from your node. Storacha tracks retrieval events and issues monthly payments based on bandwidth served.
+**Egress payments** are earned when users retrieve data from your node. Your node submits signed retrieval events to the network, resulting in monthly payments for bandwidth served.
 
 ## What Does Operating Involve?
 
@@ -38,7 +38,7 @@ If you're ready to become an operator:
 2. **[Lotus Node Setup](lotus.md)** — Requirements for your Filecoin Lotus node
 3. **[How Storage Works](storage.md)** — Understanding replication and data flow
 4. **[How Proving Works](proving.md)** — The proof lifecycle and challenge windows
-5. **[Configuration & Tuning](tuning.md)** — Key settings you can adjust
+5. **[How Retrieval Works](retrieval.md)** — How your node serves content and tracks egress
 6. **[Getting Paid](payments.md)** — Storage and egress payment details
 7. **[Monitoring](monitoring.md)** — Day-to-day operations and what to watch
 

@@ -56,7 +56,7 @@ Your node serves data over HTTP. Clients typically request specific byte ranges 
 
 ### Range Requests
 
-Blobs stored in Piri are typically 256MiB (expanding to 512MiB). Clients often need only portions of this data, so they use HTTP range headers to request specific byte ranges.
+Blobs stored in Piri are typically 256MiB. Clients often need only portions of this data, so they use HTTP range headers to request specific byte ranges.
 
 Your node handles range requests automatically. This is efficient for both parties:
 
@@ -80,13 +80,12 @@ Your node submits these tokens to Storacha's egress tracker service. This happen
 
 ### Mutual Accountability
 
-Neither party grades their own homework:
+Neither party grades their own homework. An egress event consists of a signed pair:
 
-- **Your node** reports what it served (bytes delivered)
-- **The client** reports what it downloaded
-- **Storacha** reconciles both reports
+- **UCAN invocation**: The client's signed request for data
+- **UCAN receipt**: Your node's signed response confirming what was served
 
-This mutual reporting ensures accurate egress accounting. Discrepancies are resolved through reconciliation.
+Both documents are signed by the relevant party, making them unforgeable. A valid, payable egress event requires both to exist—ensuring neither side can fabricate claims.
 
 ## What Counts as Billable Egress
 

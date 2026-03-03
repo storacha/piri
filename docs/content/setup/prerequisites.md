@@ -8,7 +8,7 @@ This document outlines the common prerequisites for running Piri services. Speci
 - **Linux-based OS** (Ubuntu 20.04+ recommended)
 
 ### Hardware
-- **CPU**: 4+ cores
+- **CPU**: 4+ cores with [SHA extensions](https://en.wikipedia.org/wiki/SHA_instruction_set) (required for proof generation)
 - **RAM**: 8+ GB
 - **Storage**: 1+ TB
 - **Network**: 1+ Gbps symmetric connection
