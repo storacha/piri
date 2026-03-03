@@ -44,8 +44,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN useradd --system --no-create-home appuser
+
 COPY --from=build /go/src/piri/piri /usr/bin/piri
 
+USER appuser
 ENTRYPOINT ["/usr/bin/piri"]
 
 # ============================================
