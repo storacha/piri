@@ -53,19 +53,22 @@ We do NOT collect:
 
 ## How to Opt Out
 
-If you prefer not to share telemetry data, you can disable it by setting the `PIRI_DISABLE_ANALYTICS` environment variable:
+If you prefer not to share telemetry data with Storacha, you can disable it using either an environment variable or config file:
+
+**Environment variable:**
 
 ```bash
-export PIRI_DISABLE_ANALYTICS=1
+export PIRI_DISABLE_STORACHA_ANALYTICS=1
 ```
 
-To make this permanent, add the export to your shell configuration file (e.g., `.bashrc`, `.zshrc`).
+**Config file:**
 
-Note: you can opt-out of tracing _only_ by setting the `PIRI_TRACING_ENABLED` environment variable:
-
-```bash
-export PIRI_TRACING_ENABLED=0
+```toml
+[telemetry]
+disable_storacha_analytics = true
 ```
+
+To make the environment variable permanent, add the export to your shell configuration file (e.g., `.bashrc`, `.zshrc`).
 
 ## Data Retention and Usage
 
@@ -78,7 +81,7 @@ export PIRI_TRACING_ENABLED=0
 
 Telemetry is implemented using OpenTelemetry, an industry-standard observability framework. The telemetry system:
 
-- Initializes during startup unless `PIRI_DISABLE_ANALYTICS` is set
+- Initializes during startup unless `PIRI_DISABLE_STORACHA_ANALYTICS` is set
 - Records server information once at startup
 - Has a 10-second timeout for initialization to prevent blocking
 - Logs warnings if telemetry fails but continues normal operation
