@@ -2,65 +2,95 @@ name: Container
 
 on:
   push:
-    branches:
-      - 'main'
-    tags:
-      - 'v*'
-  workflow_run:
-    workflows: [ Releaser ]
-    types:
-      - completed
+    branches: [main]
   pull_request:
+    branches: [main]
+
+# Cancel in-progress runs on new pushes to same ref
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  prepare-checkout:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    name: Prepare ref
-    runs-on: ubuntu-latest
-    outputs:
-      ref: ${{ github.event_name != 'workflow_run' && github.ref || steps.releaser.outputs.version }}
-    steps:
-      - name: Get Ref from releaser
-        id: releaser
-        if: github.event_name == 'workflow_run'
-        uses: ipdxco/unified-github-workflows/.github/actions/inspect-releaser@v1.0
-        with:
-          artifacts-url: ${{ github.event.workflow_run.artifacts_url }}
-  publish:
-    name: Publish
-    needs: [ prepare-checkout ]
+  # Build both dev and prod on main push
+  publish-main:
+    name: Publish ${{ matrix.target }}
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - target: prod
+            suffix: ""
+          - target: dev
+            suffix: "-dev"
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ needs.prepare-checkout.outputs.ref }}
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Log in to the Container registry
-        uses: docker/login-action@v2
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{raw}}
-            type=ref,event=branch
-            type=raw,value=${{ needs.prepare-checkout.outputs.ref }}
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+            type=raw,value=main${{ matrix.suffix }}
+            type=sha,suffix=${{ matrix.suffix }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
         with:
           context: .
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          push: ${{ github.event_name != 'pull_request' }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max
+
+  # Build check for PRs (no push) - single platform for speed
+  build-check:
+    name: Build Check (${{ matrix.target }})
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        target: [dev, prod]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=${{ matrix.target }}
