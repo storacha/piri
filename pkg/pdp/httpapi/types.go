@@ -202,3 +202,30 @@ type (
 		IsApproved         bool   `json:"isApproved"`
 	}
 )
+
+// RepairProofSet types
+type (
+	RepairProofSetResponse struct {
+		// State comparison
+		TotalOnChain int `json:"totalOnChain"` // Active pieces on chain
+		TotalInDB    int `json:"totalInDB"`    // Roots in pdp_proofset_roots
+
+		// Repair results
+		TotalRepaired     int               `json:"totalRepaired"`
+		TotalUnrepaired   int               `json:"totalUnrepaired"`
+		RepairedEntries   []RepairedEntry   `json:"repairedEntries"`
+		UnrepairedEntries []UnrepairedEntry `json:"unrepairedEntries"`
+	}
+
+	RepairedEntry struct {
+		RootCID  string `json:"rootCid"`
+		RootID   uint64 `json:"rootId"`
+		Subroots int    `json:"subrootsRepaired"`
+	}
+
+	UnrepairedEntry struct {
+		RootCID string `json:"rootCid"`
+		RootID  uint64 `json:"rootId"`
+		Reason  string `json:"reason"`
+	}
+)
