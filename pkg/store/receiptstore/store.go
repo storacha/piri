@@ -79,16 +79,7 @@ func (s *Store) GetByRan(ctx context.Context, ran ucan.Link) (receipt.AnyReceipt
 		return nil, fmt.Errorf("looking up root by ran: %w", err)
 	}
 	// Convert datamodel.Link to ucan.Link for the key encoder
-	rootLink, ok := root.(ucan.Link)
-	if !ok {
-		// Handle cidlink.Link case
-		if cl, ok := root.(cidlink.Link); ok {
-			rootLink = cl
-		} else {
-			return nil, fmt.Errorf("unexpected link type: %T", root)
-		}
-	}
-	rcpt, err := s.store.Get(ctx, s.encoder.EncodeKey(rootLink))
+	rcpt, err := s.store.Get(ctx, s.encoder.EncodeKey(root))
 	if err != nil {
 		return nil, fmt.Errorf("getting receipt: %w", err)
 	}

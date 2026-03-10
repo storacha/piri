@@ -21,8 +21,8 @@ import (
 	"github.com/storacha/piri/pkg/store/claimstore"
 	"github.com/storacha/piri/pkg/store/consolidationstore"
 	"github.com/storacha/piri/pkg/store/delegationstore"
-	minio_store "github.com/storacha/piri/pkg/store/objectstore/minio"
 	"github.com/storacha/piri/pkg/store/local/retrievaljournal"
+	minio_store "github.com/storacha/piri/pkg/store/objectstore/minio"
 	"github.com/storacha/piri/pkg/store/receiptstore"
 )
 
