@@ -72,11 +72,14 @@ func Allocate(ctx context.Context, s AllocateService, req *AllocateRequest) (res
 		return nil, fmt.Errorf("getting allocation: %w", err)
 	}
 
-	// check if any allocation exists for the blob
-	anyAllocation, err := s.Blobs().Allocations().Exists(ctx, req.Blob.Digest)
-	if err != nil {
-		log.Errorw("checking allocation exists", "error", err)
-		return nil, fmt.Errorf("checking allocation exists: %w", err)
+	// check if any allocation exists for the blob (skip if we already found one above)
+	anyAllocation := allocated
+	if !allocated {
+		anyAllocation, err = s.Blobs().Allocations().Exists(ctx, req.Blob.Digest)
+		if err != nil {
+			log.Errorw("checking allocation exists", "error", err)
+			return nil, fmt.Errorf("checking allocation exists: %w", err)
+		}
 	}
 
 	received := false

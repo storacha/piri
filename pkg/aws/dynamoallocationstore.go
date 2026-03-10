@@ -10,9 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/ipld/go-ipld-prime/codec/dagcbor"
-	multihash "github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-multihash"
 	"github.com/storacha/go-libstoracha/digestutil"
 	"github.com/storacha/go-ucanto/did"
+
 	"github.com/storacha/piri/pkg/store"
 	"github.com/storacha/piri/pkg/store/allocationstore"
 	"github.com/storacha/piri/pkg/store/allocationstore/allocation"
@@ -43,6 +44,23 @@ func (d *DynamoAllocationStore) Get(ctx context.Context, mh multihash.Multihash,
 	if err != nil {
 		return allocation.Allocation{}, fmt.Errorf("getting item: %w", err)
 	}
+
+	// HACK: (ash) Temporary hack to allow allocation to be found if it was
+	// stored with the old style key ("<digest>/<cause>") not the new key
+	// ("<digest>/<space>"). This works because listing works on digest
+	// prefix i.e. "<digest>/*".
+	if res.Item == nil {
+		allocs, listErr := d.list(ctx, mh)
+		if listErr != nil {
+			return allocation.Allocation{}, fmt.Errorf("listing items: %w", listErr)
+		}
+		for _, a := range allocs {
+			if a.Space == space {
+				return a, nil
+			}
+		}
+	}
+
 	if res.Item == nil {
 		return allocation.Allocation{}, store.ErrNotFound
 	}
@@ -93,6 +111,43 @@ func (d *DynamoAllocationStore) GetAny(ctx context.Context, mh multihash.Multiha
 	return alloc, nil
 }
 
+// GetAnyNonExpired retrieves any allocation for a blob that has not expired.
+func (d *DynamoAllocationStore) GetAnyNonExpired(ctx context.Context, mh multihash.Multihash, now uint64) (allocation.Allocation, error) {
+	keyEx := expression.Key("hash").Equal(expression.Value(digestutil.Format(mh)))
+	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("building query: %w", err)
+	}
+
+	res, err := d.dynamoDbClient.Query(ctx, &dynamodb.QueryInput{
+		TableName:                 aws.String(d.tableName),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		KeyConditionExpression:    expr.KeyCondition(),
+		ConsistentRead:            aws.Bool(true),
+	})
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("querying allocation: %w", err)
+	}
+
+	for _, rawItem := range res.Items {
+		var item allocationItem
+		err = attributevalue.UnmarshalMap(rawItem, &item)
+		if err != nil {
+			return allocation.Allocation{}, fmt.Errorf("unmarshalling allocation item: %w", err)
+		}
+		alloc, err := allocation.Decode(item.Allocation, dagcbor.Decode)
+		if err != nil {
+			return allocation.Allocation{}, fmt.Errorf("decoding allocation: %w", err)
+		}
+		if alloc.Expires > now {
+			return alloc, nil
+		}
+	}
+
+	return allocation.Allocation{}, store.ErrNotFound
+}
+
 // Exists checks if any allocation exists for a blob (digest).
 func (d *DynamoAllocationStore) Exists(ctx context.Context, mh multihash.Multihash) (bool, error) {
 	keyEx := expression.Key("hash").Equal(expression.Value(digestutil.Format(mh)))
@@ -138,6 +193,43 @@ func (d *DynamoAllocationStore) Put(ctx context.Context, alloc allocation.Alloca
 		return fmt.Errorf("storing item: %w", err)
 	}
 	return nil
+}
+
+func (d *DynamoAllocationStore) list(ctx context.Context, mh multihash.Multihash) ([]allocation.Allocation, error) {
+	keyEx := expression.Key("hash").Equal(expression.Value(digestutil.Format(mh)))
+	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
+	if err != nil {
+		return nil, fmt.Errorf("building query: %w", err)
+	}
+
+	var allocations []allocation.Allocation
+	queryPaginator := dynamodb.NewQueryPaginator(d.dynamoDbClient, &dynamodb.QueryInput{
+		TableName:                 aws.String(d.tableName),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		KeyConditionExpression:    expr.KeyCondition(),
+		ConsistentRead:            aws.Bool(true),
+	})
+	for queryPaginator.HasMorePages() {
+		response, err := queryPaginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("querying allocations: %w", err)
+		}
+		var allocationPage []allocationItem
+		err = attributevalue.UnmarshalListOfMaps(response.Items, &allocationPage)
+		if err != nil {
+			return nil, fmt.Errorf("parsing query responses: %w", err)
+		}
+
+		for _, item := range allocationPage {
+			a, err := allocation.Decode(item.Allocation, dagcbor.Decode)
+			if err != nil {
+				return nil, fmt.Errorf("decoding data: %w", err)
+			}
+			allocations = append(allocations, a)
+		}
+	}
+	return allocations, nil
 }
 
 type allocationItem struct {

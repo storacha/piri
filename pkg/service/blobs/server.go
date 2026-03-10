@@ -99,16 +99,12 @@ func NewBlobPutHandler(presigner presigner.RequestPresigner, allocs allocationst
 			return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("invalid multihash digest: %w", err))
 		}
 
-		alloc, err := allocs.GetAny(r.Context(), digest)
+		_, err = allocs.GetAnyNonExpired(r.Context(), digest, uint64(time.Now().Unix()))
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				return echo.NewHTTPError(http.StatusForbidden, fmt.Errorf("missing allocation for write to: z%s", digest.B58String()))
+				return echo.NewHTTPError(http.StatusForbidden, fmt.Errorf("no valid allocation for write to: z%s", digest.B58String()))
 			}
 			return fmt.Errorf("getting allocation: %w", err)
-		}
-
-		if alloc.Expires <= uint64(time.Now().Unix()) {
-			return echo.NewHTTPError(http.StatusForbidden, "expired allocation")
 		}
 
 		log.Infof("Found allocation for write to: z%s", digest.B58String())

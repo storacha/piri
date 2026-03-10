@@ -95,30 +95,22 @@ func (s *Store[T]) ExistsWithPrefix(ctx context.Context, keyPrefix string) (bool
 // GetAny retrieves any value matching the given key prefix.
 // Returns store.ErrNotFound if no matching key exists.
 func (s *Store[T]) GetAny(ctx context.Context, keyPrefix string) (T, error) {
+	return s.GetAnyMatching(ctx, keyPrefix, nil)
+}
+
+// GetAnyMatching retrieves the first value matching the key prefix where the predicate returns true.
+// If match is nil, returns the first value found (equivalent to GetAny).
+// Returns store.ErrNotFound if no matching value exists.
+func (s *Store[T]) GetAnyMatching(ctx context.Context, keyPrefix string, match func(T) bool) (T, error) {
 	var zero T
 
-	for key, err := range s.backend.ListPrefix(ctx, s.prefix+keyPrefix) {
+	for item, err := range s.ListPrefix(ctx, keyPrefix) {
 		if err != nil {
-			return zero, fmt.Errorf("listing prefix %s: %w", keyPrefix, err)
+			return zero, err
 		}
-
-		// Found a key, get the value
-		obj, err := s.backend.Get(ctx, key)
-		if err != nil {
-			if errors.Is(err, objectstore.ErrNotExist) {
-				// Key was deleted between list and get, continue
-				continue
-			}
-			return zero, fmt.Errorf("getting %s: %w", key, err)
+		if match == nil || match(item) {
+			return item, nil
 		}
-		defer obj.Body().Close()
-
-		data, err := io.ReadAll(obj.Body())
-		if err != nil {
-			return zero, fmt.Errorf("reading data: %w", err)
-		}
-
-		return s.codec.Decode(data)
 	}
 
 	return zero, store.ErrNotFound

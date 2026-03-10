@@ -140,4 +140,76 @@ func TestDatastoreAllocationStore(t *testing.T) {
 		_, err = s.GetAny(t.Context(), digest)
 		require.ErrorIs(t, err, store.ErrNotFound)
 	})
+
+	t.Run("get any non-expired with mixed allocations", func(t *testing.T) {
+		s := NewDatastoreStore(datastore.NewMapDatastore())
+
+		blob := allocation.Blob{
+			Digest: testutil.RandomMultihash(t),
+			Size:   uint64(1 + rand.IntN(1000)),
+		}
+
+		now := uint64(time.Now().Unix())
+
+		// Expired allocation
+		expiredAlloc := allocation.Allocation{
+			Space:   testutil.RandomDID(t),
+			Blob:    blob,
+			Expires: now - 100, // expired 100 seconds ago
+			Cause:   testutil.RandomCID(t),
+		}
+
+		// Valid allocation
+		validAlloc := allocation.Allocation{
+			Space:   testutil.RandomDID(t),
+			Blob:    blob,
+			Expires: now + 3600, // expires in 1 hour
+			Cause:   testutil.RandomCID(t),
+		}
+
+		// Put expired first
+		err := s.Put(t.Context(), expiredAlloc)
+		require.NoError(t, err)
+		err = s.Put(t.Context(), validAlloc)
+		require.NoError(t, err)
+
+		// GetAnyNonExpired should return the valid one
+		got, err := s.GetAnyNonExpired(t.Context(), blob.Digest, now)
+		require.NoError(t, err)
+		require.Equal(t, validAlloc, got)
+	})
+
+	t.Run("get any non-expired all expired", func(t *testing.T) {
+		s := NewDatastoreStore(datastore.NewMapDatastore())
+
+		blob := allocation.Blob{
+			Digest: testutil.RandomMultihash(t),
+			Size:   uint64(1 + rand.IntN(1000)),
+		}
+
+		now := uint64(time.Now().Unix())
+
+		expiredAlloc := allocation.Allocation{
+			Space:   testutil.RandomDID(t),
+			Blob:    blob,
+			Expires: now - 100,
+			Cause:   testutil.RandomCID(t),
+		}
+
+		err := s.Put(t.Context(), expiredAlloc)
+		require.NoError(t, err)
+
+		_, err = s.GetAnyNonExpired(t.Context(), blob.Digest, now)
+		require.ErrorIs(t, err, store.ErrNotFound)
+	})
+
+	t.Run("get any non-expired not found", func(t *testing.T) {
+		s := NewDatastoreStore(datastore.NewMapDatastore())
+
+		digest := testutil.RandomMultihash(t)
+		now := uint64(time.Now().Unix())
+
+		_, err := s.GetAnyNonExpired(t.Context(), digest, now)
+		require.ErrorIs(t, err, store.ErrNotFound)
+	})
 }

@@ -26,6 +26,10 @@ type AllocationStore interface {
 	// GetAny retrieves any allocation for a blob (digest), regardless of space.
 	// Returns [github.com/storacha/piri/pkg/store.ErrNotFound] if no allocation exists.
 	GetAny(context.Context, multihash.Multihash) (allocation.Allocation, error)
+	// GetAnyNonExpired retrieves any allocation for a blob that has not expired.
+	// The now parameter should be the current unix timestamp in seconds.
+	// Returns [github.com/storacha/piri/pkg/store.ErrNotFound] if no non-expired allocation exists.
+	GetAnyNonExpired(ctx context.Context, digest multihash.Multihash, now uint64) (allocation.Allocation, error)
 	// Exists checks if any allocation exists for a blob (digest).
 	Exists(context.Context, multihash.Multihash) (bool, error)
 	// Put adds or replaces allocation data in the store.
@@ -66,6 +70,16 @@ func (s *Store) GetAny(ctx context.Context, digest multihash.Multihash) (allocat
 	alloc, err := s.store.GetAny(ctx, s.encoder.EncodeKeyPrefix(digest))
 	if err != nil {
 		return allocation.Allocation{}, fmt.Errorf("getting any allocation: %w", err)
+	}
+	return alloc, nil
+}
+
+func (s *Store) GetAnyNonExpired(ctx context.Context, digest multihash.Multihash, now uint64) (allocation.Allocation, error) {
+	alloc, err := s.store.GetAnyMatching(ctx, s.encoder.EncodeKeyPrefix(digest), func(a allocation.Allocation) bool {
+		return a.Expires > now
+	})
+	if err != nil {
+		return allocation.Allocation{}, fmt.Errorf("getting non-expired allocation: %w", err)
 	}
 	return alloc, nil
 }
