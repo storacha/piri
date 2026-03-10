@@ -129,13 +129,12 @@ func (s *consolidationStore) Delete(ctx context.Context, batchCID cid.Cid) error
 
 // NewS3Store creates a ConsolidationStore for S3/MinIO backends.
 // Consolidations are stored with keys formatted as "consolidations/{batchCID}.cbor".
-// Legacy data at "consolidation/track/" and "consolidation/consolidate/" is read and migrated.
 func NewS3Store(backend *minio.Store) *consolidationStore {
 	return New(
 		backend,
 		"consolidations/",
 		S3KeyEncoder{},
-		NewS3LegacyReader(backend),
+		NoOpLegacyReader{}, // S3 never had legacy data
 	)
 }
 
