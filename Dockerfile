@@ -1,15 +1,33 @@
-FROM golang:1.25.3-trixie as build
+# Build stage - use native platform for faster cross-compilation
+FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS build
 
-WORKDIR /go/src/piri
+ARG TARGETARCH
+ARG TARGETOS=linux
 
-COPY go.* .
+WORKDIR /src
+
+# Copy dependency files first for better layer caching
+COPY go.mod go.sum ./
 RUN go mod download
+
+# Copy source code
 COPY . .
 
-#RUN CGO_ENABLED=0 go build -o /go/bin/piri ./cmd/main.go
-RUN make piri
+# Build with cross-compilation and stripped binary
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w" \
+    -o /app \
+    ./cmd
 
-FROM gcr.io/distroless/static-debian12
-COPY --from=build /go/src/piri /usr/bin/piri
+# Runtime stage - alpine for wget healthchecks per RFC
+FROM alpine:latest AS prod
+
+# Create non-root user
+RUN adduser -D -H appuser
+
+USER appuser
+
+# Copy binary from build stage
+COPY --from=build /app /usr/bin/piri
 
 ENTRYPOINT ["/usr/bin/piri"]
