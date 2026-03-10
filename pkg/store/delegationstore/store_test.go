@@ -11,10 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDsDelegationStore(t *testing.T) {
+func TestDelegationStore(t *testing.T) {
 	t.Run("roundtrip", func(t *testing.T) {
-		store, err := NewDsDelegationStore(datastore.NewMapDatastore())
-		require.NoError(t, err)
+		store := NewDatastoreStore(datastore.NewMapDatastore())
 
 		dlg, err := delegation.Delegate(
 			testutil.RandomSigner(t),

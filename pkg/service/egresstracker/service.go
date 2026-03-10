@@ -24,7 +24,8 @@ import (
 
 	"github.com/storacha/piri/pkg/client/receipts"
 	"github.com/storacha/piri/pkg/store/consolidationstore"
-	"github.com/storacha/piri/pkg/store/retrievaljournal"
+	"github.com/storacha/piri/pkg/store/consolidationstore/consolidation"
+	"github.com/storacha/piri/pkg/store/local/retrievaljournal"
 )
 
 const journalRotationPeriod = time.Hour * 12
@@ -178,7 +179,11 @@ func (s *Service) egressTrack(ctx context.Context, batchCID cid.Cid) error {
 
 	// Store the track invocation and consolidate CID (indexed by batch CID)
 	consolidateCID := consolidateInvLink.(cidlink.Link).Cid
-	if err := s.consolidationStore.Put(ctx, batchCID, trackInv, consolidateCID); err != nil {
+	c := consolidation.Consolidation{
+		TrackInvocation:          trackInv,
+		ConsolidateInvocationCID: consolidateCID,
+	}
+	if err := s.consolidationStore.Put(ctx, batchCID, c); err != nil {
 		return fmt.Errorf("storing track invocation in consolidation store: %w", err)
 	}
 	log.Infof("stored track invocation with consolidate invocation %s for batch %s", consolidateInvLink.String(), batchCID.String())
@@ -268,15 +273,15 @@ func (s *Service) cleanupConsolidatedBatches(ctx context.Context) error {
 }
 
 func (s *Service) checkAndRemoveConsolidatedBatch(ctx context.Context, batchCID cid.Cid) error {
-	// Get the consolidate invocation CID from the consolidation store
-	consolidateInvCID, err := s.consolidationStore.GetConsolidateInvocationCID(ctx, batchCID)
+	// Get the consolidation data from the consolidation store
+	c, err := s.consolidationStore.Get(ctx, batchCID)
 	if err != nil {
 		log.Warnf("batch %s not found in consolidation store, skipping: %v", batchCID, err)
 		return nil
 	}
 
 	// Fetch the consolidate receipt from the egress tracker's receipts endpoint
-	rcpt, err := s.rcptsClient.Fetch(ctx, cidlink.Link{Cid: consolidateInvCID})
+	rcpt, err := s.rcptsClient.Fetch(ctx, cidlink.Link{Cid: c.ConsolidateInvocationCID})
 	if err != nil {
 		if errors.Is(err, receipts.ErrNotFound) {
 			log.Debugf("consolidate receipt not yet available for batch %s", batchCID)
@@ -288,11 +293,8 @@ func (s *Service) checkAndRemoveConsolidatedBatch(ctx context.Context, batchCID 
 
 	log.Debugf("consolidate receipt fetched for batch %s", batchCID.String())
 
-	// Fetch the original track invocation for the batch
-	trackInv, err := s.consolidationStore.GetTrackInvocation(ctx, batchCID)
-	if err != nil {
-		return fmt.Errorf("batch %s not found in consolidation store: %w", batchCID, err)
-	}
+	// Use the track invocation from the consolidation data
+	trackInv := c.TrackInvocation
 
 	if err := s.validateConsolidateReceipt(rcpt, trackInv); err != nil {
 		return fmt.Errorf("receipt failed validation: %w", err)

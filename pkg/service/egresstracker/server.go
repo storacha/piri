@@ -11,7 +11,7 @@ import (
 	"github.com/storacha/go-ucanto/core/car"
 	echofx "github.com/storacha/piri/pkg/fx/echo"
 	"github.com/storacha/piri/pkg/store"
-	"github.com/storacha/piri/pkg/store/retrievaljournal"
+	"github.com/storacha/piri/pkg/store/local/retrievaljournal"
 )
 
 var _ echofx.RouteRegistrar = (*Server)(nil)

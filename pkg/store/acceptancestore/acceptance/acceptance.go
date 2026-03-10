@@ -255,3 +255,14 @@ func (p *Promise) FromIPLD(n datamodel.Node) error {
 
 	return nil
 }
+
+// Codec implements genericstore.Codec for Acceptance values.
+type Codec struct{}
+
+func (Codec) Encode(a Acceptance) ([]byte, error) {
+	return Encode(a, dagcbor.Encode)
+}
+
+func (Codec) Decode(data []byte) (Acceptance, error) {
+	return Decode(data, dagcbor.Decode)
+}

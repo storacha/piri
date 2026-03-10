@@ -33,7 +33,7 @@ import (
 	"github.com/storacha/piri/pkg/client/receipts"
 	piritutil "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/storacha/piri/pkg/store/consolidationstore"
-	"github.com/storacha/piri/pkg/store/retrievaljournal"
+	"github.com/storacha/piri/pkg/store/local/retrievaljournal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,7 +77,7 @@ func TestAddReceipt(t *testing.T) {
 		queue := NewMockEgressTrackerQueue(t)
 
 		// Create consolidation store (in-memory for tests)
-		consolidationStore := consolidationstore.New(dssync.MutexWrap(datastore.NewMapDatastore()))
+		consolidationStore := consolidationstore.NewDatastoreStore(dssync.MutexWrap(datastore.NewMapDatastore()))
 
 		// Create receipts endpoint (dummy for tests)
 		port := piritutil.GetFreePort(t)
@@ -119,7 +119,7 @@ func TestAddReceipt(t *testing.T) {
 		queue := NewMockEgressTrackerQueue(t)
 
 		// Create consolidation store (in-memory for tests)
-		consolidationStore := consolidationstore.New(dssync.MutexWrap(datastore.NewMapDatastore()))
+		consolidationStore := consolidationstore.NewDatastoreStore(dssync.MutexWrap(datastore.NewMapDatastore()))
 
 		// Create receipts endpoint (dummy for tests)
 		port := piritutil.GetFreePort(t)

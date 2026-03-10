@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 
 	"github.com/multiformats/go-multihash"
 )
@@ -91,18 +90,12 @@ type Blobstore interface {
 	// Put stores the bytes to the store and ensures it hashes to the passed
 	// digest.
 	Put(ctx context.Context, digest multihash.Multihash, size uint64, body io.Reader) error
-}
-
-// FileSystemer exposes the filesystem interface for reading blobs.
-type FileSystemer interface {
-	// FileSystem returns a filesystem interface for reading blobs.
-	FileSystem() http.FileSystem
-}
-
-type PDPStore interface {
-	Blobstore
+	// Delete removes the object identified by the passed digest.
 	Delete(ctx context.Context, digest multihash.Multihash) error
 }
+
+// PDPStore is deprecated: use Blobstore directly.
+type PDPStore = Blobstore
 
 type GetConfig interface {
 	ProcessOptions([]GetOption)
