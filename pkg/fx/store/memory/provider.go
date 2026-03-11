@@ -41,13 +41,6 @@ var Module = fx.Module("memory-store",
 		),
 		NewAllocationStore,
 		NewAcceptanceStore,
-		fx.Annotate(
-			NewBlobStore,
-			// provide as Blobstore (self)
-			fx.As(fx.Self()),
-			// provide sub-interfaces of Blobstore
-			fx.As(new(blobstore.BlobGetter)),
-		),
 		NewClaimStore,
 		NewReceiptStore,
 		NewRetrievalJournal,
@@ -55,8 +48,8 @@ var Module = fx.Module("memory-store",
 		NewConsolidationStore,
 		fx.Annotate(
 			NewPDPStore,
-			// tagged as pdp_store since PDPStore is now an alias to Blobstore
-			fx.ResultTags(`name:"pdp_store"`),
+			fx.As(fx.Self()),
+			fx.As(new(blobstore.BlobGetter)),
 		),
 	),
 )
@@ -73,10 +66,6 @@ func NewAllocationStore() allocationstore.AllocationStore {
 func NewAcceptanceStore() acceptancestore.AcceptanceStore {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	return acceptancestore.NewDatastoreStore(ds)
-}
-
-func NewBlobStore() blobstore.Blobstore {
-	return blobstore.NewDatastoreStore(sync.MutexWrap(datastore.NewMapDatastore()))
 }
 
 func NewClaimStore() claimstore.ClaimStore {

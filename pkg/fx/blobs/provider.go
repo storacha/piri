@@ -33,23 +33,27 @@ var Module = fx.Module("blobs",
 	),
 )
 
-func NewService(
-	cfg app.AppConfig,
-	id principal.Signer,
-	ps presigner.RequestPresigner,
-	blobStore blobstore.Blobstore,
-	allocationStore allocationstore.AllocationStore,
-	acceptanceStore acceptancestore.AcceptanceStore,
-) (*blobs.BlobService, error) {
-	if cfg.Server.PublicURL.Scheme == "" {
+type NewServiceParams struct {
+	fx.In
+
+	Cfg             app.AppConfig
+	ID              principal.Signer
+	PS              presigner.RequestPresigner
+	BlobStore       blobstore.Blobstore
+	AllocationStore allocationstore.AllocationStore
+	AcceptanceStore acceptancestore.AcceptanceStore
+}
+
+func NewService(params NewServiceParams) (*blobs.BlobService, error) {
+	if params.Cfg.Server.PublicURL.Scheme == "" {
 		return nil, fmt.Errorf("public URL required for blob service")
 	}
 
-	if !id.DID().Defined() {
+	if !params.ID.DID().Defined() {
 		return nil, fmt.Errorf("invalid DID for blob service")
 	}
 
-	accessURL := cfg.Server.PublicURL
+	accessURL := params.Cfg.Server.PublicURL
 	accessURL.Path = "/blob"
 	ap, err := access.NewPatternAccess(fmt.Sprintf("%s/{blob}", accessURL.String()))
 	if err != nil {
@@ -58,9 +62,9 @@ func NewService(
 
 	return blobs.New(
 		blobs.WithAccess(ap),
-		blobs.WithPresigner(ps),
-		blobs.WithBlobstore(blobStore),
-		blobs.WithAllocationStore(allocationStore),
-		blobs.WithAcceptanceStore(acceptanceStore),
+		blobs.WithPresigner(params.PS),
+		blobs.WithBlobstore(params.BlobStore),
+		blobs.WithAllocationStore(params.AllocationStore),
+		blobs.WithAcceptanceStore(params.AcceptanceStore),
 	)
 }
