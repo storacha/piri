@@ -22,10 +22,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 # Runtime stage - alpine for wget healthchecks per RFC
 FROM alpine:latest AS prod
 
-# Create non-root user
-RUN adduser -D -H appuser
-
-USER appuser
+USER nobody
 
 # Copy binary from build stage
 COPY --from=build /app /usr/bin/piri
