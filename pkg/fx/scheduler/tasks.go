@@ -88,7 +88,7 @@ type PDPProveTaskParams struct {
 	Chain     service.ChainClient
 	Scheduler *chainsched.Scheduler
 	Sender    ethereum.Sender
-	Store     blobstore.PDPStore `name:"pdp_store"`
+	Store     blobstore.PDPStore
 	Reader    types.PieceReaderAPI
 	Resolver  types.PieceResolverAPI
 }

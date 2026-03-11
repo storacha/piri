@@ -44,18 +44,13 @@ var Module = fx.Module("s3-store",
 		),
 		NewAllocationStore,
 		NewAcceptanceStore,
-		fx.Annotate(
-			NewBlobStore,
-			fx.As(fx.Self()),
-			fx.As(new(blobstore.BlobGetter)),
-		),
 		NewClaimStore,
 		NewReceiptStore,
 		NewRetrievalJournal,
 		fx.Annotate(
 			NewPDPStore,
-			// tagged as pdp_store since PDPStore is now an alias to Blobstore
-			fx.ResultTags(`name:"pdp_store"`),
+			fx.As(fx.Self()),
+			fx.As(new(blobstore.BlobGetter)),
 		),
 		NewConsolidationStore,
 		// Note: KeyStore is NOT provided here - it must always be on disk
@@ -65,7 +60,6 @@ var Module = fx.Module("s3-store",
 // Stores holds all S3/MinIO store instances for different store types.
 // Each store uses a separate bucket named with the configured prefix.
 type Stores struct {
-	Blobs         *minio_store.Store
 	Allocations   *minio_store.Store
 	Acceptances   *minio_store.Store
 	Claims        *minio_store.Store
@@ -76,7 +70,6 @@ type Stores struct {
 
 // NewStores creates S3/MinIO stores for each store type.
 // Each store gets its own bucket named with the configured prefix:
-// - {prefix}blobs
 // - {prefix}allocations
 // - {prefix}acceptances
 // - {prefix}claims
@@ -103,9 +96,6 @@ func NewStores(cfg app.StorageConfig) (*Stores, error) {
 	var err error
 
 	// Create a store for each bucket
-	if stores.Blobs, err = minio_store.New(endpoint, prefix+"blobs", options); err != nil {
-		return nil, fmt.Errorf("creating blobs s3 store: %w", err)
-	}
 	if stores.Allocations, err = minio_store.New(endpoint, prefix+"allocations", options); err != nil {
 		return nil, fmt.Errorf("creating allocations s3 store: %w", err)
 	}
@@ -208,10 +198,6 @@ func NewAcceptanceStore(stores *Stores) acceptancestore.AcceptanceStore {
 	return acceptancestore.NewS3Store(stores.Acceptances)
 }
 
-func NewBlobStore(stores *Stores) blobstore.Blobstore {
-	return blobstore.NewS3Store(stores.Blobs)
-}
-
 func NewClaimStore(stores *Stores) claimstore.ClaimStore {
 	return delegationstore.NewS3Store(stores.Claims)
 }
@@ -239,7 +225,7 @@ func NewRetrievalJournal(storeCfg app.EgressTrackerStorageConfig, svcCfg app.UCA
 	return rj, nil
 }
 
-// NewPDPStore is annotated with name:"pdp_store" in the module.
+// NewPDPStore provides the blob store. It also satisfies blobstore.BlobGetter.
 func NewPDPStore(stores *Stores) blobstore.Blobstore {
 	return blobstore.NewS3Store(stores.PDP)
 }

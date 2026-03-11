@@ -45,13 +45,6 @@ var Module = fx.Module("filesystem-store",
 		),
 		NewAllocationStore,
 		NewAcceptanceStore,
-		fx.Annotate(
-			NewBlobStore,
-			// provide as Blobstore (self)
-			fx.As(fx.Self()),
-			// provide sub-interfaces of Blobstore
-			fx.As(new(blobstore.BlobGetter)),
-		),
 		NewClaimStore,
 		NewReceiptStore,
 		NewRetrievalJournal,
@@ -59,8 +52,8 @@ var Module = fx.Module("filesystem-store",
 		NewConsolidationStore,
 		fx.Annotate(
 			NewPDPStore,
-			// tagged as pdp_store since PDPStore is now an alias to Blobstore
-			fx.ResultTags(`name:"pdp_store"`),
+			fx.As(fx.Self()),
+			fx.As(new(blobstore.BlobGetter)),
 		),
 	),
 )
@@ -159,22 +152,6 @@ func NewAcceptanceStore(cfg app.AcceptanceStorageConfig, lc fx.Lifecycle) (accep
 	})
 
 	return acceptancestore.NewDatastoreStore(ds), nil
-}
-
-func NewBlobStore(cfg app.BlobStorageConfig, lc fx.Lifecycle) (blobstore.Blobstore, error) {
-	if cfg.Dir == "" {
-		return nil, fmt.Errorf("no data dir provided for blob store")
-	}
-	objStore, err := flatfs.New(cfg.Dir, flatfs.NextToLast(2), false)
-	if err != nil {
-		return nil, fmt.Errorf("creating blob object store: %w", err)
-	}
-	lc.Append(fx.Hook{
-		OnStop: func(ctx context.Context) error {
-			return objStore.Close()
-		},
-	})
-	return blobstore.NewFlatfsStore(objStore), nil
 }
 
 func NewClaimStore(cfg app.ClaimStorageConfig, lc fx.Lifecycle) (claimstore.ClaimStore, error) {
