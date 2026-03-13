@@ -27,6 +27,36 @@ type S3Config struct {
 	Insecure     bool        `mapstructure:"insecure" toml:"insecure,omitempty"`
 }
 
+// IsConfigured returns true if any S3 configuration is provided.
+func (c *S3Config) IsConfigured() bool {
+	if c == nil {
+		return false
+	}
+	return c.Endpoint != "" || c.BucketPrefix != "" ||
+		c.Credentials.AccessKeyID != "" || c.Credentials.SecretAccessKey != "" ||
+		c.Insecure
+}
+
+// Validate checks that S3 configuration is complete.
+// Returns an error if S3 is partially configured (e.g., endpoint without bucket_prefix).
+func (c *S3Config) Validate() error {
+	if c == nil {
+		return nil
+	}
+	// Check if any S3 config is provided
+	if !c.IsConfigured() {
+		return nil
+	}
+	// If any S3 config is provided, endpoint and bucket_prefix are required
+	if c.Endpoint == "" {
+		return errors.New("s3 endpoint is required when S3 storage is configured")
+	}
+	if c.BucketPrefix == "" {
+		return errors.New("s3 bucket_prefix is required when S3 storage is configured")
+	}
+	return nil
+}
+
 // DatabaseConfig configures the database backend.
 type DatabaseConfig struct {
 	// Type is the database backend: "sqlite" (default) or "postgres"
@@ -110,6 +140,11 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		return app.StorageConfig{}, fmt.Errorf("database config: %w", err)
 	}
 
+	// Validate S3 config if provided
+	if err := r.S3.Validate(); err != nil {
+		return app.StorageConfig{}, fmt.Errorf("s3 config: %w", err)
+	}
+
 	if r.DataDir == "" {
 		// Return empty config for memory stores
 		return app.StorageConfig{
@@ -171,8 +206,8 @@ func (r RepoConfig) ToAppConfig() (app.StorageConfig, error) {
 		},
 	}
 
-	// Copy global S3 config if present
-	if r.S3 != nil && r.S3.Endpoint != "" && r.S3.BucketPrefix != "" {
+	// Copy S3 config if configured (already validated above)
+	if r.S3.IsConfigured() {
 		out.S3 = &app.S3Config{
 			Endpoint:     r.S3.Endpoint,
 			BucketPrefix: r.S3.BucketPrefix,
