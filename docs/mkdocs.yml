@@ -120,6 +120,10 @@ nav:
                   - list: cli/client/admin/log/list.md
                   - set: cli/client/admin/log/set.md
                   - set-regex: cli/client/admin/log/set-regex.md
+              - payment:
+                  - cli/client/admin/payment/index.md
+                  - account: cli/client/admin/payment/account.md
+                  - status: cli/client/admin/payment/status.md
           - pdp:
               - cli/client/pdp/index.md
               - proofset:

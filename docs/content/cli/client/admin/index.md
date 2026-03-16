@@ -17,3 +17,7 @@ Manage dynamic configuration.
 ### [log](log/index.md)
 
 Manage logging levels.
+
+### [payment](payment/index.md)
+
+Manage payment account.
