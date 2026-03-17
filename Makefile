@@ -4,7 +4,7 @@ DATE=$(shell date -u -Iseconds)
 GOFLAGS=-ldflags="-X github.com/storacha/piri/pkg/build.version=$(VERSION) -X github.com/storacha/piri/pkg/build.Commit=$(COMMIT) -X github.com/storacha/piri/pkg/build.Date=$(DATE) -X github.com/storacha/piri/pkg/build.BuiltBy=make"
 TAGS?=
 
-.PHONY: all build install test clean calibnet mockgen check-docs-links
+.PHONY: all build install test test-e2e clean calibnet mockgen check-docs-links
 
 all: build
 
@@ -25,6 +25,9 @@ install:
 
 test:
 	go test ./...
+
+test-e2e:
+	go test -v -tags e2e -timeout 30m ./smelt-tests/...
 
 clean:
 	rm -f ./piri

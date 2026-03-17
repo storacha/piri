@@ -1945,6 +1945,8 @@ github.com/storacha/smelt v0.0.2-0.20260316141239-e0550e622ed0 h1:No6jicMxH/R+p1
 github.com/storacha/smelt v0.0.2-0.20260316141239-e0550e622ed0/go.mod h1:0Q7wn3SM2BrO0elR3DkGogAqGbvhWthCl3oQFC4LX8E=
 github.com/storacha/smelt v0.0.2-0.20260317161927-3aefe660356c h1:0MkB3vXtVnL1VgXkrf4GSoPWuD5RFnzGblk4iAipGnc=
 github.com/storacha/smelt v0.0.2-0.20260317161927-3aefe660356c/go.mod h1:0Q7wn3SM2BrO0elR3DkGogAqGbvhWthCl3oQFC4LX8E=
+github.com/storacha/smelt v0.0.2-0.20260317222037-53198c3af74e h1:5ncmtaGbvkfTrtNTBE4QWbCPvUp8G3ZtaXVGk9M3VC4=
+github.com/storacha/smelt v0.0.2-0.20260317222037-53198c3af74e/go.mod h1:0Q7wn3SM2BrO0elR3DkGogAqGbvhWthCl3oQFC4LX8E=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.2.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=

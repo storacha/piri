@@ -1,3 +1,5 @@
+//go:build e2e
+
 package smelt_tests
 
 import (
@@ -77,8 +79,8 @@ func TestUploadAndRetrieve(t *testing.T) {
 			}
 			t.Logf("Created space: %s", spaceDID)
 
-			// Generate test data inside container (10KB)
-			dataPath, err := gup.GenerateTestData(ctx, "10KB")
+			// Generate test data inside container (10MB)
+			dataPath, err := gup.GenerateTestData(ctx, "10MB")
 			if err != nil {
 				t.Fatalf("failed to generate test data: %v", err)
 			}
