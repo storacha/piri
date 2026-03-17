@@ -1941,8 +1941,10 @@ github.com/storacha/go-ucanto v0.7.2 h1:sLg+swDM/6VEcrb9VOik3hP8ek3NvqqKWiZRmsva
 github.com/storacha/go-ucanto v0.7.2/go.mod h1:DZlWyzuSkXk3phAuJpGDyhxYWpJogW1RFqp/VfldT64=
 github.com/storacha/piri-signing-service v0.0.2-0.20251117211248-71ca808befa6 h1:AnYL91PBIOvtYHCGZOfsDwPjZfan+BQRymdD8Xzv/Ys=
 github.com/storacha/piri-signing-service v0.0.2-0.20251117211248-71ca808befa6/go.mod h1:sd7xSxbvFL8UMrVr4VKqjr5smtrlam2/rf2ijMa9sV0=
-github.com/storacha/smelt v0.0.1 h1:WPyRME1MHh5UcPNeFMEizRpjyJJZJDOM7ax0fKsjzdk=
-github.com/storacha/smelt v0.0.1/go.mod h1:+sDY9A5t4YuFc+Cs0AF2JRZ7irkqkZp8MQVGmtBFGkI=
+github.com/storacha/smelt v0.0.2-0.20260316141239-e0550e622ed0 h1:No6jicMxH/R+p1rJIxd8CR/CGMITz2C8vmBNXBhwSEo=
+github.com/storacha/smelt v0.0.2-0.20260316141239-e0550e622ed0/go.mod h1:0Q7wn3SM2BrO0elR3DkGogAqGbvhWthCl3oQFC4LX8E=
+github.com/storacha/smelt v0.0.2-0.20260317161927-3aefe660356c h1:0MkB3vXtVnL1VgXkrf4GSoPWuD5RFnzGblk4iAipGnc=
+github.com/storacha/smelt v0.0.2-0.20260317161927-3aefe660356c/go.mod h1:0Q7wn3SM2BrO0elR3DkGogAqGbvhWthCl3oQFC4LX8E=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.2.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=

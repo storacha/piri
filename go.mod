@@ -73,7 +73,7 @@ require (
 	github.com/storacha/go-libstoracha v0.6.3
 	github.com/storacha/go-ucanto v0.7.2
 	github.com/storacha/piri-signing-service v0.0.2-0.20251117211248-71ca808befa6
-	github.com/storacha/smelt v0.0.1
+	github.com/storacha/smelt v0.0.2-0.20260317161927-3aefe660356c
 	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/testcontainers/testcontainers-go v0.40.0
@@ -273,6 +273,7 @@ require (
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/libp2p/go-flow-metrics v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-pubsub v0.13.1 // indirect
 	github.com/libp2p/go-msgio v0.3.0 // indirect
