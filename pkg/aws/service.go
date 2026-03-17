@@ -279,7 +279,6 @@ func Construct(cfg Config) (storage.Service, error) {
 	acceptanceStore := NewDynamoAcceptanceStore(cfg.Config, cfg.AcceptanceTableName, cfg.DynamoOptions...)
 	claimStore := delegationstore.New(
 		NewSimpleStoreObjectAdapter(NewS3Store(cfg.Config, cfg.ClaimStoreBucket, cfg.ClaimStorePrefix, cfg.S3Options...)),
-		"",
 		delegationstore.S3KeyEncoder{},
 	)
 	ipniStore := NewS3Store(cfg.Config, cfg.IPNIStoreBucket, cfg.IPNIStorePrefix, cfg.S3Options...)
@@ -315,7 +314,6 @@ func Construct(cfg Config) (storage.Service, error) {
 	s3ReceiptStore := NewS3Store(cfg.Config, cfg.ReceiptStoreBucket, cfg.ReceiptStorePrefix, cfg.S3Options...)
 	receiptStore := receiptstore.New(
 		NewSimpleStoreObjectAdapter(s3ReceiptStore),
-		"",
 		receiptstore.S3KeyEncoder{},
 		ranLinkIndex,
 	)

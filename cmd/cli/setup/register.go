@@ -61,6 +61,8 @@ func init() {
 		"",
 		fmt.Sprintf("Network the node will operate on. This will set default values for service URLs and DIDs and contract addresses. Available values are: %q", presets.AvailableNetworks),
 	)
+
+	// Required flags
 	InitCmd.Flags().String("host", "localhost", "Host Piri listens for connections on")
 	InitCmd.Flags().Uint("port", 3000, "Port Piri listens for connections on")
 	InitCmd.Flags().String("data-dir", "", "Path to a data directory Piri will maintain its permanent state in")
@@ -79,24 +81,12 @@ func init() {
 	cobra.CheckErr(InitCmd.MarkFlagRequired("operator-email"))
 	cobra.CheckErr(InitCmd.MarkFlagRequired("public-url"))
 
-	InitCmd.Flags().String(
-		"registrar-url",
-		"",
-		"[Advanced] URL of the registrar service. Required when using --base-config.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("registrar-url"))
-
-	InitCmd.Flags().String(
-		"base-config",
-		"",
-		"[Advanced] Path to base TOML config for custom environments. Merged with generated values.")
-	cobra.CheckErr(InitCmd.Flags().MarkHidden("base-config"))
-
 	// Database configuration flags
-	InitCmd.Flags().String("db-type", "", "Database backend: 'sqlite' (default) or 'postgres'")
+	InitCmd.Flags().String("db-type", "sqlite", "Database backend: 'sqlite' (default) or 'postgres'")
 	InitCmd.Flags().String("db-postgres-url", "", "PostgreSQL connection URL (required when db-type=postgres)")
-	InitCmd.Flags().Int("db-postgres-max-open-conns", 0, "PostgreSQL max open connections (default: 5)")
-	InitCmd.Flags().Int("db-postgres-max-idle-conns", 0, "PostgreSQL max idle connections (default: 5)")
-	InitCmd.Flags().String("db-postgres-conn-max-lifetime", "", "PostgreSQL connection max lifetime (e.g. '30m')")
+	InitCmd.Flags().Int("db-postgres-max-open-conns", 5, "PostgreSQL max open connections (default: 5)")
+	InitCmd.Flags().Int("db-postgres-max-idle-conns", 5, "PostgreSQL max idle connections (default: 5)")
+	InitCmd.Flags().String("db-postgres-conn-max-lifetime", "30m", "PostgreSQL connection max lifetime (e.g. '30m')")
 
 	// S3 storage configuration flags
 	InitCmd.Flags().String("s3-endpoint", "", "S3-compatible storage endpoint (e.g. minio.example.com:9000)")
@@ -104,6 +94,27 @@ func init() {
 	InitCmd.Flags().String("s3-access-key-id", "", "S3 access key ID")
 	InitCmd.Flags().String("s3-secret-access-key", "", "S3 secret access key")
 	InitCmd.Flags().Bool("s3-insecure", false, "Disable SSL for S3 (development only)")
+	// these flags must be provided together
+	InitCmd.MarkFlagsRequiredTogether("s3-endpoint", "s3-bucket-prefix")
+
+	InitCmd.Flags().String(
+		"registrar-url",
+		"",
+		"[Advanced] URL of the registrar service. Required when using --base-config.")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("registrar-url"))
+
+	// base-config provides an alternative to --network for custom or local development environments.
+	// It defines the network identity: which blockchain (chain ID), which smart contracts to interact
+	// with, and which Storacha services (signing, upload, indexer, etc.) to connect to.
+	// It may also optionally include storage backend configuration (database type, S3 settings)
+	// which will be used unless overridden by explicit flags.
+	InitCmd.Flags().String(
+		"base-config",
+		"",
+		"[Advanced] Path to network config TOML defining chain ID, contract addresses, and service endpoints. Use instead of --network for custom/local environments. May include storage backend settings (database, S3).")
+	cobra.CheckErr(InitCmd.Flags().MarkHidden("base-config"))
+	// cannot use base-config and network flag together since both define network identity
+	InitCmd.MarkFlagsMutuallyExclusive("base-config", "network")
 
 	InitCmd.SetOut(os.Stdout)
 	InitCmd.SetErr(os.Stderr)
@@ -162,7 +173,7 @@ type baseConfigValues struct {
 
 // baseConfig represents the structure of the base config TOML file
 type baseConfig struct {
-	Network string         `toml:"network"` // for telemetry identification only
+	Network string         `toml:"network"`
 	PDP     basePDPConfig  `toml:"pdp"`
 	UCAN    baseUCANConfig `toml:"ucan"`
 	Repo    baseRepoConfig `toml:"repo"`
@@ -437,13 +448,26 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading --s3-bucket-prefix: %w", err)
 	}
-	s3AccessKeyID, _ := cmd.Flags().GetString("s3-access-key-id")
-	s3SecretAccessKey, _ := cmd.Flags().GetString("s3-secret-access-key")
-	s3Insecure, _ := cmd.Flags().GetBool("s3-insecure")
+	s3AccessKeyID, err := cmd.Flags().GetString("s3-access-key-id")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --s3-access-key-id: %w", err)
+	}
+	s3SecretAccessKey, err := cmd.Flags().GetString("s3-secret-access-key")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --s3-secret-access-key: %w", err)
+	}
+	s3Insecure, err := cmd.Flags().GetBool("s3-insecure")
+	if err != nil {
+		return nil, fmt.Errorf("error reading --s3-insecure: %w", err)
+	}
 
-	// Check if any S3 flag is provided
-	anyS3Flag := s3Endpoint != "" || s3BucketPrefix != "" || s3AccessKeyID != "" || s3SecretAccessKey != "" || s3Insecure
-	if anyS3Flag {
+	// Check if user explicitly provided any S3 flag
+	s3FlagsChanged := cmd.Flags().Changed("s3-endpoint") ||
+		cmd.Flags().Changed("s3-bucket-prefix") ||
+		cmd.Flags().Changed("s3-access-key-id") ||
+		cmd.Flags().Changed("s3-secret-access-key") ||
+		cmd.Flags().Changed("s3-insecure")
+	if s3FlagsChanged {
 		// Both endpoint and bucket-prefix are required when using S3
 		if s3Endpoint == "" {
 			return nil, fmt.Errorf("--s3-endpoint is required when using S3 storage")
@@ -465,12 +489,13 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		}
 	}
 
-	// Database configuration
+	// Database configuration - only if user explicitly provided --db-type flag
 	dbType, err := cmd.Flags().GetString("db-type")
 	if err != nil {
 		return nil, fmt.Errorf("error reading --db-type: %w", err)
 	}
-	if dbType != "" {
+	dbFlagsChanged := cmd.Flags().Changed("db-type")
+	if dbFlagsChanged {
 		if dbType != "sqlite" && dbType != "postgres" {
 			return nil, fmt.Errorf("--db-type must be 'sqlite' or 'postgres', got %q", dbType)
 		}
@@ -494,9 +519,18 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 			}
 
 			storage.database.Postgres.URL = postgresURL
-			storage.database.Postgres.MaxOpenConns, _ = cmd.Flags().GetInt("db-postgres-max-open-conns")
-			storage.database.Postgres.MaxIdleConns, _ = cmd.Flags().GetInt("db-postgres-max-idle-conns")
-			storage.database.Postgres.ConnMaxLifetime, _ = cmd.Flags().GetString("db-postgres-conn-max-lifetime")
+			storage.database.Postgres.MaxOpenConns, err = cmd.Flags().GetInt("db-postgres-max-open-conns")
+			if err != nil {
+				return nil, fmt.Errorf("error reading --db-postgres-max-open-conns: %w", err)
+			}
+			storage.database.Postgres.MaxIdleConns, err = cmd.Flags().GetInt("db-postgres-max-idle-conns")
+			if err != nil {
+				return nil, fmt.Errorf("error reading --db-postgres-max-idle-conns: %w", err)
+			}
+			storage.database.Postgres.ConnMaxLifetime, err = cmd.Flags().GetString("db-postgres-conn-max-lifetime")
+			if err != nil {
+				return nil, fmt.Errorf("error reading --db-postgres-conn-max-lifetime: %w", err)
+			}
 
 			// Validate duration format if provided
 			if storage.database.Postgres.ConnMaxLifetime != "" {
@@ -507,18 +541,29 @@ func parseAndValidateFlags(cmd *cobra.Command) (*initFlags, error) {
 		}
 	}
 
-	// Merge with base-config (flags take precedence)
-	if storage == nil && baseValues != nil {
-		if baseValues.s3Config != nil || baseValues.database.Type != "" {
-			// Validate S3 config from base-config
+	// Merge with base-config (flags take precedence per-setting)
+	if baseValues != nil {
+		if storage == nil {
+			storage = &storageConfig{}
+		}
+
+		// Use base-config S3 if no S3 flags were explicitly provided
+		if !s3FlagsChanged && baseValues.s3Config != nil {
 			if err := baseValues.s3Config.Validate(); err != nil {
 				return nil, fmt.Errorf("base-config s3: %w", err)
 			}
-			storage = &storageConfig{
-				database: baseValues.database,
-				s3:       baseValues.s3Config,
-			}
+			storage.s3 = baseValues.s3Config
 		}
+
+		// Use base-config database if --db-type was not explicitly set
+		if !dbFlagsChanged && baseValues.database.Type != "" {
+			storage.database = baseValues.database
+		}
+	}
+
+	// Apply default database type if still not set
+	if storage != nil && storage.database.Type == "" {
+		storage.database.Type = "sqlite"
 	}
 
 	return &initFlags{

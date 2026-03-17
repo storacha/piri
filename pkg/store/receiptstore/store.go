@@ -56,10 +56,10 @@ type Store struct {
 
 var _ ReceiptStore = (*Store)(nil)
 
-// New creates a ReceiptStore with the given backend, prefix, key encoder, and ran link index.
-func New(backend objectstore.ListableStore, prefix string, encoder KeyEncoder, ranLinkIndex RanLinkIndex) *Store {
+// New creates a ReceiptStore with the given backend,  key encoder, and ran link index.
+func New(backend objectstore.ListableStore, encoder KeyEncoder, ranLinkIndex RanLinkIndex) *Store {
 	return &Store{
-		store:        genericstore.New[receipt.AnyReceipt](backend, prefix, Codec{}),
+		store:        genericstore.New[receipt.AnyReceipt](backend, Codec{}),
 		ranLinkIndex: ranLinkIndex,
 		encoder:      encoder,
 	}
@@ -195,7 +195,6 @@ func (idx *DatastoreRanLinkIndex) Get(ctx context.Context, ran datamodel.Link) (
 func NewS3Store(backend *minio.Store) *Store {
 	return New(
 		backend,
-		"receipts/",
 		S3KeyEncoder{},
 		&S3RanLinkIndex{store: backend, prefix: "receipts-ran/"},
 	)
@@ -207,7 +206,6 @@ func NewDatastoreStore(ds datastore.Datastore) *Store {
 	ranIndexDs := namespace.Wrap(ds, datastore.NewKey("ranLinkIndex/"))
 	return New(
 		dsadapter.New(receiptsDs),
-		"",
 		DatastoreKeyEncoder{},
 		&DatastoreRanLinkIndex{ds: ranIndexDs},
 	)

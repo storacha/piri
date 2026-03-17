@@ -59,10 +59,10 @@ type consolidationStore struct {
 
 var _ Store = (*consolidationStore)(nil)
 
-// New creates a ConsolidationStore with the given backend, prefix, key encoder, and legacy reader.
-func New(backend objectstore.ListableStore, prefix string, encoder KeyEncoder, legacy LegacyReader) *consolidationStore {
+// New creates a ConsolidationStore with the given backend, key encoder, and legacy reader.
+func New(backend objectstore.ListableStore, encoder KeyEncoder, legacy LegacyReader) *consolidationStore {
 	return &consolidationStore{
-		store:   genericstore.New[consolidation.Consolidation](backend, prefix, consolidation.Codec{}),
+		store:   genericstore.New[consolidation.Consolidation](backend, consolidation.Codec{}),
 		encoder: encoder,
 		legacy:  legacy,
 	}
@@ -132,7 +132,6 @@ func (s *consolidationStore) Delete(ctx context.Context, batchCID cid.Cid) error
 func NewS3Store(backend *minio.Store) *consolidationStore {
 	return New(
 		backend,
-		"consolidations/",
 		S3KeyEncoder{},
 		NoOpLegacyReader{}, // S3 never had legacy data
 	)
@@ -144,7 +143,6 @@ func NewS3Store(backend *minio.Store) *consolidationStore {
 func NewDatastoreStore(ds datastore.Datastore) *consolidationStore {
 	return New(
 		dsadapter.New(ds),
-		"",
 		DatastoreKeyEncoder{},
 		NewDatastoreLegacyReader(ds),
 	)

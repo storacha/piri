@@ -20,25 +20,46 @@ type Codec[T any] interface {
 
 // Store is a generic key-value store backed by a ListableStore.
 type Store[T any] struct {
-	backend objectstore.ListableStore
-	prefix  string
-	codec   Codec[T]
+	backend   objectstore.ListableStore
+	namespace string
+	codec     Codec[T]
+}
+
+// Config holds configuration options for a generic store.
+type Config struct {
+	namespace string
+}
+
+// Option is a functional option for configuring a generic store.
+type Option func(*Config)
+
+// WithNamespace sets a key namespace that is prepended to all keys.
+// This is useful when multiple logical stores share a single bucket.
+func WithNamespace(namespace string) Option {
+	return func(c *Config) {
+		c.namespace = namespace
+	}
 }
 
 // New creates a new generic store.
-// The prefix is prepended to all keys when storing/retrieving from the backend.
-func New[T any](backend objectstore.ListableStore, prefix string, codec Codec[T]) *Store[T] {
+// By default, no namespace is used. Use WithNamespace to add a key namespace
+// when multiple stores share the same backend.
+func New[T any](backend objectstore.ListableStore, codec Codec[T], opts ...Option) *Store[T] {
+	cfg := &Config{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	return &Store[T]{
-		backend: backend,
-		prefix:  prefix,
-		codec:   codec,
+		backend:   backend,
+		namespace: cfg.namespace,
+		codec:     codec,
 	}
 }
 
 // Get retrieves a value by its key.
 func (s *Store[T]) Get(ctx context.Context, key string) (T, error) {
 	var zero T
-	obj, err := s.backend.Get(ctx, s.prefix+key)
+	obj, err := s.backend.Get(ctx, s.namespace+key)
 	if err != nil {
 		if errors.Is(err, objectstore.ErrNotExist) {
 			return zero, store.ErrNotFound
@@ -62,7 +83,7 @@ func (s *Store[T]) Put(ctx context.Context, key string, value T) error {
 		return fmt.Errorf("encoding value: %w", err)
 	}
 
-	err = s.backend.Put(ctx, s.prefix+key, uint64(len(data)), bytes.NewReader(data))
+	err = s.backend.Put(ctx, s.namespace+key, uint64(len(data)), bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("storing %s: %w", key, err)
 	}
@@ -72,17 +93,17 @@ func (s *Store[T]) Put(ctx context.Context, key string, value T) error {
 
 // Delete removes a value by its key.
 func (s *Store[T]) Delete(ctx context.Context, key string) error {
-	return s.backend.Delete(ctx, s.prefix+key)
+	return s.backend.Delete(ctx, s.namespace+key)
 }
 
 // Exists checks if a key exists (exact match).
 func (s *Store[T]) Exists(ctx context.Context, key string) (bool, error) {
-	return s.backend.Exists(ctx, s.prefix+key)
+	return s.backend.Exists(ctx, s.namespace+key)
 }
 
 // ExistsWithPrefix checks if any key with the given prefix exists.
 func (s *Store[T]) ExistsWithPrefix(ctx context.Context, keyPrefix string) (bool, error) {
-	for _, err := range s.backend.ListPrefix(ctx, s.prefix+keyPrefix) {
+	for _, err := range s.backend.ListPrefix(ctx, s.namespace+keyPrefix) {
 		if err != nil {
 			return false, err
 		}
@@ -121,7 +142,7 @@ func (s *Store[T]) ListPrefix(ctx context.Context, keyPrefix string) iter.Seq2[T
 	return func(yield func(T, error) bool) {
 		var zero T
 
-		for key, err := range s.backend.ListPrefix(ctx, s.prefix+keyPrefix) {
+		for key, err := range s.backend.ListPrefix(ctx, s.namespace+keyPrefix) {
 			if err != nil {
 				yield(zero, fmt.Errorf("listing prefix %s: %w", keyPrefix, err))
 				return

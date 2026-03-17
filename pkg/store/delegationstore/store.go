@@ -36,10 +36,10 @@ type Store struct {
 
 var _ DelegationStore = (*Store)(nil)
 
-// New creates a DelegationStore with the given backend, prefix, and key encoder.
-func New(backend objectstore.ListableStore, prefix string, encoder KeyEncoder) *Store {
+// New creates a DelegationStore with the given backend and key encoder.
+func New(backend objectstore.ListableStore, encoder KeyEncoder) *Store {
 	return &Store{
-		store:   genericstore.New[delegation.Delegation](backend, prefix, Codec{}),
+		store:   genericstore.New[delegation.Delegation](backend, Codec{}),
 		encoder: encoder,
 	}
 }
@@ -84,11 +84,11 @@ func (DatastoreKeyEncoder) EncodeKey(link ucan.Link) string {
 // NewS3Store creates a DelegationStore for S3/MinIO backends.
 // Delegations are stored with keys formatted as "delegations/{cid}".
 func NewS3Store(backend *minio.Store) *Store {
-	return New(backend, "delegations/", S3KeyEncoder{})
+	return New(backend, S3KeyEncoder{})
 }
 
 // NewDatastoreStore creates a DelegationStore for LevelDB/datastore backends.
 // Delegations are stored with keys formatted as "{cid}".
 func NewDatastoreStore(ds datastore.Datastore) *Store {
-	return New(dsadapter.New(ds), "", DatastoreKeyEncoder{})
+	return New(dsadapter.New(ds), DatastoreKeyEncoder{})
 }
