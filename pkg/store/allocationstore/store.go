@@ -50,10 +50,10 @@ type Store struct {
 
 var _ AllocationStore = (*Store)(nil)
 
-// New creates an AllocationStore with the given backend, prefix, and key encoder.
-func New(backend objectstore.ListableStore, prefix string, encoder KeyEncoder) *Store {
+// New creates an AllocationStore with the given backend and key encoder.
+func New(backend objectstore.ListableStore, encoder KeyEncoder) *Store {
 	return &Store{
-		store:   genericstore.New[allocation.Allocation](backend, prefix, allocation.Codec{}),
+		store:   genericstore.New[allocation.Allocation](backend, allocation.Codec{}),
 		encoder: encoder,
 	}
 }
@@ -117,11 +117,11 @@ func (DatastoreKeyEncoder) EncodeKeyPrefix(digest multihash.Multihash) string {
 // NewS3Store creates an AllocationStore for S3/MinIO backends.
 // Allocations are stored with keys formatted as "allocations/{digest}/{space}.cbor".
 func NewS3Store(backend *minio.Store) *Store {
-	return New(backend, "allocations/", S3KeyEncoder{})
+	return New(backend, S3KeyEncoder{})
 }
 
 // NewDatastoreStore creates an AllocationStore for LevelDB/datastore backends.
 // Allocations are stored with keys formatted as "{digest}/{space}".
 func NewDatastoreStore(ds datastore.Datastore) *Store {
-	return New(dsadapter.New(ds), "", DatastoreKeyEncoder{})
+	return New(dsadapter.New(ds), DatastoreKeyEncoder{})
 }

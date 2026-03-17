@@ -64,6 +64,51 @@ var KeyStoreModule = fx.Module("filesystem-keystore",
 	fx.Provide(NewKeyStore),
 )
 
+// LocalOnlyModule provides stores that must always be local (filesystem-based).
+// These stores cannot be backed by S3 due to their usage patterns:
+// - AggregatorDatastore: high-frequency state for PDP aggregation
+// - PublisherStore: IPNI advertisement chain state
+// - RetrievalJournal: periodic filesystem-based journal with GC
+// - KeyStore: private keys must never leave disk
+//
+// Use this module alongside s3.Module when S3 is configured.
+var LocalOnlyModule = fx.Module("local-only-store",
+	fx.Provide(
+		ProvideLocalOnlyConfigs,
+		fx.Annotate(
+			NewAggregatorDatastore,
+			fx.ResultTags(`name:"aggregator_datastore"`),
+		),
+		fx.Annotate(
+			NewPublisherStore,
+			fx.As(fx.Self()),
+			fx.As(new(store.PublisherStore)),
+			fx.As(new(store.EncodeableStore)),
+		),
+		NewRetrievalJournal,
+		NewKeyStore,
+	),
+)
+
+// LocalOnlyConfigs provides configs needed by LocalOnlyModule stores.
+type LocalOnlyConfigs struct {
+	fx.Out
+	Aggregator    app.AggregatorStorageConfig
+	Publisher     app.PublisherStorageConfig
+	EgressTracker app.EgressTrackerStorageConfig
+	KeyStore      app.KeyStoreConfig
+}
+
+// ProvideLocalOnlyConfigs extracts configs for local-only stores.
+func ProvideLocalOnlyConfigs(cfg app.StorageConfig) LocalOnlyConfigs {
+	return LocalOnlyConfigs{
+		Aggregator:    cfg.Aggregator,
+		Publisher:     cfg.Publisher,
+		EgressTracker: cfg.EgressTracker,
+		KeyStore:      cfg.KeyStore,
+	}
+}
+
 type Configs struct {
 	fx.Out
 	Aggregator    app.AggregatorStorageConfig

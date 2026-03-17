@@ -45,10 +45,10 @@ type Store struct {
 
 var _ AcceptanceStore = (*Store)(nil)
 
-// New creates an AcceptanceStore with the given backend, prefix, and key encoder.
-func New(backend objectstore.ListableStore, prefix string, encoder KeyEncoder) *Store {
+// New creates an AcceptanceStore with the given backend and key encoder.
+func New(backend objectstore.ListableStore, encoder KeyEncoder) *Store {
 	return &Store{
-		store:   genericstore.New[acceptance.Acceptance](backend, prefix, acceptance.Codec{}),
+		store:   genericstore.New[acceptance.Acceptance](backend, acceptance.Codec{}),
 		encoder: encoder,
 	}
 }
@@ -102,11 +102,11 @@ func (DatastoreKeyEncoder) EncodeKeyPrefix(digest multihash.Multihash) string {
 // NewS3Store creates an AcceptanceStore for S3/MinIO backends.
 // Acceptances are stored with keys formatted as "acceptances/{digest}/{space}.cbor".
 func NewS3Store(backend *minio.Store) *Store {
-	return New(backend, "acceptances/", S3KeyEncoder{})
+	return New(backend, S3KeyEncoder{})
 }
 
 // NewDatastoreStore creates an AcceptanceStore for LevelDB/datastore backends.
 // Acceptances are stored with keys formatted as "{digest}/{space}".
 func NewDatastoreStore(ds datastore.Datastore) *Store {
-	return New(dsadapter.New(ds), "", DatastoreKeyEncoder{})
+	return New(dsadapter.New(ds), DatastoreKeyEncoder{})
 }
