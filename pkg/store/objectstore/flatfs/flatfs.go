@@ -134,8 +134,8 @@ func (o *opResult) Finish(ok bool) {
 }
 
 func create(path string, fun *ShardIdV1) error {
-	err := os.Mkdir(path, 0755)
-	if err != nil && !os.IsExist(err) {
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
 		return err
 	}
 
