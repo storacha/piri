@@ -149,6 +149,48 @@ network = "warm-staging"
 # default_install_source = "v0.0.12"
 
 # ===========================================================================
+# STORAGE BACKEND CONFIGURATION (DEFAULTS)
+# ===========================================================================
+# By default, Piri uses filesystem storage and SQLite database.
+# For native deployments, you can configure MinIO and/or PostgreSQL
+# backends running on the same EC2 instance via Docker Compose.
+# Each instance gets its own MinIO/PostgreSQL containers.
+
+# Default blob storage backend: "filesystem" (default) or "minio"
+# Default: "filesystem" - uncomment to use MinIO
+# default_storage_backend = "minio"
+
+# Default database backend: "sqlite" (default) or "postgres"
+# Default: "sqlite" - uncomment to use PostgreSQL
+# default_database_backend = "postgres"
+
+# MinIO configuration (required when storage_backend = "minio")
+# -------------------------------------------
+# MinIO root user (shared across all instances)
+# Default: "minioadmin" - uncomment to override
+# minio_root_user = "minioadmin"
+
+# MinIO root password (required when using MinIO)
+# minio_root_password = "your-secure-minio-password"
+
+# Prefix for MinIO buckets
+# Default: "piri-" - uncomment to override
+# minio_bucket_prefix = "piri-"
+
+# PostgreSQL configuration (required when database_backend = "postgres")
+# -------------------------------------------
+# PostgreSQL user (shared across all instances)
+# Default: "piri" - uncomment to override
+# postgres_user = "piri"
+
+# PostgreSQL password (required when using PostgreSQL)
+# postgres_password = "your-secure-postgres-password"
+
+# PostgreSQL database name
+# Default: "piri" - uncomment to override
+# postgres_database = "piri"
+
+# ===========================================================================
 # INSTANCE DEFINITIONS
 # ===========================================================================
 # Define each Piri instance with its specific configuration
@@ -163,6 +205,10 @@ network = "warm-staging"
 #   - install_source: Override version/branch to install
 #   - service_pem_content: Service private key (only if use_secrets_manager = false)
 #   - wallet_hex_content: Wallet private key (only if use_secrets_manager = false)
+#   - storage_backend: Override default storage backend ("filesystem" or "minio")
+#   - database_backend: Override default database backend ("sqlite" or "postgres")
+#   - minio_root_password: Override MinIO password for this instance
+#   - postgres_password: Override PostgreSQL password for this instance
 
 instances = {
   # Example: Basic node using all defaults
@@ -198,14 +244,49 @@ instances = {
 #   node1 = {
 #     subdomain      = "node1"
 #     operator_email = "operator1@example.com"
-#     
+#
 #     # When use_secrets_manager = false, these are REQUIRED:
 #     service_pem_content = <<EOF
 # -----BEGIN PRIVATE KEY-----
 # YOUR_SERVICE_PRIVATE_KEY_HERE
 # -----END PRIVATE KEY-----
 # EOF
-#     
+#
 #     wallet_hex_content = "YOUR_WALLET_PRIVATE_KEY_HEX_HERE"
+#   }
+# }
+
+# ===========================================================================
+# INSTANCE DEFINITIONS WITH NATIVE BACKENDS (MinIO + PostgreSQL)
+# ===========================================================================
+# Example: Multi-instance deployment with MinIO and PostgreSQL backends
+# Each instance runs its own MinIO/PostgreSQL containers via Docker Compose
+
+# default_storage_backend  = "minio"
+# default_database_backend = "postgres"
+# minio_root_password      = "shared-minio-password"
+# postgres_password        = "shared-postgres-password"
+#
+# instances = {
+#   # Node using default backends (MinIO + PostgreSQL)
+#   node1 = {
+#     subdomain      = "node1"
+#     operator_email = "operator1@example.com"
+#   }
+#
+#   # Node with custom passwords for its backends
+#   node2 = {
+#     subdomain           = "node2"
+#     operator_email      = "operator2@example.com"
+#     minio_root_password = "node2-minio-password"
+#     postgres_password   = "node2-postgres-password"
+#   }
+#
+#   # Node using filesystem + SQLite (override backends)
+#   node3 = {
+#     subdomain        = "node3"
+#     operator_email   = "operator3@example.com"
+#     storage_backend  = "filesystem"
+#     database_backend = "sqlite"
 #   }
 # }

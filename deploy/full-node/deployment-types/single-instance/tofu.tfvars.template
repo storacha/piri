@@ -194,6 +194,47 @@ EOF
 wallet_hex_content = "YOUR_WALLET_PRIVATE_KEY_HEX_HERE"
 
 # ===========================================================================
+# STORAGE BACKEND CONFIGURATION
+# ===========================================================================
+# By default, Piri uses filesystem storage and SQLite database.
+# For native deployments, you can configure MinIO and/or PostgreSQL
+# backends running on the same EC2 instance via Docker Compose.
+
+# Blob storage backend: "filesystem" (default) or "minio"
+# Default: "filesystem" - uncomment to use MinIO
+# storage_backend = "minio"
+
+# Database backend: "sqlite" (default) or "postgres"
+# Default: "sqlite" - uncomment to use PostgreSQL
+# database_backend = "postgres"
+
+# MinIO configuration (required when storage_backend = "minio")
+# -------------------------------------------
+# MinIO root user
+# Default: "minioadmin" - uncomment to override
+# minio_root_user = "minioadmin"
+
+# MinIO root password (required when using MinIO)
+# minio_root_password = "your-secure-minio-password"
+
+# Prefix for MinIO buckets
+# Default: "piri-" - uncomment to override
+# minio_bucket_prefix = "piri-"
+
+# PostgreSQL configuration (required when database_backend = "postgres")
+# -------------------------------------------
+# PostgreSQL user
+# Default: "piri" - uncomment to override
+# postgres_user = "piri"
+
+# PostgreSQL password (required when using PostgreSQL)
+# postgres_password = "your-secure-postgres-password"
+
+# PostgreSQL database name
+# Default: "piri" - uncomment to override
+# postgres_database = "piri"
+
+# ===========================================================================
 # EXAMPLE CONFIGURATIONS
 # ===========================================================================
 
@@ -239,6 +280,24 @@ wallet_hex_content = "YOUR_WALLET_PRIVATE_KEY_HEX_HERE"
 # pdp_lotus_endpoint  = "wss://api.calibration.node.glif.io/rpc/v1"
 # operator_email      = "dev@example.com"
 # use_secrets_manager = true
+
+# -------------------------------------------
+# Example 4: Native deployment with MinIO + PostgreSQL
+# -------------------------------------------
+# allowed_account_ids = ["123456789012"]
+# environment         = "staging"
+# instance_type       = "m6a.xlarge"
+# ebs_volume_size     = 200
+# install_method      = "version"
+# install_source      = "v0.0.12"
+# pdp_lotus_endpoint  = "wss://api.calibration.node.glif.io/rpc/v1"
+# network             = "warm-staging"
+# operator_email      = "ops@example.com"
+# use_secrets_manager = true
+# storage_backend     = "minio"
+# database_backend    = "postgres"
+# minio_root_password = "secure-minio-password"
+# postgres_password   = "secure-postgres-password"
 
 # ===========================================================================
 # DEPLOYMENT COMMANDS
