@@ -81,7 +81,7 @@ func (s *memoryStore) Get(ctx context.Context, key string, opts ...objectstore.G
 
 	rangedData := data[start:end]
 	return &memoryObject{
-		size: int64(len(rangedData)),
+		size: int64(len(data)),
 		body: io.NopCloser(bytes.NewReader(rangedData)),
 	}, nil
 }

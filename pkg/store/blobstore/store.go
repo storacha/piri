@@ -27,7 +27,7 @@ type Store struct {
 func NewS3Store(backend *minio_store.Store) *Store {
 	return &Store{
 		backend: backend,
-		encoder: Base32KeyEncoder{},
+		encoder: NewBase32FlatFSKeyEncoder(),
 	}
 }
 

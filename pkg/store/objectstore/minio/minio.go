@@ -104,9 +104,30 @@ func (s *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpti
 	config.ProcessOptions(opts)
 	log.Debugw("getting object", "bucket", s.bucket, "key", key, "options", config)
 
+	isRangeReq := config.Range().Start > 0 || config.Range().End != nil
+
+	// For range requests, we cannot rely on Stat() due to a known issue in minio-go
+	// where calling Stat() interferes with range requests and causes the entire file to be returned
+	statObj, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
+	if err != nil {
+		var merr minio.ErrorResponse
+		if errors.As(err, &merr) {
+			if merr.Code == minio.NoSuchKey {
+				return nil, objectstore.ErrNotExist
+			}
+		}
+		log.Errorw("get object stat failed", "bucket", s.bucket, "key", key, "error", err)
+		return nil, fmt.Errorf("get object with key %s: %w", key, err)
+	}
+	size := statObj.Size
+
 	miOpts := minio.GetObjectOptions{}
 	// Check if a range is specified
-	if config.Range().Start != 0 || config.Range().End != nil {
+	if isRangeReq {
+		if !rangeSatisfiable(config.Range().Start, config.Range().End, uint64(size)) {
+			return nil, objectstore.ErrRangeNotSatisfiable{Range: config.Range()}
+		}
+
 		rStart := int64(config.Range().Start)
 		var rEnd int64
 
@@ -127,42 +148,17 @@ func (s *Store) Get(ctx context.Context, key string, opts ...objectstore.GetOpti
 	}
 	obj, err := s.client.GetObject(ctx, s.bucket, key, miOpts)
 	if err != nil {
-		log.Errorw("get object failed", "bucket", s.bucket, "key", key, "error", err)
-		return nil, fmt.Errorf("get object with key %s: %w", key, err)
-	}
-
-	// For range requests, we cannot rely on Stat() due to a known issue in minio-go
-	// where calling Stat() interferes with range requests and causes the entire file to be returned
-	var size int64
-
-	statObj, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
-	if err != nil {
 		var merr minio.ErrorResponse
 		if errors.As(err, &merr) {
 			if merr.Code == minio.NoSuchKey {
 				return nil, objectstore.ErrNotExist
 			}
 		}
-		log.Errorw("get object stat failed", "bucket", s.bucket, "key", key, "error", err)
+		log.Errorw("get object failed", "bucket", s.bucket, "key", key, "error", err)
 		return nil, fmt.Errorf("get object with key %s: %w", key, err)
 	}
-	size = statObj.Size
-	log.Debugw("got object", "bucket", s.bucket, "key", key, "size", size, "duration", time.Since(start), "options", config)
 
-	if config.Range().Start != 0 || config.Range().End != nil {
-		// For range requests, we cannot call Stat() as it breaks the range functionality, returning the entire object size
-		// instead of the ranged-size.
-		// Calculate the expected size based on the range parameters
-		if config.Range().End != nil {
-			// Size is end - start + 1 (since end is inclusive)
-			size = int64(*config.Range().End - config.Range().Start + 1)
-		} else {
-			// For open-ended ranges (start to EOF), we need to get the full object size
-			// We'll do a HEAD request separately to avoid interfering with the range request
-			size = statObj.Size - int64(config.Range().Start)
-		}
-		log.Debugw("got object with range", "bucket", s.bucket, "key", key, "range_size", size, "duration", time.Since(start), "options", config)
-	}
+	log.Debugw("got object", "bucket", s.bucket, "key", key, "size", size, "duration", time.Since(start), "options", config)
 
 	return &MinioObject{
 		object: obj,
@@ -207,4 +203,21 @@ func (s *Store) ListPrefix(ctx context.Context, prefix string) iter.Seq2[string,
 			}
 		}
 	}
+}
+
+// rangeSatisfiable determines if the provided start/end byte range is
+// valid given the total size of the blob.
+func rangeSatisfiable(start uint64, end *uint64, size uint64) bool {
+	if size > 0 && start >= size {
+		return false
+	}
+	if end != nil {
+		if start > *end {
+			return false
+		}
+		if *end >= size {
+			return false
+		}
+	}
+	return true
 }

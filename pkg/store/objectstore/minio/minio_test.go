@@ -13,8 +13,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
+	tcminio "github.com/testcontainers/testcontainers-go/modules/minio"
 )
 
 func TestBucketCreation(t *testing.T) {
@@ -46,43 +45,22 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	if runtime.GOOS == "darwin" {
+	if os.Getenv("CI") != "" && runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
 	}
 	logging.SetDebugLogging()
 	ctx := context.Background()
 
-	req := testcontainers.ContainerRequest{
-		Image:        "minio/minio:latest",
-		ExposedPorts: []string{"9000/tcp"},
-		Env: map[string]string{
-			"MINIO_ACCESS_KEY": "minioadmin",
-			"MINIO_SECRET_KEY": "minioadmin",
-		},
-		Cmd:        []string{"server", "/data"},
-		WaitingFor: wait.ForHTTP("/minio/health/live").WithPort("9000"),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
+	container, err := tcminio.Run(ctx, "minio/minio:latest")
 	if err != nil {
 		panic(fmt.Sprintf("Failed to start MinIO container: %v", err))
 	}
 
-	host, err := container.Host(ctx)
+	minioEndpoint, err = container.ConnectionString(ctx)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to get container host: %v", err))
+		panic(fmt.Sprintf("Failed to get container endpoint: %v", err))
 	}
-
-	port, err := container.MappedPort(ctx, "9000")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to get container port: %v", err))
-	}
-
-	minioEndpoint = fmt.Sprintf("%s:%s", host, port.Port())
 
 	code := m.Run()
 

@@ -19,7 +19,7 @@ import (
 var benchResult interface{}
 
 func BenchmarkPut(b *testing.B) {
-	if runtime.GOOS == "darwin" {
+	if os.Getenv("CI") != "" && runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
 	}
@@ -55,7 +55,7 @@ func BenchmarkPut(b *testing.B) {
 }
 
 func BenchmarkGet(b *testing.B) {
-	if runtime.GOOS == "darwin" {
+	if os.Getenv("CI") != "" && runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
 	}
@@ -111,7 +111,7 @@ func BenchmarkGet(b *testing.B) {
 }
 
 func BenchmarkGetRange(b *testing.B) {
-	if runtime.GOOS == "darwin" {
+	if os.Getenv("CI") != "" && runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
 	}
@@ -173,7 +173,7 @@ func BenchmarkGetRange(b *testing.B) {
 }
 
 func BenchmarkConcurrentPut(b *testing.B) {
-	if runtime.GOOS == "darwin" {
+	if os.Getenv("CI") != "" && runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
 	}
@@ -222,7 +222,7 @@ func BenchmarkConcurrentPut(b *testing.B) {
 }
 
 func BenchmarkConcurrentGet(b *testing.B) {
-	if runtime.GOOS == "darwin" {
+	if os.Getenv("CI") != "" && runtime.GOOS == "darwin" {
 		fmt.Println("Skipping darwin tests, testcontainers not supported in CI")
 		os.Exit(0)
 	}
