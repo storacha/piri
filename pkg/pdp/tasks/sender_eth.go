@@ -20,12 +20,36 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/storacha/piri/lib/telemetry"
+	"github.com/storacha/piri/pkg/config"
+	"github.com/storacha/piri/pkg/config/dynamic"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
 	"github.com/storacha/piri/pkg/pdp/service/models"
 	"github.com/storacha/piri/pkg/pdp/types"
 	"github.com/storacha/piri/pkg/wallet"
 )
+
+// sendReasonToConfigKey maps SendReason strings to their per-type gas config keys.
+var sendReasonToConfigKey = map[string]config.Key{
+	"pdp-prove":          config.GasMaxFeeProve,
+	"pdp-proving-period": config.GasMaxFeeProvingPeriod,
+	"pdp-proving-init":   config.GasMaxFeeProvingInit,
+	"pdp-addroots":       config.GasMaxFeeAddRoots,
+}
+
+// SenderETHOption configures optional dependencies for NewSenderETH.
+type SenderETHOption func(*senderETHOptions)
+
+type senderETHOptions struct {
+	registry *dynamic.Registry
+}
+
+// WithGasConfig provides a dynamic config registry for gas fee limits.
+func WithGasConfig(registry *dynamic.Registry) SenderETHOption {
+	return func(o *senderETHOptions) {
+		o.registry = registry
+	}
+}
 
 var SendLockedWait = 100 * time.Millisecond
 
@@ -51,7 +75,12 @@ type SenderETH struct {
 }
 
 // NewSenderETH creates a new SenderETH.
-func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB) (*SenderETH, *SendTaskETH, error) {
+func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB, opts ...SenderETHOption) (*SenderETH, *SendTaskETH, error) {
+	var options senderETHOptions
+	for _, o := range opts {
+		o(&options)
+	}
+
 	meter := otel.GetMeterProvider().Meter("github.com/storacha/piri/pkg/pdp/tasks")
 	sendFailure, err := telemetry.NewCounter(
 		meter,
@@ -67,8 +96,23 @@ func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB) (*S
 		client:                    client,
 		wallet:                    wallet,
 		db:                        db,
+		registry:                  options.registry,
 		messageSendFailureCounter: sendFailure,
 	}
+
+	// Register gas config entries if registry is provided.
+	// RegisterEntries only errors if keys are already registered; ignore for idempotency.
+	if options.registry != nil {
+		_ = options.registry.RegisterEntries(map[config.Key]dynamic.ConfigEntry{
+			config.GasMaxFeeProve:         {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasMaxFeeProvingPeriod: {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasMaxFeeProvingInit:   {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasMaxFeeAddRoots:      {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasMaxFeeDefault:       {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasRetryWait:           {Value: 5 * time.Minute, Schema: dynamic.DurationSchema{Min: time.Second, Max: time.Hour}},
+		})
+	}
+
 	estimateGasFailureCounter, err := telemetry.NewCounter(
 		meter,
 		"message_estimate_gas_failure",
@@ -248,8 +292,9 @@ func (s *SenderETH) Send(ctx context.Context, fromAddress common.Address, tx *et
 type SendTaskETH struct {
 	sendTF promise.Promise[scheduler.AddTaskFunc]
 
-	client SenderETHClient
-	wallet wallet.Wallet
+	client   SenderETHClient
+	wallet   wallet.Wallet
+	registry *dynamic.Registry
 
 	db                        *gorm.DB
 	messageSendFailureCounter *telemetry.Counter
@@ -273,6 +318,30 @@ func (s *SendTaskETH) Do(taskID scheduler.TaskID) (done bool, err error) {
 	}
 
 	fromAddress := common.HexToAddress(dbTx.FromAddress)
+
+	// Check gas fee against configured max before acquiring the nonce lock
+	if maxFee := s.maxFeeForReason(dbTx.SendReason); maxFee > 0 {
+		header, err := s.client.HeaderByNumber(ctx, nil)
+		if err != nil {
+			return false, fmt.Errorf("checking gas fee: getting latest header: %w", err)
+		}
+		gasTipCap, err := s.client.SuggestGasTipCap(ctx)
+		if err != nil {
+			return false, fmt.Errorf("checking gas fee: suggesting gas tip cap: %w", err)
+		}
+		gasFeeCap := new(big.Int).Add(header.BaseFee, gasTipCap)
+		estimatedCost := new(big.Int).Mul(gasFeeCap, new(big.Int).SetUint64(tx.Gas()))
+		maxFeeWei := new(big.Int).SetUint64(maxFee)
+		if estimatedCost.Cmp(maxFeeWei) > 0 {
+			log.Warnw("gas fee exceeds configured max, deferring message",
+				"estimated_cost_wei", estimatedCost.String(),
+				"max_fee_wei", maxFeeWei.String(),
+				"send_reason", dbTx.SendReason,
+				"task_id", taskID,
+			)
+			return false, scheduler.ErrGasTooHigh
+		}
+	}
 
 	// Acquire lock on from_address
 	for {
@@ -434,11 +503,36 @@ func (s *SendTaskETH) CanAccept(ids []scheduler.TaskID, engine *scheduler.TaskEn
 	return &ids[0], nil
 }
 
+// maxFeeForReason returns the configured max gas fee (in wei) for the given SendReason.
+// Returns the per-type limit if set (non-zero), otherwise the default limit.
+// Returns 0 if no limit is configured (bypass gas check).
+func (s *SendTaskETH) maxFeeForReason(reason string) uint64 {
+	if s.registry == nil {
+		return 0
+	}
+
+	// Check per-type limit first
+	if key, ok := sendReasonToConfigKey[reason]; ok {
+		if v := s.registry.GetUint(key, 0); v > 0 {
+			return uint64(v)
+		}
+	}
+
+	// Fall back to default
+	return uint64(s.registry.GetUint(config.GasMaxFeeDefault, 0))
+}
+
 func (s *SendTaskETH) TypeDetails() scheduler.TaskTypeDetails {
-	return scheduler.TaskTypeDetails{
+	details := scheduler.TaskTypeDetails{
 		Name:        "SendTransaction",
 		MaxFailures: 1000,
 	}
+	if s.registry != nil {
+		details.RetryWait = func(retries int) time.Duration {
+			return s.registry.GetDuration(config.GasRetryWait, 5*time.Minute)
+		}
+	}
+	return details
 }
 
 func (s *SendTaskETH) Adder(taskFunc scheduler.AddTaskFunc) {

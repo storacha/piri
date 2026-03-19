@@ -7,6 +7,7 @@ import (
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 
+	"github.com/storacha/piri/pkg/config/dynamic"
 	"github.com/storacha/piri/pkg/pdp/chainsched"
 	"github.com/storacha/piri/pkg/pdp/ethereum"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
@@ -46,9 +47,10 @@ var MessageModule = fx.Module("scheduler-messages",
 
 type SenderETHParams struct {
 	fx.In
-	DB     *gorm.DB `name:"engine_db"`
-	Client service.EthClient
-	Wallet wallet.Wallet
+	DB       *gorm.DB `name:"engine_db"`
+	Client   service.EthClient
+	Wallet   wallet.Wallet
+	Registry *dynamic.Registry
 }
 
 // SenderETHPair holds both the sender and task to ensure they're created together
@@ -58,7 +60,7 @@ type SenderETHPair struct {
 }
 
 func ProvideSenderETHPair(params SenderETHParams) (*SenderETHPair, error) {
-	sender, sendTask, err := tasks.NewSenderETH(params.Client, params.Wallet, params.DB)
+	sender, sendTask, err := tasks.NewSenderETH(params.Client, params.Wallet, params.DB, tasks.WithGasConfig(params.Registry))
 	return &SenderETHPair{
 		Sender:   sender,
 		SendTask: sendTask,
