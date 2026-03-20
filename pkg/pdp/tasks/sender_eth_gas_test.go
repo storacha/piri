@@ -180,9 +180,9 @@ func estimatedGasCost(gasLimit uint64, baseFee, gasTipCap *big.Int) *big.Int {
 func TestSendTaskETH_GasAboveLimit(t *testing.T) {
 	db := setupGasTestDB(t)
 
-	baseFee := big.NewInt(30_000_000_000)    // 30 gwei
-	gasTipCap := big.NewInt(2_000_000_000)   // 2 gwei
-	gasLimit := uint64(200_000)              // 200k gas
+	baseFee := big.NewInt(30_000_000_000)  // 30 gwei
+	gasTipCap := big.NewInt(2_000_000_000) // 2 gwei
+	gasLimit := uint64(200_000)            // 200k gas
 
 	// Estimated cost = 200_000 * (30 + 2) gwei = 6_400_000 gwei = 6.4e15 wei
 	cost := estimatedGasCost(gasLimit, baseFee, gasTipCap)
@@ -236,9 +236,9 @@ func TestSendTaskETH_GasAboveLimit(t *testing.T) {
 func TestSendTaskETH_GasBelowLimit(t *testing.T) {
 	db := setupGasTestDB(t)
 
-	baseFee := big.NewInt(10_000_000_000)    // 10 gwei
-	gasTipCap := big.NewInt(1_000_000_000)   // 1 gwei
-	gasLimit := uint64(100_000)              // 100k gas
+	baseFee := big.NewInt(10_000_000_000)  // 10 gwei
+	gasTipCap := big.NewInt(1_000_000_000) // 1 gwei
+	gasLimit := uint64(100_000)            // 100k gas
 
 	// Estimated cost = 100_000 * (10 + 1) gwei = 1_100_000 gwei = 1.1e15 wei
 	cost := estimatedGasCost(gasLimit, baseFee, gasTipCap)
@@ -291,9 +291,9 @@ func TestSendTaskETH_GasLimitZero(t *testing.T) {
 	db := setupGasTestDB(t)
 
 	// Very high gas cost
-	baseFee := big.NewInt(500_000_000_000)   // 500 gwei
-	gasTipCap := big.NewInt(50_000_000_000)  // 50 gwei
-	gasLimit := uint64(1_000_000)            // 1M gas
+	baseFee := big.NewInt(500_000_000_000)  // 500 gwei
+	gasTipCap := big.NewInt(50_000_000_000) // 50 gwei
+	gasLimit := uint64(1_000_000)           // 1M gas
 
 	client := &mockSenderETHClient{
 		networkID: big.NewInt(1),
@@ -336,9 +336,9 @@ func TestSendTaskETH_GasLimitZero(t *testing.T) {
 func TestSendTaskETH_GasFallbackToDefault(t *testing.T) {
 	db := setupGasTestDB(t)
 
-	baseFee := big.NewInt(30_000_000_000)    // 30 gwei
-	gasTipCap := big.NewInt(2_000_000_000)   // 2 gwei
-	gasLimit := uint64(200_000)              // 200k gas
+	baseFee := big.NewInt(30_000_000_000)  // 30 gwei
+	gasTipCap := big.NewInt(2_000_000_000) // 2 gwei
+	gasLimit := uint64(200_000)            // 200k gas
 
 	cost := estimatedGasCost(gasLimit, baseFee, gasTipCap)
 
@@ -391,9 +391,9 @@ func TestSendTaskETH_GasFallbackToDefault(t *testing.T) {
 func TestSendTaskETH_GasPerTypeOverridesDefault(t *testing.T) {
 	db := setupGasTestDB(t)
 
-	baseFee := big.NewInt(30_000_000_000)    // 30 gwei
-	gasTipCap := big.NewInt(2_000_000_000)   // 2 gwei
-	gasLimit := uint64(200_000)              // 200k gas
+	baseFee := big.NewInt(30_000_000_000)  // 30 gwei
+	gasTipCap := big.NewInt(2_000_000_000) // 2 gwei
+	gasLimit := uint64(200_000)            // 200k gas
 
 	cost := estimatedGasCost(gasLimit, baseFee, gasTipCap)
 
@@ -441,9 +441,9 @@ func TestSendTaskETH_GasPerTypeOverridesDefault(t *testing.T) {
 func TestSendTaskETH_GasConfigUpdatedAtRuntime(t *testing.T) {
 	db := setupGasTestDB(t)
 
-	baseFee := big.NewInt(30_000_000_000)    // 30 gwei
-	gasTipCap := big.NewInt(2_000_000_000)   // 2 gwei
-	gasLimit := uint64(200_000)              // 200k gas
+	baseFee := big.NewInt(30_000_000_000)  // 30 gwei
+	gasTipCap := big.NewInt(2_000_000_000) // 2 gwei
+	gasLimit := uint64(200_000)            // 200k gas
 
 	cost := estimatedGasCost(gasLimit, baseFee, gasTipCap)
 
