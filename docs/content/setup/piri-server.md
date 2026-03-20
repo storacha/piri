@@ -120,7 +120,7 @@ If the `--config` option is not provided, Piri will automatically load config fr
 ▐▛▀▘ █ █    █  ▗█▘
 ▐▌   █      █  ▀▘
 
-🔥 v0.2.2
+🔥 v0.2.3
 🆔 did:key:z6MkhaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Piri Running on: localhost:3000
 Piri Public Endpoint: https://piri.example.com
