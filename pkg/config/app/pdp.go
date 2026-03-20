@@ -35,6 +35,31 @@ type PDPServiceConfig struct {
 	PayerAddress common.Address
 	// Aggregation contains aggregation manager configuration
 	Aggregation AggregationConfig
+	// Gas contains gas fee limit configuration
+	Gas GasConfig
+}
+
+// GasConfig configures per-message-type gas fee limits.
+// Values are in wei. A value of 0 means no limit (default).
+type GasConfig struct {
+	MaxFee    GasMaxFeeConfig
+	RetryWait time.Duration
+}
+
+// GasMaxFeeConfig holds per-message-type maximum gas fees in wei.
+type GasMaxFeeConfig struct {
+	Prove         uint
+	ProvingPeriod uint
+	ProvingInit   uint
+	AddRoots      uint
+	Default       uint
+}
+
+// DefaultGasConfig returns a GasConfig with no limits set (all zero).
+func DefaultGasConfig() GasConfig {
+	return GasConfig{
+		RetryWait: 5 * time.Minute,
+	}
 }
 
 // SigningServiceConfig configures the signing service for PDP operations

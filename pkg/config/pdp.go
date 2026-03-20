@@ -35,6 +35,7 @@ type PDPServiceConfig struct {
 	ChainID        string               `mapstructure:"chain_id" validate:"required" flag:"chain-id" toml:"chain_id,omitempty"`
 	PayerAddress   string               `mapstructure:"payer_address" validate:"required" flag:"payer-address" toml:"payer_address,omitempty"`
 	Aggregation    AggregationConfig    `mapstructure:"aggregation" toml:"aggregation,omitempty"`
+	Gas            GasConfig            `mapstructure:"gas" toml:"gas,omitempty"`
 }
 
 func (c PDPServiceConfig) Validate() error {
@@ -109,6 +110,7 @@ func (c PDPServiceConfig) ToAppConfig() (app.PDPServiceConfig, error) {
 		ChainID:      chainID,
 		PayerAddress: common.HexToAddress(c.PayerAddress),
 		Aggregation:  aggregationCfg,
+		Gas:          c.Gas.ToAppConfig(),
 	}, nil
 }
 
@@ -262,6 +264,38 @@ func (c AggregationConfig) ToAppConfig() (app.AggregationConfig, error) {
 		},
 		Manager: managerCfg,
 	}, nil
+}
+
+// GasConfig configures per-message-type gas fee limits.
+type GasConfig struct {
+	MaxFee    GasMaxFeeConfig `mapstructure:"max_fee" toml:"max_fee,omitempty"`
+	RetryWait time.Duration   `mapstructure:"retry_wait" toml:"retry_wait,omitempty"`
+}
+
+// GasMaxFeeConfig holds per-message-type maximum gas fees in wei.
+type GasMaxFeeConfig struct {
+	Prove         uint `mapstructure:"prove" toml:"prove,omitempty"`
+	ProvingPeriod uint `mapstructure:"proving_period" toml:"proving_period,omitempty"`
+	ProvingInit   uint `mapstructure:"proving_init" toml:"proving_init,omitempty"`
+	AddRoots      uint `mapstructure:"add_roots" toml:"add_roots,omitempty"`
+	Default       uint `mapstructure:"default" toml:"default,omitempty"`
+}
+
+func (c GasConfig) ToAppConfig() app.GasConfig {
+	retryWait := c.RetryWait
+	if retryWait == 0 {
+		retryWait = 5 * time.Minute
+	}
+	return app.GasConfig{
+		MaxFee: app.GasMaxFeeConfig{
+			Prove:         c.MaxFee.Prove,
+			ProvingPeriod: c.MaxFee.ProvingPeriod,
+			ProvingInit:   c.MaxFee.ProvingInit,
+			AddRoots:      c.MaxFee.AddRoots,
+			Default:       c.MaxFee.Default,
+		},
+		RetryWait: retryWait,
+	}
 }
 
 // DefaultAggregationConfig returns an AggregationConfig with sensible defaults.

@@ -195,8 +195,23 @@ retryHandleDoneTask:
 			if doErr != nil {
 				taskErrMsg = "error: " + doErr.Error()
 			}
-			// the task has exceeded the number of allowed retries, delete it
-			if h.TaskTypeDetails.MaxFailures > 0 && task.Retries >= h.TaskTypeDetails.MaxFailures {
+
+			if doErr != nil && errors.Is(doErr, ErrGasTooHigh) {
+				// Gas deferral: requeue WITHOUT incrementing retries so gas spikes
+				// never exhaust the task's retry budget.
+				taskErrMsg = "deferred: " + doErr.Error()
+				tlog.Warnw("Task deferred due to gas fee limit", "error", doErr)
+				if err := tx.Model(&models.Task{}).
+					Where(&models.Task{ID: int64(id)}).
+					Select("session_id", "update_time").
+					Updates(models.Task{
+						SessionID:  nil,
+						UpdateTime: time.Now(),
+					}).Error; err != nil {
+					return fmt.Errorf("failed to requeue gas-deferred task %d: %w", id, err)
+				}
+			} else if h.TaskTypeDetails.MaxFailures > 0 && task.Retries >= h.TaskTypeDetails.MaxFailures {
+				// the task has exceeded the number of allowed retries, delete it
 				tlog.Errorw("Task execution retries exceeded, removing task", "maxFailures", h.TaskTypeDetails.MaxFailures, "retries", task.Retries, "error", doErr)
 				if err := tx.Delete(&models.Task{ID: int64(id)}).Error; err != nil {
 					return fmt.Errorf("failed to deleted failed task %d: %w", id, err)
@@ -251,6 +266,11 @@ retryHandleDoneTask:
 }
 
 var ErrDoNotCommit = errors.New("do not commit")
+
+// ErrGasTooHigh is returned by a task's Do() when the estimated gas cost
+// exceeds the configured maximum. The handler requeues the task without
+// incrementing the retry counter, so gas deferral never exhausts retries.
+var ErrGasTooHigh = errors.New("gas fee exceeds configured maximum")
 
 // runPeriodicTask runs a periodic task at the specified interval
 func (h *taskTypeHandler) runPeriodicTask() {

@@ -36,6 +36,16 @@ const (
 	ManagerJobQueueRetryDelay Key = "pdp.aggregation.manager.job_queue.retry_delay"
 )
 
+// PDP Gas Fee Limits (dynamic - can change at runtime)
+const (
+	GasMaxFeeProve         Key = "pdp.gas.max_fee.prove"
+	GasMaxFeeProvingPeriod Key = "pdp.gas.max_fee.proving_period"
+	GasMaxFeeProvingInit   Key = "pdp.gas.max_fee.proving_init"
+	GasMaxFeeAddRoots      Key = "pdp.gas.max_fee.add_roots"
+	GasMaxFeeDefault       Key = "pdp.gas.max_fee.default"
+	GasRetryWait           Key = "pdp.gas.retry_wait"
+)
+
 var defaultValues = map[Key]any{
 	CommPJobQueueWorkers:    runtime.NumCPU(),
 	CommPJobQueueRetries:    50,

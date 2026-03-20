@@ -36,6 +36,12 @@ Most settings require a restart. The following can be changed at runtime via the
 |-----|------|---------|-------------|
 | [`pdp.aggregation.manager.poll_interval`](pdp/aggregation/manager.md#poll_interval) | duration | `30s` | How often the aggregation manager polls for new work |
 | [`pdp.aggregation.manager.batch_size`](pdp/aggregation/manager.md#batch_size) | duration | `10` | Maximum number of items to process in a single batch |
+| [`pdp.gas.max_fee.prove`](pdp/gas.md#max_feeprove) | uint (wei) | `0` | Max gas fee for proof submission |
+| [`pdp.gas.max_fee.proving_period`](pdp/gas.md#max_feeproving_period) | uint (wei) | `0` | Max gas fee for advancing proving period |
+| [`pdp.gas.max_fee.proving_init`](pdp/gas.md#max_feeproving_init) | uint (wei) | `0` | Max gas fee for initiating proving |
+| [`pdp.gas.max_fee.add_roots`](pdp/gas.md#max_feeadd_roots) | uint (wei) | `0` | Max gas fee for adding roots |
+| [`pdp.gas.max_fee.default`](pdp/gas.md#max_feedefault) | uint (wei) | `0` | Fallback max gas fee for other messages |
+| [`pdp.gas.retry_wait`](pdp/gas.md#retry_wait) | duration | `5m` | Wait between gas fee re-checks |
 
 ## Minimal Example
 
