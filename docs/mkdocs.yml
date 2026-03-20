@@ -72,6 +72,7 @@ nav:
       - server: configuration/server.md
       - pdp:
           - configuration/pdp/index.md
+          - gas: configuration/pdp/gas.md
           - aggregation:
               - configuration/pdp/aggregation/index.md
               - commp: configuration/pdp/aggregation/commp.md
