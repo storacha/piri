@@ -21,6 +21,7 @@ import (
 
 	"github.com/storacha/piri/lib/telemetry"
 	"github.com/storacha/piri/pkg/config"
+	"github.com/storacha/piri/pkg/config/app"
 	"github.com/storacha/piri/pkg/config/dynamic"
 	"github.com/storacha/piri/pkg/pdp/promise"
 	"github.com/storacha/piri/pkg/pdp/scheduler"
@@ -41,13 +42,22 @@ var sendReasonToConfigKey = map[string]config.Key{
 type SenderETHOption func(*senderETHOptions)
 
 type senderETHOptions struct {
-	registry *dynamic.Registry
+	registry  *dynamic.Registry
+	gasConfig app.GasConfig
 }
 
 // WithGasConfig provides a dynamic config registry for gas fee limits.
 func WithGasConfig(registry *dynamic.Registry) SenderETHOption {
 	return func(o *senderETHOptions) {
 		o.registry = registry
+	}
+}
+
+// WithGasDefaults provides static gas config values (from TOML) as initial
+// values for the dynamic registry entries. Without this, all limits default to 0 (no limit).
+func WithGasDefaults(cfg app.GasConfig) SenderETHOption {
+	return func(o *senderETHOptions) {
+		o.gasConfig = cfg
 	}
 }
 
@@ -101,15 +111,21 @@ func NewSenderETH(client SenderETHClient, wallet wallet.Wallet, db *gorm.DB, opt
 	}
 
 	// Register gas config entries if registry is provided.
+	// Initial values come from static config (TOML); 0 means no limit.
 	// RegisterEntries only errors if keys are already registered; ignore for idempotency.
 	if options.registry != nil {
+		gcfg := options.gasConfig
+		retryWait := gcfg.RetryWait
+		if retryWait == 0 {
+			retryWait = 5 * time.Minute
+		}
 		_ = options.registry.RegisterEntries(map[config.Key]dynamic.ConfigEntry{
-			config.GasMaxFeeProve:         {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
-			config.GasMaxFeeProvingPeriod: {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
-			config.GasMaxFeeProvingInit:   {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
-			config.GasMaxFeeAddRoots:      {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
-			config.GasMaxFeeDefault:       {Value: uint(0), Schema: dynamic.UintSchema{Max: ^uint(0)}},
-			config.GasRetryWait:           {Value: 5 * time.Minute, Schema: dynamic.DurationSchema{Min: time.Second, Max: time.Hour}},
+			config.GasMaxFeeProve:         {Value: gcfg.MaxFee.Prove, Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasMaxFeeProvingPeriod: {Value: gcfg.MaxFee.ProvingPeriod, Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasMaxFeeProvingInit:   {Value: gcfg.MaxFee.ProvingInit, Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasMaxFeeAddRoots:      {Value: gcfg.MaxFee.AddRoots, Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasMaxFeeDefault:       {Value: gcfg.MaxFee.Default, Schema: dynamic.UintSchema{Max: ^uint(0)}},
+			config.GasRetryWait:           {Value: retryWait, Schema: dynamic.DurationSchema{Min: time.Second, Max: time.Hour}},
 		})
 	}
 

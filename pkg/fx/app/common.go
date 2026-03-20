@@ -28,6 +28,7 @@ func CommonModules(cfg app.AppConfig) fx.Option {
 		fx.Supply(cfg.Replicator),
 		fx.Supply(cfg.PDPService.SigningService),
 		fx.Supply(cfg.PDPService.Aggregation.Manager),
+		fx.Supply(cfg.PDPService.Gas),
 
 		identity.Module, // Provides principal.Signer
 		proofs.Module,   // Provides service for requesting service proofs
