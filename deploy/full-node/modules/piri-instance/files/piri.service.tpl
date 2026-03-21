@@ -1,6 +1,9 @@
 [Unit]
 Description=Piri Full Server
-After=network.target
+After=network.target%{ if needs_docker } docker.service%{ endif }
+%{ if needs_docker ~}
+Requires=docker.service
+%{ endif ~}
 
 [Service]
 Type=simple
@@ -21,6 +24,20 @@ ExecStartPre=/bin/bash -c '/usr/local/bin/piri init \
   --lotus-endpoint="${lotus_endpoint}" \
   --operator-email="${operator_email}" \
   --public-url="${public_url}" \
+%{ if database_backend == "postgres" ~}
+  --db-type=postgres \
+  --db-postgres-url="${postgres_url}" \
+  --db-postgres-max-open-conns=${postgres_max_open_conns} \
+  --db-postgres-max-idle-conns=${postgres_max_idle_conns} \
+  --db-postgres-conn-max-lifetime=${postgres_conn_max_lifetime} \
+%{ endif ~}
+%{ if storage_backend == "minio" ~}
+  --s3-endpoint="${s3_endpoint}" \
+  --s3-bucket-prefix="${s3_bucket_prefix}" \
+  --s3-access-key-id="${s3_access_key_id}" \
+  --s3-secret-access-key="${s3_secret_access_key}" \
+  --s3-insecure \
+%{ endif ~}
   > /etc/piri/config.toml'
 
 ExecStart=/usr/local/bin/piri serve --config=/etc/piri/config.toml

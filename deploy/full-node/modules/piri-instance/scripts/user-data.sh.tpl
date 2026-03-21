@@ -15,6 +15,22 @@ echo "=== Updating system packages ==="
 apt-get update
 apt-get upgrade -y
 
+%{ if needs_docker ~}
+# =============================================================================
+# Install Docker for native backends
+# =============================================================================
+echo "=== Installing Docker ==="
+apt-get install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+systemctl enable docker
+systemctl start docker
+%{ endif ~}
+
 # Create piri user
 echo "=== Creating piri user ==="
 useradd -m -s /bin/bash piri
@@ -65,6 +81,42 @@ mkdir -p /tmp/piri
 chown -R piri:piri /etc/piri
 chown -R piri:piri /data/piri
 chown -R piri:piri /tmp/piri
+
+%{ if needs_docker ~}
+# =============================================================================
+# Setup Docker Compose for backend services
+# =============================================================================
+echo "=== Setting up backend services ==="
+
+# Create directories for container data
+mkdir -p /data/postgres /data/minio
+
+# Deploy docker-compose.yml
+cat > /etc/piri/docker-compose.yml <<'DOCKEREOF'
+${docker_compose}
+DOCKEREOF
+
+# Start containers
+cd /etc/piri
+docker compose up -d
+
+# Wait for services to be healthy
+echo "=== Waiting for backend services ==="
+%{ if database_backend == "postgres" ~}
+echo "Waiting for PostgreSQL..."
+until docker compose exec -T piri-postgres pg_isready -U piri -d piri 2>/dev/null; do
+  sleep 2
+done
+echo "PostgreSQL is ready"
+%{ endif ~}
+%{ if storage_backend == "minio" ~}
+echo "Waiting for MinIO..."
+until curl -sf http://localhost:9000/minio/health/live >/dev/null 2>&1; do
+  sleep 2
+done
+echo "MinIO is ready"
+%{ endif ~}
+%{ endif ~}
 
 # Install nginx
 echo "=== Installing nginx ==="

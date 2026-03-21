@@ -129,3 +129,67 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# =============================================================================
+# Storage Backend Configuration
+# =============================================================================
+
+variable "storage_backend" {
+  description = "Blob storage backend: 'filesystem' (default) or 'minio'"
+  type        = string
+  default     = "filesystem"
+  validation {
+    condition     = contains(["filesystem", "minio"], var.storage_backend)
+    error_message = "storage_backend must be 'filesystem' or 'minio'"
+  }
+}
+
+variable "database_backend" {
+  description = "Database backend: 'sqlite' (default) or 'postgres'"
+  type        = string
+  default     = "sqlite"
+  validation {
+    condition     = contains(["sqlite", "postgres"], var.database_backend)
+    error_message = "database_backend must be 'sqlite' or 'postgres'"
+  }
+}
+
+# MinIO configuration (when storage_backend = "minio")
+variable "minio_root_user" {
+  description = "MinIO root user"
+  type        = string
+  default     = "minioadmin"
+}
+
+variable "minio_root_password" {
+  description = "MinIO root password (required when storage_backend = 'minio')"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "minio_bucket_prefix" {
+  description = "Prefix for MinIO buckets"
+  type        = string
+  default     = "piri-"
+}
+
+# PostgreSQL configuration (when database_backend = "postgres")
+variable "postgres_user" {
+  description = "PostgreSQL user"
+  type        = string
+  default     = "piri"
+}
+
+variable "postgres_password" {
+  description = "PostgreSQL password (required when database_backend = 'postgres')"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "postgres_database" {
+  description = "PostgreSQL database name"
+  type        = string
+  default     = "piri"
+}
