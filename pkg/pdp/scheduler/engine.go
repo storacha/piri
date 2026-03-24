@@ -197,7 +197,8 @@ func (e *TaskEngine) pollerTryAllWork() bool {
 		var taskIDs []TaskID
 		for _, t := range tasks {
 			if h.TaskTypeDetails.RetryWait == nil ||
-				time.Since(t.UpdateTime) > h.TaskTypeDetails.RetryWait(0) {
+				t.Retries == 0 || // New task - pick up immediately
+				time.Since(t.UpdateTime) > h.TaskTypeDetails.RetryWait(int(t.Retries)) {
 				taskIDs = append(taskIDs, TaskID(t.ID))
 			}
 		}
