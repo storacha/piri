@@ -29,7 +29,6 @@ type Verifier interface {
 	CalculateProofFee(ctx context.Context, setId *big.Int) (*big.Int, error)
 	MaxPieceSizeLog2(ctx context.Context) (*big.Int, error)
 	GetActivePieces(ctx context.Context, setID *big.Int, offset *big.Int, limit *big.Int) (*ActivePieces, error)
-	GetActivePieceCount(ctx context.Context, setId *big.Int) (*big.Int, error)
 
 	// not part of contract code, added for convience in testing and usage
 	Address() common.Address
@@ -226,8 +225,4 @@ func (v *verifierContract) GetActivePieces(
 	log.Debugw("cached GetActivePieces result", "setID", setID, "offset", offset, "limit", limit)
 
 	return out, nil
-}
-
-func (v *verifierContract) GetActivePieceCount(ctx context.Context, setId *big.Int) (*big.Int, error) {
-	return v.verifier.GetActivePieceCount(&bind.CallOpts{Context: ctx}, setId)
 }
