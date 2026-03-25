@@ -20,16 +20,7 @@ import (
 // mockActivePiecesProvider implements ActivePiecesProvider for testing
 type mockActivePiecesProvider struct {
 	pieces    map[uint64]*smartcontracts.ActivePieces // keyed by offset
-	count     *big.Int
-	countErr  error
 	piecesErr error
-}
-
-func (m *mockActivePiecesProvider) GetActivePieceCount(ctx context.Context, setId *big.Int) (*big.Int, error) {
-	if m.countErr != nil {
-		return nil, m.countErr
-	}
-	return m.count, nil
 }
 
 func (m *mockActivePiecesProvider) GetActivePieces(ctx context.Context, setID *big.Int, offset *big.Int, limit *big.Int) (*smartcontracts.ActivePieces, error) {
@@ -102,7 +93,6 @@ func TestRepairProofSetCore_NoRepairNeeded(t *testing.T) {
 
 	// Setup: Mock returns same root as on-chain
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(1),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{rootCID},
@@ -157,7 +147,6 @@ func TestRepairProofSetCore_RepairsGap(t *testing.T) {
 
 	// Setup: Mock returns this root as active on-chain
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(1),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{rootCID},
@@ -217,7 +206,6 @@ func TestRepairProofSetCore_UnrepairableRoot(t *testing.T) {
 	pieceID := uint64(99)
 
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(1),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{rootCID},
@@ -278,7 +266,6 @@ func TestRepairProofSetCore_Pagination(t *testing.T) {
 
 	// Mock returns paginated results
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(150),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   rootCIDs[:100],
@@ -332,7 +319,7 @@ func TestRepairProofSetCore_ChainError(t *testing.T) {
 	require.NoError(t, db.Create(&proofSet).Error)
 
 	mock := &mockActivePiecesProvider{
-		countErr: fmt.Errorf("chain connection failed"),
+		piecesErr: fmt.Errorf("chain connection failed"),
 	}
 
 	// Execute
@@ -377,7 +364,6 @@ func TestRepairProofSetCore_MultipleSubroots(t *testing.T) {
 	}
 
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(1),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{rootCID},
@@ -456,7 +442,6 @@ func TestRepairProofSetCore_MixedResults(t *testing.T) {
 
 	// Mock returns all three roots as active on-chain
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(3),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{repairableCID, unrepairableCID, existingCID},
@@ -527,7 +512,6 @@ func TestRepairProofSetCore_NilAddMessageIndex(t *testing.T) {
 	require.NoError(t, db.Create(&rootAdd).Error)
 
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(1),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{rootCID},
@@ -597,7 +581,6 @@ func TestRepairProofSetCore_MultipleMessageHashes(t *testing.T) {
 	}
 
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(1),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{rootCID},
@@ -660,7 +643,6 @@ func TestRepairProofSetCore_AlreadyConfirmedMessage(t *testing.T) {
 	require.NoError(t, db.Create(&rootAdd).Error)
 
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(1),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{rootCID},
@@ -696,7 +678,6 @@ func TestGetAllActivePiecesCore_EmptyResult(t *testing.T) {
 	ctx := context.Background()
 
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(0),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   []cid.Cid{},
@@ -724,7 +705,6 @@ func TestGetAllActivePiecesCore_PaginationError(t *testing.T) {
 	}
 
 	mock := &mockActivePiecesProvider{
-		count: big.NewInt(200),
 		pieces: map[uint64]*smartcontracts.ActivePieces{
 			0: {
 				Pieces:   firstPageCIDs,
@@ -747,7 +727,6 @@ func TestGetAllActivePiecesCore_GetPiecesError(t *testing.T) {
 	ctx := context.Background()
 
 	mock := &mockActivePiecesProvider{
-		count:     big.NewInt(100),
 		piecesErr: fmt.Errorf("RPC connection failed"),
 	}
 

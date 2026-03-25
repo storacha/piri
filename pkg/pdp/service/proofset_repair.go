@@ -17,7 +17,6 @@ import (
 // ActivePiecesProvider abstracts the chain state queries needed for repair.
 // This interface allows for easier testing by mocking chain interactions.
 type ActivePiecesProvider interface {
-	GetActivePieceCount(ctx context.Context, setId *big.Int) (*big.Int, error)
 	GetActivePieces(ctx context.Context, setID *big.Int, offset *big.Int, limit *big.Int) (*smartcontracts.ActivePieces, error)
 }
 
@@ -152,15 +151,7 @@ func repairProofSetCore(
 func getAllActivePiecesCore(ctx context.Context, chainProvider ActivePiecesProvider, proofSetID uint64) (map[string]uint64, error) {
 	setID := big.NewInt(int64(proofSetID))
 
-	// Get total count first for logging
-	count, err := chainProvider.GetActivePieceCount(ctx, setID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active piece count: %w", err)
-	}
-
-	log.Debugw("fetching active pieces from chain",
-		"proofSetID", proofSetID,
-		"totalCount", count.Uint64())
+	log.Infow("fetching active pieces from chain", "proofSetID", proofSetID)
 
 	result := make(map[string]uint64)
 
@@ -181,6 +172,13 @@ func getAllActivePiecesCore(ctx context.Context, chainProvider ActivePiecesProvi
 			result[cidStr] = pieceID
 		}
 
+		log.Debugw("fetched page of active pieces",
+			"proofSetID", proofSetID,
+			"offset", offset.Uint64(),
+			"pageSize", len(activePieces.Pieces),
+			"totalFetched", len(result),
+			"hasMore", activePieces.HasMore)
+
 		// Check if we've fetched all pieces
 		if !activePieces.HasMore {
 			break
@@ -189,6 +187,10 @@ func getAllActivePiecesCore(ctx context.Context, chainProvider ActivePiecesProvi
 		// Move to next page
 		offset = new(big.Int).Add(offset, limit)
 	}
+
+	log.Infow("finished fetching active pieces from chain",
+		"proofSetID", proofSetID,
+		"totalCount", len(result))
 
 	return result, nil
 }
