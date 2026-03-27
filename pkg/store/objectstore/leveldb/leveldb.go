@@ -82,7 +82,7 @@ func (s *leveldbStore) Get(ctx context.Context, key string, opts ...objectstore.
 
 	rangedData := data[start:end]
 	return &leveldbObject{
-		size: int64(len(rangedData)),
+		size: int64(len(data)),
 		body: io.NopCloser(bytes.NewReader(rangedData)),
 	}, nil
 }

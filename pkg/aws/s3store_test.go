@@ -16,8 +16,6 @@ import (
 	paws "github.com/storacha/piri/pkg/aws"
 	piritutil "github.com/storacha/piri/pkg/internal/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/minio"
 )
 
 func TestS3StoreReplace(t *testing.T) {
@@ -32,8 +30,8 @@ func TestS3StoreReplace(t *testing.T) {
 		t.SkipNow()
 	}
 
-	endpoint := createS3(t)
-	client := newS3Client(t, endpoint)
+	endpoint := piritutil.StartMinioContainer(t)
+	client := newS3Client(t, testutil.Must(url.Parse("http://"+endpoint))(t))
 
 	bucketName := hex.EncodeToString(testutil.RandomBytes(t, 16))
 	createBucket(t, client, bucketName)
@@ -63,17 +61,6 @@ func TestS3StoreReplace(t *testing.T) {
 		err := st.Replace(t.Context(), key, nil, 32, bytes.NewReader(first))
 		require.NoError(t, err)
 	})
-}
-
-func createS3(t *testing.T) *url.URL {
-	container, err := minio.Run(t.Context(), "minio/minio:latest")
-	testcontainers.CleanupContainer(t, container)
-	require.NoError(t, err)
-
-	addr, err := container.ConnectionString(t.Context())
-	require.NoError(t, err)
-
-	return testutil.Must(url.Parse("http://" + addr))(t)
 }
 
 func newS3Client(t *testing.T, endpoint *url.URL) *s3.Client {
