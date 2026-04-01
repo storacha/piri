@@ -129,4 +129,5 @@ nav:
               - cli/client/pdp/index.md
               - proofset:
                   - cli/client/pdp/proofset/index.md
+                  - repair: cli/client/pdp/proofset/repair.md
                   - state: cli/client/pdp/proofset/state.md
