@@ -44,7 +44,7 @@ module "piri_instance" {
   protect_volume            = var.environment == "production" || var.environment == "prod" || var.environment == "forge-prod"
   domain_name               = "${var.environment}.${var.app}.${var.root_domain}"
   route53_zone_id           = data.aws_route53_zone.primary.zone_id
-  
+
   install_method          = var.install_method
   install_source          = var.install_source
   network                 = var.network
@@ -54,6 +54,16 @@ module "piri_instance" {
   wallet_hex_content      = var.wallet_hex_content
   operator_email          = var.operator_email
   use_letsencrypt_staging = var.environment != "production" && var.environment != "prod" && var.environment != "forge-prod"
+
+  # Backend configuration
+  storage_backend     = var.storage_backend
+  database_backend    = var.database_backend
+  minio_root_user     = var.minio_root_user
+  minio_root_password = var.minio_root_password
+  minio_bucket_prefix = var.minio_bucket_prefix
+  postgres_user       = var.postgres_user
+  postgres_password   = var.postgres_password
+  postgres_database   = var.postgres_database
 
   tags = {
     Owner = var.owner
