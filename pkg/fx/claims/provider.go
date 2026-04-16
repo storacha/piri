@@ -27,5 +27,5 @@ func NewService(
 	claimStore claimstore.ClaimStore,
 	pub publisherSvc.Publisher,
 ) *claims.ClaimService {
-	return claims.NewV2(claimStore, pub)
+	return claims.New(claimStore, pub)
 }

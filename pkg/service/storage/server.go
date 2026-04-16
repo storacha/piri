@@ -6,20 +6,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/storacha/go-ucanto/server"
 	ucanhttp "github.com/storacha/go-ucanto/transport/http"
+
 	"github.com/storacha/piri/pkg/server/handler"
 )
 
 type Server struct {
 	ucanServer server.ServerView[server.Service]
-}
-
-func NewServer(service Service, options ...server.Option) (*Server, error) {
-	ucanSrv, err := NewUCANServer(service, options...)
-	if err != nil {
-		return nil, fmt.Errorf("creating UCAN server: %w", err)
-	}
-
-	return &Server{ucanSrv}, nil
 }
 
 func (srv *Server) RegisterRoutes(e *echo.Echo) {

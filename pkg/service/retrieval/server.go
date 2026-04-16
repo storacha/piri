@@ -13,14 +13,6 @@ type Server struct {
 	server server.ServerView[retrieval.Service]
 }
 
-func NewServer(service Service, options ...retrieval.Option) (*Server, error) {
-	retrievalSrv, err := NewUCANServer(service, options...)
-	if err != nil {
-		return nil, fmt.Errorf("creating UCAN retrieval server: %w", err)
-	}
-	return &Server{retrievalSrv}, nil
-}
-
 func (srv *Server) RegisterRoutes(e *echo.Echo) {
 	e.GET("/piece/:cid", NewHandler(srv.server))
 }
