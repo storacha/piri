@@ -4,7 +4,6 @@ package smelt_tests
 
 import (
 	"fmt"
-	"runtime"
 	"testing"
 	"time"
 
@@ -15,9 +14,9 @@ import (
 )
 
 func TestUploadAndRetrieve(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping darwin test")
-	}
+	// if runtime.GOOS == "darwin" {
+	// 	t.Skip("skipping darwin test")
+	// }
 
 	tests := []struct {
 		name        string
@@ -49,24 +48,20 @@ func TestUploadAndRetrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			// Build stack options
-			opts := []stack.Option{
+			s := stack.MustNewStack(
+				t,
 				stack.WithPiriImage(localPiri),
-				stack.WithGuppyImage("forreststoracha/guppy:dev"),
-			}
-			if tt.useS3 {
-				opts = append(opts, stack.WithPiriS3())
-			}
-			if tt.usePostgres {
-				opts = append(opts, stack.WithPiriPostgres())
-			}
+				stack.WithPiriNodes(stack.PiriNodeConfig{
+					Postgres: tt.usePostgres,
+					S3:       tt.useS3,
+				}),
+				stack.WithGuppyImage("ghcr.io/storacha/guppy:main-dev"),
+			)
 
-			s := stack.MustNewStack(t, opts...)
-
-			gup := guppy.NewContainerClient(s)
+			gup := guppy.MustNewContainerClient(t, s)
 
 			// Login
-			err := gup.Login(ctx, "test@example.com")
+			err := gup.Login(ctx, "test@example.com", guppy.WithLoginTimeout(10*time.Second))
 			if err != nil {
 				t.Fatalf("failed to login: %v", err)
 			}
@@ -93,7 +88,7 @@ func TestUploadAndRetrieve(t *testing.T) {
 			}
 			t.Log("Added source")
 
-			cids, err := gup.Upload(ctx, spaceDID)
+			cids, err := gup.Upload(ctx, spaceDID, guppy.WithReplicas(1))
 			if err != nil {
 				t.Fatalf("failed to upload: %v", err)
 			}
