@@ -20,3 +20,15 @@ jobs:
       go-versions: '["this"]'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  e2e-test:
+    needs: go-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run e2e tests
+        run: go test -v -tags e2e -timeout 30m ./smelt-tests/...
