@@ -1947,8 +1947,6 @@ github.com/storacha/go-ucanto v0.7.2 h1:sLg+swDM/6VEcrb9VOik3hP8ek3NvqqKWiZRmsva
 github.com/storacha/go-ucanto v0.7.2/go.mod h1:DZlWyzuSkXk3phAuJpGDyhxYWpJogW1RFqp/VfldT64=
 github.com/storacha/piri-signing-service v0.0.2-0.20251117211248-71ca808befa6 h1:AnYL91PBIOvtYHCGZOfsDwPjZfan+BQRymdD8Xzv/Ys=
 github.com/storacha/piri-signing-service v0.0.2-0.20251117211248-71ca808befa6/go.mod h1:sd7xSxbvFL8UMrVr4VKqjr5smtrlam2/rf2ijMa9sV0=
-github.com/storacha/smelt v0.0.2-0.20260417160156-78ead466f28c h1:0cC70i0QIwAeLY8fKIVHICp7UBNr4kacTzsSpzBpGxw=
-github.com/storacha/smelt v0.0.2-0.20260417160156-78ead466f28c/go.mod h1:18QDOrSHl0NGKEk5uRXdfAVcaTf7ux6KjtKaXVjykUQ=
 github.com/storacha/smelt v0.0.2-0.20260420103447-a7dae8cc1d70 h1:lFahSPw9MW+XDqIviCjuqDYmo9QHKsjKrUo1ZE1S1to=
 github.com/storacha/smelt v0.0.2-0.20260420103447-a7dae8cc1d70/go.mod h1:18QDOrSHl0NGKEk5uRXdfAVcaTf7ux6KjtKaXVjykUQ=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
