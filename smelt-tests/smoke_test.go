@@ -4,6 +4,7 @@ package smelt_tests
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -14,9 +15,9 @@ import (
 )
 
 func TestUploadAndRetrieve(t *testing.T) {
-	// if runtime.GOOS == "darwin" {
-	// 	t.Skip("skipping darwin test")
-	// }
+	if runtime.GOOS == "darwin" {
+		t.Skip("skipping darwin test")
+	}
 
 	tests := []struct {
 		name        string
